@@ -1,0 +1,212 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+}
+
+enum EbayEnvironment {
+  SANDBOX
+  PRODUCTION
+}
+
+enum SyncStatus {
+  SUCCESS
+  FAILED
+  PARTIAL
+}
+
+enum ShipmentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  loginId   String   @unique @map("login_id")
+  name      String?
+  role      UserRole @default(ADMIN)
+  password  String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  ebayAccounts EbayAccount[]
+  orders       Order[]
+  syncLogs     SyncLog[]
+
+  @@map("users")
+}
+
+model EbayAccount {
+  id                    String          @id @default(cuid())
+  userId                String          @map("user_id")
+  ebayUserId            String?         @map("ebay_user_id")
+  username              String?
+  environment           EbayEnvironment @default(SANDBOX)
+  scopes                String
+  accessTokenEncrypted  String          @map("access_token_encrypted") @db.Text
+  refreshTokenEncrypted String          @map("refresh_token_encrypted") @db.Text
+  expiresAt             DateTime        @map("expires_at")
+  refreshTokenExpiresAt DateTime?       @map("refresh_token_expires_at")
+  rawProfile            Json?           @map("raw_profile")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@unique([userId, environment, ebayUserId])
+  @@map("ebay_accounts")
+}
+
+model Order {
+  id                String    @id @default(cuid())
+  userId            String    @map("user_id")
+  ebayAccountId     String?   @map("ebay_account_id")
+  ebayOrderId       String    @map("ebay_order_id")
+  orderStatus       String    @map("order_status")
+  fulfillmentStatus String    @map("fulfillment_status")
+  buyerName         String?   @map("buyer_name")
+  buyerUsername     String?   @map("buyer_username")
+  buyerCountry      String?   @map("buyer_country")
+  totalAmount       Decimal   @default(0) @map("total_amount") @db.Decimal(12, 2)
+  currency          String    @default("USD")
+  orderDate         DateTime  @map("order_date")
+  paidAt            DateTime? @map("paid_at")
+  modifiedAt        DateTime? @map("modified_at")
+  shipByDate        DateTime? @map("ship_by_date")
+  tags              String[]  @default([])
+  warningLevel      String    @default("none") @map("warning_level")
+  warningMessage    String?   @map("warning_message") @db.Text
+  automationCheckedAt DateTime? @map("automation_checked_at")
+  rawJson           Json      @map("raw_json")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ebayAccount EbayAccount? @relation(fields: [ebayAccountId], references: [id], onDelete: SetNull)
+  items       OrderItem[]
+  shipments   Shipment[]
+  inventoryMovements InventoryMovement[]
+
+  @@unique([ebayAccountId, ebayOrderId])
+  @@index([userId, fulfillmentStatus])
+  @@index([warningLevel])
+  @@index([orderDate])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String   @map("order_id")
+  productId  String?  @map("product_id")
+  lineItemId String   @map("line_item_id")
+  title      String
+  sku        String?
+  quantity   Int      @default(1)
+  stockDeducted Boolean @default(false) @map("stock_deducted")
+  rawJson    Json?    @map("raw_json")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, lineItemId])
+  @@index([sku])
+  @@index([productId])
+  @@index([stockDeducted])
+  @@map("order_items")
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  sku           String   @unique
+  internalCode  String?  @map("internal_code")
+  productName   String   @map("product_name")
+  optionName    String?  @map("option_name")
+  category      String?
+  brand         String?
+  costPrice     Decimal? @map("cost_price") @db.Decimal(12, 2)
+  salePrice     Decimal? @map("sale_price") @db.Decimal(12, 2)
+  stockQuantity Int      @default(0) @map("stock_quantity")
+  safetyStock   Int      @default(0) @map("safety_stock")
+  location      String?
+  memo          String?  @db.Text
+  imageUrl      String?  @map("image_url")
+  status        String   @default("active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  orderItems OrderItem[]
+  movements  InventoryMovement[]
+
+  @@index([status])
+  @@index([stockQuantity])
+  @@index([productName])
+  @@map("products")
+}
+
+model InventoryMovement {
+  id             String   @id @default(cuid())
+  productId      String   @map("product_id")
+  type           String
+  quantity       Int
+  beforeQuantity Int      @map("before_quantity")
+  afterQuantity  Int      @map("after_quantity")
+  reason         String?
+  relatedOrderId String?  @map("related_order_id")
+  createdBy      String?  @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  product      Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  relatedOrder Order?  @relation(fields: [relatedOrderId], references: [id], onDelete: SetNull)
+
+  @@index([productId, createdAt])
+  @@index([type])
+  @@index([relatedOrderId])
+  @@map("inventory_movements")
+}
+
+model Shipment {
+  id                String         @id @default(cuid())
+  orderId           String         @map("order_id")
+  carrierCode       String         @map("carrier_code")
+  trackingNumber    String         @map("tracking_number")
+  shippedAt         DateTime       @default(now()) @map("shipped_at")
+  ebayFulfillmentId String?        @map("ebay_fulfillment_id")
+  status            ShipmentStatus @default(PENDING)
+  rawJson           Json?          @map("raw_json")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, trackingNumber])
+  @@index([status])
+  @@map("shipments")
+}
+
+model SyncLog {
+  id        String     @id @default(cuid())
+  userId    String?    @map("user_id")
+  type      String
+  status    SyncStatus
+  message   String     @db.Text
+  rawJson   Json?      @map("raw_json")
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([type, status])
+  @@index([createdAt])
+  @@map("sync_logs")
+}
