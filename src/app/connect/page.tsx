@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { AlertTriangle, CheckCircle2, ExternalLink, PlugZap } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { currentEbayEnvironment } from "@/lib/ebay-environment";
@@ -121,13 +120,13 @@ export default async function ConnectPage({
                   </dd>
                 </dl>
               </div>
-              <Link
+              <a
                 href="/api/ebay/oauth/start"
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
               >
                 <ExternalLink className="h-4 w-4" />
                 다시 연결
-              </Link>
+              </a>
             </div>
           ) : (
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -139,13 +138,13 @@ export default async function ConnectPage({
                   주문 동기화와 운송장 등록을 시작하려면 계정을 연결하세요.
                 </p>
               </div>
-              <Link
+              <a
                 href="/api/ebay/oauth/start"
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
               >
                 <ExternalLink className="h-4 w-4" />
                 연결
-              </Link>
+              </a>
             </div>
           )}
         </section>

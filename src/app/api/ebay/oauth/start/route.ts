@@ -7,7 +7,7 @@ import { asErrorMessage } from "@/lib/http";
 import { safeLog } from "@/lib/safe-log";
 import { requireUser } from "@/lib/session";
 
-export async function GET() {
+export async function GET(request: Request) {
   await requireUser();
 
   const state = randomBytes(24).toString("base64url");
@@ -26,13 +26,15 @@ export async function GET() {
     authorizationUrl = buildAuthorizationUrl(state);
     const config = getEbayConfig();
     const url = new URL(authorizationUrl);
+    const redirectUri = url.searchParams.get("redirect_uri") ?? "";
     safeLog("info", "ebay.oauth.start.redirect", {
       environment: config.environment,
       authHost: url.hostname,
-      redirectUriPresent: Boolean(url.searchParams.get("redirect_uri")),
-      redirectUriLooksLikeUrl: /^https?:\/\//.test(
-        url.searchParams.get("redirect_uri") ?? "",
-      ),
+      redirectUriName: redirectUri,
+      redirectUriPresent: Boolean(redirectUri),
+      redirectUriLooksLikeUrl: /^https?:\/\//.test(redirectUri),
+      redirectUriMatchesConfiguredRuName: redirectUri === config.ruName,
+      expectedAcceptedUrl: new URL("/api/ebay/callback", request.url).toString(),
       scopesCount: config.scopes.length,
     });
   } catch (error) {
