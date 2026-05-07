@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 
 export const ebayDeletionVerificationTokenPattern = /^[A-Za-z0-9_-]{32,80}$/;
 
-export function normalizeEbayDeletionEndpoint(endpoint: string) {
-  return endpoint.trim().replace(/\/+$/, "");
+export function trimEbayDeletionEndpoint(endpoint: string) {
+  return endpoint.trim();
 }
 
 export function ebayDeletionChallengeResponse(input: {
@@ -11,7 +11,7 @@ export function ebayDeletionChallengeResponse(input: {
   verificationToken: string;
   endpoint: string;
 }) {
-  const endpoint = normalizeEbayDeletionEndpoint(input.endpoint);
+  const endpoint = trimEbayDeletionEndpoint(input.endpoint);
 
   return createHash("sha256")
     .update(input.challengeCode, "utf8")
@@ -22,5 +22,5 @@ export function ebayDeletionChallengeResponse(input: {
 
 export function ebayDeletionEndpointFromRequest(request: Request) {
   const url = new URL(request.url);
-  return normalizeEbayDeletionEndpoint(`${url.origin}${url.pathname}`);
+  return trimEbayDeletionEndpoint(`${url.origin}${url.pathname}`);
 }

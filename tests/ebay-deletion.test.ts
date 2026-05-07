@@ -4,7 +4,7 @@ import {
   ebayDeletionChallengeResponse,
   ebayDeletionEndpointFromRequest,
   ebayDeletionVerificationTokenPattern,
-  normalizeEbayDeletionEndpoint,
+  trimEbayDeletionEndpoint,
 } from "../src/lib/ebay-deletion";
 
 describe("eBay marketplace account deletion challenge", () => {
@@ -33,22 +33,6 @@ describe("eBay marketplace account deletion challenge", () => {
     ).toBe("https://example.vercel.app/api/ebay/deletion");
   });
 
-  it("normalizes trailing slashes before hashing", () => {
-    expect(
-      ebayDeletionChallengeResponse({
-        challengeCode: "challenge-123",
-        verificationToken: "verification-token-01234567890123456789",
-        endpoint: "https://example.vercel.app/api/ebay/deletion/",
-      }),
-    ).toBe(
-      ebayDeletionChallengeResponse({
-        challengeCode: "challenge-123",
-        verificationToken: "verification-token-01234567890123456789",
-        endpoint: "https://example.vercel.app/api/ebay/deletion",
-      }),
-    );
-  });
-
   it("accepts only eBay-compatible verification token values", () => {
     expect(
       ebayDeletionVerificationTokenPattern.test(
@@ -63,11 +47,11 @@ describe("eBay marketplace account deletion challenge", () => {
     ).toBe(false);
   });
 
-  it("trims and normalizes configured endpoints", () => {
+  it("trims configured endpoints without changing the registered URL path", () => {
     expect(
-      normalizeEbayDeletionEndpoint(
+      trimEbayDeletionEndpoint(
         " https://example.vercel.app/api/ebay/deletion/ ",
       ),
-    ).toBe("https://example.vercel.app/api/ebay/deletion");
+    ).toBe("https://example.vercel.app/api/ebay/deletion/");
   });
 });

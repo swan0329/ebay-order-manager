@@ -3,7 +3,7 @@ import {
   ebayDeletionChallengeResponse,
   ebayDeletionEndpointFromRequest,
   ebayDeletionVerificationTokenPattern,
-  normalizeEbayDeletionEndpoint,
+  trimEbayDeletionEndpoint,
 } from "@/lib/ebay-deletion";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ function verificationToken() {
 function endpointUrl(request: Request) {
   const configuredEndpoint = process.env.EBAY_DELETION_ENDPOINT_URL?.trim();
   return configuredEndpoint
-    ? normalizeEbayDeletionEndpoint(configuredEndpoint)
+    ? trimEbayDeletionEndpoint(configuredEndpoint)
     : ebayDeletionEndpointFromRequest(request);
 }
 
