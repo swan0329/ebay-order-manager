@@ -8,6 +8,7 @@ import {
   type EbayLineItemReference,
   type OrderSyncFilters,
 } from "@/lib/ebay";
+import { currentEbayEnvironment } from "@/lib/ebay-environment";
 import { deductStockForOrder } from "@/lib/inventory";
 import { applyOrderAutomation, applyOrderAutomationMany } from "@/lib/order-automation";
 
@@ -287,7 +288,7 @@ export async function syncOrdersForUser(
   filters: OrderSyncFilters,
 ) {
   const account = await prisma.ebayAccount.findFirst({
-    where: { userId },
+    where: { userId, environment: currentEbayEnvironment() },
     orderBy: { updatedAt: "desc" },
   });
 
@@ -345,7 +346,7 @@ export async function syncOrdersForUser(
 
 export async function shipOrders(userId: string, requests: ShipRequest[]) {
   const account = await prisma.ebayAccount.findFirst({
-    where: { userId },
+    where: { userId, environment: currentEbayEnvironment() },
     orderBy: { updatedAt: "desc" },
   });
 

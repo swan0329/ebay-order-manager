@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, ExternalLink, PlugZap } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
+import { currentEbayEnvironment } from "@/lib/ebay-environment";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { formatDate } from "@/lib/view-models";
@@ -33,7 +34,7 @@ export default async function ConnectPage({
   const params = await searchParams;
   const configStatus = ebayConfigStatus();
   const account = await prisma.ebayAccount.findFirst({
-    where: { userId: user.id },
+    where: { userId: user.id, environment: currentEbayEnvironment() },
     orderBy: { updatedAt: "desc" },
   });
 

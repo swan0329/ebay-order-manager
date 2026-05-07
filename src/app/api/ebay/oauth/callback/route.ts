@@ -1,7 +1,8 @@
-import { EbayEnvironment, Prisma, SyncStatus } from "@/generated/prisma";
+import { Prisma, SyncStatus } from "@/generated/prisma";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { encryptSecret } from "@/lib/crypto";
+import { currentEbayEnvironment } from "@/lib/ebay-environment";
 import {
   EbayApiError,
   exchangeAuthorizationCode,
@@ -67,10 +68,7 @@ export async function GET(request: Request) {
     typeof profile.userId === "string" ? profile.userId : undefined;
   const username =
     typeof profile.username === "string" ? profile.username : undefined;
-  const environment =
-    config.environment === "production"
-      ? EbayEnvironment.PRODUCTION
-      : EbayEnvironment.SANDBOX;
+  const environment = currentEbayEnvironment();
   const existing = await prisma.ebayAccount.findFirst({
     where: {
       userId: user.id,
