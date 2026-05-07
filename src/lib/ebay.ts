@@ -71,6 +71,54 @@ export function buildAuthorizationUrl(state: string) {
   return url.toString();
 }
 
+export function maskAuthorizationUrlForLog(authorizationUrl: string) {
+  const url = new URL(authorizationUrl);
+
+  if (url.searchParams.has("client_id")) {
+    url.searchParams.set("client_id", "[CLIENT_ID]");
+  }
+
+  if (url.searchParams.has("state")) {
+    url.searchParams.set("state", "[STATE]");
+  }
+
+  return url.toString();
+}
+
+export function assertEbayOAuthAuthorizationUrl(authorizationUrl: string) {
+  const config = getEbayConfig();
+  const url = new URL(authorizationUrl);
+  const expectedUrl = new URL("/oauth2/authorize", config.hosts.auth);
+
+  if (url.hostname === "signin.ebay.com" || url.pathname === "/ws/eBayISAPI.dll") {
+    throw new Error("Generated eBay authorization URL uses legacy Auth'n'Auth.");
+  }
+
+  if (url.origin !== expectedUrl.origin || url.pathname !== expectedUrl.pathname) {
+    throw new Error("Generated eBay authorization URL is not the OAuth authorize endpoint.");
+  }
+
+  if (!url.searchParams.get("client_id")) {
+    throw new Error("Generated eBay authorization URL is missing client_id.");
+  }
+
+  if (url.searchParams.get("redirect_uri") !== config.ruName) {
+    throw new Error("Generated eBay authorization URL has an unexpected redirect_uri.");
+  }
+
+  if (url.searchParams.get("response_type") !== "code") {
+    throw new Error("Generated eBay authorization URL must request an authorization code.");
+  }
+
+  if (!url.searchParams.get("scope")) {
+    throw new Error("Generated eBay authorization URL is missing scope.");
+  }
+
+  if (!url.searchParams.get("state")) {
+    throw new Error("Generated eBay authorization URL is missing state.");
+  }
+}
+
 async function requestToken(params: URLSearchParams) {
   const config = getEbayConfig();
   const response = await fetch(

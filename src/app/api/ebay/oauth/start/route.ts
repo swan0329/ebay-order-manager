@@ -1,7 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { buildAuthorizationUrl } from "@/lib/ebay";
+import {
+  assertEbayOAuthAuthorizationUrl,
+  buildAuthorizationUrl,
+  maskAuthorizationUrlForLog,
+} from "@/lib/ebay";
 import { getEbayConfig } from "@/lib/env";
 import { asErrorMessage } from "@/lib/http";
 import { safeLog } from "@/lib/safe-log";
@@ -24,6 +28,7 @@ export async function GET(request: Request) {
 
   try {
     authorizationUrl = buildAuthorizationUrl(state);
+    assertEbayOAuthAuthorizationUrl(authorizationUrl);
     const config = getEbayConfig();
     const url = new URL(authorizationUrl);
     const redirectUri = url.searchParams.get("redirect_uri") ?? "";
@@ -35,6 +40,7 @@ export async function GET(request: Request) {
       redirectUriLooksLikeUrl: /^https?:\/\//.test(redirectUri),
       redirectUriMatchesConfiguredRuName: redirectUri === config.ruName,
       expectedAcceptedUrl: new URL("/api/ebay/callback", request.url).toString(),
+      authorizationUrl: maskAuthorizationUrlForLog(authorizationUrl),
       scopesCount: config.scopes.length,
     });
   } catch (error) {
