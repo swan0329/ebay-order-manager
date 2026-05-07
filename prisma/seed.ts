@@ -1,5 +1,8 @@
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "../src/generated/prisma";
+import { normalizeDatabaseUrlForPrisma } from "../src/lib/database-url";
+
+normalizeDatabaseUrlForPrisma();
 
 const prisma = new PrismaClient();
 
