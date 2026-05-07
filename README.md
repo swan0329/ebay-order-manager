@@ -195,7 +195,7 @@ Vercel 환경 변수 목록:
 
 | 변수 | 필수 | 설명 |
 | --- | --- | --- |
-| `DATABASE_URL` | 예 | PostgreSQL 연결 문자열 |
+| `DATABASE_URL` | 예 | PostgreSQL 연결 문자열. Vercel에서는 `localhost`를 사용할 수 없으며 Supabase/Neon/Railway 등 외부 PostgreSQL URL을 입력해야 합니다. |
 | `SESSION_SECRET` | 예 | 관리자 세션 JWT 서명 secret |
 | `TOKEN_ENCRYPTION_KEY` | 예 | eBay token 암호화용 32바이트 base64 키 |
 | `ADMIN_LOGIN_ID` | 예 | 초기 관리자 로그인 ID |
@@ -207,6 +207,19 @@ Vercel 환경 변수 목록:
 | `EBAY_SCOPES` | 아니오 | 기본 scope 외 추가/변경이 필요할 때 사용 |
 | `EBAY_DELETION_VERIFICATION_TOKEN` | 예 | eBay Marketplace account deletion 검증 token |
 | `EBAY_DELETION_ENDPOINT_URL` | 권장 | eBay에 등록한 정확한 삭제 알림 endpoint URL |
+
+주의: Vercel의 `DATABASE_URL`에 로컬 개발용 값을 그대로 넣으면 안 됩니다.
+
+```env
+# Vercel에서 사용 금지
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/ebay_order_manager?schema=public"
+```
+
+Vercel에는 Supabase 기준으로 아래처럼 외부 접속 가능한 pooler 또는 direct connection 문자열을 등록하세요.
+
+```env
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DB?sslmode=require"
+```
 
 ### Docker/VPS
 
