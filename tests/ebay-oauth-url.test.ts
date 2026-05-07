@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   assertEbayOAuthAuthorizationUrl,
+  authorizationUrlDiagnostics,
   buildAuthorizationUrl,
   maskAuthorizationUrlForLog,
 } from "../src/lib/ebay";
@@ -15,9 +16,9 @@ const originalEnv = {
 
 function setProductionEnv() {
   process.env.EBAY_ENV = "production";
-  process.env.EBAY_CLIENT_ID = "client-id";
+  process.env.EBAY_CLIENT_ID = "LEESOOHAN-production-client-id";
   process.env.EBAY_CLIENT_SECRET = "client-secret";
-  process.env.EBAY_RU_NAME = "LEE_SOOHAN-LEESOOHA-OrderM-owdlg";
+  process.env.EBAY_RU_NAME = "LEE_SOOHAN-LEESOOHA-OrderM-xracqxzu";
   process.env.EBAY_SCOPES =
     "https://api.ebay.com/oauth/api_scope/sell.fulfillment https://api.ebay.com/oauth/api_scope/commerce.identity.readonly";
 }
@@ -43,9 +44,11 @@ describe("eBay OAuth authorization URL", () => {
     expect(url.origin + url.pathname).not.toBe(
       "https://signin.ebay.com/ws/eBayISAPI.dll",
     );
-    expect(url.searchParams.get("client_id")).toBe("client-id");
+    expect(url.searchParams.get("client_id")).toBe(
+      "LEESOOHAN-production-client-id",
+    );
     expect(url.searchParams.get("redirect_uri")).toBe(
-      "LEE_SOOHAN-LEESOOHA-OrderM-owdlg",
+      "LEE_SOOHAN-LEESOOHA-OrderM-xracqxzu",
     );
     expect(url.searchParams.get("response_type")).toBe("code");
     expect(url.searchParams.get("scope")).toContain(
@@ -66,11 +69,22 @@ describe("eBay OAuth authorization URL", () => {
     ).toThrow("legacy Auth'n'Auth");
   });
 
-  it("masks client_id and state in diagnostic logs", () => {
+  it("reports safe diagnostics and masks state in diagnostic logs", () => {
     setProductionEnv();
+    const authorizationUrl = buildAuthorizationUrl("state-value");
 
-    expect(maskAuthorizationUrlForLog(buildAuthorizationUrl("state-value"))).toBe(
-      "https://auth.ebay.com/oauth2/authorize?client_id=%5BCLIENT_ID%5D&redirect_uri=LEE_SOOHAN-LEESOOHA-OrderM-owdlg&response_type=code&scope=https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope%2Fsell.fulfillment+https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope%2Fcommerce.identity.readonly&state=%5BSTATE%5D",
+    expect(authorizationUrlDiagnostics(authorizationUrl)).toMatchObject({
+      host: "auth.ebay.com",
+      endpoint: "https://auth.ebay.com/oauth2/authorize",
+      clientIdPrefix: "LEESOOHAN-",
+      redirectUri: "LEE_SOOHAN-LEESOOHA-OrderM-xracqxzu",
+      responseType: "code",
+      stateExists: true,
+      startsWithOauthAuthorize: true,
+      usesLegacyAuthnAuth: false,
+    });
+    expect(maskAuthorizationUrlForLog(authorizationUrl)).toBe(
+      "https://auth.ebay.com/oauth2/authorize?client_id=LEESOOHAN-...&redirect_uri=LEE_SOOHAN-LEESOOHA-OrderM-xracqxzu&response_type=code&scope=https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope%2Fsell.fulfillment+https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope%2Fcommerce.identity.readonly&state=%5BSTATE%5D",
     );
   });
 });

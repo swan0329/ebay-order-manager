@@ -72,10 +72,11 @@ export function buildAuthorizationUrl(state: string) {
 }
 
 export function maskAuthorizationUrlForLog(authorizationUrl: string) {
+  const config = getEbayConfig();
   const url = new URL(authorizationUrl);
 
   if (url.searchParams.has("client_id")) {
-    url.searchParams.set("client_id", "[CLIENT_ID]");
+    url.searchParams.set("client_id", `${config.clientId.slice(0, 10)}...`);
   }
 
   if (url.searchParams.has("state")) {
@@ -83,6 +84,26 @@ export function maskAuthorizationUrlForLog(authorizationUrl: string) {
   }
 
   return url.toString();
+}
+
+export function authorizationUrlDiagnostics(authorizationUrl: string) {
+  const config = getEbayConfig();
+  const url = new URL(authorizationUrl);
+
+  return {
+    host: url.hostname,
+    endpoint: `${url.origin}${url.pathname}`,
+    clientIdPrefix: config.clientId.slice(0, 10),
+    redirectUri: url.searchParams.get("redirect_uri"),
+    responseType: url.searchParams.get("response_type"),
+    scope: url.searchParams.get("scope"),
+    stateExists: Boolean(url.searchParams.get("state")),
+    startsWithOauthAuthorize: authorizationUrl.startsWith(
+      `${config.hosts.auth}/oauth2/authorize`,
+    ),
+    usesLegacyAuthnAuth:
+      url.hostname === "signin.ebay.com" || url.pathname === "/ws/eBayISAPI.dll",
+  };
 }
 
 export function assertEbayOAuthAuthorizationUrl(authorizationUrl: string) {

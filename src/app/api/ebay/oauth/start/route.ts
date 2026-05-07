@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   assertEbayOAuthAuthorizationUrl,
+  authorizationUrlDiagnostics,
   buildAuthorizationUrl,
   maskAuthorizationUrlForLog,
 } from "@/lib/ebay";
@@ -32,7 +33,9 @@ export async function GET(request: Request) {
     const config = getEbayConfig();
     const url = new URL(authorizationUrl);
     const redirectUri = url.searchParams.get("redirect_uri") ?? "";
+    const diagnostics = authorizationUrlDiagnostics(authorizationUrl);
     safeLog("info", "ebay.oauth.start.redirect", {
+      ...diagnostics,
       environment: config.environment,
       authHost: url.hostname,
       redirectUriName: redirectUri,
