@@ -44,7 +44,14 @@ export function OrdersControls() {
       }
     }
 
-    router.push(`/orders?${params.toString()}`);
+    const pageSize = searchParams.get("pageSize");
+
+    if (pageSize) {
+      params.set("pageSize", pageSize);
+    }
+
+    const queryString = params.toString();
+    router.push(queryString ? `/orders?${queryString}` : "/orders");
   }
 
   const syncOrders = useCallback(

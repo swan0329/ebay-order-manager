@@ -1,13 +1,14 @@
 import type { Prisma } from "@/generated/prisma";
-import Link from "next/link";
-import { AlertTriangle, ArrowRight, PackageCheck, PackageOpen, Truck } from "lucide-react";
+import { AlertTriangle, PackageCheck, PackageOpen, Truck } from "lucide-react";
 import { OrdersControls } from "@/components/OrdersControls";
-import { StatusBadge } from "@/components/StatusBadge";
+import { OrdersPager } from "@/components/OrdersPager";
+import {
+  ResizableOrdersTable,
+  type OrderListRow,
+} from "@/components/ResizableOrdersTable";
 import { TopNav } from "@/components/TopNav";
-import { orderWarningClass } from "@/lib/order-automation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { formatDate, trackingNumbers } from "@/lib/view-models";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,16 @@ type OrdersSearchParams = Promise<{
   from?: string;
   to?: string;
   inventory?: string;
+  page?: string;
+  pageSize?: string;
 }>;
+
+const pageSizeOptions = [25, 50, 100, 200];
+
+function parsePageSize(value?: string) {
+  const parsed = Number(value);
+  return pageSizeOptions.includes(parsed) ? parsed : 50;
+}
 
 function dateRange(from?: string, to?: string) {
   if (!from && !to) {
@@ -37,9 +47,10 @@ function orderWhere(
   from?: string,
   to?: string,
 ): Prisma.OrderWhereInput {
+  const range = dateRange(from, to);
   const where: Prisma.OrderWhereInput = {
     userId,
-    ...(dateRange(from, to) ? { orderDate: dateRange(from, to) } : {}),
+    ...(range ? { orderDate: range } : {}),
   };
 
   if (status === "OPEN" || !status) {
@@ -59,6 +70,8 @@ function orderWhere(
             OR: [
               { title: { contains: q, mode: "insensitive" } },
               { sku: { contains: q, mode: "insensitive" } },
+              { product: { sku: { contains: q, mode: "insensitive" } } },
+              { product: { productName: { contains: q, mode: "insensitive" } } },
             ],
           },
         },
@@ -82,24 +95,78 @@ function hasInventoryShortage(order: OrderWithInventory) {
   );
 }
 
-function inventorySummary(order: OrderWithInventory) {
-  const unmatched = order.items.filter((item) => !item.productId).length;
-  const shortage = hasInventoryShortage(order);
-  const deducted = order.items.filter((item) => item.stockDeducted).length;
-
-  if (shortage) {
-    return { label: "재고부족", className: "bg-rose-50 text-rose-700 ring-rose-200" };
+function matchesInventoryFilter(order: OrderWithInventory, inventory?: string) {
+  if (inventory === "unmatched") {
+    return order.items.some((item) => !item.productId);
   }
 
-  if (unmatched) {
-    return { label: `미매칭 ${unmatched}`, className: "bg-amber-50 text-amber-700 ring-amber-200" };
+  if (inventory === "shortage") {
+    return hasInventoryShortage(order);
   }
 
-  if (deducted) {
-    return { label: `차감 ${deducted}`, className: "bg-emerald-50 text-emerald-700 ring-emerald-200" };
+  if (inventory === "deducted") {
+    return order.items.some((item) => item.stockDeducted);
   }
 
-  return { label: "대기", className: "bg-zinc-100 text-zinc-600 ring-zinc-200" };
+  if (inventory === "warning") {
+    return order.warningLevel !== "none";
+  }
+
+  return true;
+}
+
+function uniqueStrings(values: (string | null | undefined)[]) {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))];
+}
+
+function toOrderListRow(order: OrderWithInventory): OrderListRow {
+  const unmatchedItems = order.items
+    .filter((item) => !item.productId)
+    .map((item) => ({
+      title: item.title,
+      sku: item.sku,
+      lineItemId: item.lineItemId,
+    }));
+  const shortageItems = order.items
+    .filter(
+      (item) =>
+        !item.stockDeducted &&
+        item.product &&
+        item.product.stockQuantity < item.quantity,
+    )
+    .map((item) => ({
+      title: item.title,
+      sku: item.sku,
+      productSku: item.product?.sku ?? null,
+      required: item.quantity,
+      available: item.product?.stockQuantity ?? 0,
+    }));
+
+  return {
+    id: order.id,
+    ebayOrderId: order.ebayOrderId,
+    buyerName: order.buyerName,
+    buyerUsername: order.buyerUsername,
+    buyerCountry: order.buyerCountry,
+    itemTitles: order.items.map((item) => item.title),
+    ebaySkus: uniqueStrings(order.items.map((item) => item.sku)),
+    matchedProducts: order.items
+      .filter((item) => item.product)
+      .map((item) => `${item.product?.sku} · ${item.product?.productName}`),
+    quantity: order.items.reduce((sum, item) => sum + item.quantity, 0),
+    paidAt: order.paidAt?.toISOString() ?? null,
+    orderDate: order.orderDate.toISOString(),
+    fulfillmentStatus: order.fulfillmentStatus,
+    totalAmount: order.totalAmount.toString(),
+    currency: order.currency,
+    trackingNumbers: order.shipments.map((shipment) => shipment.trackingNumber),
+    tags: order.tags,
+    warningLevel: order.warningLevel,
+    warningMessage: order.warningMessage,
+    unmatchedItems,
+    shortageItems,
+    deductedCount: order.items.filter((item) => item.stockDeducted).length,
+  };
 }
 
 export default async function OrdersPage({
@@ -111,13 +178,14 @@ export default async function OrdersPage({
   const params = await searchParams;
   const q = params.q?.trim();
   const status = params.status ?? "OPEN";
+  const pageSize = parsePageSize(params.pageSize);
+  const requestedPage = Math.max(1, Number(params.page) || 1);
   const where = orderWhere(user.id, q, status, params.from, params.to);
   const [rawOrders, openCount, fulfilledCount, failedShipments] = await Promise.all([
     prisma.order.findMany({
       where,
       include: { items: { include: { product: true } }, shipments: true },
       orderBy: { orderDate: "desc" },
-      take: 200,
     }),
     prisma.order.count({
       where: {
@@ -132,29 +200,23 @@ export default async function OrdersPage({
       where: { order: { userId: user.id }, status: "FAILED" },
     }),
   ]);
-  const orders = rawOrders.filter((order) => {
-    if (params.inventory === "unmatched") {
-      return order.items.some((item) => !item.productId);
-    }
-
-    if (params.inventory === "shortage") {
-      return hasInventoryShortage(order);
-    }
-
-    if (params.inventory === "deducted") {
-      return order.items.some((item) => item.stockDeducted);
-    }
-
-    if (params.inventory === "warning") {
-      return order.warningLevel !== "none";
-    }
-
-    return true;
-  });
+  const filteredOrders = rawOrders.filter((order) =>
+    matchesInventoryFilter(order, params.inventory),
+  );
+  const totalFiltered = filteredOrders.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const currentPage = Math.min(requestedPage, totalPages);
+  const orders = filteredOrders.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+  const orderRows = orders.map(toOrderListRow);
   const shortageCount = rawOrders.filter(hasInventoryShortage).length;
   const warningCount = rawOrders.filter(
     (order) => order.warningLevel !== "none",
   ).length;
+  const start = totalFiltered ? (currentPage - 1) * pageSize + 1 : 0;
+  const end = totalFiltered ? start + orders.length - 1 : 0;
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -209,168 +271,16 @@ export default async function OrdersPage({
           </div>
         </section>
 
-        <section className="hidden overflow-x-auto rounded-lg border border-zinc-200 bg-white md:block">
-          <table className="w-full min-w-[1420px] text-left text-sm">
-            <thead className="bg-zinc-50 text-xs font-semibold uppercase text-zinc-500">
-              <tr>
-                <th className="px-4 py-3">주문번호</th>
-                <th className="px-4 py-3">구매자</th>
-                <th className="px-4 py-3">상품명</th>
-                <th className="px-4 py-3">SKU</th>
-                <th className="px-4 py-3">상품매칭</th>
-                <th className="px-4 py-3">수량</th>
-                <th className="px-4 py-3">결제일</th>
-                <th className="px-4 py-3">배송상태</th>
-                <th className="px-4 py-3">국가</th>
-                <th className="px-4 py-3">총액</th>
-                <th className="px-4 py-3">운송장 번호</th>
-                <th className="px-4 py-3">재고</th>
-                <th className="px-4 py-3">태그/경고</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-200">
-              {orders.map((order) => {
-                const inventory = inventorySummary(order);
-                return (
-                  <tr key={order.id} className="hover:bg-zinc-50">
-                  <td className="px-4 py-3 font-medium text-zinc-950">
-                    {order.ebayOrderId}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-700">
-                    {order.buyerName ?? order.buyerUsername ?? "-"}
-                  </td>
-                  <td className="max-w-xs px-4 py-3 text-zinc-700">
-                    <span className="line-clamp-2">
-                      {order.items.map((item) => item.title).join(" | ")}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-zinc-700">
-                    {order.items.map((item) => item.sku ?? "").join(" | ") || "-"}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-700">
-                    {order.items
-                      .map((item) => item.product?.sku ?? "미매칭")
-                      .join(" | ")}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-700">
-                    {order.items.reduce((sum, item) => sum + item.quantity, 0)}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-700">
-                    {formatDate(order.paidAt ?? order.orderDate)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={order.fulfillmentStatus} />
-                  </td>
-                  <td className="px-4 py-3 text-zinc-700">
-                    {order.buyerCountry ?? "-"}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-700">
-                    {order.totalAmount.toString()} {order.currency}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-700">
-                    {trackingNumbers(order.shipments)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${inventory.className}`}
-                    >
-                      {inventory.label}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {order.tags.length ? (
-                      <div className="flex flex-wrap gap-1">
-                        {order.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${orderWarningClass(
-                              order.warningLevel,
-                            )}`}
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-zinc-400">-</span>
-                    )}
-                    {order.warningMessage ? (
-                      <p className="mt-1 line-clamp-2 text-xs text-zinc-500">
-                        {order.warningMessage}
-                      </p>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/orders/${order.id}`}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
-                      title="상세"
-                    >
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </section>
+        <ResizableOrdersTable orders={orderRows} />
 
-        <section className="space-y-3 md:hidden">
-          {orders.map((order) => {
-            const inventory = inventorySummary(order);
-            return (
-              <Link
-                key={order.id}
-                href={`/orders/${order.id}`}
-                className="block rounded-lg border border-zinc-200 bg-white p-4"
-              >
-                <div className="mb-2 flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-zinc-950">
-                      {order.ebayOrderId}
-                    </p>
-                    <p className="mt-1 text-sm text-zinc-600">
-                      {order.buyerName ?? order.buyerUsername ?? "-"}
-                    </p>
-                  </div>
-                  <StatusBadge status={order.fulfillmentStatus} />
-                </div>
-                <p className="line-clamp-2 text-sm text-zinc-600">
-                  {order.items.map((item) => item.title).join(" | ")}
-                </p>
-                <div className="mt-3 flex items-center justify-between text-xs text-zinc-500">
-                  <span>{formatDate(order.orderDate)}</span>
-                  <span
-                    className={`rounded-full px-2 py-1 font-semibold ring-1 ${inventory.className}`}
-                  >
-                    {inventory.label}
-                  </span>
-                </div>
-                {order.tags.length ? (
-                  <div className="mt-3 flex flex-wrap gap-1">
-                    {order.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className={`rounded-full px-2 py-1 text-xs font-semibold ring-1 ${orderWarningClass(
-                          order.warningLevel,
-                        )}`}
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                {order.warningMessage ? (
-                  <p className="mt-2 text-xs text-zinc-500">
-                    {order.warningMessage}
-                  </p>
-                ) : null}
-              </Link>
-            );
-          })}
-        </section>
+        <OrdersPager
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          totalCount={totalFiltered}
+          start={start}
+          end={end}
+        />
       </main>
     </div>
   );

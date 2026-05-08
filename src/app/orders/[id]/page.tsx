@@ -55,6 +55,42 @@ function orderMemo(rawJson: unknown) {
   return asString(order.buyerCheckoutNotes) ?? asString(order.sellerMemo) ?? "-";
 }
 
+function itemInventoryState({
+  stockDeducted,
+  shortage,
+  matched,
+}: {
+  stockDeducted: boolean;
+  shortage: boolean;
+  matched: boolean;
+}) {
+  if (stockDeducted) {
+    return {
+      label: "차감완료",
+      className: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    };
+  }
+
+  if (shortage) {
+    return {
+      label: "재고부족",
+      className: "bg-rose-50 text-rose-700 ring-rose-200",
+    };
+  }
+
+  if (matched) {
+    return {
+      label: "차감대기",
+      className: "bg-zinc-100 text-zinc-700 ring-zinc-200",
+    };
+  }
+
+  return {
+    label: "미매칭",
+    className: "bg-amber-50 text-amber-700 ring-amber-200",
+  };
+}
+
 export default async function OrderDetailPage({
   params,
 }: {
@@ -81,6 +117,8 @@ export default async function OrderDetailPage({
   if (!order) {
     notFound();
   }
+
+  const unmatchedItems = order.items.filter((item) => !item.productId);
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -119,11 +157,24 @@ export default async function OrderDetailPage({
           </div>
         </div>
 
+        {unmatchedItems.length ? (
+          <section className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <p className="font-semibold">상품 미매칭 {unmatchedItems.length}건</p>
+            <div className="mt-2 space-y-1">
+              {unmatchedItems.map((item) => (
+                <p key={item.id}>
+                  eBay SKU {item.sku || "없음"} · {item.title}
+                </p>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
           <section className="space-y-4">
             <div className="rounded-lg border border-zinc-200 bg-white p-4">
               <h2 className="mb-3 text-base font-semibold text-zinc-950">
-                상품 정보
+                주문 상품 / 상품매칭
               </h2>
               <div className="divide-y divide-zinc-200">
                 {order.items.map((item) => {
@@ -131,53 +182,61 @@ export default async function OrderDetailPage({
                     !item.stockDeducted &&
                     item.product &&
                     item.product.stockQuantity < item.quantity;
+                  const state = itemInventoryState({
+                    stockDeducted: item.stockDeducted,
+                    shortage: Boolean(shortage),
+                    matched: Boolean(item.productId),
+                  });
+
                   return (
                     <div
                       key={item.id}
-                      className="grid gap-3 py-3 text-sm lg:grid-cols-[1fr_150px_70px_260px_120px]"
+                      className="grid gap-3 py-3 text-sm lg:grid-cols-[1fr_150px_70px_280px_120px]"
                     >
-                    <div>
-                      <p className="font-medium text-zinc-950">{item.title}</p>
-                      <p className="mt-1 text-zinc-500">
-                        Line item: {item.lineItemId}
-                      </p>
-                    </div>
-                    <p className="text-zinc-700">{item.sku ?? "SKU 없음"}</p>
-                    <p className="text-zinc-700">{item.quantity}개</p>
-                    <OrderItemProductMatcher
-                      orderId={order.id}
-                      orderItemId={item.id}
-                      productId={item.productId}
-                      products={products}
-                      disabled={item.stockDeducted}
-                    />
-                    <div>
-                      <span
-                        className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${
-                          item.stockDeducted
-                            ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                            : shortage
-                              ? "bg-rose-50 text-rose-700 ring-rose-200"
-                              : item.productId
-                                ? "bg-zinc-100 text-zinc-700 ring-zinc-200"
-                                : "bg-amber-50 text-amber-700 ring-amber-200"
-                        }`}
-                      >
-                        {item.stockDeducted
-                          ? "차감완료"
-                          : shortage
-                            ? "재고부족"
-                            : item.productId
-                              ? "차감대기"
-                              : "미매칭"}
-                      </span>
-                      {item.product ? (
-                        <p className="mt-1 text-xs text-zinc-500">
-                          현재 {item.product.stockQuantity}
+                      <div>
+                        <p className="font-medium text-zinc-950">{item.title}</p>
+                        <p className="mt-1 text-zinc-500">
+                          Line item: {item.lineItemId}
                         </p>
-                      ) : null}
+                        <p className="mt-1 text-zinc-500">
+                          eBay SKU: {item.sku ?? "없음"}
+                        </p>
+                      </div>
+                      <div className="text-zinc-700">
+                        <p className="text-xs font-semibold text-zinc-500">
+                          연결된 상품
+                        </p>
+                        {item.product ? (
+                          <p className="mt-1">
+                            {item.product.sku} · {item.product.productName}
+                          </p>
+                        ) : (
+                          <p className="mt-1 text-amber-700">아직 없음</p>
+                        )}
+                      </div>
+                      <p className="text-zinc-700">{item.quantity}개</p>
+                      <OrderItemProductMatcher
+                        orderId={order.id}
+                        orderItemId={item.id}
+                        productId={item.productId}
+                        itemSku={item.sku}
+                        itemTitle={item.title}
+                        products={products}
+                        disabled={item.stockDeducted}
+                      />
+                      <div>
+                        <span
+                          className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${state.className}`}
+                        >
+                          {state.label}
+                        </span>
+                        {item.product ? (
+                          <p className="mt-1 text-xs text-zinc-500">
+                            현재 재고 {item.product.stockQuantity}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
                   );
                 })}
               </div>

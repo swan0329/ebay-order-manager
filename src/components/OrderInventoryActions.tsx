@@ -14,12 +14,16 @@ export function OrderItemProductMatcher({
   orderId,
   orderItemId,
   productId,
+  itemSku,
+  itemTitle,
   products,
   disabled,
 }: {
   orderId: string;
   orderItemId: string;
   productId?: string | null;
+  itemSku?: string | null;
+  itemTitle: string;
   products: MatchProduct[];
   disabled?: boolean;
 }) {
@@ -27,6 +31,7 @@ export function OrderItemProductMatcher({
   const [value, setValue] = useState(productId ?? "");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const isUnmatched = !productId;
 
   async function save() {
     setLoading(true);
@@ -42,15 +47,27 @@ export function OrderItemProductMatcher({
     setLoading(false);
 
     if (!response.ok) {
-      setMessage(data?.error ?? "연결 실패");
+      setMessage(data?.error ?? "상품 매칭 저장에 실패했습니다.");
       return;
     }
 
+    setMessage("상품 매칭을 저장했습니다.");
     router.refresh();
   }
 
   return (
     <div className="flex flex-col gap-2">
+      {isUnmatched ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
+          <p className="font-semibold">미매칭</p>
+          <p className="mt-0.5">
+            eBay SKU {itemSku || "없음"} 상품이 재고관리 상품과 연결되지 않았습니다.
+          </p>
+          <p className="mt-0.5 line-clamp-2" title={itemTitle}>
+            {itemTitle}
+          </p>
+        </div>
+      ) : null}
       <div className="flex gap-2">
         <select
           value={value}
@@ -58,10 +75,10 @@ export function OrderItemProductMatcher({
           disabled={disabled}
           className="h-9 min-w-0 flex-1 rounded-md border border-zinc-300 px-2 text-xs outline-none focus:border-zinc-900 disabled:bg-zinc-100"
         >
-          <option value="">미연결</option>
+          <option value="">상품 선택 안 함</option>
           {products.map((product) => (
             <option key={product.id} value={product.id}>
-              {product.sku} · {product.productName} ({product.stockQuantity})
+              {product.sku} · {product.productName} (재고 {product.stockQuantity})
             </option>
           ))}
         </select>
@@ -74,7 +91,11 @@ export function OrderItemProductMatcher({
           저장
         </button>
       </div>
-      {message ? <p className="text-xs text-rose-600">{message}</p> : null}
+      {message ? (
+        <p className={`text-xs ${message.includes("실패") ? "text-rose-600" : "text-zinc-600"}`}>
+          {message}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -102,10 +123,8 @@ export function DeductStockButton({ orderId }: { orderId: string }) {
     setLoading(false);
     setMessage(
       response.ok
-        ? `차감 ${data?.deducted ?? 0}건, 부족 ${data?.shortages ?? 0}건, 미매칭 ${
-            data?.unmatched ?? 0
-          }건`
-        : data?.error ?? "재고 차감 실패",
+        ? `차감 ${data?.deducted ?? 0}건, 재고부족 ${data?.shortages ?? 0}건, 미매칭 ${data?.unmatched ?? 0}건`
+        : data?.error ?? "재고 차감에 실패했습니다.",
     );
     router.refresh();
   }
