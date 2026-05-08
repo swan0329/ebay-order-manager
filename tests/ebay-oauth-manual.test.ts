@@ -29,4 +29,20 @@ describe("manual eBay OAuth code input", () => {
       source: "code",
     });
   });
+
+  it("decodes a raw copied code value", () => {
+    expect(parseAuthorizationCodeInput("v%5E1.1%23raw-code")).toEqual({
+      code: "v^1.1#raw-code",
+      state: null,
+      source: "code",
+    });
+  });
+
+  it("handles html-escaped query strings", () => {
+    expect(parseAuthorizationCodeInput("code=v%255E1.1%2523code&amp;state=s%253D1")).toEqual({
+      code: "v^1.1#code",
+      state: "s=1",
+      source: "query",
+    });
+  });
 });

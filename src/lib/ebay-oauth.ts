@@ -26,8 +26,37 @@ export type AuthorizationCodeInput = {
   source: "url" | "query" | "code";
 };
 
+function normalizePastedValue(value: string | null | undefined) {
+  const trimmed = value?.trim().replace(/^["']|["']$/g, "") ?? "";
+
+  if (!trimmed) {
+    return null;
+  }
+
+  if (!/%[0-9a-f]{2}/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  try {
+    return decodeURIComponent(trimmed);
+  } catch {
+    return trimmed;
+  }
+}
+
+function codeInputFromParams(
+  params: URLSearchParams,
+  source: AuthorizationCodeInput["source"],
+): AuthorizationCodeInput {
+  return {
+    code: normalizePastedValue(params.get("code")),
+    state: normalizePastedValue(params.get("state")),
+    source,
+  };
+}
+
 export function parseAuthorizationCodeInput(input: string): AuthorizationCodeInput {
-  const trimmed = input.trim();
+  const trimmed = input.trim().replaceAll("&amp;", "&");
 
   if (!trimmed) {
     return { code: null, state: null, source: "code" };
@@ -35,12 +64,12 @@ export function parseAuthorizationCodeInput(input: string): AuthorizationCodeInp
 
   try {
     const url = new URL(trimmed);
+    if (url.searchParams.has("code")) {
+      return codeInputFromParams(url.searchParams, "url");
+    }
 
-    return {
-      code: url.searchParams.get("code")?.trim() || null,
-      state: url.searchParams.get("state")?.trim() || null,
-      source: "url",
-    };
+    const hashParams = new URLSearchParams(url.hash.replace(/^#\??/, ""));
+    return codeInputFromParams(hashParams, "url");
   } catch {
     // Fall through to query-string parsing.
   }
@@ -48,15 +77,25 @@ export function parseAuthorizationCodeInput(input: string): AuthorizationCodeInp
   const query = trimmed.startsWith("?") ? trimmed.slice(1) : trimmed;
   if (query.includes("=") && /(^|&)code=/.test(query)) {
     const params = new URLSearchParams(query);
-
-    return {
-      code: params.get("code")?.trim() || null,
-      state: params.get("state")?.trim() || null,
-      source: "query",
-    };
+    return codeInputFromParams(params, "query");
   }
 
-  return { code: trimmed, state: null, source: "code" };
+  return { code: normalizePastedValue(trimmed), state: null, source: "code" };
+}
+
+function ebayErrorDetail(body: unknown) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return null;
+  }
+
+  const record = body as Record<string, unknown>;
+  const parts = [
+    record.error,
+    record.error_description,
+    record.message,
+  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+
+  return parts.length ? parts.join(": ") : null;
 }
 
 export async function completeEbayOAuthConnection({
@@ -79,9 +118,13 @@ export async function completeEbayOAuthConnection({
   });
 
   const token = await exchangeAuthorizationCode(code).catch(async (tokenError) => {
+    const ebayDetail =
+      tokenError instanceof EbayApiError ? ebayErrorDetail(tokenError.body) : null;
     const message =
       tokenError instanceof EbayApiError
-        ? `eBay token request failed (${tokenError.status})`
+        ? `eBay token request failed (${tokenError.status})${
+            ebayDetail ? `: ${ebayDetail}` : ""
+          }`
         : asErrorMessage(tokenError);
 
     safeLog("error", `${logPrefix}.token_exchange.failed`, {
