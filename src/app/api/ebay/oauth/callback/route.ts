@@ -63,5 +63,5 @@ export async function GET(request: Request) {
     environment: result.environment,
     accountId: result.accountId,
   });
-  redirect("/connect?connected=1");
+  redirect("/orders?connected=1&sync=1");
 }

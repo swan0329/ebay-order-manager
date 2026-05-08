@@ -279,6 +279,14 @@ async function ebayFetch(
   const body = await parseEbayResponse(response);
 
   if (!response.ok) {
+    safeLog("error", "ebay.api.request_failed", {
+      endpoint: `${url.origin}${url.pathname}`,
+      method: init?.method ?? "GET",
+      status: response.status,
+      queryKeys: Array.from(url.searchParams.keys()),
+      body,
+    });
+
     throw new EbayApiError("eBay API request failed.", response.status, body);
   }
 

@@ -11,6 +11,7 @@ import {
 import { currentEbayEnvironment } from "@/lib/ebay-environment";
 import { deductStockForOrder } from "@/lib/inventory";
 import { applyOrderAutomation, applyOrderAutomationMany } from "@/lib/order-automation";
+import { safeLog } from "@/lib/safe-log";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -287,14 +288,23 @@ export async function syncOrdersForUser(
   userId: string,
   filters: OrderSyncFilters,
 ) {
+  const environment = currentEbayEnvironment();
   const account = await prisma.ebayAccount.findFirst({
-    where: { userId, environment: currentEbayEnvironment() },
+    where: { userId, environment },
     orderBy: { updatedAt: "desc" },
   });
 
   if (!account) {
     throw new Error("eBay 계정이 아직 연결되지 않았습니다.");
   }
+
+  safeLog("info", "orders.sync.start", {
+    userId,
+    environment,
+    accountId: account.id,
+    ebayUserId: account.ebayUserId,
+    filters,
+  });
 
   const limit = 100;
   let offset = 0;
@@ -325,8 +335,29 @@ export async function syncOrdersForUser(
       toInputJson({ filters, imported }),
     );
 
+    safeLog("info", "orders.sync.completed", {
+      userId,
+      environment,
+      accountId: account.id,
+      imported,
+      filters,
+    });
+
     return { imported };
   } catch (error) {
+    safeLog("error", "orders.sync.failed", {
+      userId,
+      environment,
+      accountId: account.id,
+      filters,
+      status: error instanceof EbayApiError ? error.status : undefined,
+      body: error instanceof EbayApiError ? error.body : undefined,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unknown sync error",
+    });
+
     await writeSyncLog(
       userId,
       "orders.sync",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Download, RefreshCw, Search } from "lucide-react";
 
@@ -18,11 +18,14 @@ export function OrdersControls() {
   const searchParams = useSearchParams();
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
+  const autoSyncStarted = useRef(false);
   const status = searchParams.get("status") ?? "OPEN";
   const query = searchParams.get("q") ?? "";
   const from = searchParams.get("from") ?? "";
   const to = searchParams.get("to") ?? "";
   const inventory = searchParams.get("inventory") ?? "all";
+  const connected = searchParams.get("connected") === "1";
+  const shouldAutoSync = searchParams.get("sync") === "1";
   const paramsText = useMemo(() => searchParams.toString(), [searchParams]);
 
   function applyFilters(event: React.FormEvent<HTMLFormElement>) {
@@ -44,35 +47,62 @@ export function OrdersControls() {
     router.push(`/orders?${params.toString()}`);
   }
 
-  async function syncOrders() {
-    setSyncing(true);
-    setMessage("");
+  const syncOrders = useCallback(
+    async ({ clearAutoSyncParams = false }: { clearAutoSyncParams?: boolean } = {}) => {
+      setSyncing(true);
+      setMessage("eBay 주문을 불러오는 중입니다.");
 
-    const response = await fetch("/api/orders/sync", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        fulfillmentStatus: status === "ALL" ? undefined : status,
-        creationDateFrom: toIsoDate(from),
-        creationDateTo: toIsoDate(to, true),
-      }),
-    });
-    const data = (await response.json().catch(() => null)) as
-      | { imported?: number; error?: string }
-      | null;
+      const response = await fetch("/api/orders/sync", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          fulfillmentStatus: status === "ALL" ? undefined : status,
+          creationDateFrom: toIsoDate(from),
+          creationDateTo: toIsoDate(to, true),
+        }),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | { imported?: number; error?: string }
+        | null;
 
-    setSyncing(false);
-    setMessage(
-      response.ok
-        ? `${data?.imported ?? 0}건 동기화됨`
-        : data?.error ?? "동기화 실패",
-    );
-    router.refresh();
-  }
+      setSyncing(false);
+      setMessage(
+        response.ok
+          ? `eBay 주문 ${data?.imported ?? 0}건을 불러왔습니다.`
+          : data?.error ?? "eBay 주문을 불러오지 못했습니다.",
+      );
+
+      if (clearAutoSyncParams) {
+        const nextParams = new URLSearchParams(searchParams.toString());
+        nextParams.delete("connected");
+        nextParams.delete("sync");
+        const nextQuery = nextParams.toString();
+        router.replace(`/orders${nextQuery ? `?${nextQuery}` : ""}`, { scroll: false });
+      }
+
+      router.refresh();
+    },
+    [from, router, searchParams, status, to],
+  );
+
+  useEffect(() => {
+    if (!shouldAutoSync || autoSyncStarted.current) {
+      return;
+    }
+
+    autoSyncStarted.current = true;
+    void syncOrders({ clearAutoSyncParams: true });
+  }, [shouldAutoSync, syncOrders]);
 
   return (
     <section className="border-b border-zinc-200 bg-white">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6">
+        {connected ? (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+            eBay 계정 연결이 완료되었습니다. 최신 주문을 자동으로 불러옵니다.
+          </div>
+        ) : null}
+
         <form
           onSubmit={applyFilters}
           className="grid gap-2 md:grid-cols-[1fr_150px_150px_150px_150px_auto]"
@@ -128,15 +158,15 @@ export function OrdersControls() {
           </button>
         </form>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={syncOrders}
+              onClick={() => void syncOrders()}
               disabled={syncing}
               className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-wait disabled:text-zinc-400"
             >
               <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-              동기화
+              eBay 주문 불러오기
             </button>
             <a
               href={`/api/export/orders${paramsText ? `?${paramsText}` : ""}`}
@@ -146,7 +176,13 @@ export function OrdersControls() {
               CSV
             </a>
           </div>
-          {message ? <p className="text-sm text-zinc-600">{message}</p> : null}
+          <div className="text-sm text-zinc-600">
+            {message ? (
+              <p>{message}</p>
+            ) : (
+              <p>조회는 저장된 주문 필터링이고, 최신 eBay 주문은 주문 불러오기로 가져옵니다.</p>
+            )}
+          </div>
         </div>
       </div>
     </section>
