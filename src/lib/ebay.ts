@@ -2,6 +2,7 @@ import type { EbayAccount } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { getEbayConfig } from "@/lib/env";
+import { safeLog } from "@/lib/safe-log";
 export { buildOrderFilter, type OrderSyncFilters } from "@/lib/ebay-filter";
 import { buildOrderFilter, type OrderSyncFilters } from "@/lib/ebay-filter";
 
@@ -27,12 +28,19 @@ type EbayUserProfile = {
 export class EbayApiError extends Error {
   status: number;
   body: unknown;
+  diagnostics?: Record<string, unknown>;
 
-  constructor(message: string, status: number, body: unknown) {
+  constructor(
+    message: string,
+    status: number,
+    body: unknown,
+    diagnostics?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = "EbayApiError";
     this.status = status;
     this.body = body;
+    this.diagnostics = diagnostics;
   }
 }
 
@@ -56,6 +64,39 @@ async function parseEbayResponse(response: Response) {
 
 function addHours(seconds: number) {
   return new Date(Date.now() + seconds * 1000);
+}
+
+function safeTokenBodyDiagnostics(params: URLSearchParams) {
+  const config = getEbayConfig();
+  const endpoint = `${config.hosts.api}/identity/v1/oauth2/token`;
+  const grantType = params.get("grant_type");
+  const code = params.get("code");
+  const redirectUri = params.get("redirect_uri");
+
+  return {
+    endpoint,
+    tokenHost: new URL(endpoint).hostname,
+    environment: config.environment,
+    contentType: "application/x-www-form-urlencoded",
+    usesBasicAuthorization: true,
+    clientIdPrefix: config.clientId.slice(0, 10),
+    clientSecretPresent: Boolean(config.clientSecret),
+    clientSecretLength: config.clientSecret.length,
+    formKeys: Array.from(params.keys()),
+    grantType,
+    grantTypeIsAuthorizationCode: grantType === "authorization_code",
+    redirectUri,
+    redirectUriMatchesConfiguredRuName: redirectUri === config.ruName,
+    redirectUriLooksLikeCallbackUrl: Boolean(redirectUri && /^https?:\/\//.test(redirectUri)),
+    callbackUrlInBody: Array.from(params.values()).some((value) =>
+      value.includes("/api/ebay/callback"),
+    ),
+    codePresent: Boolean(code),
+    codeLength: code?.length ?? 0,
+    codeContainsWhitespace: Boolean(code && /\s/.test(code)),
+    codeContainsPercentEscape: Boolean(code && /%[0-9a-f]{2}/i.test(code)),
+    codeContainsReplacementChar: Boolean(code && code.includes("\uFFFD")),
+  };
 }
 
 export function buildAuthorizationUrl(state: string) {
@@ -142,21 +183,34 @@ export function assertEbayOAuthAuthorizationUrl(authorizationUrl: string) {
 
 async function requestToken(params: URLSearchParams) {
   const config = getEbayConfig();
-  const response = await fetch(
-    `${config.hosts.api}/identity/v1/oauth2/token`,
-    {
+  const endpoint = `${config.hosts.api}/identity/v1/oauth2/token`;
+  const diagnostics = safeTokenBodyDiagnostics(params);
+
+  safeLog("info", "ebay.oauth.token_exchange.request", diagnostics);
+
+  const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         authorization: credentialsHeader(config.clientId, config.clientSecret),
         "content-type": "application/x-www-form-urlencoded",
       },
       body: params,
-    },
-  );
+  });
   const body = await parseEbayResponse(response);
 
   if (!response.ok) {
-    throw new EbayApiError("eBay token request failed.", response.status, body);
+    safeLog("error", "ebay.oauth.token_exchange.response_failed", {
+      ...diagnostics,
+      status: response.status,
+      error: body && typeof body === "object" && !Array.isArray(body)
+        ? (body as Record<string, unknown>).error
+        : undefined,
+      errorDescription: body && typeof body === "object" && !Array.isArray(body)
+        ? (body as Record<string, unknown>).error_description
+        : undefined,
+      responseBodyType: body === null ? "empty" : typeof body,
+    });
+    throw new EbayApiError("eBay token request failed.", response.status, body, diagnostics);
   }
 
   return body as EbayTokenResponse;

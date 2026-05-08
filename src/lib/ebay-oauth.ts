@@ -26,14 +26,16 @@ export type AuthorizationCodeInput = {
   source: "url" | "query" | "code";
 };
 
-function normalizePastedValue(value: string | null | undefined) {
+function trimPastedValue(value: string | null | undefined) {
   const trimmed = value?.trim().replace(/^["']|["']$/g, "") ?? "";
 
-  if (!trimmed) {
-    return null;
-  }
+  return trimmed || null;
+}
 
-  if (!/%[0-9a-f]{2}/i.test(trimmed)) {
+function decodeRawCodeValue(value: string | null | undefined) {
+  const trimmed = trimPastedValue(value);
+
+  if (!trimmed || !/%[0-9a-f]{2}/i.test(trimmed)) {
     return trimmed;
   }
 
@@ -49,8 +51,8 @@ function codeInputFromParams(
   source: AuthorizationCodeInput["source"],
 ): AuthorizationCodeInput {
   return {
-    code: normalizePastedValue(params.get("code")),
-    state: normalizePastedValue(params.get("state")),
+    code: trimPastedValue(params.get("code")),
+    state: trimPastedValue(params.get("state")),
     source,
   };
 }
@@ -80,7 +82,7 @@ export function parseAuthorizationCodeInput(input: string): AuthorizationCodeInp
     return codeInputFromParams(params, "query");
   }
 
-  return { code: normalizePastedValue(trimmed), state: null, source: "code" };
+  return { code: decodeRawCodeValue(trimmed), state: null, source: "code" };
 }
 
 function ebayErrorDetail(body: unknown) {
@@ -96,6 +98,16 @@ function ebayErrorDetail(body: unknown) {
   ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
 
   return parts.length ? parts.join(": ") : null;
+}
+
+function safeExchangeDiagnostics(error: EbayApiError) {
+  return {
+    request: error.diagnostics,
+    response: {
+      status: error.status,
+      body: error.body,
+    },
+  };
 }
 
 export async function completeEbayOAuthConnection({
@@ -132,6 +144,8 @@ export async function completeEbayOAuthConnection({
       environment: config.environment,
       status: tokenError instanceof EbayApiError ? tokenError.status : undefined,
       message,
+      diagnostics:
+        tokenError instanceof EbayApiError ? safeExchangeDiagnostics(tokenError) : undefined,
     });
 
     await writeSyncLog(
@@ -144,7 +158,11 @@ export async function completeEbayOAuthConnection({
         : undefined,
     ).catch(() => undefined);
 
-    throw new Error(message);
+    const exchangeError = new Error(message) as Error & { details?: unknown };
+    exchangeError.details =
+      tokenError instanceof EbayApiError ? safeExchangeDiagnostics(tokenError) : undefined;
+
+    throw exchangeError;
   });
 
   safeLog("info", `${logPrefix}.token_exchange.success`, {

@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { completeEbayOAuthConnection, parseAuthorizationCodeInput } from "@/lib/ebay-oauth";
+import { getEbayConfig } from "@/lib/env";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { safeLog } from "@/lib/safe-log";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
@@ -20,13 +21,23 @@ export async function POST(request: Request) {
     const submittedState = input.state?.trim() || parsed.state;
     const cookieStore = await cookies();
     const expectedState = cookieStore.get("ebay_oauth_state")?.value;
+    const config = getEbayConfig();
+    const inputLooksLikeUrl = /^https?:\/\//.test(input.codeOrUrl.trim());
 
     safeLog("info", "ebay.oauth.manual_code.start", {
       path: url.pathname,
       inputSource: parsed.source,
+      rawInputLength: input.codeOrUrl.length,
+      inputLooksLikeUrl,
       codePresent: Boolean(parsed.code),
+      codeLength: parsed.code?.length ?? 0,
+      codeContainsWhitespace: Boolean(parsed.code && /\s/.test(parsed.code)),
+      codeContainsPercentEscape: Boolean(parsed.code && /%[0-9a-f]{2}/i.test(parsed.code)),
       statePresent: Boolean(submittedState),
+      stateLength: submittedState?.length ?? 0,
       expectedStatePresent: Boolean(expectedState),
+      redirectUriUsed: config.ruName,
+      tokenEndpoint: `${config.hosts.api}/identity/v1/oauth2/token`,
     });
 
     if (!parsed.code) {
@@ -93,6 +104,11 @@ export async function POST(request: Request) {
       message: asErrorMessage(error),
     });
 
-    return jsonError(asErrorMessage(error), 400);
+    const details =
+      error instanceof Error && "details" in error
+        ? (error as Error & { details?: unknown }).details
+        : undefined;
+
+    return jsonError(asErrorMessage(error), 400, details);
   }
 }

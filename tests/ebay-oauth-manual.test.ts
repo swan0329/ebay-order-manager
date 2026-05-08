@@ -38,10 +38,10 @@ describe("manual eBay OAuth code input", () => {
     });
   });
 
-  it("handles html-escaped query strings", () => {
+  it("handles html-escaped query strings without double decoding", () => {
     expect(parseAuthorizationCodeInput("code=v%255E1.1%2523code&amp;state=s%253D1")).toEqual({
-      code: "v^1.1#code",
-      state: "s=1",
+      code: "v%5E1.1%23code",
+      state: "s%3D1",
       source: "query",
     });
   });
