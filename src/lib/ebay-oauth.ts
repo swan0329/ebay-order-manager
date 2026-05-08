@@ -26,6 +26,9 @@ export type AuthorizationCodeInput = {
   source: "url" | "query" | "code";
 };
 
+export const missingManualOAuthStateMessage =
+  "Retry OAuth first, then paste the full returned URL including state.";
+
 function trimPastedValue(value: string | null | undefined) {
   const trimmed = value?.trim().replace(/^["']|["']$/g, "") ?? "";
 
@@ -83,6 +86,16 @@ export function parseAuthorizationCodeInput(input: string): AuthorizationCodeInp
   }
 
   return { code: decodeRawCodeValue(trimmed), state: null, source: "code" };
+}
+
+export function manualOAuthStateForValidation({
+  parsedState,
+  explicitState,
+}: {
+  parsedState: string | null;
+  explicitState?: string | null;
+}) {
+  return trimPastedValue(parsedState) ?? trimPastedValue(explicitState);
 }
 
 function ebayErrorDetail(body: unknown) {

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseAuthorizationCodeInput } from "../src/lib/ebay-oauth";
+import {
+  manualOAuthStateForValidation,
+  missingManualOAuthStateMessage,
+  parseAuthorizationCodeInput,
+} from "../src/lib/ebay-oauth";
 
 describe("manual eBay OAuth code input", () => {
   it("extracts code and state from a callback URL", () => {
@@ -44,5 +48,29 @@ describe("manual eBay OAuth code input", () => {
       state: "s%3D1",
       source: "query",
     });
+  });
+
+  it("uses state extracted from the pasted URL before a separate stale state field", () => {
+    expect(
+      manualOAuthStateForValidation({
+        parsedState: "state-from-url",
+        explicitState: "stale-state-field",
+      }),
+    ).toBe("state-from-url");
+  });
+
+  it("falls back to a separate state field only when the pasted input has no state", () => {
+    expect(
+      manualOAuthStateForValidation({
+        parsedState: null,
+        explicitState: "state-from-field",
+      }),
+    ).toBe("state-from-field");
+  });
+
+  it("uses a clear missing-state message", () => {
+    expect(missingManualOAuthStateMessage).toBe(
+      "Retry OAuth first, then paste the full returned URL including state.",
+    );
   });
 });

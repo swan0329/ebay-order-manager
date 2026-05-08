@@ -1,6 +1,11 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { completeEbayOAuthConnection, parseAuthorizationCodeInput } from "@/lib/ebay-oauth";
+import {
+  completeEbayOAuthConnection,
+  manualOAuthStateForValidation,
+  missingManualOAuthStateMessage,
+  parseAuthorizationCodeInput,
+} from "@/lib/ebay-oauth";
 import { getEbayConfig } from "@/lib/env";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { safeLog } from "@/lib/safe-log";
@@ -18,7 +23,10 @@ export async function POST(request: Request) {
     const user = await requireApiUser();
     const input = manualCodeSchema.parse(await request.json());
     const parsed = parseAuthorizationCodeInput(input.codeOrUrl);
-    const submittedState = input.state?.trim() || parsed.state;
+    const submittedState = manualOAuthStateForValidation({
+      parsedState: parsed.state,
+      explicitState: input.state,
+    });
     const cookieStore = await cookies();
     const expectedState = cookieStore.get("ebay_oauth_state")?.value;
     const config = getEbayConfig();
@@ -35,6 +43,7 @@ export async function POST(request: Request) {
       codeContainsPercentEscape: Boolean(parsed.code && /%[0-9a-f]{2}/i.test(parsed.code)),
       statePresent: Boolean(submittedState),
       stateLength: submittedState?.length ?? 0,
+      stateSource: parsed.state ? parsed.source : input.state?.trim() ? "field" : "missing",
       expectedStatePresent: Boolean(expectedState),
       redirectUriUsed: config.ruName,
       tokenEndpoint: `${config.hosts.api}/identity/v1/oauth2/token`,
@@ -46,6 +55,15 @@ export async function POST(request: Request) {
         inputSource: parsed.source,
       });
       return jsonError("No authorization code was found.", 422);
+    }
+
+    if (!submittedState) {
+      safeLog("warn", "ebay.oauth.manual_code.missing_state", {
+        path: url.pathname,
+        inputSource: parsed.source,
+        codePresent: true,
+      });
+      return jsonError(missingManualOAuthStateMessage, 422);
     }
 
     if (submittedState && expectedState && submittedState !== expectedState) {

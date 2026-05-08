@@ -8,6 +8,30 @@ type EbayManualCodeFormProps = {
   initialState?: string;
 };
 
+function stateFromCodeOrUrl(value: string) {
+  const trimmed = value.trim().replaceAll("&amp;", "&");
+
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const url = new URL(trimmed);
+    return (
+      url.searchParams.get("state") ??
+      new URLSearchParams(url.hash.replace(/^#\??/, "")).get("state") ??
+      ""
+    );
+  } catch {
+    const query = trimmed.startsWith("?") ? trimmed.slice(1) : trimmed;
+    if (!query.includes("=")) {
+      return "";
+    }
+
+    return new URLSearchParams(query).get("state") ?? "";
+  }
+}
+
 export function EbayManualCodeForm({
   initialCodeOrUrl = "",
   initialState = "",
@@ -55,6 +79,15 @@ export function EbayManualCodeForm({
     window.location.href = "/connect?connected=1";
   }
 
+  function onCodeOrUrlChange(value: string) {
+    setCodeOrUrl(value);
+
+    const extractedState = stateFromCodeOrUrl(value);
+    if (extractedState) {
+      setState(extractedState);
+    }
+  }
+
   return (
     <form onSubmit={onSubmit} className="mt-4 space-y-4">
       <label className="block">
@@ -63,11 +96,11 @@ export function EbayManualCodeForm({
         </span>
         <textarea
           value={codeOrUrl}
-          onChange={(event) => setCodeOrUrl(event.target.value)}
+          onChange={(event) => onCodeOrUrlChange(event.target.value)}
           rows={4}
           maxLength={4096}
           className="w-full resize-y rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-950 outline-none focus:border-zinc-900"
-          placeholder="Paste a URL containing code=..., or paste the code value."
+          placeholder="Paste the full returned URL containing code=... and state=..."
         />
       </label>
 
@@ -80,7 +113,7 @@ export function EbayManualCodeForm({
           onChange={(event) => setState(event.target.value)}
           maxLength={512}
           className="h-10 w-full rounded-md border border-zinc-300 px-3 text-sm text-zinc-950 outline-none focus:border-zinc-900"
-          placeholder="Usually included automatically when a full callback URL is pasted."
+          placeholder="Automatically filled when the pasted URL contains state=..."
         />
       </label>
 
