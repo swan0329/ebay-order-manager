@@ -1,4 +1,5 @@
 import { AlertTriangle, CheckCircle2, ExternalLink, PlugZap } from "lucide-react";
+import { EbayManualCodeForm } from "@/components/EbayManualCodeForm";
 import { TopNav } from "@/components/TopNav";
 import { currentEbayEnvironment } from "@/lib/ebay-environment";
 import { prisma } from "@/lib/prisma";
@@ -10,6 +11,8 @@ export const dynamic = "force-dynamic";
 type ConnectSearchParams = Promise<{
   connected?: string;
   error?: string;
+  code?: string;
+  state?: string;
 }>;
 
 function ebayConfigStatus() {
@@ -63,6 +66,15 @@ export default async function ConnectPage({
           </section>
         ) : null}
 
+        {params.connected ? (
+          <section className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+            <div className="flex items-start gap-2">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              <p className="font-semibold">eBay 계정 연결이 완료되었습니다.</p>
+            </div>
+          </section>
+        ) : null}
+
         <section className="mb-4 rounded-lg border border-zinc-200 bg-white p-5">
           <h2 className="text-base font-semibold text-zinc-950">설정 상태</h2>
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-[150px_1fr]">
@@ -95,7 +107,7 @@ export default async function ConnectPage({
           </dl>
         </section>
 
-        <section className="rounded-lg border border-zinc-200 bg-white p-5">
+        <section className="mb-4 rounded-lg border border-zinc-200 bg-white p-5">
           {account ? (
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -147,6 +159,27 @@ export default async function ConnectPage({
               </a>
             </div>
           )}
+        </section>
+
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+            <div>
+              <h2 className="text-base font-semibold text-zinc-950">
+                OAuth callback fallback
+              </h2>
+              <p className="mt-1 text-sm text-zinc-700">
+                If eBay shows its default &quot;Authorization successfully
+                completed&quot; page and does not return here, paste any URL or value
+                that contains code= below. If there is no code visible, retry OAuth
+                to create a new state cookie and authorization URL.
+              </p>
+            </div>
+          </div>
+          <EbayManualCodeForm
+            initialCodeOrUrl={params.code ?? ""}
+            initialState={params.state ?? ""}
+          />
         </section>
       </main>
     </div>

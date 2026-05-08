@@ -88,7 +88,7 @@ npm run dev
 3. OAuth redirect URL은 아래 주소를 등록합니다.
 
 ```text
-http://localhost:3000/api/ebay/oauth/callback
+http://localhost:3000/api/ebay/callback
 ```
 
 4. 운영 배포 후에는 Vercel 또는 VPS 도메인의 callback URL도 eBay Developer Console에 추가합니다.
