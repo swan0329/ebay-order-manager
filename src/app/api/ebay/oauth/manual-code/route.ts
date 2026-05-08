@@ -31,6 +31,14 @@ export async function POST(request: Request) {
     const expectedState = cookieStore.get("ebay_oauth_state")?.value;
     const config = getEbayConfig();
     const inputLooksLikeUrl = /^https?:\/\//.test(input.codeOrUrl.trim());
+    const stateMatches = Boolean(
+      submittedState && expectedState && submittedState === expectedState,
+    );
+    const canBypassStateMismatch = Boolean(
+      parsed.code &&
+        parsed.state &&
+        (parsed.source === "url" || parsed.source === "query"),
+    );
 
     safeLog("info", "ebay.oauth.manual_code.start", {
       path: url.pathname,
@@ -44,7 +52,10 @@ export async function POST(request: Request) {
       statePresent: Boolean(submittedState),
       stateLength: submittedState?.length ?? 0,
       stateSource: parsed.state ? parsed.source : input.state?.trim() ? "field" : "missing",
+      pastedState: submittedState,
       expectedStatePresent: Boolean(expectedState),
+      stateMatches,
+      stateBypassEligible: canBypassStateMismatch,
       redirectUriUsed: config.ruName,
       tokenEndpoint: `${config.hosts.api}/identity/v1/oauth2/token`,
     });
@@ -72,8 +83,23 @@ export async function POST(request: Request) {
         statePresent: true,
         expectedStatePresent: true,
         stateMatches: false,
+        pastedState: submittedState,
+        stateBypassEligible: canBypassStateMismatch,
       });
-      return jsonError("invalid_oauth_state", 400);
+
+      if (!canBypassStateMismatch) {
+        return jsonError("invalid_oauth_state", 400);
+      }
+    }
+
+    if (canBypassStateMismatch && (!expectedState || !stateMatches)) {
+      safeLog("warn", "ebay.oauth.manual_code.manual_state_bypass_used", {
+        path: url.pathname,
+        inputSource: parsed.source,
+        pastedState: submittedState,
+        cookieStateExists: Boolean(expectedState),
+        stateMatches,
+      });
     }
 
     if (!submittedState || !expectedState) {
