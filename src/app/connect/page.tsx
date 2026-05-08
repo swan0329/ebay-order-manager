@@ -1,4 +1,10 @@
-import { AlertTriangle, CheckCircle2, ExternalLink, PlugZap } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ExternalLink,
+  PlugZap,
+  RotateCcw,
+} from "lucide-react";
 import { EbayManualCodeForm } from "@/components/EbayManualCodeForm";
 import { TopNav } from "@/components/TopNav";
 import { currentEbayEnvironment } from "@/lib/ebay-environment";
@@ -136,8 +142,8 @@ export default async function ConnectPage({
                 href="/api/ebay/oauth/start"
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
               >
-                <ExternalLink className="h-4 w-4" />
-                다시 연결
+                <RotateCcw className="h-4 w-4" />
+                Fresh eBay Connect
               </a>
             </div>
           ) : (
@@ -155,10 +161,34 @@ export default async function ConnectPage({
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
               >
                 <ExternalLink className="h-4 w-4" />
-                연결
+                Fresh eBay Connect
               </a>
             </div>
           )}
+        </section>
+
+        <section className="mb-4 rounded-lg border border-sky-200 bg-sky-50 p-5">
+          <div className="flex items-start gap-3">
+            <RotateCcw className="mt-0.5 h-5 w-5 shrink-0 text-sky-700" />
+            <div>
+              <h2 className="text-base font-semibold text-zinc-950">
+                Fresh eBay Connect
+              </h2>
+              <p className="mt-1 text-sm text-zinc-700">
+                This starts a new eBay OAuth attempt with a fresh state value and
+                clears the previous app-side OAuth state cookie first. If eBay still
+                shows invalid_request, try this button in an incognito window or
+                after clearing eBay cookies for ebay.com.
+              </p>
+              <a
+                href="/api/ebay/oauth/start"
+                className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Fresh eBay Connect
+              </a>
+            </div>
+          </div>
         </section>
 
         <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">

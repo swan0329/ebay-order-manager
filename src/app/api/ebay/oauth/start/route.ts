@@ -17,6 +17,9 @@ export async function GET(request: Request) {
 
   const state = randomBytes(24).toString("base64url");
   const cookieStore = await cookies();
+  const previousStatePresent = Boolean(cookieStore.get("ebay_oauth_state")?.value);
+
+  cookieStore.delete("ebay_oauth_state");
   cookieStore.set("ebay_oauth_state", state, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -44,6 +47,11 @@ export async function GET(request: Request) {
       redirectUriMatchesConfiguredRuName: redirectUri === config.ruName,
       expectedAcceptedUrl: new URL("/api/ebay/callback", request.url).toString(),
       authorizationUrl: maskAuthorizationUrlForLog(authorizationUrl),
+      previousStateCleared: previousStatePresent,
+      stateId: `${state.slice(0, 8)}...${state.slice(-4)}`,
+      stateLength: state.length,
+      freshStateGenerated: true,
+      ruName: config.ruName,
       scopesCount: config.scopes.length,
     });
   } catch (error) {
