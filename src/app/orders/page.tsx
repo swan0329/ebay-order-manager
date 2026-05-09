@@ -86,6 +86,32 @@ type OrderWithInventory = Prisma.OrderGetPayload<{
   include: { items: { include: { product: true } }; shipments: true };
 }>;
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function asString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function imageUrlFromRaw(value: unknown): string | null {
+  const record = asRecord(value);
+  const direct =
+    asString(record.imageUrl) ??
+    asString(record.thumbnailImageUrl) ??
+    asString(record.pictureUrl) ??
+    asString(record.galleryURL);
+
+  if (direct) {
+    return direct;
+  }
+
+  const image = asRecord(record.image);
+  return asString(image.imageUrl) ?? asString(image.url);
+}
+
 function hasInventoryShortage(order: OrderWithInventory) {
   return order.items.some(
     (item) =>
@@ -163,6 +189,14 @@ function toOrderListRow(order: OrderWithInventory): OrderListRow {
     tags: order.tags,
     warningLevel: order.warningLevel,
     warningMessage: order.warningMessage,
+    itemImages: order.items.map((item) => ({
+      src: item.product?.imageUrl ?? imageUrlFromRaw(item.rawJson),
+      title: item.title,
+      sku: item.sku,
+      productSku: item.product?.sku ?? null,
+      stockQuantity: item.product?.stockQuantity ?? null,
+      matched: Boolean(item.productId),
+    })),
     unmatchedItems,
     shortageItems,
     deductedCount: order.items.filter((item) => item.stockDeducted).length,

@@ -1,8 +1,9 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ImageOff } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 
 type Column = {
@@ -32,6 +33,14 @@ export type OrderListRow = {
   tags: string[];
   warningLevel: string;
   warningMessage: string | null;
+  itemImages: {
+    src: string | null;
+    title: string;
+    sku: string | null;
+    productSku: string | null;
+    stockQuantity: number | null;
+    matched: boolean;
+  }[];
   unmatchedItems: {
     title: string;
     sku: string | null;
@@ -49,6 +58,7 @@ export type OrderListRow = {
 
 const columns: Column[] = [
   { id: "orderId", label: "주문번호", width: 150, minWidth: 120, locked: true },
+  { id: "image", label: "이미지", width: 96, minWidth: 82 },
   { id: "buyer", label: "구매자", width: 160, minWidth: 120 },
   { id: "items", label: "상품명", width: 320, minWidth: 180 },
   { id: "ebaySku", label: "eBay SKU", width: 160, minWidth: 110 },
@@ -182,6 +192,48 @@ function DetailLines({ lines }: { lines: string[] }) {
   );
 }
 
+function ProductThumb({
+  image,
+  size = "h-14 w-14",
+}: {
+  image?: OrderListRow["itemImages"][number];
+  size?: string;
+}) {
+  const label = image
+    ? `${image.productSku ?? image.sku ?? "SKU 없음"} · ${image.title}`
+    : "이미지 없음";
+
+  return (
+    <div
+      className={`${size} flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-zinc-200 bg-zinc-100`}
+      title={label}
+    >
+      {image?.src ? (
+        <img src={image.src} alt={label} className="h-full w-full object-cover" />
+      ) : (
+        <ImageOff className="h-5 w-5 text-zinc-400" />
+      )}
+    </div>
+  );
+}
+
+function ProductThumbs({ images }: { images: OrderListRow["itemImages"] }) {
+  if (!images.length) {
+    return <ProductThumb />;
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      {images.slice(0, 3).map((image, index) => (
+        <ProductThumb key={`${image.title}-${index}`} image={image} />
+      ))}
+      {images.length > 3 ? (
+        <span className="text-xs font-medium text-zinc-500">+{images.length - 3}</span>
+      ) : null}
+    </div>
+  );
+}
+
 export function ResizableOrdersTable({
   orders,
 }: {
@@ -209,7 +261,12 @@ export function ResizableOrdersTable({
       if (storedVisibility) {
         try {
           const parsed = JSON.parse(storedVisibility) as Record<string, boolean>;
-          setVisibility({ ...defaultVisibility(), ...parsed, orderId: true, actions: true });
+          setVisibility({
+            ...defaultVisibility(),
+            ...parsed,
+            orderId: true,
+            actions: true,
+          });
         } catch {
           setVisibility(defaultVisibility());
         }
@@ -288,6 +345,8 @@ export function ResizableOrdersTable({
     switch (columnId) {
       case "orderId":
         return <span className="font-medium text-zinc-950">{order.ebayOrderId}</span>;
+      case "image":
+        return <ProductThumbs images={order.itemImages} />;
       case "buyer":
         return order.buyerName ?? order.buyerUsername ?? "-";
       case "items":
@@ -378,7 +437,7 @@ export function ResizableOrdersTable({
               현재 페이지 {orders.length}건
             </p>
             <p className="mt-1 text-xs text-zinc-500">
-              미매칭은 eBay 주문 상품과 재고관리 상품이 아직 연결되지 않은 항목입니다.
+              이미지는 매칭된 재고관리 상품 이미지를 사용합니다. 미매칭이면 먼저 상품을 연결해야 재고와 이미지가 표시됩니다.
             </p>
           </div>
           <button
@@ -475,21 +534,26 @@ export function ResizableOrdersTable({
               href={`/orders/${order.id}`}
               className="block rounded-lg border border-zinc-200 bg-white p-4"
             >
-              <div className="mb-2 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-zinc-950">
-                    {order.ebayOrderId}
-                  </p>
-                  <p className="mt-1 text-sm text-zinc-600">
-                    {order.buyerName ?? order.buyerUsername ?? "-"}
+              <div className="mb-3 flex items-start gap-3">
+                <ProductThumb image={order.itemImages[0]} size="h-16 w-16" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-950">
+                        {order.ebayOrderId}
+                      </p>
+                      <p className="mt-1 text-sm text-zinc-600">
+                        {order.buyerName ?? order.buyerUsername ?? "-"}
+                      </p>
+                    </div>
+                    <StatusBadge status={order.fulfillmentStatus} />
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-sm text-zinc-600">
+                    {order.itemTitles.join(" | ")}
                   </p>
                 </div>
-                <StatusBadge status={order.fulfillmentStatus} />
               </div>
-              <p className="line-clamp-2 text-sm text-zinc-600">
-                {order.itemTitles.join(" | ")}
-              </p>
-              <div className="mt-3 grid gap-2 text-xs text-zinc-600">
+              <div className="grid gap-2 text-xs text-zinc-600">
                 <div>
                   <span className={`rounded-full px-2 py-1 font-semibold ring-1 ${match.className}`}>
                     {match.label}

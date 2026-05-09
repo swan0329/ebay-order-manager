@@ -1,4 +1,6 @@
+/* eslint-disable @next/next/no-img-element */
 import { notFound } from "next/navigation";
+import { ImageOff } from "lucide-react";
 import { FulfillmentRefreshButton } from "@/components/FulfillmentRefreshButton";
 import {
   DeductStockButton,
@@ -25,7 +27,23 @@ function asArray(value: unknown): unknown[] {
 }
 
 function asString(value: unknown) {
-  return typeof value === "string" ? value : undefined;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function imageUrlFromRaw(value: unknown): string | null {
+  const record = asRecord(value);
+  const direct =
+    asString(record.imageUrl) ??
+    asString(record.thumbnailImageUrl) ??
+    asString(record.pictureUrl) ??
+    asString(record.galleryURL);
+
+  if (direct) {
+    return direct;
+  }
+
+  const image = asRecord(record.image);
+  return asString(image.imageUrl) ?? asString(image.url);
 }
 
 function addressLines(rawJson: unknown) {
@@ -91,6 +109,24 @@ function itemInventoryState({
   };
 }
 
+function ProductImage({
+  src,
+  title,
+}: {
+  src: string | null;
+  title: string;
+}) {
+  return (
+    <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-zinc-200 bg-zinc-100">
+      {src ? (
+        <img src={src} alt={title} className="h-full w-full object-cover" />
+      ) : (
+        <ImageOff className="h-7 w-7 text-zinc-400" />
+      )}
+    </div>
+  );
+}
+
 export default async function OrderDetailPage({
   params,
 }: {
@@ -108,9 +144,18 @@ export default async function OrderDetailPage({
     }),
     prisma.product.findMany({
       where: { status: { not: "inactive" } },
-      select: { id: true, sku: true, productName: true, stockQuantity: true },
+      select: {
+        id: true,
+        sku: true,
+        productName: true,
+        optionName: true,
+        category: true,
+        brand: true,
+        imageUrl: true,
+        stockQuantity: true,
+      },
       orderBy: { sku: "asc" },
-      take: 500,
+      take: 50,
     }),
   ]);
 
@@ -164,6 +209,7 @@ export default async function OrderDetailPage({
               {unmatchedItems.map((item) => (
                 <p key={item.id}>
                   eBay SKU {item.sku || "없음"} · {item.title}
+                  {!item.sku ? " · SKU가 없어 자동 매칭되지 않았습니다." : ""}
                 </p>
               ))}
             </div>
@@ -187,12 +233,14 @@ export default async function OrderDetailPage({
                     shortage: Boolean(shortage),
                     matched: Boolean(item.productId),
                   });
+                  const imageUrl = item.product?.imageUrl ?? imageUrlFromRaw(item.rawJson);
 
                   return (
                     <div
                       key={item.id}
-                      className="grid gap-3 py-3 text-sm lg:grid-cols-[1fr_150px_70px_280px_120px]"
+                      className="grid gap-3 py-4 text-sm lg:grid-cols-[auto_1fr_160px_70px_300px_120px]"
                     >
+                      <ProductImage src={imageUrl} title={item.title} />
                       <div>
                         <p className="font-medium text-zinc-950">{item.title}</p>
                         <p className="mt-1 text-zinc-500">
@@ -207,9 +255,12 @@ export default async function OrderDetailPage({
                           연결된 상품
                         </p>
                         {item.product ? (
-                          <p className="mt-1">
-                            {item.product.sku} · {item.product.productName}
-                          </p>
+                          <div className="mt-1">
+                            <p>{item.product.sku}</p>
+                            <p className="text-xs text-zinc-500">
+                              {item.product.productName}
+                            </p>
+                          </div>
                         ) : (
                           <p className="mt-1 text-amber-700">아직 없음</p>
                         )}
@@ -234,7 +285,11 @@ export default async function OrderDetailPage({
                           <p className="mt-1 text-xs text-zinc-500">
                             현재 재고 {item.product.stockQuantity}
                           </p>
-                        ) : null}
+                        ) : (
+                          <p className="mt-1 text-xs text-zinc-500">
+                            상품을 매칭하면 재고가 표시됩니다.
+                          </p>
+                        )}
                       </div>
                     </div>
                   );
