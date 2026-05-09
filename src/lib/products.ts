@@ -306,7 +306,7 @@ export async function bulkUpdateProducts(
   });
 }
 
-type ProductImportRow = Record<string, unknown>;
+export type ProductImportRow = Record<string, unknown>;
 
 function rowValue(row: ProductImportRow, keys: string[]) {
   for (const key of keys) {
@@ -408,7 +408,10 @@ async function saveProductImport(input: ProductInput, createdBy?: string | null)
   return "created" as const;
 }
 
-async function importProductsRows(rows: ProductImportRow[], createdBy?: string | null) {
+export async function importProductsRows(
+  rows: ProductImportRow[],
+  createdBy?: string | null,
+) {
   let created = 0;
   let updated = 0;
   const errors: string[] = [];
