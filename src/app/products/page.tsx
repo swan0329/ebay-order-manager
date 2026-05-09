@@ -74,6 +74,10 @@ export default async function ProductsPage({
     memo: product.memo,
     imageUrl: product.imageUrl,
     status: product.status,
+    listingStatus: product.listingStatus,
+    ebayItemId: product.ebayItemId,
+    uploadError: product.uploadError,
+    lastUploadedAt: product.lastUploadedAt?.toISOString() ?? null,
   }));
   const start = totalFiltered ? (currentPage - 1) * pageSize + 1 : 0;
   const end = totalFiltered ? start + products.length - 1 : 0;

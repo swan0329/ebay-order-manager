@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { TopNav } from "@/components/TopNav";
 import { orderWarningClass } from "@/lib/order-automation";
 import { orderItemImageUrlFromRaw } from "@/lib/order-images";
-import { rankFuzzyTitleMatches } from "@/lib/product-matching";
+import { rankFuzzyTitleMatches } from "@/lib/services/matchingService";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { formatDate } from "@/lib/view-models";

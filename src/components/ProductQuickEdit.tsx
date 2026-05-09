@@ -22,6 +22,10 @@ export type ProductQuickEditValue = {
   memo: string | null;
   imageUrl: string | null;
   status: string;
+  listingStatus?: string | null;
+  ebayItemId?: string | null;
+  uploadError?: string | null;
+  lastUploadedAt?: string | null;
 };
 
 type EditableState = {
@@ -64,8 +68,25 @@ const defaultVisibleColumnIds = [
   "memo",
   "productName",
   "status",
+  "listingStatus",
   "save",
 ];
+
+function listingStatusClass(status?: string | null) {
+  if (status === "ACTIVE") {
+    return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  }
+
+  if (status === "FAILED") {
+    return "bg-rose-50 text-rose-700 ring-rose-200";
+  }
+
+  if (status) {
+    return "bg-amber-50 text-amber-700 ring-amber-200";
+  }
+
+  return "bg-zinc-100 text-zinc-600 ring-zinc-200";
+}
 
 export function ProductQuickEditRow({
   product,
@@ -243,6 +264,21 @@ export function ProductQuickEditRow({
           </select>
         </td>
       ) : null}
+      {visibleColumns.has("listingStatus") ? (
+        <td className="px-2 py-3">
+          <span
+            className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${listingStatusClass(
+              product.listingStatus,
+            )}`}
+            title={product.uploadError ?? product.ebayItemId ?? ""}
+          >
+            {product.listingStatus ?? "not_uploaded"}
+          </span>
+          {product.ebayItemId ? (
+            <p className="mt-1 truncate text-xs text-zinc-500">{product.ebayItemId}</p>
+          ) : null}
+        </td>
+      ) : null}
       {visibleColumns.has("save") ? (
         <td className="px-2 py-3">
           <button
@@ -405,6 +441,13 @@ export function ProductQuickEditCard({
         />
       </div>
       <div className="mt-3 flex items-center justify-end gap-2">
+        <span
+          className={`mr-auto rounded-full px-2 py-1 text-xs font-semibold ring-1 ${listingStatusClass(
+            product.listingStatus,
+          )}`}
+        >
+          {product.listingStatus ?? "not_uploaded"}
+        </span>
         {message ? <p className="text-xs text-zinc-500">{message}</p> : null}
         <button
           type="button"

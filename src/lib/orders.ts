@@ -13,7 +13,7 @@ import { currentEbayEnvironment } from "@/lib/ebay-environment";
 import { deductStockForOrder } from "@/lib/inventory";
 import { applyOrderAutomation, applyOrderAutomationMany } from "@/lib/order-automation";
 import { orderItemImageUrlFromRaw } from "@/lib/order-images";
-import { legacyListingReferenceFromOrderItemRaw } from "@/lib/product-matching";
+import { legacyListingReferenceFromOrderItemRaw } from "@/lib/services/matchingService";
 import { safeLog } from "@/lib/safe-log";
 
 type JsonRecord = Record<string, unknown>;

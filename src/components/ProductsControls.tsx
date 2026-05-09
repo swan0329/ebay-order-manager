@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Download, Plus, Search, Upload } from "lucide-react";
+import { Download, Plus, Search, Upload, UploadCloud } from "lucide-react";
 
 export function ProductsControls() {
   const router = useRouter();
@@ -114,6 +114,13 @@ export function ProductsControls() {
             >
               <Plus className="h-4 w-4" />
               상품 등록
+            </Link>
+            <Link
+              href="/products/upload"
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+            >
+              <UploadCloud className="h-4 w-4" />
+              eBay 업로드
             </Link>
             <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50">
               <Upload className="h-4 w-4" />

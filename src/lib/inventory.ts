@@ -1,7 +1,7 @@
 import { Prisma } from "@/generated/prisma";
 import { z } from "zod";
 import { toCsv } from "@/lib/csv";
-import { matchOrderItemsForOrder } from "@/lib/product-matching";
+import { matchOrderItemsForOrder } from "@/lib/services/matchingService";
 import { prisma } from "@/lib/prisma";
 
 export const inventoryMovementTypes = [

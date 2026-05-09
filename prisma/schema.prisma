@@ -41,6 +41,7 @@ model User {
   ebayAccounts EbayAccount[]
   orders       Order[]
   productMappings ProductMapping[]
+  productUploadJobs ProductUploadJob[]
   syncLogs     SyncLog[]
 
   @@map("users")
@@ -146,17 +147,62 @@ model Product {
   memo          String?  @db.Text
   imageUrl      String?  @map("image_url")
   status        String   @default("active")
+  ebayTitle      String?  @map("ebay_title")
+  descriptionHtml String? @map("description_html") @db.Text
+  ebayPrice      Decimal? @map("ebay_price") @db.Decimal(12, 2)
+  ebayImageUrls  String[] @default([]) @map("ebay_image_urls")
+  ebayCategoryId String?  @map("ebay_category_id")
+  ebayCondition  String?  @map("ebay_condition")
+  ebayShippingProfile String? @map("ebay_shipping_profile")
+  ebayReturnProfile String? @map("ebay_return_profile")
+  ebayPaymentProfile String? @map("ebay_payment_profile")
+  ebayMerchantLocationKey String? @map("ebay_merchant_location_key")
+  ebayMarketplaceId String? @map("ebay_marketplace_id")
+  ebayCurrency String? @map("ebay_currency")
+  ebayOfferId String? @map("ebay_offer_id")
+  ebayItemId  String? @map("ebay_item_id")
+  listingStatus String? @map("listing_status")
+  lastUploadedAt DateTime? @map("last_uploaded_at")
+  uploadError String? @map("upload_error") @db.Text
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   orderItems OrderItem[]
   movements  InventoryMovement[]
   mappings   ProductMapping[]
+  uploadJobs ProductUploadJob[]
 
   @@index([status])
   @@index([stockQuantity])
   @@index([productName])
+  @@index([listingStatus])
+  @@index([ebayItemId])
   @@map("products")
+}
+
+model ProductUploadJob {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  productId   String?  @map("product_id")
+  sku         String
+  source      String   @default("single")
+  action      String?
+  status      String   @default("pending")
+  message     String?  @db.Text
+  error       String?  @db.Text
+  rawJson     Json?    @map("raw_json")
+  startedAt   DateTime? @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, createdAt])
+  @@index([productId])
+  @@index([sku])
+  @@map("product_upload_jobs")
 }
 
 model ProductMapping {

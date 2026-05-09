@@ -156,6 +156,36 @@ Prisma schema는 `prisma/schema.prisma`에 있습니다.
 
 엑셀 업로드는 `.xlsx`, `.xls` 파일을 지원합니다. 포카마켓 양식은 `상품번호`를 SKU로 사용하고, `재고`, `그룹명`, `앨범명`, `멤버`, `포카마켓 이미지`, `포카마켓 가격` 컬럼을 자동으로 상품 DB 필드에 맞춥니다. 업로드로 재고가 새로 들어오거나 변경되면 `inventory_movements`에 `IN` 또는 `ADJUST` 이력이 남습니다.
 
+## eBay 상품 업로드
+
+`/products/upload`에서 eBay Inventory API 기반 상품 업로드를 실행합니다.
+
+엑셀/CSV 컬럼:
+
+- `sku`
+- `title`
+- `description_html`
+- `price`
+- `quantity`
+- `image_urls`
+- `category_id`
+- `condition`
+- `shipping_profile`
+- `return_profile`
+- `payment_profile`
+- `merchant_location_key`
+- `marketplace_id`
+- `currency`
+
+`image_urls`는 여러 URL을 줄바꿈, 쉼표, 세미콜론, `|`로 구분할 수 있습니다. 상대 경로나 R2 object key를 넣으면 `R2_PUBLIC_BASE_URL`, `CLOUDFLARE_R2_PUBLIC_URL`, `CLOUDFLARE_R2_PUBLIC_BASE_URL` 중 설정된 공개 URL을 앞에 붙입니다.
+
+업로드는 SKU 기준으로 동작합니다. 기존 eBay offer가 있으면 revise, 없으면 create 후 publish를 시도합니다. 결과는 상품의 `ebay_item_id`, `listing_status`, `last_uploaded_at`, `upload_error`에 저장되고, 작업별 로그는 `product_upload_jobs`에 남습니다.
+
+필요한 eBay OAuth scope:
+
+- `https://api.ebay.com/oauth/api_scope/sell.inventory`
+- 기존 연결 계정에 이 scope가 없으면 eBay 연결을 다시 승인해야 합니다.
+
 ## 검증
 
 ```bash
