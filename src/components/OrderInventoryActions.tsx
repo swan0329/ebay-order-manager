@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ImageOff, Search } from "lucide-react";
 
@@ -22,6 +22,46 @@ function productLabel(product: MatchProduct) {
     product.productName,
     product.optionName,
   ].filter(Boolean).join(" · ");
+}
+
+function initialProductSearchQuery(itemSku: string | null | undefined, itemTitle: string) {
+  if (itemSku?.trim()) {
+    return itemSku.trim();
+  }
+
+  const title = itemTitle.toUpperCase();
+  const members = [
+    "BANG CHAN",
+    "LEE KNOW",
+    "CHANGBIN",
+    "HYUNJIN",
+    "HAN",
+    "FELIX",
+    "SEUNGMIN",
+    "I.N",
+  ];
+  const albums = [
+    "I AM NOT",
+    "I AM WHO",
+    "I AM YOU",
+    "MIROH",
+    "YELLOW WOOD",
+    "LEVANTER",
+    "GO LIVE",
+    "IN LIFE",
+    "NOEASY",
+    "ODDINARY",
+    "MAXIDENT",
+    "5-STAR",
+    "ROCK",
+    "ATE",
+    "KARMA",
+    "DO IT",
+  ];
+  const member = members.find((candidate) => title.includes(candidate));
+  const album = albums.find((candidate) => title.includes(candidate));
+
+  return [album, member].filter(Boolean).join(" ");
 }
 
 function ProductImage({
@@ -65,7 +105,9 @@ export function OrderItemProductMatcher({
 }) {
   const router = useRouter();
   const [value, setValue] = useState(productId ?? "");
-  const [query, setQuery] = useState(itemSku || "");
+  const [query, setQuery] = useState(() =>
+    initialProductSearchQuery(itemSku, itemTitle),
+  );
   const [results, setResults] = useState<MatchProduct[]>(products);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -78,29 +120,44 @@ export function OrderItemProductMatcher({
   );
   const isUnmatched = !productId;
 
-  async function searchProducts(nextQuery = query) {
-    const trimmed = nextQuery.trim();
+  const searchProducts = useCallback(
+    async (nextQuery = query) => {
+      const trimmed = nextQuery.trim();
 
-    if (!trimmed) {
-      setResults(products);
+      if (!trimmed) {
+        setResults(products);
+        return;
+      }
+
+      setSearching(true);
+      setMessage("");
+      const response = await fetch(`/api/products?q=${encodeURIComponent(trimmed)}`);
+      const data = (await response.json().catch(() => null)) as
+        | { products?: MatchProduct[]; error?: string }
+        | null;
+      setSearching(false);
+
+      if (!response.ok) {
+        setMessage(data?.error ?? "상품 검색에 실패했습니다.");
+        return;
+      }
+
+      setResults(data?.products ?? []);
+    },
+    [products, query],
+  );
+
+  useEffect(() => {
+    if (!isUnmatched || !query.trim()) {
       return;
     }
 
-    setSearching(true);
-    setMessage("");
-    const response = await fetch(`/api/products?q=${encodeURIComponent(trimmed)}`);
-    const data = (await response.json().catch(() => null)) as
-      | { products?: MatchProduct[]; error?: string }
-      | null;
-    setSearching(false);
+    const timer = window.setTimeout(() => {
+      void searchProducts(query);
+    }, 0);
 
-    if (!response.ok) {
-      setMessage(data?.error ?? "상품 검색에 실패했습니다.");
-      return;
-    }
-
-    setResults(data?.products ?? []);
-  }
+    return () => window.clearTimeout(timer);
+  }, [isUnmatched, query, searchProducts]);
 
   async function save() {
     setLoading(true);
