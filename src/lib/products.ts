@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma";
 import * as XLSX from "xlsx";
 import { z } from "zod";
@@ -432,6 +433,98 @@ export async function importProductsRows(
       created += 1;
     }
   }
+
+  return { created, updated, errors };
+}
+
+export async function importProductsRowsFast(rows: ProductImportRow[]) {
+  const products = new Map<string, ProductInput>();
+  const errors: string[] = [];
+
+  for (const [index, row] of rows.entries()) {
+    const parsed = productInputSchema.safeParse(normalizeProductImportRow(row));
+
+    if (!parsed.success) {
+      errors.push(`${index + 2}행: ${parsed.error.issues[0]?.message ?? "입력 오류"}`);
+      continue;
+    }
+
+    products.set(parsed.data.sku, parsed.data);
+  }
+
+  const values = [...products.values()];
+
+  if (!values.length) {
+    return { created: 0, updated: 0, errors };
+  }
+
+  const existingProducts = await prisma.product.findMany({
+    where: { sku: { in: values.map((product) => product.sku) } },
+    select: { sku: true },
+  });
+  const existingSkus = new Set(existingProducts.map((product) => product.sku));
+  const created = values.filter((product) => !existingSkus.has(product.sku)).length;
+  const updated = values.length - created;
+
+  await prisma.$executeRaw`
+    INSERT INTO "products" (
+      "id",
+      "sku",
+      "internal_code",
+      "product_name",
+      "option_name",
+      "category",
+      "brand",
+      "cost_price",
+      "sale_price",
+      "stock_quantity",
+      "safety_stock",
+      "location",
+      "memo",
+      "image_url",
+      "status",
+      "created_at",
+      "updated_at"
+    )
+    VALUES ${Prisma.join(
+      values.map(
+        (product) => Prisma.sql`(
+          ${randomUUID()},
+          ${product.sku},
+          ${product.internalCode},
+          ${product.productName},
+          ${product.optionName},
+          ${product.category},
+          ${product.brand},
+          ${product.costPrice},
+          ${product.salePrice},
+          ${product.stockQuantity},
+          ${product.safetyStock},
+          ${product.location},
+          ${product.memo},
+          ${product.imageUrl},
+          ${product.status},
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP
+        )`,
+      ),
+    )}
+    ON CONFLICT ("sku") DO UPDATE SET
+      "internal_code" = EXCLUDED."internal_code",
+      "product_name" = EXCLUDED."product_name",
+      "option_name" = EXCLUDED."option_name",
+      "category" = EXCLUDED."category",
+      "brand" = EXCLUDED."brand",
+      "cost_price" = EXCLUDED."cost_price",
+      "sale_price" = EXCLUDED."sale_price",
+      "stock_quantity" = EXCLUDED."stock_quantity",
+      "safety_stock" = EXCLUDED."safety_stock",
+      "location" = EXCLUDED."location",
+      "memo" = EXCLUDED."memo",
+      "image_url" = EXCLUDED."image_url",
+      "status" = EXCLUDED."status",
+      "updated_at" = CURRENT_TIMESTAMP
+  `;
 
   return { created, updated, errors };
 }

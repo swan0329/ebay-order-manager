@@ -1,17 +1,17 @@
 import { z } from "zod";
 import { asErrorMessage, jsonError } from "@/lib/http";
-import { importProductsRows } from "@/lib/products";
+import { importProductsRowsFast } from "@/lib/products";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
 const importBatchSchema = z.object({
-  rows: z.array(z.record(z.string(), z.unknown())).min(1).max(250),
+  rows: z.array(z.record(z.string(), z.unknown())).min(1).max(1000),
 });
 
 export async function POST(request: Request) {
   try {
-    const user = await requireApiUser();
+    await requireApiUser();
     const input = importBatchSchema.parse(await request.json());
-    const result = await importProductsRows(input.rows, user.id);
+    const result = await importProductsRowsFast(input.rows);
 
     return Response.json(result);
   } catch (error) {
