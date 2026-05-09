@@ -159,6 +159,7 @@ Prisma schema는 `prisma/schema.prisma`에 있습니다.
 ## eBay 상품 업로드
 
 `/products/upload`에서 eBay Inventory API 기반 상품 업로드를 실행합니다.
+`/products/templates`에서 업로드 템플릿을 만들고 기본값을 저장할 수 있습니다.
 
 엑셀/CSV 컬럼:
 
@@ -179,11 +180,14 @@ Prisma schema는 `prisma/schema.prisma`에 있습니다.
 
 `image_urls`는 여러 URL을 줄바꿈, 쉼표, 세미콜론, `|`로 구분할 수 있습니다. 상대 경로나 R2 object key를 넣으면 `R2_PUBLIC_BASE_URL`, `CLOUDFLARE_R2_PUBLIC_URL`, `CLOUDFLARE_R2_PUBLIC_BASE_URL` 중 설정된 공개 URL을 앞에 붙입니다.
 
-업로드는 SKU 기준으로 동작합니다. 기존 eBay offer가 있으면 revise, 없으면 create 후 publish를 시도합니다. 결과는 상품의 `ebay_item_id`, `listing_status`, `last_uploaded_at`, `upload_error`에 저장되고, 작업별 로그는 `product_upload_jobs`에 남습니다.
+템플릿을 선택하면 엑셀/CSV 값이 우선 적용되고, 비어 있는 값은 템플릿 기본값과 시스템 기본값으로 채워집니다. 업로드 전 `검증만`으로 최종 Inventory item/offer payload를 확인할 수 있고, 선택한 템플릿 기준 샘플 CSV/XLSX를 다운로드할 수 있습니다.
+
+업로드는 SKU 기준으로 동작합니다. 기존 eBay offer가 있으면 revise, 없으면 create 후 publish를 시도합니다. 결과는 상품의 `ebay_item_id`, `listing_status`, `last_uploaded_at`, `upload_error`에 저장되고, 작업별 로그와 최종 payload, eBay raw error는 `product_upload_jobs`에 남습니다.
 
 필요한 eBay OAuth scope:
 
 - `https://api.ebay.com/oauth/api_scope/sell.inventory`
+- `https://api.ebay.com/oauth/api_scope/sell.account.readonly`
 - 기존 연결 계정에 이 scope가 없으면 eBay 연결을 다시 승인해야 합니다.
 
 ## 검증

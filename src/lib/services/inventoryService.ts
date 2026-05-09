@@ -10,12 +10,29 @@ export type ListingUploadInput = {
   imageUrls: string[];
   categoryId: string;
   condition: string;
+  conditionDescription?: string | null;
+  listingDuration?: string | null;
+  listingFormat?: string | null;
   shippingProfile: string;
   returnProfile: string;
   paymentProfile?: string | null;
   merchantLocationKey?: string | null;
   marketplaceId?: string | null;
   currency?: string | null;
+  shippingService?: string | null;
+  handlingTime?: number | null;
+  internationalShippingEnabled?: boolean | null;
+  excludedLocations?: string[];
+  bestOfferEnabled?: boolean | null;
+  minimumOfferPrice?: string | null;
+  autoAcceptPrice?: string | null;
+  privateListing?: boolean | null;
+  immediatePayRequired?: boolean | null;
+  itemSpecifics?: Record<string, string[]>;
+  brand?: string | null;
+  type?: string | null;
+  countryOfOrigin?: string | null;
+  customLabel?: string | null;
 };
 
 function nullableText(value?: string | null) {

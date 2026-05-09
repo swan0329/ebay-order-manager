@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  coerceListingUploadInput,
   normalizeListingUploadRow,
   resolveListingImageUrls,
 } from "../src/lib/services/listingUploadInput";
@@ -44,6 +45,43 @@ describe("listing upload input", () => {
       imageUrls: ["https://pub-example.r2.dev/cards/sku-1.jpg"],
       categoryId: "261328",
       condition: "NEW",
+      shippingProfile: "ship-policy",
+      returnProfile: "return-policy",
+      paymentProfile: "pay-policy",
+    });
+  });
+
+  it("merges template defaults behind uploaded values", () => {
+    process.env.R2_PUBLIC_BASE_URL = "https://pub-example.r2.dev";
+
+    expect(
+      coerceListingUploadInput(
+        {
+          sku: "SKU-2",
+          title: "Uploaded title",
+          imageUrls: "cards/sku-2.jpg",
+          price: "18",
+        },
+        {
+          descriptionHtml: "<p>{title}</p>",
+          quantity: 5,
+          price: "12",
+          categoryId: "261328",
+          condition: "NEW",
+          shippingProfile: "ship-policy",
+          returnProfile: "return-policy",
+          paymentProfile: "pay-policy",
+          marketplaceId: "EBAY_US",
+          currency: "USD",
+        },
+      ),
+    ).toMatchObject({
+      sku: "SKU-2",
+      title: "Uploaded title",
+      price: "18.00",
+      quantity: 5,
+      categoryId: "261328",
+      imageUrls: ["https://pub-example.r2.dev/cards/sku-2.jpg"],
       shippingProfile: "ship-policy",
       returnProfile: "return-policy",
       paymentProfile: "pay-policy",

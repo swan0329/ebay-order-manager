@@ -40,6 +40,7 @@ model User {
 
   ebayAccounts EbayAccount[]
   orders       Order[]
+  listingTemplates ListingTemplate[]
   productMappings ProductMapping[]
   productUploadJobs ProductUploadJob[]
   syncLogs     SyncLog[]
@@ -184,13 +185,17 @@ model ProductUploadJob {
   id          String   @id @default(cuid())
   userId      String   @map("user_id")
   productId   String?  @map("product_id")
+  templateId  String?  @map("template_id")
   sku         String
   source      String   @default("single")
   action      String?
   status      String   @default("pending")
   message     String?  @db.Text
   error       String?  @db.Text
+  errorSummary String? @map("error_summary") @db.Text
+  rawEbayError Json?   @map("raw_ebay_error")
   rawJson     Json?    @map("raw_json")
+  finalPayloadJson Json? @map("final_payload_json")
   startedAt   DateTime? @map("started_at")
   finishedAt  DateTime? @map("finished_at")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -198,11 +203,53 @@ model ProductUploadJob {
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  template ListingTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
   @@index([userId, status, createdAt])
   @@index([productId])
+  @@index([templateId])
   @@index([sku])
   @@map("product_upload_jobs")
+}
+
+model ListingTemplate {
+  id                       String   @id @default(cuid())
+  userId                   String   @map("user_id")
+  name                     String
+  description              String?  @db.Text
+  marketplaceId            String?  @map("marketplace_id")
+  categoryId               String?  @map("category_id")
+  condition                String?
+  conditionDescription     String?  @map("condition_description") @db.Text
+  listingDuration          String?  @map("listing_duration")
+  listingFormat            String?  @map("listing_format")
+  currency                 String?
+  defaultQuantity          Int?     @map("default_quantity")
+  defaultPrice             Decimal? @map("default_price") @db.Decimal(12, 2)
+  paymentPolicyId          String?  @map("payment_policy_id")
+  fulfillmentPolicyId      String?  @map("fulfillment_policy_id")
+  returnPolicyId           String?  @map("return_policy_id")
+  merchantLocationKey      String?  @map("merchant_location_key")
+  bestOfferEnabled         Boolean  @default(false) @map("best_offer_enabled")
+  minimumOfferPrice        Decimal? @map("minimum_offer_price") @db.Decimal(12, 2)
+  autoAcceptPrice          Decimal? @map("auto_accept_price") @db.Decimal(12, 2)
+  privateListing           Boolean  @default(false) @map("private_listing")
+  immediatePayRequired     Boolean  @default(false) @map("immediate_pay_required")
+  descriptionTemplateHtml  String?  @map("description_template_html") @db.Text
+  itemSpecificsTemplateJson Json?   @map("item_specifics_template_json")
+  imageSettingsJson        Json?    @map("image_settings_json")
+  shippingSettingsJson     Json?    @map("shipping_settings_json")
+  skuSettingsJson          Json?    @map("sku_settings_json")
+  isDefault                Boolean  @default(false) @map("is_default")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  uploadJobs ProductUploadJob[]
+
+  @@index([userId, isDefault])
+  @@index([userId, name])
+  @@map("listing_templates")
 }
 
 model ProductMapping {

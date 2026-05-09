@@ -3,6 +3,7 @@ export type EbayEnvironmentName = "sandbox" | "production";
 export const defaultEbayScopes = [
   "https://api.ebay.com/oauth/api_scope/sell.fulfillment",
   "https://api.ebay.com/oauth/api_scope/sell.inventory",
+  "https://api.ebay.com/oauth/api_scope/sell.account.readonly",
   "https://api.ebay.com/oauth/api_scope/commerce.identity.readonly",
 ];
 

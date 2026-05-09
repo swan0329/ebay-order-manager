@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { safeLog } from "@/lib/safe-log";
 
 export const sellInventoryScope = "https://api.ebay.com/oauth/api_scope/sell.inventory";
+export const sellAccountReadonlyScope =
+  "https://api.ebay.com/oauth/api_scope/sell.account.readonly";
 
 type EbayApiRequestInput = {
   method?: string;
@@ -48,6 +50,18 @@ export async function getActiveEbayInventoryAccount(userId: string) {
   if (!accountHasScope(account, sellInventoryScope)) {
     throw new Error(
       "eBay Inventory API 권한이 없습니다. eBay 연결을 다시 진행해 sell.inventory 권한을 승인해야 합니다.",
+    );
+  }
+
+  return account;
+}
+
+export async function getActiveEbayAccountPolicyAccount(userId: string) {
+  const account = await getActiveEbayInventoryAccount(userId);
+
+  if (!accountHasScope(account, sellAccountReadonlyScope)) {
+    throw new Error(
+      "eBay 정책 조회 권한이 없습니다. eBay 연결을 다시 진행해 sell.account.readonly 권한을 승인해야 합니다.",
     );
   }
 

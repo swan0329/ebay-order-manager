@@ -1,49 +1,81 @@
 import { z } from "zod";
 import { asErrorMessage, jsonError } from "@/lib/http";
-import { listingUploadSchema, resolveListingImageUrls } from "@/lib/services/listingUploadInput";
+import { buildListingPayloadPreview } from "@/lib/services/listingService";
+import {
+  coerceListingUploadInput,
+  type ListingUploadDraft,
+} from "@/lib/services/listingUploadInput";
+import { resolveListingTemplateDefaults } from "@/lib/services/listingTemplateService";
 import { upsertProductFromListingInput } from "@/lib/services/inventoryService";
 import { processProductUpload } from "@/lib/services/uploadQueue";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
-const singleUploadSchema = z.object({
-  sku: z.string(),
-  title: z.string(),
-  descriptionHtml: z.string(),
-  price: z.union([z.string(), z.number()]),
-  quantity: z.union([z.string(), z.number()]),
-  imageUrls: z.union([z.string(), z.array(z.string())]),
-  categoryId: z.string(),
-  condition: z.string().optional(),
-  shippingProfile: z.string(),
-  returnProfile: z.string(),
-  paymentProfile: z.string().optional().nullable(),
-  merchantLocationKey: z.string().optional().nullable(),
-  marketplaceId: z.string().optional().nullable(),
-  currency: z.string().optional().nullable(),
-});
+const singleUploadSchema = z
+  .object({
+    templateId: z.string().optional().nullable(),
+    previewOnly: z.boolean().optional(),
+    validateOnly: z.boolean().optional(),
+    sku: z.string().optional().nullable(),
+    title: z.string().optional().nullable(),
+    descriptionHtml: z.string().optional().nullable(),
+    price: z.union([z.string(), z.number()]).optional().nullable(),
+    quantity: z.union([z.string(), z.number()]).optional().nullable(),
+    imageUrls: z.union([z.string(), z.array(z.string())]).optional().nullable(),
+    categoryId: z.string().optional().nullable(),
+    condition: z.string().optional().nullable(),
+    conditionDescription: z.string().optional().nullable(),
+    listingDuration: z.string().optional().nullable(),
+    listingFormat: z.string().optional().nullable(),
+    shippingProfile: z.string().optional().nullable(),
+    returnProfile: z.string().optional().nullable(),
+    paymentProfile: z.string().optional().nullable(),
+    merchantLocationKey: z.string().optional().nullable(),
+    marketplaceId: z.string().optional().nullable(),
+    currency: z.string().optional().nullable(),
+    shippingService: z.string().optional().nullable(),
+    handlingTime: z.union([z.string(), z.number()]).optional().nullable(),
+    internationalShippingEnabled: z.union([z.boolean(), z.string()]).optional().nullable(),
+    excludedLocations: z.union([z.string(), z.array(z.string())]).optional().nullable(),
+    bestOfferEnabled: z.union([z.boolean(), z.string()]).optional().nullable(),
+    minimumOfferPrice: z.union([z.string(), z.number()]).optional().nullable(),
+    autoAcceptPrice: z.union([z.string(), z.number()]).optional().nullable(),
+    privateListing: z.union([z.boolean(), z.string()]).optional().nullable(),
+    immediatePayRequired: z.union([z.boolean(), z.string()]).optional().nullable(),
+    itemSpecifics: z.unknown().optional().nullable(),
+    brand: z.string().optional().nullable(),
+    type: z.string().optional().nullable(),
+    countryOfOrigin: z.string().optional().nullable(),
+    customLabel: z.string().optional().nullable(),
+  })
+  .passthrough();
 
 export async function POST(request: Request) {
   try {
     const user = await requireApiUser();
     const raw = singleUploadSchema.parse(await request.json());
-    const imageUrls = Array.isArray(raw.imageUrls)
-      ? raw.imageUrls
-      : resolveListingImageUrls(raw.imageUrls);
-    const input = listingUploadSchema.parse({
-      ...raw,
-      condition: raw.condition || "NEW",
-      imageUrls,
-    });
+    const { template, defaults } = await resolveListingTemplateDefaults(
+      user.id,
+      raw.templateId,
+    );
+    const input = coerceListingUploadInput(raw as ListingUploadDraft, defaults);
+    const preview = buildListingPayloadPreview(input);
+
+    if (raw.previewOnly || raw.validateOnly) {
+      return Response.json({ ok: true, template, finalInput: input, preview });
+    }
+
     const { product, created } = await upsertProductFromListingInput(input, user.id);
     const upload = await processProductUpload({
       userId: user.id,
       productId: product.id,
       sku: product.sku,
       source: "single",
-      rawJson: input,
+      templateId: template?.id,
+      rawJson: raw,
+      finalInput: input,
     });
 
-    return Response.json({ product, created, upload });
+    return Response.json({ product, created, upload, preview });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return jsonError("Unauthorized", 401);

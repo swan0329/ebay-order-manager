@@ -48,6 +48,20 @@ function priceString(value: unknown) {
   return String(value);
 }
 
+function amount(currency: string, value?: string | null) {
+  if (!value) {
+    return undefined;
+  }
+
+  return { currency, value };
+}
+
+function cleanObject<T extends Record<string, unknown>>(value: T) {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => entry !== undefined && entry !== null),
+  ) as T;
+}
+
 export function productToListingInput(product: Product): ListingUploadInput {
   const imageUrls = product.ebayImageUrls.length
     ? product.ebayImageUrls
@@ -88,33 +102,54 @@ export function productToListingInput(product: Product): ListingUploadInput {
     marketplaceId:
       product.ebayMarketplaceId ?? envValue("EBAY_MARKETPLACE_ID") ?? "EBAY_US",
     currency: product.ebayCurrency ?? envValue("EBAY_CURRENCY") ?? "USD",
+    listingFormat: "FIXED_PRICE",
   };
 }
 
-function inventoryItemPayload(input: ListingUploadInput) {
+export function inventoryItemPayload(input: ListingUploadInput) {
   if (!input.imageUrls.length) {
     throw new Error("image_urls 값이 필요합니다.");
   }
 
-  return {
+  const aspects: Record<string, string[]> = {
+    Type: ["Photocard"],
+    ...(input.itemSpecifics ?? {}),
+  };
+
+  if (input.brand) {
+    aspects.Brand = [input.brand];
+  }
+
+  if (input.type) {
+    aspects.Type = [input.type];
+  }
+
+  if (input.countryOfOrigin) {
+    aspects.Country = [input.countryOfOrigin];
+  }
+
+  if (input.customLabel) {
+    aspects["Custom Label"] = [input.customLabel];
+  }
+
+  return cleanObject({
     availability: {
       shipToLocationAvailability: {
         quantity: input.quantity,
       },
     },
     condition: input.condition,
+    conditionDescription: input.conditionDescription || undefined,
     product: {
       title: input.title,
       description: textFromHtml(input.descriptionHtml) || input.title,
       imageUrls: input.imageUrls,
-      aspects: {
-        Type: ["Photocard"],
-      },
+      aspects,
     },
-  };
+  });
 }
 
-function offerPayload(input: ListingUploadInput) {
+export function offerPayload(input: ListingUploadInput) {
   const paymentProfile = requiredValue(input.paymentProfile, "payment_profile");
   const merchantLocationKey = requiredValue(
     input.merchantLocationKey,
@@ -122,16 +157,28 @@ function offerPayload(input: ListingUploadInput) {
   );
   const marketplaceId = input.marketplaceId ?? "EBAY_US";
   const currency = input.currency ?? "USD";
+  const bestOfferTerms =
+    input.bestOfferEnabled || input.minimumOfferPrice || input.autoAcceptPrice
+      ? cleanObject({
+          bestOfferEnabled: Boolean(input.bestOfferEnabled),
+          autoDeclinePrice: amount(currency, input.minimumOfferPrice),
+          autoAcceptPrice: amount(currency, input.autoAcceptPrice),
+        })
+      : undefined;
 
-  return {
+  return cleanObject({
     sku: input.sku,
     marketplaceId,
-    format: "FIXED_PRICE",
+    format: input.listingFormat ?? "FIXED_PRICE",
+    listingDuration: input.listingDuration || undefined,
+    hideBuyerDetails: input.privateListing || undefined,
+    includeCatalogProductDetails: false,
     availableQuantity: input.quantity,
     categoryId: input.categoryId,
     merchantLocationKey,
     listingDescription: input.descriptionHtml,
     listingPolicies: {
+      bestOfferTerms,
       fulfillmentPolicyId: input.shippingProfile,
       paymentPolicyId: paymentProfile,
       returnPolicyId: input.returnProfile,
@@ -141,6 +188,35 @@ function offerPayload(input: ListingUploadInput) {
         currency,
         value: input.price,
       },
+    },
+  });
+}
+
+export function buildListingPayloadPreview(input: ListingUploadInput) {
+  return {
+    sku: input.sku,
+    inventoryItem: inventoryItemPayload(input),
+    offer: offerPayload(input),
+    finalValues: {
+      title: input.title,
+      sku: input.sku,
+      price: input.price,
+      quantity: input.quantity,
+      categoryId: input.categoryId,
+      condition: input.condition,
+      marketplaceId: input.marketplaceId ?? "EBAY_US",
+      currency: input.currency ?? "USD",
+      listingFormat: input.listingFormat ?? "FIXED_PRICE",
+      listingDuration: input.listingDuration ?? null,
+      paymentPolicyId: input.paymentProfile ?? null,
+      fulfillmentPolicyId: input.shippingProfile,
+      returnPolicyId: input.returnProfile,
+      merchantLocationKey: input.merchantLocationKey ?? null,
+      imageUrls: input.imageUrls,
+      itemSpecifics: input.itemSpecifics ?? {},
+      descriptionHtml: input.descriptionHtml,
+      bestOfferEnabled: Boolean(input.bestOfferEnabled),
+      privateListing: Boolean(input.privateListing),
     },
   };
 }
@@ -222,8 +298,9 @@ async function publishOffer(account: EbayAccount, offerId: string) {
 export async function publishProductListing(
   account: EbayAccount,
   product: Product,
+  inputOverride?: ListingUploadInput,
 ): Promise<ListingUploadResult> {
-  const input = productToListingInput(product);
+  const input = inputOverride ?? productToListingInput(product);
   const marketplaceId = input.marketplaceId ?? "EBAY_US";
 
   await createOrReplaceInventoryItem(account, input);

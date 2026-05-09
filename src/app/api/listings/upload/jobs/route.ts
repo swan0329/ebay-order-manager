@@ -8,6 +8,12 @@ export async function GET() {
     const jobs = await prisma.productUploadJob.findMany({
       where: { userId: user.id },
       include: {
+        template: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         product: {
           select: {
             id: true,

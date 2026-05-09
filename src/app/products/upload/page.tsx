@@ -3,17 +3,24 @@ import { ArrowLeft, AlertTriangle, CheckCircle2, UploadCloud } from "lucide-reac
 import { ProductListingUploader } from "@/components/ProductListingUploader";
 import { TopNav } from "@/components/TopNav";
 import { prisma } from "@/lib/prisma";
+import { listListingTemplates } from "@/lib/services/listingTemplateService";
 import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProductUploadPage() {
   const user = await requireUser();
-  const [recentJobs, successCount, failedCount, activeListingCount] =
+  const [recentJobs, successCount, failedCount, activeListingCount, templates] =
     await Promise.all([
       prisma.productUploadJob.findMany({
         where: { userId: user.id },
         include: {
+          template: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
           product: {
             select: {
               id: true,
@@ -36,6 +43,7 @@ export default async function ProductUploadPage() {
       prisma.product.count({
         where: { listingStatus: "ACTIVE" },
       }),
+      listListingTemplates(user.id),
     ]);
 
   return (
@@ -87,7 +95,14 @@ export default async function ProductUploadPage() {
           </div>
         </section>
 
-        <ProductListingUploader recentJobs={recentJobs} />
+        <ProductListingUploader
+          recentJobs={recentJobs}
+          templates={templates.map((template) => ({
+            id: template.id,
+            name: template.name,
+            isDefault: template.isDefault,
+          }))}
+        />
       </main>
     </div>
   );
