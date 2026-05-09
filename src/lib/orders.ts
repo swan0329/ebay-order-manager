@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   createShippingFulfillment,
   EbayApiError,
+  getEbayListingImageUrl,
   getOrdersFromEbay,
   getShippingFulfillments,
   type EbayLineItemReference,
@@ -11,6 +12,7 @@ import {
 import { currentEbayEnvironment } from "@/lib/ebay-environment";
 import { deductStockForOrder } from "@/lib/inventory";
 import { applyOrderAutomation, applyOrderAutomationMany } from "@/lib/order-automation";
+import { orderItemImageUrlFromRaw } from "@/lib/order-images";
 import { safeLog } from "@/lib/safe-log";
 
 type JsonRecord = Record<string, unknown>;
@@ -79,6 +81,10 @@ function asDate(value: unknown) {
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
+function firstStringFromRecord(record: JsonRecord, keys: string[]) {
+  return keys.map((key) => asString(record[key])).find(Boolean);
+}
+
 function firstDate(values: unknown[]) {
   return values.map(asDate).find(Boolean);
 }
@@ -139,6 +145,112 @@ export function parseEbayOrder(rawOrder: unknown) {
     }),
     rawJson: order,
   };
+}
+
+export function legacyListingReferenceFromOrderItemRaw(rawJson: unknown) {
+  const record = asRecord(rawJson);
+  const legacyItemId = firstStringFromRecord(record, ["legacyItemId", "itemId"]);
+
+  if (!legacyItemId) {
+    return null;
+  }
+
+  return {
+    legacyItemId,
+    legacyVariationId: firstStringFromRecord(record, [
+      "legacyVariationId",
+      "variationId",
+    ]),
+    legacyVariationSku: firstStringFromRecord(record, [
+      "legacyVariationSku",
+      "variationSku",
+      "sku",
+    ]),
+    marketplaceId: firstStringFromRecord(record, [
+      "listingMarketplaceId",
+      "marketplaceId",
+    ]),
+  };
+}
+
+async function enrichOrderItemRawWithListingImage({
+  ebayOrderId,
+  lineItemId,
+  rawJson,
+  existingImageUrl,
+}: {
+  ebayOrderId: string;
+  lineItemId: string;
+  rawJson: JsonRecord;
+  existingImageUrl?: string | null;
+}) {
+  const currentImageUrl = orderItemImageUrlFromRaw(rawJson);
+
+  if (currentImageUrl) {
+    return rawJson;
+  }
+
+  if (existingImageUrl) {
+    return {
+      ...rawJson,
+      soldImageUrl: existingImageUrl,
+      ebayListingImageUrl: existingImageUrl,
+    };
+  }
+
+  const reference = legacyListingReferenceFromOrderItemRaw(rawJson);
+
+  if (!reference) {
+    safeLog("info", "orders.sync.item_image.skipped", {
+      ebayOrderId,
+      lineItemId,
+      reason: "missing_legacy_item_id",
+    });
+    return rawJson;
+  }
+
+  safeLog("info", "orders.sync.item_image.lookup", {
+    ebayOrderId,
+    lineItemId,
+    legacyItemIdPresent: Boolean(reference.legacyItemId),
+    legacyVariationIdPresent: Boolean(reference.legacyVariationId),
+    legacyVariationSkuPresent: Boolean(reference.legacyVariationSku),
+    marketplaceId: reference.marketplaceId,
+  });
+
+  try {
+    const imageUrl = await getEbayListingImageUrl(reference);
+
+    if (!imageUrl) {
+      safeLog("warn", "orders.sync.item_image.missing", {
+        ebayOrderId,
+        lineItemId,
+        legacyItemIdPresent: Boolean(reference.legacyItemId),
+      });
+      return rawJson;
+    }
+
+    safeLog("info", "orders.sync.item_image.resolved", {
+      ebayOrderId,
+      lineItemId,
+      legacyItemIdPresent: Boolean(reference.legacyItemId),
+    });
+
+    return {
+      ...rawJson,
+      soldImageUrl: imageUrl,
+      ebayListingImageUrl: imageUrl,
+    };
+  } catch (error) {
+    safeLog("warn", "orders.sync.item_image.failed", {
+      ebayOrderId,
+      lineItemId,
+      status: error instanceof EbayApiError ? error.status : undefined,
+      body: error instanceof EbayApiError ? error.body : undefined,
+      message: error instanceof Error ? error.message : "Unknown image lookup error",
+    });
+    return rawJson;
+  }
 }
 
 export async function writeSyncLog(
@@ -207,9 +319,32 @@ export async function saveEbayOrder(
   const incomingLineItemIds = parsed.items
     .map((item) => item.lineItemId)
     .filter(Boolean);
+  const existingItems = await prisma.orderItem.findMany({
+    where: { orderId: order.id },
+    select: { lineItemId: true, rawJson: true },
+  });
+  const existingImageByLineItemId = new Map(
+    existingItems
+      .map((item) => [
+        item.lineItemId,
+        orderItemImageUrlFromRaw(item.rawJson),
+      ] as const)
+      .filter(([, imageUrl]) => Boolean(imageUrl)),
+  );
+  const itemsWithListingImages = await Promise.all(
+    parsed.items.map(async (item) => ({
+      ...item,
+      rawJson: await enrichOrderItemRawWithListingImage({
+        ebayOrderId: parsed.ebayOrderId,
+        lineItemId: item.lineItemId,
+        rawJson: item.rawJson,
+        existingImageUrl: existingImageByLineItemId.get(item.lineItemId),
+      }),
+    })),
+  );
 
   await Promise.all(
-    parsed.items
+    itemsWithListingImages
       .filter((item) => item.lineItemId)
       .map((item) =>
         prisma.orderItem.upsert({

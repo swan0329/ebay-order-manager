@@ -2,6 +2,7 @@ import type { EbayAccount } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { getEbayConfig } from "@/lib/env";
+import { imageUrlFromBrowseItemPayload } from "@/lib/order-images";
 import { safeLog } from "@/lib/safe-log";
 export { buildOrderFilter, type OrderSyncFilters } from "@/lib/ebay-filter";
 import { buildOrderFilter, type OrderSyncFilters } from "@/lib/ebay-filter";
@@ -24,6 +25,15 @@ type EbayUserProfile = {
   username?: string;
   [key: string]: unknown;
 };
+
+type LegacyListingImageInput = {
+  legacyItemId: string;
+  legacyVariationId?: string | null;
+  legacyVariationSku?: string | null;
+  marketplaceId?: string | null;
+};
+
+let applicationAccessTokenCache: { token: string; expiresAt: number } | null = null;
 
 export class EbayApiError extends Error {
   status: number;
@@ -85,8 +95,11 @@ function safeTokenBodyDiagnostics(params: URLSearchParams) {
     formKeys: Array.from(params.keys()),
     grantType,
     grantTypeIsAuthorizationCode: grantType === "authorization_code",
+    grantTypeIsClientCredentials: grantType === "client_credentials",
     redirectUri,
-    redirectUriMatchesConfiguredRuName: redirectUri === config.ruName,
+    redirectUriMatchesConfiguredRuName: redirectUri
+      ? redirectUri === config.ruName
+      : null,
     redirectUriLooksLikeCallbackUrl: Boolean(redirectUri && /^https?:\/\//.test(redirectUri)),
     callbackUrlInBody: Array.from(params.values()).some((value) =>
       value.includes("/api/ebay/callback"),
@@ -216,6 +229,29 @@ async function requestToken(params: URLSearchParams) {
   return body as EbayTokenResponse;
 }
 
+async function getApplicationAccessToken(force = false) {
+  if (
+    !force &&
+    applicationAccessTokenCache &&
+    applicationAccessTokenCache.expiresAt > Date.now()
+  ) {
+    return applicationAccessTokenCache.token;
+  }
+
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    scope: "https://api.ebay.com/oauth/api_scope",
+  });
+  const token = await requestToken(body);
+
+  applicationAccessTokenCache = {
+    token: token.access_token,
+    expiresAt: Date.now() + Math.max(token.expires_in - 300, 0) * 1000,
+  };
+
+  return token.access_token;
+}
+
 export async function exchangeAuthorizationCode(code: string) {
   const config = getEbayConfig();
   const body = new URLSearchParams({
@@ -293,6 +329,43 @@ async function ebayFetch(
   return { response, body };
 }
 
+async function ebayApplicationFetch(
+  url: URL,
+  init?: RequestInit,
+  forceRefresh = false,
+) {
+  const token = await getApplicationAccessToken(forceRefresh);
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      accept: "application/json",
+      authorization: `Bearer ${token}`,
+      ...(init?.headers ?? {}),
+    },
+  });
+
+  if (response.status === 401 && !forceRefresh) {
+    applicationAccessTokenCache = null;
+    return ebayApplicationFetch(url, init, true);
+  }
+
+  const body = await parseEbayResponse(response);
+
+  if (!response.ok) {
+    safeLog("warn", "ebay.browse.request_failed", {
+      endpoint: `${url.origin}${url.pathname}`,
+      method: init?.method ?? "GET",
+      status: response.status,
+      queryKeys: Array.from(url.searchParams.keys()),
+      body,
+    });
+
+    throw new EbayApiError("eBay Browse API request failed.", response.status, body);
+  }
+
+  return { response, body };
+}
+
 export async function getOrdersFromEbay(
   account: EbayAccount,
   filters: OrderSyncFilters,
@@ -312,6 +385,53 @@ export async function getOrdersFromEbay(
 
   const result = await ebayFetch(account, url);
   return result.body as { orders?: unknown[]; total?: number; href?: string };
+}
+
+export async function getEbayListingImageUrl({
+  legacyItemId,
+  legacyVariationId,
+  legacyVariationSku,
+  marketplaceId,
+}: LegacyListingImageInput) {
+  const config = getEbayConfig();
+  const url = new URL("/buy/browse/v1/item/get_item_by_legacy_id", config.hosts.api);
+  const resolvedMarketplaceId =
+    marketplaceId ?? process.env.EBAY_MARKETPLACE_ID ?? "EBAY_US";
+
+  url.searchParams.set("legacy_item_id", legacyItemId);
+
+  if (legacyVariationId) {
+    url.searchParams.set("legacy_variation_id", legacyVariationId);
+  } else if (legacyVariationSku) {
+    url.searchParams.set("legacy_variation_sku", legacyVariationSku);
+  }
+
+  safeLog("info", "ebay.browse.legacy_item_image.request", {
+    endpoint: `${url.origin}${url.pathname}`,
+    environment: config.environment,
+    legacyItemIdPresent: Boolean(legacyItemId),
+    legacyVariationIdPresent: Boolean(legacyVariationId),
+    legacyVariationSkuPresent: Boolean(legacyVariationSku),
+    marketplaceId: resolvedMarketplaceId,
+  });
+
+  const result = await ebayApplicationFetch(url, {
+    headers: {
+      "x-ebay-c-marketplace-id": resolvedMarketplaceId,
+    },
+  });
+  const imageUrl = imageUrlFromBrowseItemPayload(result.body);
+
+  safeLog("info", "ebay.browse.legacy_item_image.response", {
+    endpoint: `${url.origin}${url.pathname}`,
+    imageFound: Boolean(imageUrl),
+    legacyItemIdPresent: Boolean(legacyItemId),
+    legacyVariationIdPresent: Boolean(legacyVariationId),
+    legacyVariationSkuPresent: Boolean(legacyVariationSku),
+    marketplaceId: resolvedMarketplaceId,
+  });
+
+  return imageUrl;
 }
 
 export async function createShippingFulfillment(

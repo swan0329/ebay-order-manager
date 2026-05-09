@@ -10,6 +10,7 @@ import { ShipmentForm } from "@/components/ShipmentForm";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TopNav } from "@/components/TopNav";
 import { orderWarningClass } from "@/lib/order-automation";
+import { orderItemImageUrlFromRaw } from "@/lib/order-images";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { formatDate } from "@/lib/view-models";
@@ -28,22 +29,6 @@ function asArray(value: unknown): unknown[] {
 
 function asString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function imageUrlFromRaw(value: unknown): string | null {
-  const record = asRecord(value);
-  const direct =
-    asString(record.imageUrl) ??
-    asString(record.thumbnailImageUrl) ??
-    asString(record.pictureUrl) ??
-    asString(record.galleryURL);
-
-  if (direct) {
-    return direct;
-  }
-
-  const image = asRecord(record.image);
-  return asString(image.imageUrl) ?? asString(image.url);
 }
 
 function addressLines(rawJson: unknown) {
@@ -233,7 +218,10 @@ export default async function OrderDetailPage({
                     shortage: Boolean(shortage),
                     matched: Boolean(item.productId),
                   });
-                  const imageUrl = item.product?.imageUrl ?? imageUrlFromRaw(item.rawJson);
+                  const imageUrl =
+                    orderItemImageUrlFromRaw(item.rawJson) ??
+                    item.product?.imageUrl ??
+                    null;
 
                   return (
                     <div
