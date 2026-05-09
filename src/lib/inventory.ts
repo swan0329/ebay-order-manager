@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma";
 import { z } from "zod";
 import { toCsv } from "@/lib/csv";
+import { matchOrderItemsForOrder } from "@/lib/product-matching";
 import { prisma } from "@/lib/prisma";
 
 export const inventoryMovementTypes = [
@@ -93,41 +94,6 @@ async function createInventoryMovementTx(
       createdBy: input.createdBy,
     },
   });
-}
-
-export async function matchOrderItemsForOrder(orderId: string) {
-  const items = await prisma.orderItem.findMany({
-    where: { orderId, productId: null, sku: { not: null } },
-    select: { id: true, sku: true },
-  });
-  const skus = [...new Set(items.map((item) => item.sku).filter(Boolean) as string[])];
-
-  if (!skus.length) {
-    return { matched: 0 };
-  }
-
-  const products = await prisma.product.findMany({
-    where: { sku: { in: skus } },
-    select: { id: true, sku: true },
-  });
-  const productBySku = new Map(products.map((product) => [product.sku, product.id]));
-  let matched = 0;
-
-  for (const item of items) {
-    const productId = item.sku ? productBySku.get(item.sku) : undefined;
-
-    if (!productId) {
-      continue;
-    }
-
-    await prisma.orderItem.update({
-      where: { id: item.id },
-      data: { productId },
-    });
-    matched += 1;
-  }
-
-  return { matched };
 }
 
 export async function deductStockForOrder(orderId: string, createdBy?: string | null) {

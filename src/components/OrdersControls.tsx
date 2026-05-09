@@ -140,7 +140,7 @@ export function OrdersControls() {
             className="h-10 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
           >
             <option value="all">전체 재고</option>
-            <option value="unmatched">상품 미매칭</option>
+            <option value="unmatched">수동 확인 필요</option>
             <option value="shortage">재고 부족</option>
             <option value="deducted">재고 차감완료</option>
             <option value="warning">자동 경고</option>

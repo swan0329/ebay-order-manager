@@ -45,6 +45,7 @@ export type OrderListRow = {
     title: string;
     sku: string | null;
     lineItemId: string;
+    matchScore: number | null;
   }[];
   shortageItems: {
     title: string;
@@ -112,14 +113,20 @@ function warningClass(level: string) {
   return "bg-zinc-100 text-zinc-600 ring-zinc-200";
 }
 
-function orderItemLine(item: { title: string; sku: string | null }) {
-  return `${item.sku ? `SKU ${item.sku}` : "SKU 없음"} · ${item.title}`;
+function scoreLabel(score: number | null) {
+  return typeof score === "number" ? ` · 유사도 ${Math.round(score * 100)}%` : "";
+}
+
+function orderItemLine(item: { title: string; sku: string | null; matchScore?: number | null }) {
+  return `${item.sku ? `SKU ${item.sku}` : "SKU 없음"} · ${item.title}${scoreLabel(
+    item.matchScore ?? null,
+  )}`;
 }
 
 function matchBadge(order: OrderListRow) {
   if (order.unmatchedItems.length) {
     return {
-      label: `미매칭 ${order.unmatchedItems.length}건`,
+      label: `수동 확인 필요 ${order.unmatchedItems.length}건`,
       className: "bg-amber-50 text-amber-700 ring-amber-200",
       details: order.unmatchedItems.map(orderItemLine),
     };
@@ -154,7 +161,7 @@ function inventoryBadge(order: OrderListRow) {
 
   if (order.unmatchedItems.length) {
     return {
-      label: `상품 미매칭 ${order.unmatchedItems.length}건`,
+      label: `수동 확인 필요 ${order.unmatchedItems.length}건`,
       className: "bg-amber-50 text-amber-700 ring-amber-200",
       details: order.unmatchedItems.map(orderItemLine),
     };

@@ -127,6 +127,7 @@ function toOrderListRow(order: OrderWithInventory): OrderListRow {
       title: item.title,
       sku: item.sku,
       lineItemId: item.lineItemId,
+      matchScore: item.matchScore,
     }));
   const shortageItems = order.items
     .filter(
@@ -153,7 +154,14 @@ function toOrderListRow(order: OrderWithInventory): OrderListRow {
     ebaySkus: uniqueStrings(order.items.map((item) => item.sku)),
     matchedProducts: order.items
       .filter((item) => item.product)
-      .map((item) => `${item.product?.sku} · ${item.product?.productName}`),
+      .map((item) => {
+        const score =
+          typeof item.matchScore === "number"
+            ? ` · ${Math.round(item.matchScore * 100)}%`
+            : "";
+        const method = item.matchedBy ? ` · ${item.matchedBy}${score}` : "";
+        return `${item.product?.sku} · ${item.product?.productName}${method}`;
+      }),
     quantity: order.items.reduce((sum, item) => sum + item.quantity, 0),
     paidAt: order.paidAt?.toISOString() ?? null,
     orderDate: order.orderDate.toISOString(),

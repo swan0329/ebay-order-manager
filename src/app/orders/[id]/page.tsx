@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { TopNav } from "@/components/TopNav";
 import { orderWarningClass } from "@/lib/order-automation";
 import { orderItemImageUrlFromRaw } from "@/lib/order-images";
+import { rankFuzzyTitleMatches } from "@/lib/product-matching";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { formatDate } from "@/lib/view-models";
@@ -119,7 +120,7 @@ export default async function OrderDetailPage({
 }) {
   const user = await requireUser();
   const { id } = await params;
-  const [order, products] = await Promise.all([
+  const [order, allProducts] = await Promise.all([
     prisma.order.findFirst({
       where: { id, userId: user.id },
       include: {
@@ -136,11 +137,11 @@ export default async function OrderDetailPage({
         optionName: true,
         category: true,
         brand: true,
+        memo: true,
         imageUrl: true,
         stockQuantity: true,
       },
       orderBy: { sku: "asc" },
-      take: 50,
     }),
   ]);
 
@@ -149,6 +150,32 @@ export default async function OrderDetailPage({
   }
 
   const unmatchedItems = order.items.filter((item) => !item.productId);
+  const products = allProducts.slice(0, 50).map((product) => ({
+    id: product.id,
+    sku: product.sku,
+    productName: product.productName,
+    optionName: product.optionName,
+    category: product.category,
+    brand: product.brand,
+    imageUrl: product.imageUrl,
+    stockQuantity: product.stockQuantity,
+  }));
+  const suggestedProductsByItemId = new Map(
+    order.items.map((item) => [
+      item.id,
+      rankFuzzyTitleMatches(item.title, allProducts, 5).map(({ product, score }) => ({
+        id: product.id,
+        sku: product.sku,
+        productName: product.productName,
+        optionName: product.optionName,
+        category: product.category,
+        brand: product.brand,
+        imageUrl: product.imageUrl,
+        stockQuantity: product.stockQuantity,
+        matchScore: score,
+      })),
+    ]),
+  );
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -261,6 +288,9 @@ export default async function OrderDetailPage({
                         itemSku={item.sku}
                         itemTitle={item.title}
                         products={products}
+                        suggestedProducts={suggestedProductsByItemId.get(item.id) ?? []}
+                        matchedBy={item.matchedBy}
+                        matchScore={item.matchScore}
                         disabled={item.stockDeducted}
                       />
                       <div>

@@ -40,6 +40,7 @@ model User {
 
   ebayAccounts EbayAccount[]
   orders       Order[]
+  productMappings ProductMapping[]
   syncLogs     SyncLog[]
 
   @@map("users")
@@ -113,6 +114,8 @@ model OrderItem {
   sku        String?
   quantity   Int      @default(1)
   stockDeducted Boolean @default(false) @map("stock_deducted")
+  matchedBy  String?  @map("matched_by")
+  matchScore Float?   @map("match_score")
   rawJson    Json?    @map("raw_json")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
@@ -148,11 +151,33 @@ model Product {
 
   orderItems OrderItem[]
   movements  InventoryMovement[]
+  mappings   ProductMapping[]
 
   @@index([status])
   @@index([stockQuantity])
   @@index([productName])
   @@map("products")
+}
+
+model ProductMapping {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  productId       String   @map("product_id")
+  ebayItemId      String?  @map("ebay_item_id")
+  ebayVariationId String?  @map("ebay_variation_id")
+  normalizedTitle String?  @map("normalized_title") @db.Text
+  source          String   @default("manual")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([userId, ebayItemId, ebayVariationId])
+  @@index([userId, ebayItemId])
+  @@index([userId, normalizedTitle])
+  @@index([productId])
+  @@map("product_mappings")
 }
 
 model InventoryMovement {

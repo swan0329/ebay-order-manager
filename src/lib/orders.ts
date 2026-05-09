@@ -13,6 +13,7 @@ import { currentEbayEnvironment } from "@/lib/ebay-environment";
 import { deductStockForOrder } from "@/lib/inventory";
 import { applyOrderAutomation, applyOrderAutomationMany } from "@/lib/order-automation";
 import { orderItemImageUrlFromRaw } from "@/lib/order-images";
+import { legacyListingReferenceFromOrderItemRaw } from "@/lib/product-matching";
 import { safeLog } from "@/lib/safe-log";
 
 type JsonRecord = Record<string, unknown>;
@@ -81,10 +82,6 @@ function asDate(value: unknown) {
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
-function firstStringFromRecord(record: JsonRecord, keys: string[]) {
-  return keys.map((key) => asString(record[key])).find(Boolean);
-}
-
 function firstDate(values: unknown[]) {
   return values.map(asDate).find(Boolean);
 }
@@ -144,32 +141,6 @@ export function parseEbayOrder(rawOrder: unknown) {
       };
     }),
     rawJson: order,
-  };
-}
-
-export function legacyListingReferenceFromOrderItemRaw(rawJson: unknown) {
-  const record = asRecord(rawJson);
-  const legacyItemId = firstStringFromRecord(record, ["legacyItemId", "itemId"]);
-
-  if (!legacyItemId) {
-    return null;
-  }
-
-  return {
-    legacyItemId,
-    legacyVariationId: firstStringFromRecord(record, [
-      "legacyVariationId",
-      "variationId",
-    ]),
-    legacyVariationSku: firstStringFromRecord(record, [
-      "legacyVariationSku",
-      "variationSku",
-      "sku",
-    ]),
-    marketplaceId: firstStringFromRecord(record, [
-      "listingMarketplaceId",
-      "marketplaceId",
-    ]),
   };
 }
 

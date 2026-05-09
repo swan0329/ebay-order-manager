@@ -16,6 +16,10 @@ type MatchProduct = {
   stockQuantity: number;
 };
 
+type SuggestedMatchProduct = MatchProduct & {
+  matchScore: number;
+};
+
 function productLabel(product: MatchProduct) {
   return [
     product.sku,
@@ -93,6 +97,9 @@ export function OrderItemProductMatcher({
   itemSku,
   itemTitle,
   products,
+  suggestedProducts = [],
+  matchedBy,
+  matchScore,
   disabled,
 }: {
   orderId: string;
@@ -101,6 +108,9 @@ export function OrderItemProductMatcher({
   itemSku?: string | null;
   itemTitle: string;
   products: MatchProduct[];
+  suggestedProducts?: SuggestedMatchProduct[];
+  matchedBy?: string | null;
+  matchScore?: number | null;
   disabled?: boolean;
 }) {
   const router = useRouter();
@@ -108,7 +118,22 @@ export function OrderItemProductMatcher({
   const [query, setQuery] = useState(() =>
     initialProductSearchQuery(itemSku, itemTitle),
   );
-  const [results, setResults] = useState<MatchProduct[]>(products);
+  const initialResults = useMemo(() => {
+    const merged = new Map<string, MatchProduct>();
+
+    for (const product of suggestedProducts) {
+      merged.set(product.id, product);
+    }
+
+    for (const product of products) {
+      if (!merged.has(product.id)) {
+        merged.set(product.id, product);
+      }
+    }
+
+    return [...merged.values()];
+  }, [products, suggestedProducts]);
+  const [results, setResults] = useState<MatchProduct[]>(initialResults);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -119,13 +144,22 @@ export function OrderItemProductMatcher({
     [products, results, value],
   );
   const isUnmatched = !productId;
+  const matchMeta = productId
+    ? matchedBy === "manual"
+      ? "수동 매칭"
+      : matchedBy
+        ? `자동 매칭: ${matchedBy}${typeof matchScore === "number" ? ` · 유사도 ${Math.round(matchScore * 100)}%` : ""}`
+        : "매칭 완료"
+    : typeof matchScore === "number"
+      ? `수동 확인 필요 · 최고 유사도 ${Math.round(matchScore * 100)}%`
+      : "수동 확인 필요";
 
   const searchProducts = useCallback(
     async (nextQuery = query) => {
       const trimmed = nextQuery.trim();
 
       if (!trimmed) {
-        setResults(products);
+        setResults(initialResults);
         return;
       }
 
@@ -144,7 +178,7 @@ export function OrderItemProductMatcher({
 
       setResults(data?.products ?? []);
     },
-    [products, query],
+    [initialResults, query],
   );
 
   useEffect(() => {
@@ -185,18 +219,51 @@ export function OrderItemProductMatcher({
     <div className="flex flex-col gap-2">
       {isUnmatched ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
-          <p className="font-semibold">미매칭</p>
+          <p className="font-semibold">수동 확인 필요</p>
           <p className="mt-0.5">
-            eBay SKU {itemSku || "없음"} 상품이 재고관리 상품과 연결되지 않았습니다.
+            자동 매칭 기준에 충분히 맞는 재고 상품을 확정하지 못했습니다.
           </p>
           {!itemSku ? (
             <p className="mt-0.5 font-medium">
-              eBay SKU가 비어 있어 자동 매칭이 불가능합니다. 아래 검색으로 직접 연결하세요.
+              SKU가 비어 있어 eBay item id 매핑 또는 후보 선택이 필요합니다.
             </p>
           ) : null}
           <p className="mt-0.5 line-clamp-2" title={itemTitle}>
             {itemTitle}
           </p>
+        </div>
+      ) : null}
+
+      <p className="text-xs font-medium text-zinc-600">{matchMeta}</p>
+
+      {isUnmatched && suggestedProducts.length ? (
+        <div className="rounded-md border border-amber-200 bg-white p-2">
+          <p className="mb-1 text-xs font-semibold text-amber-800">
+            유사 후보
+          </p>
+          <div className="space-y-1">
+            {suggestedProducts.slice(0, 5).map((product) => (
+              <button
+                type="button"
+                key={product.id}
+                onClick={() => setValue(product.id)}
+                disabled={disabled}
+                className={`flex w-full items-center gap-2 rounded-md p-1.5 text-left text-xs hover:bg-zinc-50 disabled:cursor-not-allowed ${
+                  value === product.id ? "bg-zinc-100 ring-1 ring-zinc-300" : ""
+                }`}
+              >
+                <ProductImage product={product} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold text-zinc-900">
+                    {product.sku} · {product.productName}
+                  </span>
+                  <span className="mt-0.5 block truncate text-zinc-500">
+                    유사도 {Math.round(product.matchScore * 100)}% · 재고 {product.stockQuantity}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       ) : null}
 

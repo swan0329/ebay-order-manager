@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { applyOrderAutomation } from "@/lib/order-automation";
+import { saveManualProductMapping } from "@/lib/product-matching";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
@@ -46,9 +47,23 @@ export async function POST(request: Request, context: RouteContext) {
 
     const updated = await prisma.orderItem.update({
       where: { id: orderItem.id },
-      data: { productId: input.productId },
+      data: {
+        productId: input.productId,
+        matchedBy: input.productId ? "manual" : null,
+        matchScore: null,
+      },
       include: { product: true },
     });
+
+    if (input.productId) {
+      await saveManualProductMapping({
+        userId: user.id,
+        productId: input.productId,
+        rawJson: orderItem.rawJson,
+        title: orderItem.title,
+      });
+    }
+
     await applyOrderAutomation(id);
 
     return Response.json({ orderItem: updated });
