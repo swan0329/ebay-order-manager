@@ -3,6 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PackageOpen } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
+import {
+  listingUploadStatusLabel,
+  resolveInventoryListingUploadStatus,
+} from "@/lib/listing-upload-status";
 import { productStockLabel } from "@/lib/products";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
@@ -30,6 +34,13 @@ export default async function ProductDetailPage({
         orderBy: { createdAt: "desc" },
         take: 50,
       },
+      listingDrafts: {
+        where: { userId: user.id },
+        select: { id: true, status: true, updatedAt: true, errorSummary: true },
+        orderBy: { updatedAt: "desc" },
+        take: 5,
+      },
+      listingLinks: true,
     },
   });
 
@@ -52,6 +63,7 @@ export default async function ProductDetailPage({
       movementUser.name ?? movementUser.loginId,
     ]),
   );
+  const listingUploadStatus = resolveInventoryListingUploadStatus(product);
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -104,6 +116,17 @@ export default async function ProductDetailPage({
                   </dd>
                 </div>
                 <div className="flex justify-between gap-3">
+                  <dt className="text-zinc-500">eBay 등록</dt>
+                  <dd className="text-right font-semibold text-zinc-950">
+                    {listingUploadStatusLabel(listingUploadStatus)}
+                    {product.ebayItemId ? (
+                      <span className="mt-1 block text-xs text-zinc-500">
+                        {product.ebayItemId}
+                      </span>
+                    ) : null}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-3">
                   <dt className="text-zinc-500">위치</dt>
                   <dd className="font-semibold text-zinc-950">
                     {product.location ?? "-"}
@@ -146,6 +169,45 @@ export default async function ProductDetailPage({
                     {product.memo ?? "-"}
                   </dd>
                 </div>
+              </dl>
+            </section>
+
+            <section className="rounded-lg border border-zinc-200 bg-white p-4">
+              <h2 className="mb-3 text-base font-semibold text-zinc-950">
+                eBay 업로드 연결
+              </h2>
+              <dl className="space-y-2 text-sm">
+                <div>
+                  <dt className="text-zinc-500">상태</dt>
+                  <dd className="font-medium text-zinc-950">
+                    {listingUploadStatusLabel(listingUploadStatus)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-zinc-500">item_id / offer_id</dt>
+                  <dd className="font-medium text-zinc-950">
+                    {product.ebayItemId ?? product.listingLinks[0]?.ebayItemId ?? "-"} /{" "}
+                    {product.ebayOfferId ?? product.listingLinks[0]?.offerId ?? "-"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-zinc-500">최근 draft</dt>
+                  <dd className="font-medium text-zinc-950">
+                    {product.listingDrafts[0]
+                      ? `${product.listingDrafts[0].status} · ${formatDate(
+                          product.listingDrafts[0].updatedAt,
+                        )}`
+                      : "-"}
+                  </dd>
+                </div>
+                {product.uploadError || product.listingDrafts[0]?.errorSummary ? (
+                  <div>
+                    <dt className="text-zinc-500">오류</dt>
+                    <dd className="whitespace-pre-wrap font-medium text-rose-700">
+                      {product.uploadError ?? product.listingDrafts[0]?.errorSummary}
+                    </dd>
+                  </div>
+                ) : null}
               </dl>
             </section>
           </aside>

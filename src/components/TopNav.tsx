@@ -5,12 +5,14 @@ import {
   PlugZap,
   Smartphone,
   Truck,
+  UploadCloud,
 } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
 
 const nav = [
   { href: "/orders", label: "주문", icon: Package },
   { href: "/products", label: "재고관리", icon: PackageOpen },
+  { href: "/listing-upload", label: "상품업로드", icon: UploadCloud },
   { href: "/shipping", label: "배송처리", icon: Truck },
   { href: "/mobile", label: "모바일", icon: Smartphone },
   { href: "/connect", label: "eBay 연결", icon: PlugZap },

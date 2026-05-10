@@ -28,6 +28,7 @@ const columns: Column[] = [
   { id: "memo", label: "원본 앨범명", width: 190, minWidth: 130 },
   { id: "productName", label: "상품명", width: 320, minWidth: 180 },
   { id: "status", label: "상태", width: 140, minWidth: 120 },
+  { id: "listingStatus", label: "eBay 등록", width: 150, minWidth: 120 },
   { id: "save", label: "저장", width: 90, minWidth: 74, locked: true },
 ];
 

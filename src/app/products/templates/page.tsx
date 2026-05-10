@@ -15,6 +15,8 @@ export default async function ProductTemplatesPage() {
     defaultPrice: template.defaultPrice?.toString() ?? null,
     minimumOfferPrice: template.minimumOfferPrice?.toString() ?? null,
     autoAcceptPrice: template.autoAcceptPrice?.toString() ?? null,
+    createdAt: template.createdAt.toISOString(),
+    updatedAt: template.updatedAt.toISOString(),
   }));
 
   return (
@@ -23,7 +25,7 @@ export default async function ProductTemplatesPage() {
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <div className="mb-5">
           <Link
-            href="/products/upload"
+            href="/listing-upload"
             className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-950"
           >
             <ArrowLeft className="h-4 w-4" />

@@ -31,6 +31,8 @@ type Template = {
   imageSettingsJson: unknown;
   shippingSettingsJson: unknown;
   skuSettingsJson: unknown;
+  titleTemplate: string | null;
+  excludedLocationsJson: unknown;
   isDefault: boolean;
 };
 
@@ -67,6 +69,7 @@ type FormState = {
   autoAcceptPrice: string;
   privateListing: boolean;
   immediatePayRequired: boolean;
+  titleTemplate: string;
   descriptionTemplateHtml: string;
   itemSpecificsTemplate: string;
   brand: string;
@@ -109,6 +112,7 @@ const emptyForm: FormState = {
   autoAcceptPrice: "",
   privateListing: false,
   immediatePayRequired: false,
+  titleTemplate: "{{title}}",
   descriptionTemplateHtml: "<p>{title}</p>",
   itemSpecificsTemplate: "{}",
   brand: "",
@@ -151,6 +155,7 @@ function formFromTemplate(template: Template): FormState {
   const imageSettings = objectJson(template.imageSettingsJson);
   const shippingSettings = objectJson(template.shippingSettingsJson);
   const skuSettings = objectJson(template.skuSettingsJson);
+  const excludedLocations = objectJson(template.excludedLocationsJson);
 
   return {
     ...emptyForm,
@@ -172,12 +177,15 @@ function formFromTemplate(template: Template): FormState {
     shippingService: stringValue(shippingSettings.shippingService),
     handlingTime: stringValue(shippingSettings.handlingTime),
     internationalShippingEnabled: boolJsonValue(shippingSettings, "internationalShippingEnabled"),
-    excludedLocations: stringValue(shippingSettings.excludedLocations),
+    excludedLocations:
+      stringValue(excludedLocations.excludedLocations) ||
+      stringValue(shippingSettings.excludedLocations),
     bestOfferEnabled: template.bestOfferEnabled,
     minimumOfferPrice: stringValue(template.minimumOfferPrice ?? ""),
     autoAcceptPrice: stringValue(template.autoAcceptPrice ?? ""),
     privateListing: template.privateListing,
     immediatePayRequired: template.immediatePayRequired,
+    titleTemplate: template.titleTemplate ?? "{{title}}",
     descriptionTemplateHtml: template.descriptionTemplateHtml ?? "",
     itemSpecificsTemplate: JSON.stringify(itemSpecifics, null, 2),
     brand: firstJsonValue(itemSpecifics, "Brand"),
@@ -246,6 +254,7 @@ function formPayload(form: FormState) {
     autoAcceptPrice: form.autoAcceptPrice,
     privateListing: form.privateListing,
     immediatePayRequired: form.immediatePayRequired,
+    titleTemplate: form.titleTemplate,
     descriptionTemplateHtml: form.descriptionTemplateHtml,
     itemSpecificsTemplateJson: parseItemSpecifics(form),
     imageSettingsJson: {
@@ -258,6 +267,9 @@ function formPayload(form: FormState) {
       shippingService: form.shippingService,
       handlingTime: form.handlingTime,
       internationalShippingEnabled: form.internationalShippingEnabled,
+      excludedLocations: form.excludedLocations,
+    },
+    excludedLocationsJson: {
       excludedLocations: form.excludedLocations,
     },
     skuSettingsJson: {
@@ -615,6 +627,13 @@ export function ListingTemplateManager({
             <TextInput name="countryOfOrigin" label="country_of_origin" value={form.countryOfOrigin} onChange={updateForm} />
             <TextInput name="customLabel" label="custom_label" value={form.customLabel} onChange={updateForm} />
           </div>
+
+          <TextInput
+            name="titleTemplate"
+            label="title_template"
+            value={form.titleTemplate}
+            onChange={updateForm}
+          />
 
           <div className="grid gap-3 md:grid-cols-4">
             <TextInput name="defaultImageUrl" label="default_image_url" value={form.defaultImageUrl} onChange={updateForm} />

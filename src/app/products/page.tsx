@@ -4,6 +4,10 @@ import { ProductsPager } from "@/components/ProductsPager";
 import { ProductsControls } from "@/components/ProductsControls";
 import { ResizableProductsTable } from "@/components/ResizableProductsTable";
 import { TopNav } from "@/components/TopNav";
+import {
+  resolveInventoryListingUploadStatus,
+  listingUploadStatusLabel,
+} from "@/lib/listing-upload-status";
 import { matchesProductStockFilter, productWhere } from "@/lib/products";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
@@ -37,6 +41,15 @@ export default async function ProductsPage({
   const filteredProducts = (
     await prisma.product.findMany({
       where: productWhere(params),
+      include: {
+        listingDrafts: {
+          where: { userId: user.id },
+          select: { status: true, updatedAt: true },
+          orderBy: { updatedAt: "desc" },
+          take: 3,
+        },
+        listingLinks: true,
+      },
       orderBy: { sku: "asc" },
     })
   ).filter((product) => matchesProductStockFilter(product, params.stock));
@@ -58,27 +71,33 @@ export default async function ProductsPage({
     (product) =>
       product.stockQuantity > 0 && product.stockQuantity <= product.safetyStock,
   ).length;
-  const productRows: ProductQuickEditValue[] = products.map((product) => ({
-    id: product.id,
-    sku: product.sku,
-    internalCode: product.internalCode,
-    productName: product.productName,
-    optionName: product.optionName,
-    category: product.category,
-    brand: product.brand,
-    costPrice: product.costPrice?.toString() ?? null,
-    salePrice: product.salePrice?.toString() ?? null,
-    stockQuantity: product.stockQuantity,
-    safetyStock: product.safetyStock,
-    location: product.location,
-    memo: product.memo,
-    imageUrl: product.imageUrl,
-    status: product.status,
-    listingStatus: product.listingStatus,
-    ebayItemId: product.ebayItemId,
-    uploadError: product.uploadError,
-    lastUploadedAt: product.lastUploadedAt?.toISOString() ?? null,
-  }));
+  const productRows: ProductQuickEditValue[] = products.map((product) => {
+    const listingUploadStatus = resolveInventoryListingUploadStatus(product);
+
+    return {
+      id: product.id,
+      sku: product.sku,
+      internalCode: product.internalCode,
+      productName: product.productName,
+      optionName: product.optionName,
+      category: product.category,
+      brand: product.brand,
+      costPrice: product.costPrice?.toString() ?? null,
+      salePrice: product.salePrice?.toString() ?? null,
+      stockQuantity: product.stockQuantity,
+      safetyStock: product.safetyStock,
+      location: product.location,
+      memo: product.memo,
+      imageUrl: product.imageUrl,
+      status: product.status,
+      listingStatus: product.listingStatus,
+      listingUploadStatus,
+      listingUploadStatusLabel: listingUploadStatusLabel(listingUploadStatus),
+      ebayItemId: product.ebayItemId,
+      uploadError: product.uploadError,
+      lastUploadedAt: product.lastUploadedAt?.toISOString() ?? null,
+    };
+  });
   const start = totalFiltered ? (currentPage - 1) * pageSize + 1 : 0;
   const end = totalFiltered ? start + products.length - 1 : 0;
 

@@ -41,6 +41,9 @@ model User {
   ebayAccounts EbayAccount[]
   orders       Order[]
   listingTemplates ListingTemplate[]
+  listingDrafts ListingDraft[]
+  ebayPolicyCaches EbayPolicyCache[]
+  ebayInventoryLocationCaches EbayInventoryLocationCache[]
   productMappings ProductMapping[]
   productUploadJobs ProductUploadJob[]
   syncLogs     SyncLog[]
@@ -174,6 +177,8 @@ model Product {
   movements  InventoryMovement[]
   mappings   ProductMapping[]
   uploadJobs ProductUploadJob[]
+  listingDrafts ListingDraft[]
+  listingLinks InventoryListingLink[]
 
   @@index([status])
   @@index([stockQuantity])
@@ -242,12 +247,15 @@ model ListingTemplate {
   imageSettingsJson        Json?    @map("image_settings_json")
   shippingSettingsJson     Json?    @map("shipping_settings_json")
   skuSettingsJson          Json?    @map("sku_settings_json")
+  titleTemplate            String?  @map("title_template")
+  excludedLocationsJson    Json?    @map("excluded_locations_json")
   isDefault                Boolean  @default(false) @map("is_default")
   createdAt                DateTime @default(now()) @map("created_at")
   updatedAt                DateTime @updatedAt @map("updated_at")
 
   user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   uploadJobs ProductUploadJob[]
+  listingDrafts ListingDraft[]
 
   @@index([userId, isDefault])
   @@index([userId, name])
@@ -273,6 +281,112 @@ model ProductMapping {
   @@index([userId, normalizedTitle])
   @@index([productId])
   @@map("product_mappings")
+}
+
+model ListingDraft {
+  id                   String    @id @default(cuid())
+  userId               String    @map("user_id")
+  sourceInventoryId    String?   @map("source_inventory_id")
+  templateId           String?   @map("template_id")
+  sku                  String
+  title                String
+  subtitle             String?
+  descriptionHtml      String?   @map("description_html") @db.Text
+  price                Decimal?  @db.Decimal(12, 2)
+  quantity             Int?
+  imageUrlsJson        Json?     @map("image_urls_json")
+  categoryId           String?   @map("category_id")
+  condition            String?
+  conditionDescription String?   @map("condition_description") @db.Text
+  itemSpecificsJson    Json?     @map("item_specifics_json")
+  marketplaceId        String?   @map("marketplace_id")
+  currency             String?
+  paymentPolicyId      String?   @map("payment_policy_id")
+  fulfillmentPolicyId  String?   @map("fulfillment_policy_id")
+  returnPolicyId       String?   @map("return_policy_id")
+  merchantLocationKey  String?   @map("merchant_location_key")
+  bestOfferEnabled     Boolean   @default(false) @map("best_offer_enabled")
+  minimumOfferPrice    Decimal?  @map("minimum_offer_price") @db.Decimal(12, 2)
+  autoAcceptPrice      Decimal?  @map("auto_accept_price") @db.Decimal(12, 2)
+  privateListing       Boolean   @default(false) @map("private_listing")
+  immediatePayRequired Boolean   @default(false) @map("immediate_pay_required")
+  listingFormat        String?   @map("listing_format")
+  status               String    @default("draft")
+  ebayItemId           String?   @map("ebay_item_id")
+  offerId              String?   @map("offer_id")
+  listingStatus        String?   @map("listing_status")
+  errorSummary         String?   @map("error_summary") @db.Text
+  rawErrorJson         Json?     @map("raw_error_json")
+  validationJson       Json?     @map("validation_json")
+  fieldSourceJson      Json?     @map("field_source_json")
+  lastUploadedAt       DateTime? @map("last_uploaded_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceInventory Product?          @relation(fields: [sourceInventoryId], references: [id], onDelete: SetNull)
+  template        ListingTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, updatedAt])
+  @@index([sourceInventoryId])
+  @@index([templateId])
+  @@index([sku])
+  @@map("listing_drafts")
+}
+
+model EbayPolicyCache {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  policyType    String   @map("policy_type")
+  policyId      String   @map("policy_id")
+  name          String?
+  marketplaceId String?  @map("marketplace_id")
+  rawJson       Json?    @map("raw_json")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, policyType, policyId, marketplaceId])
+  @@index([userId, policyType, marketplaceId])
+  @@map("ebay_policy_caches")
+}
+
+model EbayInventoryLocationCache {
+  id                  String   @id @default(cuid())
+  userId              String   @map("user_id")
+  merchantLocationKey String   @map("merchant_location_key")
+  name                String?
+  addressSummary      String?  @map("address_summary")
+  rawJson             Json?    @map("raw_json")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, merchantLocationKey])
+  @@index([userId, name])
+  @@map("ebay_inventory_location_caches")
+}
+
+model InventoryListingLink {
+  id             String    @id @default(cuid())
+  inventoryId    String    @map("inventory_id")
+  sku            String
+  ebayItemId     String?   @map("ebay_item_id")
+  offerId        String?   @map("offer_id")
+  listingStatus  String?   @map("listing_status")
+  lastUploadedAt DateTime? @map("last_uploaded_at")
+  lastSyncedAt   DateTime? @map("last_synced_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  inventory Product @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  @@unique([inventoryId])
+  @@index([sku])
+  @@index([listingStatus])
+  @@map("inventory_listing_links")
 }
 
 model InventoryMovement {

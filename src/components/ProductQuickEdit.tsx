@@ -23,6 +23,8 @@ export type ProductQuickEditValue = {
   imageUrl: string | null;
   status: string;
   listingStatus?: string | null;
+  listingUploadStatus?: string | null;
+  listingUploadStatusLabel?: string | null;
   ebayItemId?: string | null;
   uploadError?: string | null;
   lastUploadedAt?: string | null;
@@ -73,12 +75,20 @@ const defaultVisibleColumnIds = [
 ];
 
 function listingStatusClass(status?: string | null) {
-  if (status === "ACTIVE") {
+  if (status === "uploaded" || status === "ACTIVE") {
     return "bg-emerald-50 text-emerald-700 ring-emerald-200";
   }
 
-  if (status === "FAILED") {
+  if (status === "failed" || status === "FAILED") {
     return "bg-rose-50 text-rose-700 ring-rose-200";
+  }
+
+  if (status === "draft") {
+    return "bg-blue-50 text-blue-700 ring-blue-200";
+  }
+
+  if (status === "needs_update") {
+    return "bg-amber-50 text-amber-700 ring-amber-200";
   }
 
   if (status) {
@@ -268,11 +278,11 @@ export function ProductQuickEditRow({
         <td className="px-2 py-3">
           <span
             className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${listingStatusClass(
-              product.listingStatus,
+              product.listingUploadStatus ?? product.listingStatus,
             )}`}
             title={product.uploadError ?? product.ebayItemId ?? ""}
           >
-            {product.listingStatus ?? "not_uploaded"}
+            {product.listingUploadStatusLabel ?? product.listingStatus ?? "미등록"}
           </span>
           {product.ebayItemId ? (
             <p className="mt-1 truncate text-xs text-zinc-500">{product.ebayItemId}</p>
@@ -443,10 +453,10 @@ export function ProductQuickEditCard({
       <div className="mt-3 flex items-center justify-end gap-2">
         <span
           className={`mr-auto rounded-full px-2 py-1 text-xs font-semibold ring-1 ${listingStatusClass(
-            product.listingStatus,
+            product.listingUploadStatus ?? product.listingStatus,
           )}`}
         >
-          {product.listingStatus ?? "not_uploaded"}
+          {product.listingUploadStatusLabel ?? product.listingStatus ?? "미등록"}
         </span>
         {message ? <p className="text-xs text-zinc-500">{message}</p> : null}
         <button

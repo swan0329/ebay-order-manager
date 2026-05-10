@@ -28,6 +28,8 @@ export type ListingTemplateInput = {
   imageSettingsJson?: unknown;
   shippingSettingsJson?: unknown;
   skuSettingsJson?: unknown;
+  titleTemplate?: string | null;
+  excludedLocationsJson?: unknown;
   isDefault?: boolean;
 };
 
@@ -142,6 +144,8 @@ function templateData(userId: string, input: ListingTemplateInput) {
     imageSettingsJson: jsonOrNull(input.imageSettingsJson),
     shippingSettingsJson: jsonOrNull(input.shippingSettingsJson),
     skuSettingsJson: jsonOrNull(input.skuSettingsJson),
+    titleTemplate: nullableText(input.titleTemplate),
+    excludedLocationsJson: jsonOrNull(input.excludedLocationsJson),
     isDefault: Boolean(input.isDefault),
   };
 }
@@ -149,6 +153,7 @@ function templateData(userId: string, input: ListingTemplateInput) {
 export function listingTemplateToDefaults(template: ListingTemplate): ListingUploadDraft {
   const imageSettings = objectJson(template.imageSettingsJson);
   const shippingSettings = objectJson(template.shippingSettingsJson);
+  const excludedLocationsSettings = objectJson(template.excludedLocationsJson);
   const skuSettings = objectJson(template.skuSettingsJson);
   const itemSpecifics = objectJson(template.itemSpecificsTemplateJson);
 
@@ -173,7 +178,9 @@ export function listingTemplateToDefaults(template: ListingTemplate): ListingUpl
       shippingSettings,
       "internationalShippingEnabled",
     ),
-    excludedLocations: stringFromJson(shippingSettings, "excludedLocations"),
+    excludedLocations:
+      stringFromJson(excludedLocationsSettings, "excludedLocations") ??
+      stringFromJson(shippingSettings, "excludedLocations"),
     bestOfferEnabled: template.bestOfferEnabled,
     minimumOfferPrice: template.minimumOfferPrice?.toString(),
     autoAcceptPrice: template.autoAcceptPrice?.toString(),
@@ -276,6 +283,8 @@ export async function copyListingTemplate(userId: string, id: string) {
         imageSettingsJson: current.imageSettingsJson,
         shippingSettingsJson: current.shippingSettingsJson,
         skuSettingsJson: current.skuSettingsJson,
+        titleTemplate: current.titleTemplate,
+        excludedLocationsJson: current.excludedLocationsJson,
         isDefault: false,
       }),
       isDefault: false,
