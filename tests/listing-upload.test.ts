@@ -63,7 +63,7 @@ describe("listing upload input", () => {
           price: "18",
         },
         {
-          descriptionHtml: "<p>{title}</p>",
+          descriptionHtml: "<p>{{title}} / {{sku}} / {{price}} / {{quantity}} / {{image_urls}}</p>",
           quantity: 5,
           price: "12",
           categoryId: "261328",
@@ -85,6 +85,8 @@ describe("listing upload input", () => {
       shippingProfile: "ship-policy",
       returnProfile: "return-policy",
       paymentProfile: "pay-policy",
+      descriptionHtml:
+        "<p>Uploaded title / SKU-2 / 18 / 5 / https://pub-example.r2.dev/cards/sku-2.jpg</p>",
     });
   });
 });

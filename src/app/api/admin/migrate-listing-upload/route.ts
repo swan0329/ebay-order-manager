@@ -24,7 +24,9 @@ export async function POST() {
         ADD COLUMN IF NOT EXISTS "ebay_item_id" TEXT,
         ADD COLUMN IF NOT EXISTS "listing_status" TEXT,
         ADD COLUMN IF NOT EXISTS "last_uploaded_at" TIMESTAMP(3),
-        ADD COLUMN IF NOT EXISTS "upload_error" TEXT;
+        ADD COLUMN IF NOT EXISTS "upload_error" TEXT,
+        ADD COLUMN IF NOT EXISTS "upload_error_summary" TEXT,
+        ADD COLUMN IF NOT EXISTS "upload_raw_error" JSONB;
     `);
     await prisma.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS "products_listing_status_idx"

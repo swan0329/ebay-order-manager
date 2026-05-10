@@ -9,6 +9,7 @@ import {
 import { resolveListingTemplateDefaults } from "@/lib/services/listingTemplateService";
 import { upsertProductFromListingInput } from "@/lib/services/inventoryService";
 import { processProductUpload } from "@/lib/services/uploadQueue";
+import { validateListingUploadInput } from "@/lib/services/listingValidationService";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
 const maxRowsPerRequest = 100;
@@ -40,21 +41,29 @@ export async function POST(request: Request) {
     const limitedRows = rows.slice(0, previewOnly ? maxPreviewRows : maxRowsPerRequest);
 
     if (previewOnly) {
-      const previews = limitedRows.map((row, index) => {
+      const previews = [];
+
+      for (const [index, row] of limitedRows.entries()) {
         const input = normalizeListingUploadRow(row, {
           templateDefaults: defaults ?? undefined,
           rowIndex: index + 1,
         });
+        const validation = await validateListingUploadInput(input, {
+          userId: user.id,
+          checkImageUrls: true,
+          checkOAuthScope: true,
+        });
 
-        return {
+        previews.push({
           rowNumber: index + 2,
           finalInput: input,
           preview: buildListingPayloadPreview(input),
-        };
-      });
+          validation,
+        });
+      }
 
       return Response.json({
-        ok: true,
+        ok: previews.every((row) => row.validation.valid),
         template,
         rows: previews,
         skipped: Math.max(rows.length - limitedRows.length, 0),
@@ -73,6 +82,22 @@ export async function POST(request: Request) {
           templateDefaults: defaults ?? undefined,
           rowIndex: index + 1,
         });
+        const validation = await validateListingUploadInput(input, {
+          userId: user.id,
+          checkImageUrls: true,
+          checkOAuthScope: true,
+        });
+
+        if (!validation.valid) {
+          failed += 1;
+          errors.push(
+            `${index + 2}행 ${input.sku}: ${validation.issues
+              .map((validationIssue) => validationIssue.message)
+              .join(" / ")}`,
+          );
+          continue;
+        }
+
         const result = await upsertProductFromListingInput(input, user.id);
         const upload = await processProductUpload({
           userId: user.id,

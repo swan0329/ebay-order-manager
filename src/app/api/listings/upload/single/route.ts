@@ -8,6 +8,7 @@ import {
 import { resolveListingTemplateDefaults } from "@/lib/services/listingTemplateService";
 import { upsertProductFromListingInput } from "@/lib/services/inventoryService";
 import { processProductUpload } from "@/lib/services/uploadQueue";
+import { validateListingUploadInput } from "@/lib/services/listingValidationService";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
 const singleUploadSchema = z
@@ -59,9 +60,24 @@ export async function POST(request: Request) {
     );
     const input = coerceListingUploadInput(raw as ListingUploadDraft, defaults);
     const preview = buildListingPayloadPreview(input);
+    const validation = await validateListingUploadInput(input, {
+      userId: user.id,
+      checkImageUrls: true,
+      checkOAuthScope: true,
+    });
 
     if (raw.previewOnly || raw.validateOnly) {
-      return Response.json({ ok: true, template, finalInput: input, preview });
+      return Response.json({
+        ok: validation.valid,
+        template,
+        finalInput: input,
+        preview,
+        validation,
+      });
+    }
+
+    if (!validation.valid) {
+      return jsonError("업로드 전 검증에 실패했습니다.", 422, validation);
     }
 
     const { product, created } = await upsertProductFromListingInput(input, user.id);
@@ -75,7 +91,7 @@ export async function POST(request: Request) {
       finalInput: input,
     });
 
-    return Response.json({ product, created, upload, preview });
+    return Response.json({ product, created, upload, preview, validation });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return jsonError("Unauthorized", 401);

@@ -195,16 +195,21 @@ function renderTemplate(template: string | null | undefined, values: ListingUplo
     return template;
   }
 
+  const imageUrls = parseStringList(values.imageUrls);
   const replacements: Record<string, string> = {
     sku: String(values.sku ?? ""),
     title: String(values.title ?? ""),
+    price: String(values.price ?? ""),
+    quantity: String(values.quantity ?? ""),
     brand: String(values.brand ?? ""),
+    condition: String(values.condition ?? ""),
+    image_urls: imageUrls.join(", "),
     type: String(values.type ?? ""),
     custom_label: String(values.customLabel ?? ""),
     country_of_origin: String(values.countryOfOrigin ?? ""),
   };
 
-  return template.replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key: string) => replacements[key] ?? "");
+  return template.replace(/\{\{?\s*([a-zA-Z0-9_]+)\s*\}?\}/g, (_, key: string) => replacements[key] ?? "");
 }
 
 function generatedSku(draft: ListingUploadDraft, rowIndex?: number) {
@@ -328,7 +333,11 @@ export function mergeListingUploadDrafts(
 
   const descriptionHtml =
     pickValue(primary.descriptionHtml, undefined) ??
-    renderTemplate(templateDefaults?.descriptionHtml, { ...base, sku }) ??
+    renderTemplate(templateDefaults?.descriptionHtml, {
+      ...base,
+      sku,
+      imageUrls: rawImages,
+    }) ??
     (base.title ? `<p>${String(base.title)}</p>` : "");
 
   return {

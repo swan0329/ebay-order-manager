@@ -49,6 +49,11 @@ export async function POST() {
         ADD COLUMN IF NOT EXISTS "final_payload_json" JSONB;
     `);
     await prisma.$executeRawUnsafe(`
+      ALTER TABLE "products"
+        ADD COLUMN IF NOT EXISTS "upload_error_summary" TEXT,
+        ADD COLUMN IF NOT EXISTS "upload_raw_error" JSONB;
+    `);
+    await prisma.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS "listing_templates_user_id_is_default_idx"
         ON "listing_templates"("user_id", "is_default");
     `);

@@ -165,6 +165,8 @@ model Product {
   listingStatus String? @map("listing_status")
   lastUploadedAt DateTime? @map("last_uploaded_at")
   uploadError String? @map("upload_error") @db.Text
+  uploadErrorSummary String? @map("upload_error_summary") @db.Text
+  uploadRawError Json? @map("upload_raw_error")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 

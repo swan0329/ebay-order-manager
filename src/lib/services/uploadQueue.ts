@@ -142,6 +142,8 @@ export async function processUploadJob(jobId: string) {
         listingStatus: result.listingStatus,
         lastUploadedAt: now,
         uploadError: null,
+        uploadErrorSummary: null,
+        uploadRawError: Prisma.JsonNull,
       },
     });
     const updatedJob = await prisma.productUploadJob.update({
@@ -169,6 +171,8 @@ export async function processUploadJob(jobId: string) {
       data: {
         listingStatus: "FAILED",
         uploadError: summary,
+        uploadErrorSummary: summary,
+        uploadRawError: rawEbayError ? toInputJson(rawEbayError) : Prisma.JsonNull,
       },
     });
     const updatedJob = await prisma.productUploadJob.update({
