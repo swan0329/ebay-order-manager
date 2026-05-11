@@ -109,6 +109,14 @@ export const bulkProductUpdateSchema = z
 
 export type BulkProductUpdateInput = z.infer<typeof bulkProductUpdateSchema>;
 
+function statusForStock(status: (typeof productStatuses)[number], stockQuantity: number) {
+  if (stockQuantity <= 0) {
+    return "sold_out";
+  }
+
+  return status;
+}
+
 export function productData(input: ProductInput) {
   return {
     sku: input.sku,
@@ -124,7 +132,7 @@ export function productData(input: ProductInput) {
     location: input.location,
     memo: input.memo,
     imageUrl: input.imageUrl,
-    status: input.status,
+    status: statusForStock(input.status, input.stockQuantity),
   };
 }
 
@@ -389,6 +397,10 @@ export function normalizeProductImportRow(row: ProductImportRow) {
   const stockQuantity = rowValue(row, ["stock_quantity", "재고"]);
   const status = rowText(row, ["status", "상태"]);
   const stockNumber = Number(stockQuantity || 0);
+  const normalizedStatus =
+    Number.isFinite(stockNumber) && stockNumber <= 0
+      ? "sold_out"
+      : status || "active";
 
   return {
     sku,
@@ -404,9 +416,7 @@ export function normalizeProductImportRow(row: ProductImportRow) {
     location: rowValue(row, ["location", "위치"]),
     memo: rowValue(row, ["memo", "메모", "원본 앨범명"]),
     imageUrl: rowValue(row, ["image_url", "이미지", "이미지 URL", "포카마켓 이미지"]),
-    status:
-      status ||
-      (Number.isFinite(stockNumber) && stockNumber <= 0 ? "sold_out" : "active"),
+    status: normalizedStatus,
   };
 }
 
@@ -516,7 +526,10 @@ async function importProductsRowsFastWithMovements(
       continue;
     }
 
-    products.set(parsed.data.sku, parsed.data);
+    products.set(parsed.data.sku, {
+      ...parsed.data,
+      status: statusForStock(parsed.data.status, parsed.data.stockQuantity),
+    });
   }
 
   const values = [...products.values()];
