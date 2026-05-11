@@ -135,25 +135,44 @@ export function productWhere(params: {
 }): Prisma.ProductWhereInput {
   const q = params.q?.trim();
   const where: Prisma.ProductWhereInput = {};
+  const and: Prisma.ProductWhereInput[] = [];
 
   if (params.status && params.status !== "all") {
     where.status = params.status;
   }
 
   if (params.stock === "sold_out") {
-    where.stockQuantity = { lte: 0 };
+    and.push({
+      OR: [{ stockQuantity: { lte: 0 } }, { status: "sold_out" }],
+    });
+  }
+
+  if (params.stock === "low") {
+    and.push({
+      stockQuantity: {
+        gt: 0,
+        lte: prisma.product.fields.safetyStock,
+      },
+      status: { not: "sold_out" },
+    });
   }
 
   if (q) {
-    where.OR = [
-      { sku: { contains: q, mode: "insensitive" } },
-      { productName: { contains: q, mode: "insensitive" } },
-      { internalCode: { contains: q, mode: "insensitive" } },
-      { brand: { contains: q, mode: "insensitive" } },
-      { category: { contains: q, mode: "insensitive" } },
-      { optionName: { contains: q, mode: "insensitive" } },
-      { memo: { contains: q, mode: "insensitive" } },
-    ];
+    and.push({
+      OR: [
+        { sku: { contains: q, mode: "insensitive" } },
+        { productName: { contains: q, mode: "insensitive" } },
+        { internalCode: { contains: q, mode: "insensitive" } },
+        { brand: { contains: q, mode: "insensitive" } },
+        { category: { contains: q, mode: "insensitive" } },
+        { optionName: { contains: q, mode: "insensitive" } },
+        { memo: { contains: q, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  if (and.length) {
+    where.AND = and;
   }
 
   return where;
@@ -180,7 +199,7 @@ export function productStockLabel(product: {
 }
 
 export function matchesProductStockFilter(
-  product: { stockQuantity: number; safetyStock: number },
+  product: { stockQuantity: number; safetyStock: number; status?: string | null },
   stock?: string | null,
 ) {
   if (!stock || stock === "all") {
@@ -188,11 +207,15 @@ export function matchesProductStockFilter(
   }
 
   if (stock === "sold_out") {
-    return product.stockQuantity <= 0;
+    return product.stockQuantity <= 0 || product.status === "sold_out";
   }
 
   if (stock === "low") {
-    return product.stockQuantity > 0 && product.stockQuantity <= product.safetyStock;
+    return (
+      product.status !== "sold_out" &&
+      product.stockQuantity > 0 &&
+      product.stockQuantity <= product.safetyStock
+    );
   }
 
   return true;
@@ -207,37 +230,35 @@ export async function updateProduct(
   input: ProductInput,
   createdBy?: string | null,
 ) {
-  return prisma.$transaction(async (tx) => {
-    const current = await tx.product.findUnique({
-      where: { id },
-      select: { stockQuantity: true },
-    });
-
-    if (!current) {
-      throw new Error("상품을 찾을 수 없습니다.");
-    }
-
-    const product = await tx.product.update({
-      where: { id },
-      data: productData(input),
-    });
-
-    if (current.stockQuantity !== input.stockQuantity) {
-      await tx.inventoryMovement.create({
-        data: {
-          productId: id,
-          type: "ADJUST",
-          quantity: Math.abs(input.stockQuantity - current.stockQuantity),
-          beforeQuantity: current.stockQuantity,
-          afterQuantity: input.stockQuantity,
-          reason: "재고관리 목록 수정",
-          createdBy,
-        },
-      });
-    }
-
-    return product;
+  const current = await prisma.product.findUnique({
+    where: { id },
+    select: { stockQuantity: true },
   });
+
+  if (!current) {
+    throw new Error("상품을 찾을 수 없습니다.");
+  }
+
+  const product = await prisma.product.update({
+    where: { id },
+    data: productData(input),
+  });
+
+  if (current.stockQuantity !== input.stockQuantity) {
+    await prisma.inventoryMovement.create({
+      data: {
+        productId: id,
+        type: "ADJUST",
+        quantity: Math.abs(input.stockQuantity - current.stockQuantity),
+        beforeQuantity: current.stockQuantity,
+        afterQuantity: input.stockQuantity,
+        reason: "재고관리 목록 수정",
+        createdBy,
+      },
+    });
+  }
+
+  return product;
 }
 
 export async function bulkUpdateProducts(
@@ -245,66 +266,94 @@ export async function bulkUpdateProducts(
   createdBy?: string | null,
 ) {
   const ids = [...new Set(input.ids)];
+  const products = await prisma.product.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, stockQuantity: true, status: true },
+  });
 
-  return prisma.$transaction(async (tx) => {
-    const products = await tx.product.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, stockQuantity: true, status: true },
+  if (!products.length) {
+    throw new Error("선택한 상품을 찾을 수 없습니다.");
+  }
+
+  const productIds = products.map((product) => product.id);
+  const baseData: Prisma.ProductUpdateManyMutationInput = {};
+
+  if (input.status !== undefined) {
+    baseData.status = input.status;
+  }
+
+  if (input.salePrice !== undefined) {
+    baseData.salePrice = input.salePrice;
+  }
+
+  if (input.stockQuantity === undefined) {
+    await prisma.product.updateMany({
+      where: { id: { in: productIds } },
+      data: baseData,
     });
 
-    if (!products.length) {
-      throw new Error("선택한 상품을 찾을 수 없습니다.");
+    return { updated: products.length, stockMovements: 0 };
+  }
+
+  const stockQuantity = input.stockQuantity;
+  const stockData: Prisma.ProductUpdateManyMutationInput = {
+    ...baseData,
+    stockQuantity,
+  };
+
+  if (input.status === undefined && stockQuantity > 0) {
+    const soldOutIds = products
+      .filter((product) => product.status === "sold_out")
+      .map((product) => product.id);
+    const unchangedStatusIds = products
+      .filter((product) => product.status !== "sold_out")
+      .map((product) => product.id);
+
+    if (soldOutIds.length) {
+      await prisma.product.updateMany({
+        where: { id: { in: soldOutIds } },
+        data: { ...stockData, status: "active" },
+      });
     }
 
-    let stockMovements = 0;
-
-    for (const product of products) {
-      const data: Prisma.ProductUpdateInput = {};
-
-      if (input.status !== undefined) {
-        data.status = input.status;
-      }
-
-      if (input.salePrice !== undefined) {
-        data.salePrice = input.salePrice;
-      }
-
-      if (input.stockQuantity !== undefined) {
-        data.stockQuantity = input.stockQuantity;
-
-        if (input.status === undefined) {
-          data.status =
-            input.stockQuantity <= 0
-              ? "sold_out"
-              : product.status === "sold_out"
-                ? "active"
-                : product.status;
-        }
-      }
-
-      await tx.product.update({ where: { id: product.id }, data });
-
-      if (
-        input.stockQuantity !== undefined &&
-        product.stockQuantity !== input.stockQuantity
-      ) {
-        await tx.inventoryMovement.create({
-          data: {
-            productId: product.id,
-            type: "ADJUST",
-            quantity: Math.abs(input.stockQuantity - product.stockQuantity),
-            beforeQuantity: product.stockQuantity,
-            afterQuantity: input.stockQuantity,
-            reason: "상품 목록 일괄 수정",
-            createdBy,
-          },
-        });
-        stockMovements += 1;
-      }
+    if (unchangedStatusIds.length) {
+      await prisma.product.updateMany({
+        where: { id: { in: unchangedStatusIds } },
+        data: stockData,
+      });
     }
+  } else {
+    await prisma.product.updateMany({
+      where: { id: { in: productIds } },
+      data: {
+        ...stockData,
+        status: input.status ?? "sold_out",
+      },
+    });
+  }
 
-    return { updated: products.length, stockMovements };
-  });
+  const changedStockProducts = products.filter(
+    (product) => product.stockQuantity !== stockQuantity,
+  );
+
+  if (changedStockProducts.length) {
+    await prisma.inventoryMovement.createMany({
+      data: changedStockProducts.map((product) => ({
+        productId: product.id,
+        type: "ADJUST",
+        quantity: Math.abs(stockQuantity - product.stockQuantity),
+        beforeQuantity: product.stockQuantity,
+        afterQuantity: stockQuantity,
+        reason: "상품 목록 일괄 수정",
+        createdBy,
+      })),
+    });
+  }
+
+  return {
+    updated: products.length,
+    stockMovements: changedStockProducts.length,
+  };
 }
 
 export type ProductImportRow = Record<string, unknown>;
@@ -369,23 +418,21 @@ async function saveProductImport(input: ProductInput, createdBy?: string | null)
   });
 
   if (existing) {
-    await prisma.$transaction(async (tx) => {
-      await tx.product.update({ where: { id: existing.id }, data });
+    await prisma.product.update({ where: { id: existing.id }, data });
 
-      if (existing.stockQuantity !== input.stockQuantity) {
-        await tx.inventoryMovement.create({
-          data: {
-            productId: existing.id,
-            type: "ADJUST",
-            quantity: Math.abs(input.stockQuantity - existing.stockQuantity),
-            beforeQuantity: existing.stockQuantity,
-            afterQuantity: input.stockQuantity,
-            reason: "상품 업로드",
-            createdBy,
-          },
-        });
-      }
-    });
+    if (existing.stockQuantity !== input.stockQuantity) {
+      await prisma.inventoryMovement.create({
+        data: {
+          productId: existing.id,
+          type: "ADJUST",
+          quantity: Math.abs(input.stockQuantity - existing.stockQuantity),
+          beforeQuantity: existing.stockQuantity,
+          afterQuantity: input.stockQuantity,
+          reason: "상품 업로드",
+          createdBy,
+        },
+      });
+    }
 
     return "updated" as const;
   }

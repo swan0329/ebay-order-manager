@@ -19,8 +19,6 @@ export const inventoryMovementSchema = z.object({
   reason: z.string().trim().optional(),
 });
 
-type InventoryTx = Prisma.TransactionClient;
-
 function isDeductibleOrder(order: { orderStatus: string; fulfillmentStatus: string }) {
   const canceledStatuses = ["CANCELLED", "CANCELED", "CANCELLED_BY_SELLER"];
   return (
@@ -37,11 +35,58 @@ export async function createInventoryMovement(input: {
   relatedOrderId?: string | null;
   createdBy?: string | null;
 }) {
-  return prisma.$transaction((tx) => createInventoryMovementTx(tx, input));
+  const product = await prisma.product.findUnique({ where: { id: input.productId } });
+
+  if (!product) {
+    throw new Error("상품을 찾을 수 없습니다.");
+  }
+
+  const beforeQuantity = product.stockQuantity;
+  let afterQuantity = beforeQuantity;
+  let movementQuantity = input.quantity;
+
+  if (input.type === "IN" || input.type === "CANCEL_RESTORE") {
+    afterQuantity = beforeQuantity + input.quantity;
+  } else if (input.type === "OUT" || input.type === "ORDER_DEDUCT") {
+    afterQuantity = beforeQuantity - input.quantity;
+  } else if (input.type === "ADJUST") {
+    afterQuantity = input.quantity;
+    movementQuantity = Math.abs(afterQuantity - beforeQuantity);
+  }
+
+  if (afterQuantity < 0) {
+    throw new Error("재고는 음수가 될 수 없습니다.");
+  }
+
+  await prisma.product.update({
+    where: { id: input.productId },
+    data: {
+      stockQuantity: afterQuantity,
+      status:
+        afterQuantity <= 0
+          ? "sold_out"
+          : product.status === "sold_out"
+            ? "active"
+            : product.status,
+    },
+  });
+
+  return prisma.inventoryMovement.create({
+    data: {
+      productId: input.productId,
+      type: input.type,
+      quantity: movementQuantity,
+      beforeQuantity,
+      afterQuantity,
+      reason: input.reason,
+      relatedOrderId: input.relatedOrderId,
+      createdBy: input.createdBy,
+    },
+  });
 }
 
-async function createInventoryMovementTx(
-  tx: InventoryTx,
+export async function createInventoryMovementTx(
+  tx: Prisma.TransactionClient,
   input: {
     productId: string;
     type: (typeof inventoryMovementTypes)[number];
@@ -132,35 +177,34 @@ export async function deductStockForOrder(orderId: string, createdBy?: string | 
       continue;
     }
 
-    await prisma.$transaction(async (tx) => {
-      const currentItem = await tx.orderItem.findUnique({
-        where: { id: item.id },
-        include: { product: true },
-      });
-
-      if (!currentItem || currentItem.stockDeducted || !currentItem.product) {
-        return;
-      }
-
-      if (currentItem.product.stockQuantity < currentItem.quantity) {
-        shortages += 1;
-        return;
-      }
-
-      await createInventoryMovementTx(tx, {
-        productId: currentItem.product.id,
-        type: "ORDER_DEDUCT",
-        quantity: currentItem.quantity,
-        reason: `Order ${order.ebayOrderId}`,
-        relatedOrderId: order.id,
-        createdBy,
-      });
-      await tx.orderItem.update({
-        where: { id: currentItem.id },
-        data: { stockDeducted: true },
-      });
-      deducted += 1;
+    const currentItem = await prisma.orderItem.findUnique({
+      where: { id: item.id },
+      include: { product: true },
     });
+
+    if (!currentItem || currentItem.stockDeducted || !currentItem.product) {
+      skipped += 1;
+      continue;
+    }
+
+    if (currentItem.product.stockQuantity < currentItem.quantity) {
+      shortages += 1;
+      continue;
+    }
+
+    await createInventoryMovement({
+      productId: currentItem.product.id,
+      type: "ORDER_DEDUCT",
+      quantity: currentItem.quantity,
+      reason: `Order ${order.ebayOrderId}`,
+      relatedOrderId: order.id,
+      createdBy,
+    });
+    await prisma.orderItem.update({
+      where: { id: currentItem.id },
+      data: { stockDeducted: true },
+    });
+    deducted += 1;
   }
 
   return { deducted, skipped, shortages, unmatched };
