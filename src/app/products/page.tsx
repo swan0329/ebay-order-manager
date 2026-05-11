@@ -55,6 +55,13 @@ export default async function ProductsPage({
   const params = await searchParams;
   const pageSize = parsePageSize(params.pageSize);
   const requestedPage = Math.max(1, Number(params.page) || 1);
+  await prisma.product.updateMany({
+    where: {
+      stockQuantity: { lte: 0 },
+      status: { not: "sold_out" },
+    },
+    data: { status: "sold_out" },
+  });
   const where = productWhere(params);
   const [totalFiltered, totalCount, lowStockCount, soldOutCount] =
     await Promise.all([
