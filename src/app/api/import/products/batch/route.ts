@@ -4,14 +4,14 @@ import { importProductsRowsFast } from "@/lib/products";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
 const importBatchSchema = z.object({
-  rows: z.array(z.record(z.string(), z.unknown())).min(1).max(1000),
+  rows: z.array(z.record(z.string(), z.unknown())).min(1).max(5000),
 });
 
 export async function POST(request: Request) {
   try {
-    await requireApiUser();
+    const user = await requireApiUser();
     const input = importBatchSchema.parse(await request.json());
-    const result = await importProductsRowsFast(input.rows);
+    const result = await importProductsRowsFast(input.rows, user.id);
 
     return Response.json(result);
   } catch (error) {

@@ -94,7 +94,7 @@ export type ProductInput = z.infer<typeof productInputSchema>;
 
 export const bulkProductUpdateSchema = z
   .object({
-    ids: z.array(z.string().min(1)).min(1, "상품을 하나 이상 선택해 주세요.").max(500),
+    ids: z.array(z.string().min(1)).min(1, "상품을 하나 이상 선택해 주세요.").max(5000),
     status: z.enum(productStatuses).optional(),
     stockQuantity: optionalNonNegativeInt,
     salePrice: optionalNonNegativeDecimal,
@@ -484,7 +484,27 @@ export async function importProductsRows(
   return { created, updated, errors };
 }
 
-export async function importProductsRowsFast(rows: ProductImportRow[]) {
+export async function importProductsRowsFast(
+  rows: ProductImportRow[],
+  createdBy?: string | null,
+) {
+  return importProductsRowsFastWithMovements(rows, createdBy);
+}
+
+function chunkItems<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
+async function importProductsRowsFastWithMovements(
+  rows: ProductImportRow[],
+  createdBy?: string | null,
+) {
   const products = new Map<string, ProductInput>();
   const errors: string[] = [];
 
@@ -505,79 +525,152 @@ export async function importProductsRowsFast(rows: ProductImportRow[]) {
     return { created: 0, updated: 0, errors };
   }
 
-  const existingProducts = await prisma.product.findMany({
-    where: { sku: { in: values.map((product) => product.sku) } },
-    select: { sku: true },
-  });
+  const existingProducts = (
+    await Promise.all(
+      chunkItems(values, 1000).map((chunk) =>
+        prisma.product.findMany({
+          where: { sku: { in: chunk.map((product) => product.sku) } },
+          select: { id: true, sku: true, stockQuantity: true },
+        }),
+      ),
+    )
+  ).flat();
   const existingSkus = new Set(existingProducts.map((product) => product.sku));
+  const existingBySku = new Map(
+    existingProducts.map((product) => [product.sku, product]),
+  );
   const created = values.filter((product) => !existingSkus.has(product.sku)).length;
   const updated = values.length - created;
 
-  await prisma.$executeRaw`
-    INSERT INTO "products" (
-      "id",
-      "sku",
-      "internal_code",
-      "product_name",
-      "option_name",
-      "category",
-      "brand",
-      "cost_price",
-      "sale_price",
-      "stock_quantity",
-      "safety_stock",
-      "location",
-      "memo",
-      "image_url",
-      "status",
-      "created_at",
-      "updated_at"
-    )
-    VALUES ${Prisma.join(
-      values.map(
-        (product) => Prisma.sql`(
-          ${randomUUID()},
-          ${product.sku},
-          ${product.internalCode},
-          ${product.productName},
-          ${product.optionName},
-          ${product.category},
-          ${product.brand},
-          ${product.costPrice},
-          ${product.salePrice},
-          ${product.stockQuantity},
-          ${product.safetyStock},
-          ${product.location},
-          ${product.memo},
-          ${product.imageUrl},
-          ${product.status},
-          CURRENT_TIMESTAMP,
-          CURRENT_TIMESTAMP
-        )`,
-      ),
-    )}
-    ON CONFLICT ("sku") DO UPDATE SET
-      "internal_code" = EXCLUDED."internal_code",
-      "product_name" = EXCLUDED."product_name",
-      "option_name" = EXCLUDED."option_name",
-      "category" = EXCLUDED."category",
-      "brand" = EXCLUDED."brand",
-      "cost_price" = EXCLUDED."cost_price",
-      "sale_price" = EXCLUDED."sale_price",
-      "stock_quantity" = EXCLUDED."stock_quantity",
-      "safety_stock" = EXCLUDED."safety_stock",
-      "location" = EXCLUDED."location",
-      "memo" = EXCLUDED."memo",
-      "image_url" = EXCLUDED."image_url",
-      "status" = EXCLUDED."status",
-      "updated_at" = CURRENT_TIMESTAMP
-  `;
+  for (const chunk of chunkItems(values, 500)) {
+    await prisma.$executeRaw`
+      INSERT INTO "products" (
+        "id",
+        "sku",
+        "internal_code",
+        "product_name",
+        "option_name",
+        "category",
+        "brand",
+        "cost_price",
+        "sale_price",
+        "stock_quantity",
+        "safety_stock",
+        "location",
+        "memo",
+        "image_url",
+        "status",
+        "created_at",
+        "updated_at"
+      )
+      VALUES ${Prisma.join(
+        chunk.map(
+          (product) => Prisma.sql`(
+            ${randomUUID()},
+            ${product.sku},
+            ${product.internalCode},
+            ${product.productName},
+            ${product.optionName},
+            ${product.category},
+            ${product.brand},
+            ${product.costPrice},
+            ${product.salePrice},
+            ${product.stockQuantity},
+            ${product.safetyStock},
+            ${product.location},
+            ${product.memo},
+            ${product.imageUrl},
+            ${product.status},
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+          )`,
+        ),
+      )}
+      ON CONFLICT ("sku") DO UPDATE SET
+        "internal_code" = EXCLUDED."internal_code",
+        "product_name" = EXCLUDED."product_name",
+        "option_name" = EXCLUDED."option_name",
+        "category" = EXCLUDED."category",
+        "brand" = EXCLUDED."brand",
+        "cost_price" = EXCLUDED."cost_price",
+        "sale_price" = EXCLUDED."sale_price",
+        "stock_quantity" = EXCLUDED."stock_quantity",
+        "safety_stock" = EXCLUDED."safety_stock",
+        "location" = EXCLUDED."location",
+        "memo" = EXCLUDED."memo",
+        "image_url" = EXCLUDED."image_url",
+        "status" = EXCLUDED."status",
+        "updated_at" = CURRENT_TIMESTAMP
+    `;
+  }
+
+  const existingMovements = values
+    .map((product) => {
+      const existing = existingBySku.get(product.sku);
+
+      if (!existing || existing.stockQuantity === product.stockQuantity) {
+        return null;
+      }
+
+      return {
+        productId: existing.id,
+        type: "ADJUST",
+        quantity: Math.abs(product.stockQuantity - existing.stockQuantity),
+        beforeQuantity: existing.stockQuantity,
+        afterQuantity: product.stockQuantity,
+        reason: "상품 업로드",
+        createdBy,
+      };
+    })
+    .filter((movement) => movement !== null);
+
+  const createdWithStock = values.filter(
+    (product) => !existingSkus.has(product.sku) && product.stockQuantity > 0,
+  );
+
+  if (createdWithStock.length) {
+    const createdProducts = (
+      await Promise.all(
+        chunkItems(createdWithStock, 1000).map((chunk) =>
+          prisma.product.findMany({
+            where: { sku: { in: chunk.map((product) => product.sku) } },
+            select: { id: true, sku: true },
+          }),
+        ),
+      )
+    ).flat();
+    const createdBySku = new Map(
+      createdProducts.map((product) => [product.sku, product]),
+    );
+
+    for (const product of createdWithStock) {
+      const createdProduct = createdBySku.get(product.sku);
+
+      if (!createdProduct) {
+        continue;
+      }
+
+      existingMovements.push({
+        productId: createdProduct.id,
+        type: "IN",
+        quantity: product.stockQuantity,
+        beforeQuantity: 0,
+        afterQuantity: product.stockQuantity,
+        reason: "상품 업로드",
+        createdBy,
+      });
+    }
+  }
+
+  for (const chunk of chunkItems(existingMovements, 1000)) {
+    await prisma.inventoryMovement.createMany({ data: chunk });
+  }
 
   return { created, updated, errors };
 }
 
 export async function importProductsCsv(text: string, createdBy?: string | null) {
-  return importProductsRows(parseCsvObjects(text), createdBy);
+  return importProductsRowsFastWithMovements(parseCsvObjects(text), createdBy);
 }
 
 export async function importProductsExcel(buffer: Buffer, createdBy?: string | null) {
@@ -593,7 +686,7 @@ export async function importProductsExcel(buffer: Buffer, createdBy?: string | n
     { defval: "" },
   );
 
-  return importProductsRows(rows, createdBy);
+  return importProductsRowsFastWithMovements(rows, createdBy);
 }
 
 export async function productsCsv(

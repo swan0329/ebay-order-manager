@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Download, Plus, Search, Settings, Upload, UploadCloud } from "lucide-react";
@@ -10,7 +10,22 @@ export function ProductsControls() {
   const searchParams = useSearchParams();
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadFileName, setUploadFileName] = useState("");
+  const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const paramsText = useMemo(() => searchParams.toString(), [searchParams]);
+
+  useEffect(() => {
+    if (!uploadStartedAt) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - uploadStartedAt) / 1000));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [uploadStartedAt]);
 
   function applyFilters(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -41,27 +56,37 @@ export function ProductsControls() {
     }
 
     setUploading(true);
-    setMessage("");
+    setUploadFileName(file.name);
+    setUploadStartedAt(Date.now());
+    setElapsedSeconds(0);
+    setMessage("업로드 처리 중입니다. 대량 파일은 배치로 저장되며 완료 후 결과가 표시됩니다.");
     const form = new FormData();
     form.set("file", file);
-    const response = await fetch("/api/import/products", {
-      method: "POST",
-      body: form,
-    });
-    const data = (await response.json().catch(() => null)) as
-      | { created?: number; updated?: number; errors?: string[]; error?: string }
-      | null;
 
-    setUploading(false);
-    event.currentTarget.value = "";
-    setMessage(
-      response.ok
-        ? `등록 ${data?.created ?? 0}건, 수정 ${data?.updated ?? 0}건${
-            data?.errors?.length ? `, 오류 ${data.errors.length}건` : ""
-          }`
-        : data?.error ?? "업로드 실패",
-    );
-    router.refresh();
+    try {
+      const response = await fetch("/api/import/products", {
+        method: "POST",
+        body: form,
+      });
+      const data = (await response.json().catch(() => null)) as
+        | { created?: number; updated?: number; errors?: string[]; error?: string }
+        | null;
+
+      setMessage(
+        response.ok
+          ? `등록 ${data?.created ?? 0}건, 수정 ${data?.updated ?? 0}건${
+              data?.errors?.length ? `, 오류 ${data.errors.length}건` : ""
+            }`
+          : data?.error ?? "업로드 실패",
+      );
+      router.refresh();
+    } catch {
+      setMessage("업로드 요청이 끊겼습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.");
+    } finally {
+      setUploading(false);
+      setUploadStartedAt(null);
+      event.currentTarget.value = "";
+    }
   }
 
   return (
@@ -131,11 +156,12 @@ export function ProductsControls() {
             </Link>
             <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50">
               <Upload className="h-4 w-4" />
-              {uploading ? "업로드 중" : "엑셀/CSV 업로드"}
+              {uploading ? "처리 중" : "엑셀/CSV 업로드"}
               <input
                 type="file"
                 accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                 onChange={importCsv}
+                disabled={uploading}
                 className="sr-only"
               />
             </label>
@@ -148,7 +174,14 @@ export function ProductsControls() {
             </a>
           </div>
         </div>
-        {message ? <p className="text-sm text-zinc-600">{message}</p> : null}
+        {uploading ? (
+          <p className="text-sm text-zinc-600">
+            {uploadFileName ? `${uploadFileName} ` : ""}
+            업로드 처리 중... {elapsedSeconds}초 경과. 완료되면 등록/수정 건수가 표시됩니다.
+          </p>
+        ) : message ? (
+          <p className="text-sm text-zinc-600">{message}</p>
+        ) : null}
       </div>
     </section>
   );

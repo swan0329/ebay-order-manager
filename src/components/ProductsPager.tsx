@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 
-const pageSizeOptions = [50, 100, 200, 500];
+const pageSizeOptions = [50, 100, 200, 500, 1000, 2000];
 
 export function ProductsPager({
   currentPage,

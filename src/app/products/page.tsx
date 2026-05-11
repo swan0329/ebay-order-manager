@@ -23,7 +23,7 @@ type ProductsSearchParams = Promise<{
   pageSize?: string;
 }>;
 
-const pageSizeOptions = [50, 100, 200, 500];
+const pageSizeOptions = [50, 100, 200, 500, 1000, 2000];
 
 function parsePageSize(value?: string) {
   const parsed = Number(value);
