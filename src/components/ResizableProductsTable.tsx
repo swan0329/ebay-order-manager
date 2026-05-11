@@ -47,6 +47,15 @@ function configurableColumns() {
   return columns.filter((column) => !column.locked);
 }
 
+function productEditKey(product: ProductQuickEditValue) {
+  return [
+    product.id,
+    product.stockQuantity,
+    product.status,
+    product.salePrice ?? "",
+  ].join(":");
+}
+
 export function ResizableProductsTable({
   products,
 }: {
@@ -394,7 +403,7 @@ export function ResizableProductsTable({
             <tbody className="divide-y divide-zinc-200">
               {products.map((product) => (
                 <ProductQuickEditRow
-                  key={product.id}
+                  key={productEditKey(product)}
                   product={product}
                   visibleColumnIds={visibleColumnIds}
                   selected={selectedIds.has(product.id)}
@@ -409,7 +418,7 @@ export function ResizableProductsTable({
       <section className="space-y-3 md:hidden">
         {products.map((product) => (
           <ProductQuickEditCard
-            key={product.id}
+            key={productEditKey(product)}
             product={product}
             selected={selectedIds.has(product.id)}
             onSelectedChange={(checked) => toggleProduct(product.id, checked)}
