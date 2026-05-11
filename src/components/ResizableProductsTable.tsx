@@ -50,9 +50,14 @@ function configurableColumns() {
 function productEditKey(product: ProductQuickEditValue) {
   return [
     product.id,
+    product.productName,
+    product.brand ?? "",
+    product.category ?? "",
+    product.optionName ?? "",
     product.stockQuantity,
     product.status,
     product.salePrice ?? "",
+    product.memo ?? "",
   ].join(":");
 }
 

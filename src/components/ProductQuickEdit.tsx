@@ -54,6 +54,23 @@ function toState(product: ProductQuickEditValue): EditableState {
   };
 }
 
+function editableStateKey(value: EditableState) {
+  return [
+    value.productName,
+    value.brand,
+    value.category,
+    value.optionName,
+    value.stockQuantity,
+    value.salePrice,
+    value.memo,
+    value.status,
+  ].join("\x1f");
+}
+
+function sameEditableState(left: EditableState, right: EditableState) {
+  return editableStateKey(left) === editableStateKey(right);
+}
+
 function fieldClass(extra = "") {
   return `h-9 w-full min-w-0 rounded-md border border-zinc-300 px-2 text-xs outline-none focus:border-zinc-900 ${extra}`;
 }
@@ -111,15 +128,32 @@ export function ProductQuickEditRow({
 }) {
   const router = useRouter();
   const [value, setValue] = useState(() => toState(product));
+  const [savedValue, setSavedValue] = useState(() => toState(product));
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const visibleColumns = new Set(visibleColumnIds);
+  const dirty = !sameEditableState(value, savedValue);
 
   function setField(key: keyof EditableState, nextValue: string) {
+    setMessage("");
     setValue((current) => ({ ...current, [key]: nextValue }));
   }
 
+  function saveOnEnter(
+    event: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>,
+  ) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void save();
+    }
+  }
+
   async function save() {
+    if (saving || !dirty) {
+      return;
+    }
+
+    const submittedValue = value;
     setSaving(true);
     setMessage("");
 
@@ -129,18 +163,18 @@ export function ProductQuickEditRow({
       body: JSON.stringify({
         sku: product.sku,
         internalCode: product.internalCode,
-        productName: value.productName,
-        optionName: value.optionName,
-        category: value.category,
-        brand: value.brand,
+        productName: submittedValue.productName,
+        optionName: submittedValue.optionName,
+        category: submittedValue.category,
+        brand: submittedValue.brand,
         costPrice: product.costPrice,
-        salePrice: value.salePrice,
-        stockQuantity: value.stockQuantity,
+        salePrice: submittedValue.salePrice,
+        stockQuantity: submittedValue.stockQuantity,
         safetyStock: product.safetyStock,
         location: product.location,
-        memo: value.memo,
+        memo: submittedValue.memo,
         imageUrl: product.imageUrl,
-        status: value.status,
+        status: submittedValue.status,
       }),
     });
     const data = (await response.json().catch(() => null)) as
@@ -154,6 +188,7 @@ export function ProductQuickEditRow({
       return;
     }
 
+    setSavedValue(submittedValue);
     setMessage("저장됨");
     router.refresh();
   }
@@ -180,6 +215,19 @@ export function ProductQuickEditRow({
           >
             {product.sku}
           </Link>
+          {dirty ? (
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving}
+              className="mt-2 inline-flex h-7 items-center gap-1 rounded-md bg-zinc-950 px-2 text-[11px] font-semibold text-white hover:bg-zinc-800 disabled:cursor-wait disabled:bg-zinc-400"
+            >
+              <Save className="h-3 w-3" />
+              저장
+            </button>
+          ) : message ? (
+            <p className="mt-2 text-xs text-zinc-500">{message}</p>
+          ) : null}
         </td>
       ) : null}
       {visibleColumns.has("stockQuantity") ? (
@@ -187,6 +235,7 @@ export function ProductQuickEditRow({
           <input
             value={value.stockQuantity}
             onChange={(event) => setField("stockQuantity", event.currentTarget.value)}
+            onKeyDown={saveOnEnter}
             type="number"
             min="0"
             className={fieldClass()}
@@ -198,6 +247,7 @@ export function ProductQuickEditRow({
           <input
             value={value.brand}
             onChange={(event) => setField("brand", event.currentTarget.value)}
+            onKeyDown={saveOnEnter}
             className={fieldClass()}
           />
         </td>
@@ -207,6 +257,7 @@ export function ProductQuickEditRow({
           <input
             value={value.category}
             onChange={(event) => setField("category", event.currentTarget.value)}
+            onKeyDown={saveOnEnter}
             className={fieldClass()}
           />
         </td>
@@ -216,6 +267,7 @@ export function ProductQuickEditRow({
           <input
             value={value.optionName}
             onChange={(event) => setField("optionName", event.currentTarget.value)}
+            onKeyDown={saveOnEnter}
             className={fieldClass()}
           />
         </td>
@@ -236,6 +288,7 @@ export function ProductQuickEditRow({
           <input
             value={value.salePrice}
             onChange={(event) => setField("salePrice", event.currentTarget.value)}
+            onKeyDown={saveOnEnter}
             type="number"
             min="0"
             step="0.01"
@@ -248,6 +301,7 @@ export function ProductQuickEditRow({
           <input
             value={value.memo}
             onChange={(event) => setField("memo", event.currentTarget.value)}
+            onKeyDown={saveOnEnter}
             className={fieldClass()}
           />
         </td>
@@ -257,6 +311,7 @@ export function ProductQuickEditRow({
           <input
             value={value.productName}
             onChange={(event) => setField("productName", event.currentTarget.value)}
+            onKeyDown={saveOnEnter}
             className={fieldClass()}
           />
         </td>
@@ -266,6 +321,7 @@ export function ProductQuickEditRow({
           <select
             value={value.status}
             onChange={(event) => setField("status", event.currentTarget.value)}
+            onKeyDown={saveOnEnter}
             className={fieldClass("text-sm")}
           >
             <option value="active">활성</option>
@@ -294,8 +350,8 @@ export function ProductQuickEditRow({
           <button
             type="button"
             onClick={save}
-            disabled={saving}
-            title="저장"
+            disabled={saving || !dirty}
+            title={dirty ? "저장" : "변경 없음"}
             className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 disabled:cursor-wait disabled:text-zinc-400"
           >
             <Save className="h-4 w-4" />
@@ -318,14 +374,31 @@ export function ProductQuickEditCard({
 }) {
   const router = useRouter();
   const [value, setValue] = useState(() => toState(product));
+  const [savedValue, setSavedValue] = useState(() => toState(product));
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const dirty = !sameEditableState(value, savedValue);
 
   function setField(key: keyof EditableState, nextValue: string) {
+    setMessage("");
     setValue((current) => ({ ...current, [key]: nextValue }));
   }
 
+  function saveOnEnter(
+    event: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>,
+  ) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void save();
+    }
+  }
+
   async function save() {
+    if (saving || !dirty) {
+      return;
+    }
+
+    const submittedValue = value;
     setSaving(true);
     setMessage("");
 
@@ -335,18 +408,18 @@ export function ProductQuickEditCard({
       body: JSON.stringify({
         sku: product.sku,
         internalCode: product.internalCode,
-        productName: value.productName,
-        optionName: value.optionName,
-        category: value.category,
-        brand: value.brand,
+        productName: submittedValue.productName,
+        optionName: submittedValue.optionName,
+        category: submittedValue.category,
+        brand: submittedValue.brand,
         costPrice: product.costPrice,
-        salePrice: value.salePrice,
-        stockQuantity: value.stockQuantity,
+        salePrice: submittedValue.salePrice,
+        stockQuantity: submittedValue.stockQuantity,
         safetyStock: product.safetyStock,
         location: product.location,
-        memo: value.memo,
+        memo: submittedValue.memo,
         imageUrl: product.imageUrl,
-        status: value.status,
+        status: submittedValue.status,
       }),
     });
     const data = (await response.json().catch(() => null)) as
@@ -360,6 +433,7 @@ export function ProductQuickEditCard({
       return;
     }
 
+    setSavedValue(submittedValue);
     setMessage("저장됨");
     router.refresh();
   }
@@ -393,14 +467,27 @@ export function ProductQuickEditCard({
           <input
             value={value.productName}
             onChange={(event) => setField("productName", event.currentTarget.value)}
+            onKeyDown={saveOnEnter}
             className={`${fieldClass()} mt-2`}
           />
+          {dirty ? (
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving}
+              className="mt-2 inline-flex h-8 items-center gap-2 rounded-md bg-zinc-950 px-3 text-xs font-semibold text-white hover:bg-zinc-800 disabled:cursor-wait disabled:bg-zinc-400"
+            >
+              <Save className="h-4 w-4" />
+              변경 저장
+            </button>
+          ) : null}
         </div>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <input
           value={value.stockQuantity}
           onChange={(event) => setField("stockQuantity", event.currentTarget.value)}
+          onKeyDown={saveOnEnter}
           type="number"
           min="0"
           className={fieldClass()}
@@ -409,6 +496,7 @@ export function ProductQuickEditCard({
         <select
           value={value.status}
           onChange={(event) => setField("status", event.currentTarget.value)}
+          onKeyDown={saveOnEnter}
           className={fieldClass()}
           aria-label="상태"
         >
@@ -419,24 +507,28 @@ export function ProductQuickEditCard({
         <input
           value={value.brand}
           onChange={(event) => setField("brand", event.currentTarget.value)}
+          onKeyDown={saveOnEnter}
           className={fieldClass()}
           aria-label="그룹명"
         />
         <input
           value={value.optionName}
           onChange={(event) => setField("optionName", event.currentTarget.value)}
+          onKeyDown={saveOnEnter}
           className={fieldClass()}
           aria-label="멤버"
         />
         <input
           value={value.category}
           onChange={(event) => setField("category", event.currentTarget.value)}
+          onKeyDown={saveOnEnter}
           className={`${fieldClass()} sm:col-span-2`}
           aria-label="앨범명"
         />
         <input
           value={value.salePrice}
           onChange={(event) => setField("salePrice", event.currentTarget.value)}
+          onKeyDown={saveOnEnter}
           type="number"
           min="0"
           step="0.01"
@@ -446,6 +538,7 @@ export function ProductQuickEditCard({
         <input
           value={value.memo}
           onChange={(event) => setField("memo", event.currentTarget.value)}
+          onKeyDown={saveOnEnter}
           className={fieldClass()}
           aria-label="원본 앨범명"
         />
@@ -462,7 +555,7 @@ export function ProductQuickEditCard({
         <button
           type="button"
           onClick={save}
-          disabled={saving}
+          disabled={saving || !dirty}
           className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 px-3 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 disabled:cursor-wait disabled:text-zinc-400"
         >
           <Save className="h-4 w-4" />
