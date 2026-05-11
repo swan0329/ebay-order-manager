@@ -240,6 +240,16 @@ export function ProductQuickEditRow({
             min="0"
             className={fieldClass()}
           />
+          {dirty ? (
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving}
+              className="mt-1 inline-flex h-7 w-full items-center justify-center rounded-md bg-zinc-950 px-2 text-[11px] font-semibold text-white hover:bg-zinc-800 disabled:cursor-wait disabled:bg-zinc-400"
+            >
+              저장
+            </button>
+          ) : null}
         </td>
       ) : null}
       {visibleColumns.has("brand") ? (
