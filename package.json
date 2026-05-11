@@ -14,7 +14,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "admin:password": "powershell -ExecutionPolicy Bypass -File scripts/set-admin-password.ps1",
-    "products:import": "tsx scripts/import-products.ts"
+    "products:import": "tsx scripts/import-products.ts",
+    "products:image-signatures": "tsx scripts/build-product-image-signatures.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
