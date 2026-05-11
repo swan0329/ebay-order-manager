@@ -1,4 +1,4 @@
-import { AlertTriangle, PackageOpen } from "lucide-react";
+import { AlertTriangle, PackageCheck, PackageOpen } from "lucide-react";
 import Link from "next/link";
 import type { ProductQuickEditValue } from "@/components/ProductQuickEdit";
 import { ProductsPager } from "@/components/ProductsPager";
@@ -30,7 +30,7 @@ function parsePageSize(value?: string) {
   return pageSizeOptions.includes(parsed) ? parsed : 100;
 }
 
-function statsHref(pageSize: number, stock?: "low" | "sold_out") {
+function statsHref(pageSize: number, stock?: "in_stock" | "sold_out") {
   const params = new URLSearchParams();
 
   if (stock) {
@@ -63,11 +63,11 @@ export default async function ProductsPage({
     data: { status: "sold_out" },
   });
   const where = productWhere(params);
-  const [totalFiltered, totalCount, lowStockCount, soldOutCount] =
+  const [totalFiltered, totalCount, inStockCount, soldOutCount] =
     await Promise.all([
       prisma.product.count({ where }),
       prisma.product.count(),
-      prisma.product.count({ where: productWhere({ stock: "low" }) }),
+      prisma.product.count({ where: productWhere({ stock: "in_stock" }) }),
       prisma.product.count({ where: productWhere({ stock: "sold_out" }) }),
     ]);
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
@@ -137,16 +137,16 @@ export default async function ProductsPage({
             </p>
           </Link>
           <Link
-            href={statsHref(pageSize, "low")}
+            href={statsHref(pageSize, "in_stock")}
             className="rounded-lg border border-zinc-200 bg-white p-4 transition hover:border-zinc-300 hover:bg-zinc-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-zinc-900"
-            aria-label="재고부족 상품 조회"
+            aria-label="재고보유 상품 조회"
           >
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-zinc-500">재고부족</p>
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              <p className="text-sm font-medium text-zinc-500">재고보유</p>
+              <PackageCheck className="h-5 w-5 text-emerald-600" />
             </div>
             <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              {lowStockCount}
+              {inStockCount}
             </p>
           </Link>
           <Link

@@ -122,7 +122,7 @@ export function ProductsControls() {
               className="h-10 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
             >
               <option value="all">전체 재고</option>
-              <option value="low">재고부족</option>
+              <option value="in_stock">재고보유</option>
               <option value="sold_out">품절</option>
             </select>
             <button

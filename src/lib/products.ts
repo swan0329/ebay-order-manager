@@ -155,13 +155,9 @@ export function productWhere(params: {
     });
   }
 
-  if (params.stock === "low") {
+  if (params.stock === "in_stock" || params.stock === "low") {
     and.push({
-      stockQuantity: {
-        gt: 0,
-        lte: prisma.product.fields.safetyStock,
-      },
-      status: { not: "sold_out" },
+      stockQuantity: { gt: 0 },
     });
   }
 
@@ -218,12 +214,8 @@ export function matchesProductStockFilter(
     return product.stockQuantity <= 0 || product.status === "sold_out";
   }
 
-  if (stock === "low") {
-    return (
-      product.status !== "sold_out" &&
-      product.stockQuantity > 0 &&
-      product.stockQuantity <= product.safetyStock
-    );
+  if (stock === "in_stock" || stock === "low") {
+    return product.stockQuantity > 0;
   }
 
   return true;
