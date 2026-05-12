@@ -6,11 +6,10 @@ const defaultLimit = 50;
 const maxLimit = 50;
 const facetCacheTtlMs = 60_000;
 let photoCardSearchSupportPromise: Promise<void> | null = null;
-let photoCardFacetCache: {
-  includeRegistered: boolean;
+const photoCardFacetCache = new Map<string, {
   expiresAt: number;
   value: PhotoCardFacetOptions;
-} | null = null;
+}>();
 
 export type PhotoCardCandidateFilters = {
   group?: string | null;
@@ -248,37 +247,27 @@ async function loadPhotoCardFacets(
   filters: ReturnType<typeof normalizePhotoCardCandidateFilters>,
 ): Promise<PhotoCardFacetOptions> {
   const now = Date.now();
+  const cacheKey = photoCardFacetCacheKey(filters);
+  const cached = photoCardFacetCache.get(cacheKey);
 
-  if (
-    photoCardFacetCache &&
-    photoCardFacetCache.includeRegistered === filters.includeRegistered &&
-    photoCardFacetCache.expiresAt > now
-  ) {
-    return photoCardFacetCache.value;
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
   }
 
-  const globalFacetFilters = {
+  const filteredFacetFilters = {
     ...filters,
-    group: null,
-    member: null,
-    album: null,
-    version: null,
-    keyword: null,
     offset: 0,
   };
   const [groups, members, albums, versions] = await Promise.all([
-    distinctFacet("brand", globalFacetFilters, new Set()),
-    distinctFacet("option_name", globalFacetFilters, new Set()),
-    distinctFacet("category", globalFacetFilters, new Set()),
-    distinctFacet("product_name", globalFacetFilters, new Set()),
+    distinctFacet("brand", filteredFacetFilters, new Set()),
+    distinctFacet("option_name", filteredFacetFilters, new Set()),
+    distinctFacet("category", filteredFacetFilters, new Set()),
+    distinctFacet("product_name", filteredFacetFilters, new Set()),
   ]);
 
   const value = { groups, members, albums, versions };
-  photoCardFacetCache = {
-    includeRegistered: filters.includeRegistered,
-    expiresAt: now + facetCacheTtlMs,
-    value,
-  };
+  pruneExpiredFacetCache(now);
+  photoCardFacetCache.set(cacheKey, { expiresAt: now + facetCacheTtlMs, value });
 
   return value;
 }
@@ -435,6 +424,31 @@ function toPhotoCardCandidate(row: PhotoCardCandidateRow): PhotoCardCandidate {
 function normalizeText(value: string | null | undefined) {
   const text = String(value ?? "").trim();
   return text || null;
+}
+
+function photoCardFacetCacheKey(
+  filters: ReturnType<typeof normalizePhotoCardCandidateFilters>,
+) {
+  return [
+    filters.includeRegistered ? "1" : "0",
+    filters.group ?? "",
+    filters.member ?? "",
+    filters.album ?? "",
+    filters.version ?? "",
+    filters.keyword ?? "",
+  ].join("\u0001");
+}
+
+function pruneExpiredFacetCache(now: number) {
+  for (const [key, value] of photoCardFacetCache.entries()) {
+    if (value.expiresAt <= now) {
+      photoCardFacetCache.delete(key);
+    }
+  }
+
+  if (photoCardFacetCache.size > 200) {
+    photoCardFacetCache.clear();
+  }
 }
 
 function clampLimit(value: number | null | undefined) {
