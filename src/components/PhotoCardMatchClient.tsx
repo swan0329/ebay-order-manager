@@ -73,6 +73,33 @@ type DeleteR2Response = {
   error?: string;
 };
 
+type PendingR2UploadResponse = {
+  pendingCount?: number;
+  error?: string;
+};
+
+type BulkR2UploadResponse = {
+  pendingTotal?: number;
+  processed?: number;
+  success?: number;
+  failed?: number;
+  remaining?: number;
+  failures?: Array<{
+    productId: string;
+    sku: string;
+    reason: string;
+  }>;
+  error?: string;
+};
+
+type R2BulkProgress = {
+  total: number;
+  processed: number;
+  success: number;
+  failed: number;
+  remaining: number;
+};
+
 type CompletedPreview = {
   frontImageUrl: string;
   backImageUrl: string | null;
@@ -109,6 +136,7 @@ const emptyFacets: Facets = {
 
 const storageKey = "photo-card-match.recent-filters.v1";
 const candidateFetchDebounceMs = 150;
+const r2BulkBatchSize = 20;
 
 export function PhotoCardMatchClient() {
   const [frontFile, setFrontFile] = useState<File | null>(null);
@@ -140,7 +168,20 @@ export function PhotoCardMatchClient() {
   const [replaceCandidate, setReplaceCandidate] = useState<Candidate | null>(null);
   const [deleteModal, setDeleteModal] = useState<DeleteR2ModalState | null>(null);
   const [message, setMessage] = useState("");
+  const [reloadTick, setReloadTick] = useState(0);
+  const [r2PendingCount, setR2PendingCount] = useState<number | null>(null);
+  const [r2PendingLoading, setR2PendingLoading] = useState(false);
+  const [r2PendingError, setR2PendingError] = useState("");
+  const [r2BulkUploading, setR2BulkUploading] = useState(false);
+  const [r2BulkProgress, setR2BulkProgress] = useState<R2BulkProgress>({
+    total: 0,
+    processed: 0,
+    success: 0,
+    failed: 0,
+    remaining: 0,
+  });
   const autoNextTimer = useRef<number | null>(null);
+  const r2BulkCancelRef = useRef(false);
 
   const cancelAutoNext = useCallback(() => {
     if (autoNextTimer.current) {
@@ -200,6 +241,16 @@ export function PhotoCardMatchClient() {
     () => candidates.find((candidate) => candidate.cardId === selectedCandidateId) ?? null,
     [candidates, selectedCandidateId],
   );
+  const r2BulkProgressPercent = useMemo(() => {
+    if (r2BulkProgress.total <= 0) {
+      return 0;
+    }
+
+    return Math.min(
+      100,
+      Math.round((r2BulkProgress.processed / r2BulkProgress.total) * 100),
+    );
+  }, [r2BulkProgress]);
 
   const newProductHref = useMemo(() => {
     const params = new URLSearchParams();
@@ -229,6 +280,62 @@ export function PhotoCardMatchClient() {
 
     return query ? `/products/new?${query}` : "/products/new";
   }, [group, album, member, version]);
+
+  const buildPhotoCardFilterParams = useCallback(() => {
+    const params = new URLSearchParams();
+
+    for (const [key, value] of Object.entries({
+      group,
+      member,
+      album,
+      version,
+      keyword,
+    })) {
+      if (value.trim()) {
+        params.set(key, value.trim());
+      }
+    }
+
+    return params;
+  }, [group, member, album, version, keyword]);
+
+  const fetchR2PendingCount = useCallback(async () => {
+    const params = buildPhotoCardFilterParams();
+    const response = await fetch(`/api/inventory/photo-card-r2-upload?${params}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+    const data = (await response.json().catch(() => null)) as PendingR2UploadResponse | null;
+
+    if (!response.ok || data?.pendingCount === undefined) {
+      throw new Error(data?.error ?? "R2 전송 대기 건수 조회에 실패했습니다.");
+    }
+
+    return data.pendingCount;
+  }, [buildPhotoCardFilterParams]);
+
+  const refreshR2PendingCount = useCallback(
+    async (silent = false) => {
+      if (!silent) {
+        setR2PendingLoading(true);
+      }
+      setR2PendingError("");
+
+      try {
+        const count = await fetchR2PendingCount();
+        setR2PendingCount(count);
+      } catch (error) {
+        setR2PendingError(
+          error instanceof Error ? error.message : "R2 전송 대기 건수 조회에 실패했습니다.",
+        );
+      } finally {
+        if (!silent) {
+          setR2PendingLoading(false);
+        }
+      }
+    },
+    [fetchR2PendingCount],
+  );
 
   const storeImageFile = useCallback(async (file: File, side: UploadSide) => {
     if (!file.type.startsWith("image/")) {
@@ -335,6 +442,7 @@ export function PhotoCardMatchClient() {
         },
       }));
       setMessage(`${data.product.sku} 촬영본 연결 완료`);
+      void refreshR2PendingCount(true);
 
       if (continuousMode) {
         if (autoNextTimer.current) {
@@ -357,7 +465,14 @@ export function PhotoCardMatchClient() {
     } finally {
       setSavingId(null);
     }
-  }, [frontImageUrl, backImageUrl, continuousMode, includeRegistered, clearUploadedImages]);
+  }, [
+    frontImageUrl,
+    backImageUrl,
+    continuousMode,
+    includeRegistered,
+    clearUploadedImages,
+    refreshR2PendingCount,
+  ]);
 
   const requestSaveCandidate = useCallback((candidate: Candidate | null) => {
     if (!candidate) {
@@ -422,14 +537,129 @@ export function PhotoCardMatchClient() {
           return next;
         });
         setMessage(`${candidate.sku} ${actionLabel} 삭제 완료`);
+        void refreshR2PendingCount(true);
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "R2 이미지 삭제에 실패했습니다.");
       } finally {
         setDeletingTarget(null);
       }
     },
-    [],
+    [refreshR2PendingCount],
   );
+
+  const stopR2BulkUpload = useCallback(() => {
+    r2BulkCancelRef.current = true;
+  }, []);
+
+  const startR2BulkUpload = useCallback(async () => {
+    if (r2BulkUploading) {
+      return;
+    }
+
+    const initialPending = r2PendingCount ?? 0;
+
+    if (initialPending <= 0) {
+      setMessage("R2로 전송할 촬영본이 없습니다.");
+      return;
+    }
+
+    r2BulkCancelRef.current = false;
+    setR2BulkUploading(true);
+    setR2PendingError("");
+
+    const requestBody = {
+      group: group.trim() || undefined,
+      member: member.trim() || undefined,
+      album: album.trim() || undefined,
+      version: version.trim() || undefined,
+      keyword: keyword.trim() || undefined,
+      batch_size: r2BulkBatchSize,
+    };
+    let latestProgress: R2BulkProgress = {
+      total: initialPending,
+      processed: 0,
+      success: 0,
+      failed: 0,
+      remaining: initialPending,
+    };
+    setR2BulkProgress(latestProgress);
+    setMessage(`R2 전송 시작: ${initialPending}건`);
+
+    try {
+      while (latestProgress.remaining > 0 && !r2BulkCancelRef.current) {
+        const previousRemaining = latestProgress.remaining;
+        const response = await fetch("/api/inventory/photo-card-r2-upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        });
+        const data = (await response.json().catch(() => null)) as BulkR2UploadResponse | null;
+
+        if (
+          !response.ok ||
+          data?.processed === undefined ||
+          data.remaining === undefined
+        ) {
+          throw new Error(data?.error ?? "R2 대량 전송에 실패했습니다.");
+        }
+
+        const processedInBatch = data.processed;
+        const successInBatch = data.success ?? 0;
+        const failedInBatch = data.failed ?? 0;
+        const remaining = Math.max(0, data.remaining);
+
+        latestProgress = {
+          total: Math.max(
+            latestProgress.total,
+            latestProgress.processed + processedInBatch + remaining,
+          ),
+          processed: latestProgress.processed + processedInBatch,
+          success: latestProgress.success + successInBatch,
+          failed: latestProgress.failed + failedInBatch,
+          remaining,
+        };
+        setR2BulkProgress(latestProgress);
+
+        if (processedInBatch <= 0) {
+          break;
+        }
+
+        if (remaining >= previousRemaining && successInBatch <= 0) {
+          break;
+        }
+      }
+
+      if (r2BulkCancelRef.current) {
+        setMessage(
+          `R2 전송을 중지했습니다. 성공 ${latestProgress.success}건 / 실패 ${latestProgress.failed}건`,
+        );
+      } else if (latestProgress.remaining <= 0) {
+        setMessage(
+          `R2 전송 완료: 성공 ${latestProgress.success}건 / 실패 ${latestProgress.failed}건`,
+        );
+      } else {
+        setMessage(
+          `R2 전송이 일부만 처리되었습니다. 성공 ${latestProgress.success}건 / 실패 ${latestProgress.failed}건`,
+        );
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "R2 대량 전송에 실패했습니다.");
+    } finally {
+      setR2BulkUploading(false);
+      setR2PendingCount(latestProgress.remaining);
+      setReloadTick((current) => current + 1);
+      void refreshR2PendingCount(true);
+    }
+  }, [
+    r2BulkUploading,
+    r2PendingCount,
+    group,
+    member,
+    album,
+    version,
+    keyword,
+    refreshR2PendingCount,
+  ]);
 
   useEffect(() => {
     const handler = (event: ClipboardEvent) => {
@@ -496,22 +726,9 @@ export function PhotoCardMatchClient() {
   }, [candidates, selectedCandidate, requestSaveCandidate, clearUploadedImages]);
 
   const fetchCandidates = useCallback(async (nextOffset: number) => {
-    const params = new URLSearchParams({
-      limit: "50",
-      offset: String(nextOffset),
-    });
-
-    for (const [key, value] of Object.entries({
-      group,
-      member,
-      album,
-      version,
-      keyword,
-    })) {
-      if (value.trim()) {
-        params.set(key, value.trim());
-      }
-    }
+    const params = buildPhotoCardFilterParams();
+    params.set("limit", "50");
+    params.set("offset", String(nextOffset));
 
     if (includeRegistered) {
       params.set("includeRegistered", "1");
@@ -525,7 +742,7 @@ export function PhotoCardMatchClient() {
     }
 
     return data;
-  }, [group, member, album, version, keyword, includeRegistered]);
+  }, [buildPhotoCardFilterParams, includeRegistered]);
 
   useEffect(() => {
     let active = true;
@@ -564,7 +781,40 @@ export function PhotoCardMatchClient() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [fetchCandidates]);
+  }, [fetchCandidates, reloadTick]);
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setR2PendingLoading(true);
+      setR2PendingError("");
+
+      try {
+        const count = await fetchR2PendingCount();
+
+        if (!active) {
+          return;
+        }
+
+        setR2PendingCount(count);
+      } catch (error) {
+        if (active) {
+          setR2PendingError(
+            error instanceof Error ? error.message : "R2 전송 대기 건수 조회에 실패했습니다.",
+          );
+        }
+      } finally {
+        if (active) {
+          setR2PendingLoading(false);
+        }
+      }
+    }, candidateFetchDebounceMs);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [fetchR2PendingCount, reloadTick]);
 
   async function loadMore() {
     setLoading(true);
@@ -827,6 +1077,76 @@ export function PhotoCardMatchClient() {
             필터 초기화
           </button>
         </div>
+      </section>
+
+      <section className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-zinc-950">촬영본 R2 일괄 전송</p>
+            <p className="text-sm text-zinc-600">
+              필터 조건에 맞는 등록 촬영본 중 R2 키가 없는 건을 한 번에 업로드합니다.
+            </p>
+            <p className="text-sm text-zinc-700">
+              대기:{" "}
+              <span className="font-semibold text-zinc-950">
+                {r2PendingCount ?? "-"}건
+              </span>
+            </p>
+            {r2PendingError ? (
+              <p className="text-xs text-rose-700">{r2PendingError}</p>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void refreshR2PendingCount()}
+              disabled={r2PendingLoading || r2BulkUploading}
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {r2PendingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              대기건수 새로고침
+            </button>
+            <button
+              type="button"
+              onClick={() => void startR2BulkUpload()}
+              disabled={
+                r2BulkUploading ||
+                r2PendingLoading ||
+                !r2PendingCount ||
+                r2PendingCount <= 0
+              }
+              className="inline-flex h-10 items-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {r2BulkUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              촬영본을 R2로 전송하기
+            </button>
+            {r2BulkUploading ? (
+              <button
+                type="button"
+                onClick={stopR2BulkUpload}
+                className="inline-flex h-10 items-center rounded-md border border-rose-300 bg-white px-3 text-sm font-medium text-rose-700 hover:bg-rose-50"
+              >
+                전송 중지
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {(r2BulkUploading || r2BulkProgress.processed > 0) && r2BulkProgress.total > 0 ? (
+          <div className="mt-3 space-y-2">
+            <div className="h-2 overflow-hidden rounded-full bg-zinc-100">
+              <div
+                className="h-full rounded-full bg-zinc-900 transition-all"
+                style={{ width: `${r2BulkProgressPercent}%` }}
+              />
+            </div>
+            <p className="text-xs text-zinc-600">
+              진행률 {r2BulkProgressPercent}% ({r2BulkProgress.processed}/
+              {r2BulkProgress.total}) · 성공 {r2BulkProgress.success} · 실패{" "}
+              {r2BulkProgress.failed} · 남은 {r2BulkProgress.remaining}
+            </p>
+          </div>
+        ) : null}
       </section>
 
       <section className="space-y-3">

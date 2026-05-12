@@ -7,6 +7,10 @@ import { ensureProductImageMatchColumns } from "@/lib/services/productImageMatch
 const defaultLimit = 50;
 const maxLimit = 50;
 const facetCacheTtlMs = 60_000;
+const defaultR2BulkBatchSize = 20;
+const maxR2BulkBatchSize = 50;
+const maxSourceImageBytes = 12 * 1024 * 1024;
+const sourceImageFetchTimeoutMs = 10_000;
 let photoCardSearchSupportPromise: Promise<void> | null = null;
 const photoCardFacetCache = new Map<
   string,
@@ -102,6 +106,31 @@ export type ConfirmPhotoCardImageInput = {
   publicBaseUrl?: string | null;
 };
 
+export type PhotoCardR2UploadFilters = {
+  group?: string | null;
+  member?: string | null;
+  album?: string | null;
+  version?: string | null;
+  keyword?: string | null;
+};
+
+export type BulkUploadPhotoCardImagesInput = PhotoCardR2UploadFilters & {
+  batchSize?: number | null;
+};
+
+export type BulkUploadPhotoCardImagesResult = {
+  pendingTotal: number;
+  processed: number;
+  success: number;
+  failed: number;
+  remaining: number;
+  failures: Array<{
+    productId: string;
+    sku: string;
+    reason: string;
+  }>;
+};
+
 export type DeleteR2PhotoCardImageInput = {
   productId: string;
   side: "front" | "back" | "all";
@@ -166,6 +195,81 @@ export async function listPhotoCardCandidates(filters: PhotoCardCandidateFilters
       offset: normalized.offset,
       hasMore: rows.length === normalized.limit,
     },
+  };
+}
+
+export async function countPendingPhotoCardR2Uploads(
+  filters: PhotoCardR2UploadFilters,
+) {
+  await ensurePhotoCardSearchSupport();
+
+  const normalized = normalizePhotoCardR2UploadFilters(filters);
+  const clauses = photoCardR2PendingWhereClauses(normalized);
+  const whereSql = clauses.length
+    ? Prisma.sql`WHERE ${Prisma.join(clauses, " AND ")}`
+    : Prisma.empty;
+  const rows = await prisma.$queryRaw<Array<{ count: bigint | number }>>`
+    SELECT COUNT(*)::BIGINT AS "count"
+    FROM "products"
+    ${whereSql}
+  `;
+  const count = rows[0]?.count ?? 0;
+
+  if (typeof count === "bigint") {
+    return Number(count);
+  }
+
+  return Number(count) || 0;
+}
+
+export async function bulkUploadPhotoCardImagesToR2(
+  input: BulkUploadPhotoCardImagesInput,
+): Promise<BulkUploadPhotoCardImagesResult> {
+  await ensurePhotoCardSearchSupport();
+
+  const normalized = normalizePhotoCardR2UploadFilters(input);
+  const pendingTotal = await countPendingPhotoCardR2Uploads(normalized);
+  const batchSize = clampR2BulkBatchSize(input.batchSize);
+
+  if (pendingTotal <= 0) {
+    return {
+      pendingTotal: 0,
+      processed: 0,
+      success: 0,
+      failed: 0,
+      remaining: 0,
+      failures: [],
+    };
+  }
+
+  const targets = await loadPendingPhotoCardR2Rows(normalized, batchSize);
+  const failures: BulkUploadPhotoCardImagesResult["failures"] = [];
+  let success = 0;
+  let failed = 0;
+
+  for (const target of targets) {
+    try {
+      await migrateProductPhotoCardImagesToR2(target);
+      success += 1;
+    } catch (error) {
+      failed += 1;
+      failures.push({
+        productId: target.id,
+        sku: target.sku,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const remaining = await countPendingPhotoCardR2Uploads(normalized);
+
+  return {
+    pendingTotal,
+    processed: targets.length,
+    success,
+    failed,
+    remaining,
+    failures,
   };
 }
 
@@ -586,8 +690,181 @@ async function loadProductForPhotoCard(cardId: string) {
   return rows[0] ?? null;
 }
 
+async function loadPendingPhotoCardR2Rows(
+  filters: ReturnType<typeof normalizePhotoCardR2UploadFilters>,
+  limit: number,
+) {
+  const clauses = photoCardR2PendingWhereClauses(filters);
+  const whereSql = clauses.length
+    ? Prisma.sql`WHERE ${Prisma.join(clauses, " AND ")}`
+    : Prisma.empty;
+
+  return prisma.$queryRaw<ProductPhotoCardRow[]>`
+    SELECT
+      "id",
+      "sku",
+      "internal_code" AS "internalCode",
+      "brand" AS "groupName",
+      "image_url" AS "imageUrl",
+      "source_image_url" AS "sourceImageUrl",
+      "image_source" AS "imageSource",
+      "user_front_image_url" AS "userFrontImageUrl",
+      "user_back_image_url" AS "userBackImageUrl",
+      "user_front_r2_key" AS "userFrontR2Key",
+      "user_back_r2_key" AS "userBackR2Key"
+    FROM "products"
+    ${whereSql}
+    ORDER BY
+      LOWER(COALESCE("brand", '')),
+      LOWER(COALESCE("category", '')),
+      LOWER(COALESCE("option_name", '')),
+      LOWER(COALESCE("product_name", '')),
+      "sku"
+    LIMIT ${limit}
+  `;
+}
+
+async function migrateProductPhotoCardImagesToR2(product: ProductPhotoCardRow) {
+  const frontSourceUrl = normalizeText(product.userFrontImageUrl);
+
+  if (!frontSourceUrl) {
+    throw new Error("user_front_image_url is empty.");
+  }
+
+  const backSourceUrl = normalizeText(product.userBackImageUrl);
+  const previousFrontKey =
+    normalizeText(product.userFrontR2Key) ?? r2KeyFromPublicUrl(frontSourceUrl);
+  const previousBackKey =
+    normalizeText(product.userBackR2Key) ?? r2KeyFromPublicUrl(backSourceUrl);
+  const shouldUploadFront = !previousFrontKey;
+  const shouldUploadBack = Boolean(backSourceUrl) && !previousBackKey;
+  const objectKeys = photoCardR2ObjectKeys({
+    groupName: product.groupName,
+    productCode: photoCardProductCode({
+      internalCode: product.internalCode,
+      sku: product.sku,
+      id: product.id,
+    }),
+  });
+  const uploadedKeys: string[] = [];
+  let frontUpload: { key: string; url: string } | null = null;
+  let backUpload: { key: string; url: string } | null = null;
+
+  try {
+    if (shouldUploadFront) {
+      const frontBuffer = await optimizedJpegBufferFromImageSource(frontSourceUrl);
+      frontUpload = await uploadBufferToR2({
+        buffer: frontBuffer,
+        key: objectKeys.frontKey,
+        contentType: "image/jpeg",
+      });
+      uploadedKeys.push(frontUpload.key);
+    }
+
+    if (shouldUploadBack && backSourceUrl) {
+      const backBuffer = await optimizedJpegBufferFromImageSource(backSourceUrl);
+      backUpload = await uploadBufferToR2({
+        buffer: backBuffer,
+        key: objectKeys.backKey,
+        contentType: "image/jpeg",
+      });
+      uploadedKeys.push(backUpload.key);
+    }
+  } catch (error) {
+    await cleanupUploadedR2Objects(uploadedKeys);
+    throw error;
+  }
+
+  const nextFrontImageUrl = frontUpload?.url ?? frontSourceUrl;
+  const nextBackImageUrl = backUpload?.url ?? backSourceUrl;
+  const nextFrontR2Key = frontUpload?.key ?? previousFrontKey;
+  const nextBackR2Key = backUpload?.key ?? previousBackKey;
+
+  if (!nextFrontR2Key) {
+    throw new Error("Failed to resolve front R2 key.");
+  }
+
+  const sourceImageUrl = sourceImageUrlForPhotoCardUpdate(
+    product.sourceImageUrl,
+    product.imageUrl,
+    product.imageSource,
+  );
+  const nextImageUrl = nextFrontImageUrl ?? normalizeText(product.imageUrl) ?? sourceImageUrl;
+  const nextImageSource = photoCardImageSource({
+    userFrontImageUrl: nextFrontImageUrl,
+    sourceImageUrl,
+  });
+  const nextHasBackImage = Boolean(nextBackImageUrl);
+  const imageUrls = photoCardListingImageUrls({
+    userFrontImageUrl: nextFrontImageUrl,
+    userBackImageUrl: nextBackImageUrl,
+    sourceImageUrl,
+    imageUrl: nextImageUrl,
+  }).imageUrls;
+
+  await prisma.$executeRaw`
+    UPDATE "products"
+    SET
+      "image_url" = ${nextImageUrl},
+      "ebay_image_urls" = ${textArraySql(imageUrls)},
+      "source_image_url" = ${sourceImageUrl},
+      "user_front_image_url" = ${nextFrontImageUrl},
+      "user_back_image_url" = ${nextBackImageUrl},
+      "user_front_r2_key" = ${nextFrontR2Key},
+      "user_back_r2_key" = ${nextBackR2Key},
+      "image_source" = ${nextImageSource},
+      "has_back_image" = ${nextHasBackImage},
+      "updated_at" = CURRENT_TIMESTAMP
+    WHERE "id" = ${product.id}
+  `;
+}
+
 async function optimizedJpegBufferFromDataUrl(dataUrl: string) {
   const sourceBuffer = imageBufferFromDataUrl(dataUrl);
+
+  return optimizedJpegBufferFromBuffer(sourceBuffer);
+}
+
+async function optimizedJpegBufferFromImageSource(imageUrl: string) {
+  const source = normalizeText(imageUrl);
+
+  if (!source) {
+    throw new Error("Image URL is required.");
+  }
+
+  if (source.startsWith("data:image/")) {
+    return optimizedJpegBufferFromDataUrl(source);
+  }
+
+  const response = await fetch(source, {
+    signal: AbortSignal.timeout(sourceImageFetchTimeoutMs),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to download image: ${response.status}`);
+  }
+
+  const contentLengthText = response.headers.get("content-length");
+  const contentLength = contentLengthText ? Number(contentLengthText) : 0;
+
+  if (contentLength > maxSourceImageBytes) {
+    throw new Error("Source image is too large.");
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+
+  if (!buffer.length) {
+    throw new Error("Source image is empty.");
+  }
+
+  if (buffer.length > maxSourceImageBytes) {
+    throw new Error("Source image is too large.");
+  }
+
+  return optimizedJpegBufferFromBuffer(buffer);
+}
+
+async function optimizedJpegBufferFromBuffer(sourceBuffer: Buffer | Uint8Array) {
 
   return sharp(sourceBuffer, { failOn: "none" })
     .rotate()
@@ -770,6 +1047,24 @@ function candidateWhereClauses(
   return clauses;
 }
 
+function photoCardR2PendingWhereClauses(
+  filters: ReturnType<typeof normalizePhotoCardR2UploadFilters>,
+) {
+  const clauses = candidateWhereClauses(filters);
+
+  clauses.push(Prisma.sql`("user_front_image_url" IS NOT NULL AND "user_front_image_url" <> '')`);
+  clauses.push(Prisma.sql`(
+    ("user_front_r2_key" IS NULL OR "user_front_r2_key" = '')
+    OR (
+      "user_back_image_url" IS NOT NULL
+      AND "user_back_image_url" <> ''
+      AND ("user_back_r2_key" IS NULL OR "user_back_r2_key" = '')
+    )
+  )`);
+
+  return clauses;
+}
+
 function candidateOrderClauses(
   filters: ReturnType<typeof normalizePhotoCardCandidateFilters>,
 ) {
@@ -900,6 +1195,29 @@ function clampLimit(value: number | null | undefined) {
   }
 
   return Math.min(maxLimit, Math.floor(parsed));
+}
+
+function clampR2BulkBatchSize(value: number | null | undefined) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return defaultR2BulkBatchSize;
+  }
+
+  return Math.min(maxR2BulkBatchSize, Math.floor(parsed));
+}
+
+function normalizePhotoCardR2UploadFilters(filters: PhotoCardR2UploadFilters) {
+  return normalizePhotoCardCandidateFilters({
+    group: filters.group,
+    member: filters.member,
+    album: filters.album,
+    version: filters.version,
+    keyword: filters.keyword,
+    includeRegistered: true,
+    limit: 1,
+    offset: 0,
+  });
 }
 
 function likePattern(value: string) {
