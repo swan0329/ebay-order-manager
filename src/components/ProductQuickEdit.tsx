@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { PackageOpen, Save } from "lucide-react";
+import { Camera, PackageOpen, Save } from "lucide-react";
 
 export type ProductQuickEditValue = {
   id: string;
@@ -21,6 +21,9 @@ export type ProductQuickEditValue = {
   location: string | null;
   memo: string | null;
   imageUrl: string | null;
+  sourceImageUrl: string | null;
+  userImageRegistered: boolean;
+  hasBackImage: boolean;
   status: string;
   listingStatus?: string | null;
   listingUploadStatus?: string | null;
@@ -115,16 +118,62 @@ function listingStatusClass(status?: string | null) {
   return "bg-zinc-100 text-zinc-600 ring-zinc-200";
 }
 
+function ProductImageButton({
+  product,
+  sizeClass,
+  onClick,
+}: {
+  product: ProductQuickEditValue;
+  sizeClass: string;
+  onClick: () => void;
+}) {
+  const displayImageUrl = product.sourceImageUrl ?? product.imageUrl;
+  const badge = product.userImageRegistered
+    ? product.hasBackImage
+      ? "앞/뒤"
+      : "앞면"
+    : "촬영";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group relative flex ${sizeClass} items-center justify-center overflow-hidden rounded-md bg-zinc-100 ring-1 ring-zinc-200 transition hover:ring-zinc-900`}
+      title="촬영본 등록"
+    >
+      {displayImageUrl ? (
+        <img src={displayImageUrl} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <PackageOpen className="h-5 w-5 text-zinc-400" />
+      )}
+      <span
+        className={`absolute bottom-1 left-1 rounded px-1.5 py-0.5 text-[10px] font-semibold shadow-sm ${
+          product.userImageRegistered
+            ? "bg-emerald-600 text-white"
+            : "bg-zinc-950 text-white"
+        }`}
+      >
+        {badge}
+      </span>
+      <span className="absolute right-1 top-1 rounded bg-white/90 p-1 text-zinc-700 opacity-0 shadow-sm transition group-hover:opacity-100">
+        <Camera className="h-3 w-3" />
+      </span>
+    </button>
+  );
+}
+
 export function ProductQuickEditRow({
   product,
   visibleColumnIds = defaultVisibleColumnIds,
   selected = false,
   onSelectedChange,
+  onPhotoUploadClick,
 }: {
   product: ProductQuickEditValue;
   visibleColumnIds?: string[];
   selected?: boolean;
   onSelectedChange?: (checked: boolean) => void;
+  onPhotoUploadClick?: (product: ProductQuickEditValue) => void;
 }) {
   const router = useRouter();
   const [value, setValue] = useState(() => toState(product));
@@ -284,13 +333,11 @@ export function ProductQuickEditRow({
       ) : null}
       {visibleColumns.has("imageUrl") ? (
         <td className="px-2 py-3">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center overflow-hidden rounded-md bg-zinc-100">
-            {product.imageUrl ? (
-              <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <PackageOpen className="h-5 w-5 text-zinc-400" />
-            )}
-          </div>
+          <ProductImageButton
+            product={product}
+            sizeClass="h-16 w-16"
+            onClick={() => onPhotoUploadClick?.(product)}
+          />
         </td>
       ) : null}
       {visibleColumns.has("salePrice") ? (
@@ -377,10 +424,12 @@ export function ProductQuickEditCard({
   product,
   selected = false,
   onSelectedChange,
+  onPhotoUploadClick,
 }: {
   product: ProductQuickEditValue;
   selected?: boolean;
   onSelectedChange?: (checked: boolean) => void;
+  onPhotoUploadClick?: (product: ProductQuickEditValue) => void;
 }) {
   const router = useRouter();
   const [value, setValue] = useState(() => toState(product));
@@ -460,13 +509,11 @@ export function ProductQuickEditCard({
         선택
       </label>
       <div className="mb-3 flex gap-3">
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md bg-zinc-100">
-          {product.imageUrl ? (
-            <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <PackageOpen className="h-6 w-6 text-zinc-400" />
-          )}
-        </div>
+        <ProductImageButton
+          product={product}
+          sizeClass="h-20 w-20 shrink-0"
+          onClick={() => onPhotoUploadClick?.(product)}
+        />
         <div className="min-w-0 flex-1">
           <Link
             href={`/products/${product.id}`}

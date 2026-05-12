@@ -3,17 +3,66 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Download, Image as ImageIcon, Plus, Search, Settings, Upload, UploadCloud } from "lucide-react";
+import {
+  Download,
+  Image as ImageIcon,
+  Plus,
+  Search,
+  Settings,
+  Upload,
+  UploadCloud,
+} from "lucide-react";
+
+type ProductFacetOptions = {
+  groups: string[];
+  members: string[];
+  albums: string[];
+  versions: string[];
+};
+
+const emptyFacets: ProductFacetOptions = {
+  groups: [],
+  members: [],
+  albums: [],
+  versions: [],
+};
 
 export function ProductsControls() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [facets, setFacets] = useState<ProductFacetOptions>(emptyFacets);
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadFileName, setUploadFileName] = useState("");
   const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const paramsText = useMemo(() => searchParams.toString(), [searchParams]);
+  const resetHref = useMemo(() => {
+    const pageSize = searchParams.get("pageSize");
+
+    return pageSize ? `/products?pageSize=${pageSize}` : "/products";
+  }, [searchParams]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch("/api/inventory/photo-card-candidates?includeRegistered=1&limit=1", {
+      signal: controller.signal,
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { facets?: ProductFacetOptions } | null) => {
+        if (data?.facets) {
+          setFacets(data.facets);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setFacets(emptyFacets);
+        }
+      });
+
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     if (!uploadStartedAt) {
@@ -32,8 +81,17 @@ export function ProductsControls() {
     const form = new FormData(event.currentTarget);
     const params = new URLSearchParams();
 
-    for (const key of ["q", "status", "stock"]) {
+    for (const key of [
+      "q",
+      "group",
+      "member",
+      "album",
+      "version",
+      "status",
+      "stock",
+    ]) {
       const value = String(form.get(key) ?? "").trim();
+
       if (value && value !== "all") {
         params.set(key, value);
       }
@@ -45,7 +103,8 @@ export function ProductsControls() {
       params.set("pageSize", pageSize);
     }
 
-    router.push(`/products?${params.toString()}`);
+    const query = params.toString();
+    router.push(query ? `/products?${query}` : "/products");
   }
 
   async function importCsv(event: React.ChangeEvent<HTMLInputElement>) {
@@ -59,7 +118,7 @@ export function ProductsControls() {
     setUploadFileName(file.name);
     setUploadStartedAt(Date.now());
     setElapsedSeconds(0);
-    setMessage("업로드 처리 중입니다. 대량 파일은 배치로 저장되며 완료 후 결과가 표시됩니다.");
+    setMessage("업로드 처리 중입니다. 완료되면 등록/수정 건수가 표시됩니다.");
     const form = new FormData();
     form.set("file", file);
 
@@ -92,20 +151,44 @@ export function ProductsControls() {
   return (
     <section className="border-b border-zinc-200 bg-white">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3">
           <form
             onSubmit={applyFilters}
-            className="grid flex-1 gap-2 md:grid-cols-[1fr_150px_150px_auto]"
+            className="grid flex-1 gap-2 lg:grid-cols-4 xl:grid-cols-[minmax(180px,1.2fr)_repeat(4,minmax(120px,1fr))_130px_130px_auto_auto]"
           >
             <label className="relative block">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
               <input
                 name="q"
                 defaultValue={searchParams.get("q") ?? ""}
-                placeholder="상품번호, 상품명, 그룹명, 앨범명, 멤버"
+                placeholder="키워드, SKU, 상품명"
                 className="h-10 w-full rounded-md border border-zinc-300 pl-9 pr-3 text-sm outline-none focus:border-zinc-900"
               />
             </label>
+            <FilterInput
+              name="group"
+              label="그룹"
+              value={searchParams.get("group") ?? ""}
+              options={facets.groups}
+            />
+            <FilterInput
+              name="member"
+              label="멤버"
+              value={searchParams.get("member") ?? ""}
+              options={facets.members}
+            />
+            <FilterInput
+              name="album"
+              label="앨범"
+              value={searchParams.get("album") ?? ""}
+              options={facets.albums}
+            />
+            <FilterInput
+              name="version"
+              label="버전/특전처"
+              value={searchParams.get("version") ?? ""}
+              options={facets.versions}
+            />
             <select
               name="status"
               defaultValue={searchParams.get("status") ?? "all"}
@@ -131,7 +214,14 @@ export function ProductsControls() {
             >
               조회
             </button>
+            <Link
+              href={resetHref}
+              className="inline-flex h-10 items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+            >
+              초기화
+            </Link>
           </form>
+
           <div className="flex flex-wrap gap-2">
             <Link
               href="/products/new"
@@ -184,12 +274,43 @@ export function ProductsControls() {
         {uploading ? (
           <p className="text-sm text-zinc-600">
             {uploadFileName ? `${uploadFileName} ` : ""}
-            업로드 처리 중... {elapsedSeconds}초 경과. 완료되면 등록/수정 건수가 표시됩니다.
+            업로드 처리 중... {elapsedSeconds}초 경과
           </p>
         ) : message ? (
           <p className="text-sm text-zinc-600">{message}</p>
         ) : null}
       </div>
     </section>
+  );
+}
+
+function FilterInput({
+  name,
+  label,
+  value,
+  options,
+}: {
+  name: string;
+  label: string;
+  value: string;
+  options: string[];
+}) {
+  const listId = `products-${name}-options`;
+
+  return (
+    <label className="block">
+      <input
+        name={name}
+        defaultValue={value}
+        list={listId}
+        placeholder={label}
+        className="h-10 w-full rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
+      />
+      <datalist id={listId}>
+        {options.map((option) => (
+          <option key={option} value={option} />
+        ))}
+      </datalist>
+    </label>
   );
 }

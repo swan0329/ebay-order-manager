@@ -1,5 +1,6 @@
 import { AlertTriangle, PackageCheck, PackageOpen } from "lucide-react";
 import Link from "next/link";
+import { Prisma } from "@/generated/prisma";
 import type { ProductQuickEditValue } from "@/components/ProductQuickEdit";
 import { ProductsPager } from "@/components/ProductsPager";
 import { ProductsControls } from "@/components/ProductsControls";
@@ -11,6 +12,7 @@ import {
 } from "@/lib/listing-upload-status";
 import { productWhere } from "@/lib/products";
 import { prisma } from "@/lib/prisma";
+import { ensureProductImageMatchColumns } from "@/lib/services/productImageMatchService";
 import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -19,9 +21,20 @@ type ProductsSearchParams = Promise<{
   q?: string;
   status?: string;
   stock?: string;
+  group?: string;
+  member?: string;
+  album?: string;
+  version?: string;
   page?: string;
   pageSize?: string;
 }>;
+
+type ProductImageMetaRow = {
+  id: string;
+  sourceImageUrl: string | null;
+  userImageRegistered: boolean;
+  hasBackImage: boolean;
+};
 
 const pageSizeOptions = [50, 100, 200, 500, 1000, 2000];
 
@@ -55,13 +68,7 @@ export default async function ProductsPage({
   const params = await searchParams;
   const pageSize = parsePageSize(params.pageSize);
   const requestedPage = Math.max(1, Number(params.page) || 1);
-  await prisma.product.updateMany({
-    where: {
-      stockQuantity: { lte: 0 },
-      status: { not: "sold_out" },
-    },
-    data: { status: "sold_out" },
-  });
+  await ensureProductImageMatchColumns();
   const where = productWhere(params);
   const [totalFiltered, totalCount, inStockCount, soldOutCount] =
     await Promise.all([
@@ -87,8 +94,30 @@ export default async function ProductsPage({
     skip: (currentPage - 1) * pageSize,
     take: pageSize,
   });
+  const imageMetaRows = products.length
+    ? await prisma.$queryRaw<ProductImageMetaRow[]>`
+        SELECT
+          "id",
+          "source_image_url" AS "sourceImageUrl",
+          ("user_front_image_url" IS NOT NULL AND "user_front_image_url" <> '') AS "userImageRegistered",
+          "has_back_image" AS "hasBackImage"
+        FROM "products"
+        WHERE "id" IN (${Prisma.join(products.map((product) => product.id))})
+      `
+    : [];
+  const imageMetaById = new Map(
+    imageMetaRows.map((row) => [
+      row.id,
+      {
+        sourceImageUrl: row.sourceImageUrl,
+        userImageRegistered: row.userImageRegistered,
+        hasBackImage: row.hasBackImage,
+      },
+    ]),
+  );
   const productRows: ProductQuickEditValue[] = products.map((product) => {
     const listingUploadStatus = resolveInventoryListingUploadStatus(product);
+    const imageMeta = imageMetaById.get(product.id);
 
     return {
       id: product.id,
@@ -105,6 +134,9 @@ export default async function ProductsPage({
       location: product.location,
       memo: product.memo,
       imageUrl: product.imageUrl,
+      sourceImageUrl: imageMeta?.sourceImageUrl ?? null,
+      userImageRegistered: imageMeta?.userImageRegistered ?? false,
+      hasBackImage: imageMeta?.hasBackImage ?? false,
       status: product.status,
       listingStatus: product.listingStatus,
       listingUploadStatus,

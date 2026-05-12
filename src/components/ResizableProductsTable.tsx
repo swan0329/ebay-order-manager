@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Image as ImageIcon, Loader2, Upload, X } from "lucide-react";
 import {
   ProductQuickEditCard,
   ProductQuickEditRow,
@@ -77,6 +78,7 @@ export function ResizableProductsTable({
   const [bulkPrice, setBulkPrice] = useState("");
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkMessage, setBulkMessage] = useState("");
+  const [photoTarget, setPhotoTarget] = useState<ProductQuickEditValue | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -413,6 +415,7 @@ export function ResizableProductsTable({
                   visibleColumnIds={visibleColumnIds}
                   selected={selectedIds.has(product.id)}
                   onSelectedChange={(checked) => toggleProduct(product.id, checked)}
+                  onPhotoUploadClick={setPhotoTarget}
                 />
               ))}
             </tbody>
@@ -427,9 +430,404 @@ export function ResizableProductsTable({
             product={product}
             selected={selectedIds.has(product.id)}
             onSelectedChange={(checked) => toggleProduct(product.id, checked)}
+            onPhotoUploadClick={setPhotoTarget}
           />
         ))}
       </section>
+
+      {photoTarget ? (
+        <InventoryPhotoUploadModal
+          product={photoTarget}
+          onClose={() => setPhotoTarget(null)}
+          onSaved={() => {
+            setPhotoTarget(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
     </div>
   );
+}
+
+type UploadSide = "front" | "back";
+
+function InventoryPhotoUploadModal({
+  product,
+  onClose,
+  onSaved,
+}: {
+  product: ProductQuickEditValue;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [frontImageUrl, setFrontImageUrl] = useState<string | null>(null);
+  const [backImageUrl, setBackImageUrl] = useState<string | null>(null);
+  const [activeSide, setActiveSide] = useState<UploadSide>("front");
+  const [dragSide, setDragSide] = useState<UploadSide | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const sourceImageUrl =
+    product.sourceImageUrl ?? (product.userImageRegistered ? null : product.imageUrl);
+  const currentFrontUrl = product.userImageRegistered ? product.imageUrl : null;
+  const currentBackUrl = product.hasBackImage
+    ? `/api/products/image-match/assets/${product.id}/back`
+    : null;
+
+  useEffect(() => {
+    const handler = (event: ClipboardEvent) => {
+      const file = imageFileFromDataTransfer(event.clipboardData);
+
+      if (!file) {
+        return;
+      }
+
+      event.preventDefault();
+      void storeImageFile(file, activeSide);
+    };
+
+    window.addEventListener("paste", handler);
+
+    return () => window.removeEventListener("paste", handler);
+  }, [activeSide]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  async function storeImageFile(file: File, side: UploadSide) {
+    if (!file.type.startsWith("image/")) {
+      setMessage("이미지 파일만 업로드할 수 있습니다.");
+      return;
+    }
+
+    setMessage("이미지를 최적화하는 중입니다.");
+    const dataUrl = await fileToOptimizedDataUrl(file);
+
+    if (side === "front") {
+      setFrontImageUrl(dataUrl);
+      setActiveSide("back");
+    } else {
+      setBackImageUrl(dataUrl);
+      setActiveSide("front");
+    }
+
+    setMessage(`${side === "front" ? "앞면" : "뒷면"} 촬영본이 준비되었습니다.`);
+  }
+
+  async function savePhoto() {
+    if (saving) {
+      return;
+    }
+
+    setSaving(true);
+    setMessage("촬영본을 저장하는 중입니다.");
+
+    try {
+      const preservedFrontImageUrl =
+        frontImageUrl ??
+        (product.userImageRegistered && product.imageUrl
+          ? await imageUrlToDataUrl(product.imageUrl)
+          : null);
+
+      if (!preservedFrontImageUrl) {
+        setMessage("앞면 촬영본을 먼저 업로드해 주세요.");
+        setSaving(false);
+        return;
+      }
+
+      const preservedBackImageUrl =
+        backImageUrl ?? (currentBackUrl ? await imageUrlToDataUrl(currentBackUrl) : null);
+      const response = await fetch("/api/inventory/confirm-photo-card-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          card_id: product.id,
+          user_front_image_url: preservedFrontImageUrl,
+          user_back_image_url: preservedBackImageUrl,
+        }),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | { product?: { sku: string }; error?: string }
+        | null;
+
+      if (!response.ok || !data?.product) {
+        throw new Error(data?.error ?? "촬영본 저장에 실패했습니다.");
+      }
+
+      setMessage(`${data.product.sku} 촬영본을 저장했습니다.`);
+      window.setTimeout(onSaved, 500);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "촬영본 저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6">
+      <div className="max-h-full w-full max-w-5xl overflow-auto rounded-lg bg-white p-5 shadow-xl">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-zinc-950">
+              {product.sku} 촬영본 등록
+            </h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              {product.brand ?? "-"} / {product.category ?? "-"} /{" "}
+              {product.optionName ?? "-"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100"
+            aria-label="닫기"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
+          <div className="space-y-3">
+            <ReadonlyPreview title="포카마켓 이미지" src={sourceImageUrl} />
+            {currentFrontUrl ? (
+              <ReadonlyPreview title="현재 촬영본 앞면" src={currentFrontUrl} />
+            ) : null}
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <PhotoDropBox
+              title="앞면 촬영본"
+              side="front"
+              active={activeSide === "front"}
+              dragging={dragSide === "front"}
+              value={frontImageUrl}
+              currentValue={currentFrontUrl}
+              onFocusSide={setActiveSide}
+              onDragSide={setDragSide}
+              onFile={(file) => storeImageFile(file, "front")}
+            />
+            <PhotoDropBox
+              title="뒷면 촬영본"
+              side="back"
+              active={activeSide === "back"}
+              dragging={dragSide === "back"}
+              value={backImageUrl}
+              currentValue={currentBackUrl}
+              onFocusSide={setActiveSide}
+              onDragSide={setDragSide}
+              onFile={(file) => storeImageFile(file, "back")}
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-zinc-600">
+            {message || "이미지를 클릭한 뒤 Ctrl+V로 붙여넣거나 드래그앤드롭할 수 있습니다."}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-10 rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={savePhoto}
+              disabled={saving || (!frontImageUrl && !product.userImageRegistered)}
+              className="inline-flex h-10 items-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              촬영본 저장
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReadonlyPreview({ title, src }: { title: string; src: string | null }) {
+  return (
+    <div>
+      <p className="mb-2 text-sm font-medium text-zinc-700">{title}</p>
+      <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-md border border-zinc-200 bg-zinc-50">
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt={title} className="h-full w-full object-cover" />
+        ) : (
+          <ImageIcon className="h-7 w-7 text-zinc-400" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PhotoDropBox({
+  title,
+  side,
+  active,
+  dragging,
+  value,
+  currentValue,
+  onFocusSide,
+  onDragSide,
+  onFile,
+}: {
+  title: string;
+  side: UploadSide;
+  active: boolean;
+  dragging: boolean;
+  value: string | null;
+  currentValue: string | null;
+  onFocusSide: (side: UploadSide) => void;
+  onDragSide: (side: UploadSide | null) => void;
+  onFile: (file: File) => void;
+}) {
+  const preview = value ?? currentValue;
+
+  return (
+    <label className="block">
+      <span className="text-sm font-medium text-zinc-800">{title}</span>
+      <input
+        type="file"
+        accept="image/*"
+        onFocus={() => onFocusSide(side)}
+        onClick={() => onFocusSide(side)}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+
+          if (file) {
+            onFile(file);
+          }
+
+          event.currentTarget.value = "";
+        }}
+        className="mt-2 block w-full text-sm text-zinc-700 file:mr-3 file:h-9 file:rounded-md file:border-0 file:bg-zinc-950 file:px-3 file:text-sm file:font-semibold file:text-white"
+      />
+      <div
+        tabIndex={0}
+        onFocus={() => onFocusSide(side)}
+        onClick={() => onFocusSide(side)}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          onDragSide(side);
+          onFocusSide(side);
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          onDragSide(side);
+        }}
+        onDragLeave={() => onDragSide(null)}
+        onDrop={(event) => {
+          event.preventDefault();
+          onDragSide(null);
+          onFocusSide(side);
+          const file = imageFileFromDataTransfer(event.dataTransfer);
+
+          if (file) {
+            onFile(file);
+          }
+        }}
+        className={`mt-3 aspect-[3/4] overflow-hidden rounded-md border bg-zinc-50 outline-none ${
+          active ? "border-zinc-950 ring-2 ring-zinc-950/10" : "border-zinc-200"
+        } ${dragging ? "bg-emerald-50" : ""}`}
+      >
+        {preview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={preview} alt={title} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-zinc-400">
+            <Upload className="h-5 w-5" />
+            <span>업로드 / 드롭 / Ctrl+V</span>
+          </div>
+        )}
+      </div>
+    </label>
+  );
+}
+
+function imageFileFromDataTransfer(dataTransfer: DataTransfer | null) {
+  if (!dataTransfer) {
+    return null;
+  }
+
+  const file = Array.from(dataTransfer.files).find((entry) =>
+    entry.type.startsWith("image/"),
+  );
+
+  if (file) {
+    return file;
+  }
+
+  return (
+    Array.from(dataTransfer.items)
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .find((entry): entry is File => Boolean(entry?.type.startsWith("image/"))) ??
+    null
+  );
+}
+
+async function imageUrlToDataUrl(url: string) {
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error("기존 촬영본 이미지를 읽지 못했습니다.");
+  }
+
+  return blobToDataUrl(await response.blob());
+}
+
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("이미지를 읽지 못했습니다."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function fileToOptimizedDataUrl(file: File) {
+  const rawDataUrl = await blobToDataUrl(file);
+
+  try {
+    const image = await loadImage(rawDataUrl);
+    const maxSide = 1600;
+    const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      return rawDataUrl;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    context.drawImage(image, 0, 0, width, height);
+
+    return canvas.toDataURL("image/jpeg", 0.86);
+  } catch {
+    return rawDataUrl;
+  }
+}
+
+function loadImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("이미지를 읽지 못했습니다."));
+    image.src = src;
+  });
 }

@@ -140,8 +140,16 @@ export function productWhere(params: {
   q?: string | null;
   status?: string | null;
   stock?: string | null;
+  group?: string | null;
+  member?: string | null;
+  album?: string | null;
+  version?: string | null;
 }): Prisma.ProductWhereInput {
   const q = params.q?.trim();
+  const group = params.group?.trim();
+  const member = params.member?.trim();
+  const album = params.album?.trim();
+  const version = params.version?.trim();
   const where: Prisma.ProductWhereInput = {};
   const and: Prisma.ProductWhereInput[] = [];
 
@@ -158,6 +166,27 @@ export function productWhere(params: {
   if (params.stock === "in_stock" || params.stock === "low") {
     and.push({
       stockQuantity: { gt: 0 },
+    });
+  }
+
+  if (group) {
+    and.push({ brand: { startsWith: group, mode: "insensitive" } });
+  }
+
+  if (member) {
+    and.push({ optionName: { startsWith: member, mode: "insensitive" } });
+  }
+
+  if (album) {
+    and.push({ category: { startsWith: album, mode: "insensitive" } });
+  }
+
+  if (version) {
+    and.push({
+      OR: [
+        { productName: { contains: version, mode: "insensitive" } },
+        { memo: { contains: version, mode: "insensitive" } },
+      ],
     });
   }
 
