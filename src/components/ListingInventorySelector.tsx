@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckSquare, Search, Square, UploadCloud } from "lucide-react";
+import { CheckSquare, Download, Search, Square, UploadCloud } from "lucide-react";
 import {
   listingUploadStatusLabel,
   type ListingUploadStatus,
@@ -65,6 +65,13 @@ export function ListingInventorySelector({
   const [message, setMessage] = useState("");
   const [creating, setCreating] = useState(false);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const sampleXlsxHref = useMemo(
+    () =>
+      `/api/listings/upload/sample?format=xlsx${
+        templateId ? `&templateId=${encodeURIComponent(templateId)}` : ""
+      }`,
+    [templateId],
+  );
 
   function toggle(id: string) {
     setSelectedIds((current) =>
@@ -161,7 +168,7 @@ export function ListingInventorySelector({
         </label>
         <button
           type="submit"
-          className="h-10 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
+          className="h-10 whitespace-nowrap rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
         >
           조회
         </button>
@@ -173,7 +180,7 @@ export function ListingInventorySelector({
             <button
               type="button"
               onClick={toggleAll}
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 px-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+              className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-md border border-zinc-300 px-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
             >
               {selectedIds.length === products.length && products.length ? (
                 <CheckSquare className="h-4 w-4" />
@@ -199,11 +206,18 @@ export function ListingInventorySelector({
               type="button"
               onClick={createDrafts}
               disabled={creating}
-              className="inline-flex h-9 items-center gap-2 rounded-md bg-zinc-950 px-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:bg-zinc-400"
+              className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-md bg-zinc-950 px-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:bg-zinc-400"
             >
               <UploadCloud className="h-4 w-4" />
               Draft 저장
             </button>
+            <a
+              href={sampleXlsxHref}
+              className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-md border border-zinc-300 px-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+            >
+              <Download className="h-4 w-4" />
+              템플릿 XLSX
+            </a>
           </div>
           <div className="text-sm text-zinc-600">
             선택 {selectedIds.length} / 표시 {products.length}

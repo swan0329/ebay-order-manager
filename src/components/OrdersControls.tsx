@@ -112,7 +112,7 @@ export function OrdersControls() {
 
         <form
           onSubmit={applyFilters}
-          className="grid gap-2 md:grid-cols-[1fr_150px_150px_150px_150px_auto]"
+          className="grid gap-2 md:grid-cols-[minmax(180px,1fr)_140px_140px_140px_140px_88px]"
         >
           <label className="relative block">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
@@ -159,7 +159,7 @@ export function OrdersControls() {
           />
           <button
             type="submit"
-            className="h-10 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
+            className="h-10 whitespace-nowrap rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
           >
             조회
           </button>

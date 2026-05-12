@@ -65,6 +65,8 @@ export function ProductsControls() {
 
     return pageSize ? `/products?pageSize=${pageSize}` : "/products";
   }, [searchParams]);
+  const secondaryActionClass =
+    "inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -198,7 +200,7 @@ export function ProductsControls() {
         <div className="flex flex-col gap-3">
           <form
             onSubmit={applyFilters}
-            className="grid flex-1 gap-2 lg:grid-cols-4 xl:grid-cols-[minmax(320px,2fr)_repeat(4,minmax(120px,1fr))_130px_130px_auto_auto]"
+            className="grid flex-1 gap-2 md:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-[minmax(280px,2fr)_repeat(4,minmax(120px,1fr))_120px_120px_96px_96px]"
           >
             <label className="relative block lg:col-span-2 xl:col-span-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
@@ -261,48 +263,50 @@ export function ProductsControls() {
             </select>
             <button
               type="submit"
-              className="h-10 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
+              className="h-10 whitespace-nowrap rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
             >
               조회
             </button>
             <Link
               href={resetHref}
-              className="inline-flex h-10 items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+              className="inline-flex h-10 whitespace-nowrap items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
             >
               초기화
             </Link>
           </form>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
             <Link
               href="/products/new"
-              className="inline-flex h-10 items-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
+              className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
             >
               <Plus className="h-4 w-4" />
               상품 등록
             </Link>
             <Link
               href="/inventory/photo-card-match"
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+              className={secondaryActionClass}
             >
               <ImageIcon className="h-4 w-4" />
               촬영본 연결
             </Link>
             <Link
               href="/listing-upload"
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+              className={secondaryActionClass}
             >
               <UploadCloud className="h-4 w-4" />
               eBay 업로드
             </Link>
             <Link
               href="/listing-upload/templates"
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+              className={secondaryActionClass}
             >
               <Settings className="h-4 w-4" />
               Templates
             </Link>
-            <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50">
+            <label
+              className={`${secondaryActionClass} cursor-pointer`}
+            >
               <Upload className="h-4 w-4" />
               {uploading ? "처리 중..." : "엑셀/CSV 업로드"}
               <input
@@ -315,7 +319,7 @@ export function ProductsControls() {
             </label>
             <a
               href={`/api/export/products${paramsText ? `?${paramsText}` : ""}`}
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+              className={secondaryActionClass}
             >
               <Download className="h-4 w-4" />
               CSV

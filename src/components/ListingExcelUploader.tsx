@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Download, FileSpreadsheet, UploadCloud } from "lucide-react";
@@ -18,6 +18,20 @@ export function ListingExcelUploader({ templates }: { templates: TemplateOption[
   );
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
+  const sampleXlsxHref = useMemo(
+    () =>
+      `/api/listings/upload/sample?format=xlsx${
+        templateId ? `&templateId=${encodeURIComponent(templateId)}` : ""
+      }`,
+    [templateId],
+  );
+  const sampleCsvHref = useMemo(
+    () =>
+      `/api/listings/upload/sample?format=csv${
+        templateId ? `&templateId=${encodeURIComponent(templateId)}` : ""
+      }`,
+    [templateId],
+  );
 
   async function upload(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -32,6 +46,7 @@ export function ListingExcelUploader({ templates }: { templates: TemplateOption[
     form.set("templateId", templateId);
     setUploading(true);
     setMessage("");
+
     const response = await fetch("/api/listing-upload/drafts/from-excel", {
       method: "POST",
       body: form,
@@ -46,13 +61,20 @@ export function ListingExcelUploader({ templates }: { templates: TemplateOption[
       return;
     }
 
-    setMessage(`${data?.created ?? 0}개 draft를 저장했습니다.`);
+    setMessage(`${data?.created ?? 0}개 draft를 저장했습니다. 작업내역에서 검증 상태를 확인해 주세요.`);
     event.currentTarget.reset();
     router.refresh();
   }
 
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-4">
+    <section className="space-y-4 rounded-lg border border-zinc-200 bg-white p-4">
+      <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
+        <p className="text-sm font-semibold text-blue-900">권장 순서</p>
+        <p className="mt-1 text-sm text-blue-800">
+          1) 템플릿 다운로드 2) 데이터 입력 3) 파일 업로드 후 Draft 검증
+        </p>
+      </div>
+
       <form onSubmit={upload} className="grid gap-4">
         <div className="grid gap-3 md:grid-cols-2">
           <label className="block">
@@ -82,33 +104,43 @@ export function ListingExcelUploader({ templates }: { templates: TemplateOption[
           </label>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <button
             type="submit"
             disabled={uploading}
-            className="inline-flex h-10 items-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:bg-zinc-400"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:bg-zinc-400"
           >
             <UploadCloud className="h-4 w-4" />
-            Draft 저장
+            {uploading ? "Draft 저장 중..." : "Draft 저장"}
           </button>
-          <Link
-            href={`/api/listings/upload/sample?format=xlsx${
-              templateId ? `&templateId=${encodeURIComponent(templateId)}` : ""
-            }`}
-            className="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-300 px-4 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+          <a
+            href={sampleXlsxHref}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-zinc-300 px-4 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
           >
             <Download className="h-4 w-4" />
-            샘플 파일
-          </Link>
+            템플릿 XLSX
+          </a>
+          <a
+            href={sampleCsvHref}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-zinc-300 px-4 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+          >
+            <Download className="h-4 w-4" />
+            템플릿 CSV
+          </a>
           <Link
             href="/listing-upload/jobs"
-            className="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-300 px-4 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-zinc-300 px-4 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
           >
             <FileSpreadsheet className="h-4 w-4" />
             작업내역
           </Link>
-          {message ? <span className="text-sm text-zinc-600">{message}</span> : null}
         </div>
+
+        {message ? (
+          <p className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+            {message}
+          </p>
+        ) : null}
       </form>
     </section>
   );

@@ -76,7 +76,7 @@ export default async function ListingUploadFromInventoryPage({
         <div className="mb-5">
           <h1 className="text-xl font-semibold text-zinc-950">재고에서 상품 선택</h1>
           <p className="mt-1 text-sm text-zinc-600">
-            기존 재고 데이터를 eBay 업로드 draft로 먼저 저장합니다.
+            기존 재고 데이터를 기준으로 엑셀 업로드용 Draft를 빠르게 준비합니다.
           </p>
           <div className="mt-2">
             <EbayEnvironmentBadge {...ebayConnection} />
