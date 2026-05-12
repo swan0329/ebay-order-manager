@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizePhotoCardCandidateFilters,
+  photoCardImageSource,
   photoCardGroupSlug,
   photoCardListingImageUrls,
   photoCardProductCode,
@@ -67,6 +68,27 @@ describe("photo card candidate filters", () => {
         imageUrl: "https://fallback.example/image.jpg",
       }).imageUrls,
     ).toEqual(["https://poca.example/source.jpg"]);
+  });
+
+  it("resolves image source based on front/source availability", () => {
+    expect(
+      photoCardImageSource({
+        userFrontImageUrl: "https://r2.example/front.jpg",
+        sourceImageUrl: "https://poca.example/source.jpg",
+      }),
+    ).toBe("r2_user_uploaded");
+    expect(
+      photoCardImageSource({
+        userFrontImageUrl: null,
+        sourceImageUrl: "https://poca.example/source.jpg",
+      }),
+    ).toBe("pocamarket");
+    expect(
+      photoCardImageSource({
+        userFrontImageUrl: null,
+        sourceImageUrl: null,
+      }),
+    ).toBeNull();
   });
 
   it("preserves existing source image or derives it from non-r2 current image", () => {

@@ -112,6 +112,7 @@ export type PhotoCardImageUpdateResult = {
   sku: string;
   imageUrl: string | null;
   sourceImageUrl: string | null;
+  imageSource: string | null;
   userFrontImageUrl: string | null;
   userBackImageUrl: string | null;
   userFrontR2Key: string | null;
@@ -283,6 +284,7 @@ export async function confirmPhotoCardImage(
     sku: updated.sku,
     imageUrl: frontUpload.url,
     sourceImageUrl,
+    imageSource: "r2_user_uploaded",
     userFrontImageUrl: frontUpload.url,
     userBackImageUrl: nextBackImageUrl,
     userFrontR2Key: frontUpload.key,
@@ -343,7 +345,10 @@ export async function deleteR2PhotoCardImage(
     input.side === "front" || input.side === "all"
       ? sourceImageUrl
       : nextFrontImageUrl ?? sourceImageUrl;
-  const nextImageSource = nextFrontImageUrl ? "r2_user_uploaded" : "pocamarket";
+  const nextImageSource = photoCardImageSource({
+    userFrontImageUrl: nextFrontImageUrl,
+    sourceImageUrl,
+  });
   const nextHasBackImage = Boolean(nextBackImageUrl);
   const imageUrls =
     input.side === "front" && !nextFrontImageUrl && nextBackImageUrl
@@ -381,6 +386,7 @@ export async function deleteR2PhotoCardImage(
     sku: updated.sku,
     imageUrl: nextImageUrl,
     sourceImageUrl,
+    imageSource: nextImageSource,
     userFrontImageUrl: nextFrontImageUrl,
     userBackImageUrl: nextBackImageUrl,
     userFrontR2Key: nextFrontR2Key,
@@ -434,6 +440,21 @@ export function photoCardListingImageUrls(input: {
   }
 
   return { frontListingImageUrl, backListingImageUrl, imageUrls };
+}
+
+export function photoCardImageSource(input: {
+  userFrontImageUrl?: string | null;
+  sourceImageUrl?: string | null;
+}) {
+  if (normalizeText(input.userFrontImageUrl)) {
+    return "r2_user_uploaded";
+  }
+
+  if (normalizeText(input.sourceImageUrl)) {
+    return "pocamarket";
+  }
+
+  return null;
 }
 
 export function sourceImageUrlForPhotoCardUpdate(
@@ -716,7 +737,14 @@ function candidateWhereClauses(
   }
 
   if (filters.album && !omitted.has("album")) {
-    clauses.push(Prisma.sql`COALESCE("category", '') ILIKE ${likePattern(filters.album)}`);
+    const albumLike = likePattern(filters.album);
+    clauses.push(
+      Prisma.sql`(
+        COALESCE("category", '') ILIKE ${albumLike}
+        OR COALESCE("product_name", '') ILIKE ${albumLike}
+        OR COALESCE("memo", '') ILIKE ${albumLike}
+      )`,
+    );
   }
 
   if (filters.version && !omitted.has("version")) {

@@ -62,6 +62,7 @@ type DeleteR2Response = {
     sku: string;
     imageUrl: string | null;
     sourceImageUrl: string | null;
+    imageSource: string | null;
     userFrontImageUrl: string | null;
     userBackImageUrl: string | null;
     userFrontR2Key: string | null;
@@ -78,6 +79,12 @@ type CompletedPreview = {
 };
 
 type UploadSide = "front" | "back";
+type DeleteSide = "front" | "back" | "all";
+
+type DeleteR2ModalState = {
+  candidate: Candidate;
+  side: DeleteSide;
+};
 
 type ImageMatchCandidate = {
   product?: {
@@ -101,6 +108,7 @@ const emptyFacets: Facets = {
 };
 
 const storageKey = "photo-card-match.recent-filters.v1";
+const candidateFetchDebounceMs = 150;
 
 export function PhotoCardMatchClient() {
   const [frontFile, setFrontFile] = useState<File | null>(null);
@@ -130,6 +138,7 @@ export function PhotoCardMatchClient() {
     Record<string, CompletedPreview>
   >({});
   const [replaceCandidate, setReplaceCandidate] = useState<Candidate | null>(null);
+  const [deleteModal, setDeleteModal] = useState<DeleteR2ModalState | null>(null);
   const [message, setMessage] = useState("");
   const autoNextTimer = useRef<number | null>(null);
 
@@ -282,6 +291,7 @@ export function PhotoCardMatchClient() {
               sku: string;
               imageUrl: string | null;
               sourceImageUrl: string | null;
+              imageSource: string | null;
               userFrontImageUrl: string | null;
               userBackImageUrl: string | null;
               userFrontR2Key: string | null;
@@ -308,7 +318,7 @@ export function PhotoCardMatchClient() {
                 hasBackImage: savedProduct.hasBackImage,
                 currentImageUrl: savedProduct.imageUrl,
                 sourceImageUrl: savedProduct.sourceImageUrl,
-                imageSource: savedProduct.userFrontR2Key ? "r2_user_uploaded" : "pocamarket",
+                imageSource: savedProduct.imageSource,
                 userFrontImageUrl: savedProduct.userFrontImageUrl,
                 userBackImageUrl: savedProduct.userBackImageUrl,
                 userFrontR2Key: savedProduct.userFrontR2Key,
@@ -363,23 +373,13 @@ export function PhotoCardMatchClient() {
     void saveCandidate(candidate);
   }, [saveCandidate]);
 
+  const requestDeleteR2Images = useCallback((candidate: Candidate, side: DeleteSide) => {
+    setDeleteModal({ candidate, side });
+  }, []);
+
   const deleteR2Images = useCallback(
-    async (candidate: Candidate, side: "front" | "back" | "all") => {
-      const actionLabel =
-        side === "front"
-          ? "R2 앞면 파일"
-          : side === "back"
-            ? "R2 뒷면 파일"
-            : "R2 앞/뒷면 파일 전체";
-
-      if (
-        !window.confirm(
-          `${candidate.sku}\n\n${actionLabel}을(를) 삭제할까요?\nCloudflare R2 버킷의 실제 파일이 삭제됩니다.`,
-        )
-      ) {
-        return;
-      }
-
+    async (candidate: Candidate, side: DeleteSide) => {
+      const actionLabel = deleteActionLabel(side);
       const targetId = `${candidate.cardId}:${side}`;
       setDeletingTarget(targetId);
 
@@ -407,9 +407,7 @@ export function PhotoCardMatchClient() {
                   hasBackImage: data.product?.hasBackImage ?? false,
                   currentImageUrl: data.product?.imageUrl ?? item.currentImageUrl,
                   sourceImageUrl: data.product?.sourceImageUrl ?? item.sourceImageUrl,
-                  imageSource: data.product?.userFrontR2Key
-                    ? "r2_user_uploaded"
-                    : "pocamarket",
+                  imageSource: data.product?.imageSource ?? item.imageSource,
                   userFrontImageUrl: data.product?.userFrontImageUrl ?? null,
                   userBackImageUrl: data.product?.userBackImageUrl ?? null,
                   userFrontR2Key: data.product?.userFrontR2Key ?? null,
@@ -459,6 +457,7 @@ export function PhotoCardMatchClient() {
       if (event.key === "Escape") {
         event.preventDefault();
         setReplaceCandidate(null);
+        setDeleteModal(null);
         clearUploadedImages();
         setMessage("이미지와 선택을 초기화했습니다.");
         return;
@@ -559,7 +558,7 @@ export function PhotoCardMatchClient() {
           setLoading(false);
         }
       }
-    }, 300);
+    }, candidateFetchDebounceMs);
 
     return () => {
       active = false;
@@ -804,7 +803,7 @@ export function PhotoCardMatchClient() {
                 value={keyword}
                 onChange={(event) => setKeyword(event.currentTarget.value)}
                 placeholder="SKU, 제목, 메모"
-                className="h-10 w-full rounded-md border border-zinc-300 pl-9 pr-3 text-sm outline-none focus:border-zinc-900"
+                className="h-11 w-full rounded-md border border-zinc-300 pl-9 pr-3 text-base outline-none focus:border-zinc-900"
               />
             </div>
           </label>
@@ -858,7 +857,7 @@ export function PhotoCardMatchClient() {
                 onSelect={() => setSelectedCandidateId(candidate.cardId)}
                 onPreview={() => setPreviewCandidate(candidate)}
                 onSave={() => requestSaveCandidate(candidate)}
-                onDelete={(side) => void deleteR2Images(candidate, side)}
+                onDelete={(side) => requestDeleteR2Images(candidate, side)}
               />
             ))}
           </div>
@@ -896,6 +895,20 @@ export function PhotoCardMatchClient() {
         />
       ) : null}
 
+      {deleteModal ? (
+        <ConfirmDeleteR2Modal
+          candidate={deleteModal.candidate}
+          side={deleteModal.side}
+          loading={deletingTarget === `${deleteModal.candidate.cardId}:${deleteModal.side}`}
+          onCancel={() => setDeleteModal(null)}
+          onConfirm={() => {
+            const target = deleteModal;
+            setDeleteModal(null);
+            void deleteR2Images(target.candidate, target.side);
+          }}
+        />
+      ) : null}
+
       {replaceCandidate ? (
         <ConfirmReplaceModal
           candidate={replaceCandidate}
@@ -930,7 +943,7 @@ function CandidateCard({
   onSelect: () => void;
   onPreview: () => void;
   onSave: () => void;
-  onDelete: (side: "front" | "back" | "all") => void;
+  onDelete: (side: DeleteSide) => void;
 }) {
   const registered = candidate.userImageRegistered || Boolean(completedPreview);
   const hasFrontR2 = Boolean(candidate.userFrontR2Key);
@@ -1016,7 +1029,7 @@ function CandidateCard({
         <Check className="h-4 w-4" />
         {saving ? "저장 중" : registered ? "촬영본 교체" : "이 카드로 연결"}
       </button>
-      <div className="mt-2 grid grid-cols-3 gap-2">
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
         <button
           type="button"
           onClick={(event) => {
@@ -1126,6 +1139,98 @@ function LargePreview({ title, src }: { title: string; src: string | null }) {
         ) : (
           <div className="text-sm text-zinc-400">이미지 없음</div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function deleteActionLabel(side: DeleteSide) {
+  if (side === "front") {
+    return "R2 앞면 파일";
+  }
+
+  if (side === "back") {
+    return "R2 뒷면 파일";
+  }
+
+  return "R2 앞/뒷면 파일 전체";
+}
+
+function ConfirmDeleteR2Modal({
+  candidate,
+  side,
+  loading,
+  onCancel,
+  onConfirm,
+}: {
+  candidate: Candidate;
+  side: DeleteSide;
+  loading: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const actionLabel = deleteActionLabel(side);
+  const previewItems =
+    side === "front"
+      ? [{ label: "앞면", src: candidate.userFrontImageUrl }]
+      : side === "back"
+        ? [{ label: "뒷면", src: candidate.userBackImageUrl }]
+        : [
+            { label: "앞면", src: candidate.userFrontImageUrl },
+            { label: "뒷면", src: candidate.userBackImageUrl },
+          ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+      <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-lg">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-2">
+            <h2 className="text-base font-semibold text-zinc-950">{actionLabel} 삭제</h2>
+            <p className="text-sm text-zinc-600">
+              {candidate.sku} 파일을 삭제합니다.
+            </p>
+            <p className="text-sm font-medium text-rose-700">
+              R2 버킷의 실제 파일도 삭제됩니다.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100"
+            aria-label="닫기"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {previewItems.map((item) => (
+            <div key={item.label}>
+              <p className="mb-1 text-xs font-medium text-zinc-500">{item.label}</p>
+              <MiniPreview src={item.src} label={item.label} />
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="h-10 rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            삭제 실행
+          </button>
+        </div>
       </div>
     </div>
   );
