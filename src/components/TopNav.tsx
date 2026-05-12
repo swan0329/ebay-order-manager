@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Camera,
   Package,
   PackageOpen,
   PlugZap,
@@ -17,6 +18,7 @@ type NavItem = {
   label: string;
   icon: typeof Package;
   matchPrefixes: string[];
+  excludePrefixes?: string[];
 };
 
 const nav: NavItem[] = [
@@ -25,7 +27,14 @@ const nav: NavItem[] = [
     href: "/products",
     label: "재고관리",
     icon: PackageOpen,
-    matchPrefixes: ["/products", "/inventory"],
+    matchPrefixes: ["/products", "/inventory", "/inventory/movements"],
+    excludePrefixes: ["/inventory/photo-card-match"],
+  },
+  {
+    href: "/inventory/photo-card-match",
+    label: "촬영본 연결",
+    icon: Camera,
+    matchPrefixes: ["/inventory/photo-card-match"],
   },
   {
     href: "/listing-upload",
@@ -39,6 +48,10 @@ const nav: NavItem[] = [
 ];
 
 function isActive(pathname: string, item: NavItem) {
+  if (item.excludePrefixes?.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+    return false;
+  }
+
   return item.matchPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
