@@ -30,6 +30,14 @@ describe("photo card candidate filters", () => {
     expect(normalizePhotoCardCandidateFilters({ offset: -20 }).offset).toBe(0);
   });
 
+  it("hides registered photo cards by default", () => {
+    expect(normalizePhotoCardCandidateFilters({}).includeRegistered).toBe(false);
+    expect(
+      normalizePhotoCardCandidateFilters({ includeRegistered: true })
+        .includeRegistered,
+    ).toBe(true);
+  });
+
   it("builds listing image URLs from user-uploaded front and back assets first", () => {
     expect(
       photoCardListingImageUrls({

@@ -4,7 +4,13 @@ import { ensureProductImageMatchColumns } from "@/lib/services/productImageMatch
 
 const defaultLimit = 50;
 const maxLimit = 50;
+const facetCacheTtlMs = 60_000;
 let photoCardSearchSupportPromise: Promise<void> | null = null;
+let photoCardFacetCache: {
+  includeRegistered: boolean;
+  expiresAt: number;
+  value: PhotoCardFacetOptions;
+} | null = null;
 
 export type PhotoCardCandidateFilters = {
   group?: string | null;
@@ -12,6 +18,7 @@ export type PhotoCardCandidateFilters = {
   album?: string | null;
   version?: string | null;
   keyword?: string | null;
+  includeRegistered?: boolean | null;
   limit?: number | null;
   offset?: number | null;
 };
@@ -171,6 +178,7 @@ export function normalizePhotoCardCandidateFilters(
     album: normalizeText(filters.album),
     version: normalizeText(filters.version),
     keyword: normalizeText(filters.keyword),
+    includeRegistered: filters.includeRegistered === true,
     limit: clampLimit(filters.limit),
     offset: Math.max(0, Number(filters.offset) || 0),
   };
@@ -239,14 +247,40 @@ function textArraySql(values: string[]) {
 async function loadPhotoCardFacets(
   filters: ReturnType<typeof normalizePhotoCardCandidateFilters>,
 ): Promise<PhotoCardFacetOptions> {
+  const now = Date.now();
+
+  if (
+    photoCardFacetCache &&
+    photoCardFacetCache.includeRegistered === filters.includeRegistered &&
+    photoCardFacetCache.expiresAt > now
+  ) {
+    return photoCardFacetCache.value;
+  }
+
+  const globalFacetFilters = {
+    ...filters,
+    group: null,
+    member: null,
+    album: null,
+    version: null,
+    keyword: null,
+    offset: 0,
+  };
   const [groups, members, albums, versions] = await Promise.all([
-    distinctFacet("brand", filters, new Set(["group"])),
-    distinctFacet("option_name", filters, new Set(["member"])),
-    distinctFacet("category", filters, new Set(["album"])),
-    distinctFacet("product_name", filters, new Set(["version"])),
+    distinctFacet("brand", globalFacetFilters, new Set()),
+    distinctFacet("option_name", globalFacetFilters, new Set()),
+    distinctFacet("category", globalFacetFilters, new Set()),
+    distinctFacet("product_name", globalFacetFilters, new Set()),
   ]);
 
-  return { groups, members, albums, versions };
+  const value = { groups, members, albums, versions };
+  photoCardFacetCache = {
+    includeRegistered: filters.includeRegistered,
+    expiresAt: now + facetCacheTtlMs,
+    value,
+  };
+
+  return value;
 }
 
 async function distinctFacet(
@@ -279,6 +313,12 @@ function candidateWhereClauses(
   omitted = new Set<keyof ReturnType<typeof normalizePhotoCardCandidateFilters>>(),
 ) {
   const clauses = [Prisma.sql`("status" IS NULL OR "status" <> 'inactive')`];
+
+  if (!filters.includeRegistered) {
+    clauses.push(
+      Prisma.sql`("user_front_image_url" IS NULL OR "user_front_image_url" = '')`,
+    );
+  }
 
   if (filters.group && !omitted.has("group")) {
     clauses.push(Prisma.sql`COALESCE("brand", '') ILIKE ${prefixPattern(filters.group)}`);

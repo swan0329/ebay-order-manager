@@ -90,6 +90,7 @@ export function PhotoCardMatchClient() {
   const [album, setAlbum] = useState("");
   const [version, setVersion] = useState("");
   const [keyword, setKeyword] = useState("");
+  const [includeRegistered, setIncludeRegistered] = useState(false);
   const [facets, setFacets] = useState<Facets>(emptyFacets);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
@@ -286,6 +287,11 @@ export function PhotoCardMatchClient() {
 
         autoNextTimer.current = window.setTimeout(() => {
           autoNextTimer.current = null;
+          if (!includeRegistered) {
+            setCandidates((current) =>
+              current.filter((item) => item.cardId !== candidate.cardId),
+            );
+          }
           clearUploadedImages();
           setMessage("다음 카드 업로드 상태로 전환했습니다.");
         }, 1000);
@@ -295,7 +301,7 @@ export function PhotoCardMatchClient() {
     } finally {
       setSavingId(null);
     }
-  }, [frontImageUrl, backImageUrl, continuousMode, clearUploadedImages]);
+  }, [frontImageUrl, backImageUrl, continuousMode, includeRegistered, clearUploadedImages]);
 
   const requestSaveCandidate = useCallback((candidate: Candidate | null) => {
     if (!candidate) {
@@ -392,6 +398,10 @@ export function PhotoCardMatchClient() {
       }
     }
 
+    if (includeRegistered) {
+      params.set("includeRegistered", "1");
+    }
+
     const response = await fetch(`/api/inventory/photo-card-candidates?${params}`);
     const data = (await response.json().catch(() => null)) as CandidateResponse | null;
 
@@ -400,7 +410,7 @@ export function PhotoCardMatchClient() {
     }
 
     return data;
-  }, [group, member, album, version, keyword]);
+  }, [group, member, album, version, keyword, includeRegistered]);
 
   useEffect(() => {
     let active = true;
@@ -677,7 +687,16 @@ export function PhotoCardMatchClient() {
             </div>
           </label>
         </div>
-        <div className="mt-3 flex justify-end">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
+            <input
+              type="checkbox"
+              checked={includeRegistered}
+              onChange={(event) => setIncludeRegistered(event.currentTarget.checked)}
+              className="h-4 w-4 rounded border-zinc-300"
+            />
+            등록완료 카드도 보기
+          </label>
           <button
             type="button"
             onClick={resetFilters}

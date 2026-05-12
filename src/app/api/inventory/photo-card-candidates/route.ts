@@ -13,6 +13,7 @@ export async function GET(request: Request) {
       album: url.searchParams.get("album"),
       version: url.searchParams.get("version"),
       keyword: url.searchParams.get("keyword"),
+      includeRegistered: url.searchParams.get("includeRegistered") === "1",
       limit: Number(url.searchParams.get("limit") || "50"),
       offset: Number(url.searchParams.get("offset") || "0"),
     });
