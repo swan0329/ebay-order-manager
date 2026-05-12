@@ -141,11 +141,11 @@ export function ProductsControls() {
               상품 등록
             </Link>
             <Link
-              href="/products/image-match"
+              href="/inventory/photo-card-match"
               className="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
             >
               <ImageIcon className="h-4 w-4" />
-              이미지 매칭
+              촬영본 연결
             </Link>
             <Link
               href="/listing-upload"
