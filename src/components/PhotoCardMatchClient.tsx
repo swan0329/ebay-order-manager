@@ -7,6 +7,7 @@ import {
   Check,
   Image as ImageIcon,
   Loader2,
+  Maximize2,
   Plus,
   RotateCcw,
   Search,
@@ -15,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Candidate = {
   cardId: string;
@@ -53,6 +54,8 @@ type CompletedPreview = {
   backImageUrl: string | null;
 };
 
+type UploadSide = "front" | "back";
+
 type ImageMatchCandidate = {
   product?: {
     id: string;
@@ -80,6 +83,8 @@ export function PhotoCardMatchClient() {
   const [frontFile, setFrontFile] = useState<File | null>(null);
   const [frontImageUrl, setFrontImageUrl] = useState<string | null>(null);
   const [backImageUrl, setBackImageUrl] = useState<string | null>(null);
+  const [activeUploadSide, setActiveUploadSide] = useState<UploadSide>("front");
+  const [dragSide, setDragSide] = useState<UploadSide | null>(null);
   const [group, setGroup] = useState("");
   const [member, setMember] = useState("");
   const [album, setAlbum] = useState("");
@@ -87,6 +92,8 @@ export function PhotoCardMatchClient() {
   const [keyword, setKeyword] = useState("");
   const [facets, setFacets] = useState<Facets>(emptyFacets);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const [previewCandidate, setPreviewCandidate] = useState<Candidate | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -99,6 +106,7 @@ export function PhotoCardMatchClient() {
   >({});
   const [replaceCandidate, setReplaceCandidate] = useState<Candidate | null>(null);
   const [message, setMessage] = useState("");
+  const autoNextTimer = useRef<number | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -131,6 +139,14 @@ export function PhotoCardMatchClient() {
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (autoNextTimer.current) {
+        window.clearTimeout(autoNextTimer.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!filtersLoaded) {
       return;
     }
@@ -141,98 +157,43 @@ export function PhotoCardMatchClient() {
     );
   }, [filtersLoaded, group, member, album, version]);
 
-  const fetchCandidates = useCallback(async (nextOffset: number) => {
-    const params = new URLSearchParams({
-      limit: "50",
-      offset: String(nextOffset),
-    });
+  const selectedCandidate = useMemo(
+    () => candidates.find((candidate) => candidate.cardId === selectedCandidateId) ?? null,
+    [candidates, selectedCandidateId],
+  );
 
-    for (const [key, value] of Object.entries({
-      group,
-      member,
-      album,
-      version,
-      keyword,
-    })) {
-      if (value.trim()) {
-        params.set(key, value.trim());
-      }
+  const newProductHref = useMemo(() => {
+    const params = new URLSearchParams();
+    const title = [group, album, member, version].filter(Boolean).join(" ");
+
+    if (group.trim()) {
+      params.set("brand", group.trim());
     }
 
-    const response = await fetch(`/api/inventory/photo-card-candidates?${params}`);
-    const data = (await response.json().catch(() => null)) as CandidateResponse | null;
-
-    if (!response.ok || !data) {
-      throw new Error(data?.error ?? "후보 조회에 실패했습니다.");
+    if (album.trim()) {
+      params.set("category", album.trim());
     }
 
-    return data;
-  }, [group, member, album, version, keyword]);
-
-  useEffect(() => {
-    let active = true;
-    const timer = window.setTimeout(async () => {
-      setLoading(true);
-
-      try {
-        const data = await fetchCandidates(0);
-
-        if (!active) {
-          return;
-        }
-
-        setCandidates(data.candidates);
-        setFacets(data.facets);
-        setHasMore(data.paging.hasMore);
-        setOffset(data.paging.limit);
-        setMessage("");
-      } catch (error) {
-        if (active) {
-          setMessage(error instanceof Error ? error.message : "후보 조회에 실패했습니다.");
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    }, 300);
-
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [fetchCandidates]);
-
-  async function loadMore() {
-    setLoading(true);
-
-    try {
-      const nextOffset = offset;
-      const data = await fetchCandidates(nextOffset);
-      setCandidates((current) => [...current, ...data.candidates]);
-      setFacets(data.facets);
-      setHasMore(data.paging.hasMore);
-      setOffset(nextOffset + data.paging.limit);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "후보 조회에 실패했습니다.");
-    } finally {
-      setLoading(false);
+    if (member.trim()) {
+      params.set("optionName", member.trim());
     }
-  }
 
-  async function handleImageChange(
-    event: React.ChangeEvent<HTMLInputElement>,
-    side: "front" | "back",
-  ) {
-    const file = event.currentTarget.files?.[0] ?? null;
+    if (title) {
+      params.set("productName", title);
+    }
 
-    if (!file) {
-      if (side === "front") {
-        setFrontFile(null);
-        setFrontImageUrl(null);
-      } else {
-        setBackImageUrl(null);
-      }
+    if (version.trim()) {
+      params.set("memo", version.trim());
+    }
+
+    const query = params.toString();
+
+    return query ? `/products/new?${query}` : "/products/new";
+  }, [group, album, member, version]);
+
+  const storeImageFile = useCallback(async (file: File, side: UploadSide) => {
+    if (!file.type.startsWith("image/")) {
+      setMessage("이미지 파일만 업로드할 수 있습니다.");
       return;
     }
 
@@ -241,21 +202,26 @@ export function PhotoCardMatchClient() {
     if (side === "front") {
       setFrontFile(file);
       setFrontImageUrl(dataUrl);
+      setActiveUploadSide("back");
     } else {
       setBackImageUrl(dataUrl);
-    }
-  }
-
-  function requestSaveCandidate(candidate: Candidate) {
-    if (candidate.userImageRegistered) {
-      setReplaceCandidate(candidate);
-      return;
+      setActiveUploadSide("front");
     }
 
-    void saveCandidate(candidate);
-  }
+    setMessage(`${side === "front" ? "앞면" : "뒷면"} 이미지가 준비되었습니다.`);
+  }, []);
 
-  async function saveCandidate(candidate: Candidate) {
+  const clearUploadedImages = useCallback(() => {
+    setFrontFile(null);
+    setFrontImageUrl(null);
+    setBackImageUrl(null);
+    setSelectedCandidateId(null);
+    setPreviewCandidate(null);
+    setActiveUploadSide("front");
+    setUploadResetKey((current) => current + 1);
+  }, []);
+
+  const saveCandidate = useCallback(async (candidate: Candidate) => {
     if (!frontImageUrl) {
       setMessage("앞면 이미지를 먼저 업로드해 주세요.");
       return;
@@ -307,13 +273,196 @@ export function PhotoCardMatchClient() {
       setMessage(`${data.product.sku} 촬영본 연결 완료`);
 
       if (continuousMode) {
-        clearUploadedImages();
+        if (autoNextTimer.current) {
+          window.clearTimeout(autoNextTimer.current);
+        }
+
+        autoNextTimer.current = window.setTimeout(() => {
+          clearUploadedImages();
+          setMessage("다음 카드 업로드 상태로 전환했습니다.");
+        }, 1000);
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "촬영본 저장에 실패했습니다.");
     } finally {
       setSavingId(null);
     }
+  }, [frontImageUrl, backImageUrl, continuousMode, clearUploadedImages]);
+
+  const requestSaveCandidate = useCallback((candidate: Candidate | null) => {
+    if (!candidate) {
+      setMessage("후보 카드를 먼저 선택해 주세요.");
+      return;
+    }
+
+    if (candidate.userImageRegistered) {
+      setReplaceCandidate(candidate);
+      return;
+    }
+
+    void saveCandidate(candidate);
+  }, [saveCandidate]);
+
+  useEffect(() => {
+    const handler = (event: ClipboardEvent) => {
+      const file = imageFileFromDataTransfer(event.clipboardData);
+
+      if (!file) {
+        return;
+      }
+
+      event.preventDefault();
+      void storeImageFile(file, activeUploadSide);
+    };
+
+    window.addEventListener("paste", handler);
+
+    return () => window.removeEventListener("paste", handler);
+  }, [activeUploadSide, storeImageFile]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setReplaceCandidate(null);
+        clearUploadedImages();
+        setMessage("이미지와 선택을 초기화했습니다.");
+        return;
+      }
+
+      if (event.key === "Enter") {
+        if (!selectedCandidate) {
+          return;
+        }
+
+        event.preventDefault();
+        requestSaveCandidate(selectedCandidate);
+        return;
+      }
+
+      if (/^[1-9]$/.test(event.key)) {
+        const candidate = candidates[Number(event.key) - 1];
+
+        if (!candidate) {
+          return;
+        }
+
+        event.preventDefault();
+        setSelectedCandidateId(candidate.cardId);
+        setMessage(`${event.key}번 후보를 선택했습니다. Enter로 연결합니다.`);
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+
+    return () => window.removeEventListener("keydown", handler);
+  }, [candidates, selectedCandidate, requestSaveCandidate, clearUploadedImages]);
+
+  const fetchCandidates = useCallback(async (nextOffset: number) => {
+    const params = new URLSearchParams({
+      limit: "50",
+      offset: String(nextOffset),
+    });
+
+    for (const [key, value] of Object.entries({
+      group,
+      member,
+      album,
+      version,
+      keyword,
+    })) {
+      if (value.trim()) {
+        params.set(key, value.trim());
+      }
+    }
+
+    const response = await fetch(`/api/inventory/photo-card-candidates?${params}`);
+    const data = (await response.json().catch(() => null)) as CandidateResponse | null;
+
+    if (!response.ok || !data) {
+      throw new Error(data?.error ?? "후보 조회에 실패했습니다.");
+    }
+
+    return data;
+  }, [group, member, album, version, keyword]);
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setLoading(true);
+
+      try {
+        const data = await fetchCandidates(0);
+
+        if (!active) {
+          return;
+        }
+
+        setCandidates(data.candidates);
+        setFacets(data.facets);
+        setHasMore(data.paging.hasMore);
+        setOffset(data.paging.limit);
+        setSelectedCandidateId((current) =>
+          current && data.candidates.some((candidate) => candidate.cardId === current)
+            ? current
+            : data.candidates[0]?.cardId ?? null,
+        );
+        setMessage("");
+      } catch (error) {
+        if (active) {
+          setMessage(error instanceof Error ? error.message : "후보 조회에 실패했습니다.");
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [fetchCandidates]);
+
+  async function loadMore() {
+    setLoading(true);
+
+    try {
+      const nextOffset = offset;
+      const data = await fetchCandidates(nextOffset);
+      setCandidates((current) => [...current, ...data.candidates]);
+      setFacets(data.facets);
+      setHasMore(data.paging.hasMore);
+      setOffset(nextOffset + data.paging.limit);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "후보 조회에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleImageChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+    side: UploadSide,
+  ) {
+    const file = event.currentTarget.files?.[0] ?? null;
+
+    if (!file) {
+      if (side === "front") {
+        setFrontFile(null);
+        setFrontImageUrl(null);
+      } else {
+        setBackImageUrl(null);
+      }
+      return;
+    }
+
+    await storeImageFile(file, side);
   }
 
   async function suggestByImage() {
@@ -363,6 +512,7 @@ export function PhotoCardMatchClient() {
         }));
 
       setCandidates(imageCandidates);
+      setSelectedCandidateId(imageCandidates[0]?.cardId ?? null);
       setHasMore(false);
       setMessage(
         imageCandidates.length
@@ -374,13 +524,6 @@ export function PhotoCardMatchClient() {
     } finally {
       setLoading(false);
     }
-  }
-
-  function clearUploadedImages() {
-    setFrontFile(null);
-    setFrontImageUrl(null);
-    setBackImageUrl(null);
-    setUploadResetKey((current) => current + 1);
   }
 
   function resetFilters() {
@@ -410,7 +553,7 @@ export function PhotoCardMatchClient() {
             상품으로
           </Link>
           <Link
-            href="/products/new"
+            href={newProductHref}
             className="inline-flex h-10 items-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
           >
             <Plus className="h-4 w-4" />새 카드 등록
@@ -422,13 +565,25 @@ export function PhotoCardMatchClient() {
         <ImageInput
           inputKey={`front-${uploadResetKey}`}
           label="앞면 이미지"
+          side="front"
+          active={activeUploadSide === "front"}
+          dragging={dragSide === "front"}
           value={frontImageUrl}
+          onFocusSide={setActiveUploadSide}
+          onDragSide={setDragSide}
+          onDropFile={(file) => storeImageFile(file, "front")}
           onChange={(event) => handleImageChange(event, "front")}
         />
         <ImageInput
           inputKey={`back-${uploadResetKey}`}
           label="뒷면 이미지"
+          side="back"
+          active={activeUploadSide === "back"}
+          dragging={dragSide === "back"}
           value={backImageUrl}
+          onFocusSide={setActiveUploadSide}
+          onDragSide={setDragSide}
+          onDropFile={(file) => storeImageFile(file, "back")}
           onChange={(event) => handleImageChange(event, "back")}
         />
         <div className="grid content-end gap-3">
@@ -537,13 +692,17 @@ export function PhotoCardMatchClient() {
 
         {candidates.length ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {candidates.map((candidate) => (
+            {candidates.map((candidate, index) => (
               <CandidateCard
                 key={candidate.cardId}
+                index={index}
                 candidate={candidate}
                 completedPreview={completedPreviews[candidate.cardId]}
+                selected={selectedCandidateId === candidate.cardId}
                 saving={savingId === candidate.cardId}
                 canSave={Boolean(frontImageUrl) && savingId === null}
+                onSelect={() => setSelectedCandidateId(candidate.cardId)}
+                onPreview={() => setPreviewCandidate(candidate)}
                 onSave={() => requestSaveCandidate(candidate)}
               />
             ))}
@@ -551,7 +710,14 @@ export function PhotoCardMatchClient() {
         ) : (
           <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center">
             <Camera className="mx-auto h-8 w-8 text-zinc-400" />
-            <p className="mt-3 text-sm text-zinc-600">필터를 입력하면 후보 카드가 표시됩니다.</p>
+            <p className="mt-3 text-sm text-zinc-600">조건에 맞는 후보 카드가 없습니다.</p>
+            <Link
+              href={newProductHref}
+              className="mt-4 inline-flex h-10 items-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
+            >
+              <Plus className="h-4 w-4" />
+              새 카드로 등록
+            </Link>
           </div>
         )}
 
@@ -567,6 +733,14 @@ export function PhotoCardMatchClient() {
         ) : null}
       </section>
 
+      {previewCandidate ? (
+        <ImageCompareModal
+          candidate={previewCandidate}
+          frontImageUrl={frontImageUrl}
+          onClose={() => setPreviewCandidate(null)}
+        />
+      ) : null}
+
       {replaceCandidate ? (
         <ConfirmReplaceModal
           candidate={replaceCandidate}
@@ -579,23 +753,45 @@ export function PhotoCardMatchClient() {
 }
 
 function CandidateCard({
+  index,
   candidate,
   completedPreview,
+  selected,
   saving,
   canSave,
+  onSelect,
+  onPreview,
   onSave,
 }: {
+  index: number;
   candidate: Candidate;
   completedPreview?: CompletedPreview;
+  selected: boolean;
   saving: boolean;
   canSave: boolean;
+  onSelect: () => void;
+  onPreview: () => void;
   onSave: () => void;
 }) {
   const registered = candidate.userImageRegistered || Boolean(completedPreview);
 
   return (
-    <article className="rounded-lg border border-zinc-200 bg-white p-3">
-      <div className="aspect-[3/4] overflow-hidden rounded-md border border-zinc-200 bg-zinc-50">
+    <article
+      onClick={onSelect}
+      className={`cursor-pointer rounded-lg border bg-white p-3 transition ${
+        selected
+          ? "border-zinc-950 ring-2 ring-zinc-950/10"
+          : "border-zinc-200 hover:border-zinc-400"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onPreview();
+        }}
+        className="group relative block aspect-[3/4] w-full overflow-hidden rounded-md border border-zinc-200 bg-zinc-50"
+      >
         {candidate.existingImageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -609,7 +805,15 @@ function CandidateCard({
             <ImageIcon className="h-7 w-7" />
           </div>
         )}
-      </div>
+        {index < 9 ? (
+          <span className="absolute left-2 top-2 rounded-md bg-zinc-950 px-2 py-1 text-xs font-semibold text-white">
+            {index + 1}
+          </span>
+        ) : null}
+        <span className="absolute bottom-2 right-2 rounded-md bg-white/90 p-1 text-zinc-700 opacity-0 shadow-sm transition group-hover:opacity-100">
+          <Maximize2 className="h-4 w-4" />
+        </span>
+      </button>
       <div className="mt-3 space-y-1 text-sm">
         <div className="flex items-center justify-between gap-2">
           <p className="font-semibold text-zinc-950">{candidate.sku}</p>
@@ -637,7 +841,10 @@ function CandidateCard({
       ) : null}
       <button
         type="button"
-        onClick={onSave}
+        onClick={(event) => {
+          event.stopPropagation();
+          onSave();
+        }}
         disabled={saving || !canSave}
         className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-zinc-950 px-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
@@ -670,6 +877,57 @@ function StatusBadge({
     <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
       {hasBack ? "앞/뒤 등록 완료" : "앞면만 등록"}
     </span>
+  );
+}
+
+function ImageCompareModal({
+  candidate,
+  frontImageUrl,
+  onClose,
+}: {
+  candidate: Candidate;
+  frontImageUrl: string | null;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6">
+      <div className="max-h-full w-full max-w-6xl overflow-auto rounded-lg bg-white p-5 shadow-xl">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-zinc-950">{candidate.sku}</h2>
+            <p className="mt-1 text-sm text-zinc-600">{candidate.title}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100"
+            aria-label="닫기"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <LargePreview title="업로드한 앞면" src={frontImageUrl} />
+          <LargePreview title="DB 후보 이미지" src={candidate.existingImageUrl} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LargePreview({ title, src }: { title: string; src: string | null }) {
+  return (
+    <div>
+      <p className="mb-2 text-sm font-medium text-zinc-700">{title}</p>
+      <div className="flex min-h-[420px] items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt={title} className="max-h-[75vh] w-full object-contain" />
+        ) : (
+          <div className="text-sm text-zinc-400">이미지 없음</div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -761,12 +1019,24 @@ function AutocompleteFilter({
 function ImageInput({
   inputKey,
   label,
+  side,
+  active,
+  dragging,
   value,
+  onFocusSide,
+  onDragSide,
+  onDropFile,
   onChange,
 }: {
   inputKey: string;
   label: string;
+  side: UploadSide;
+  active: boolean;
+  dragging: boolean;
   value: string | null;
+  onFocusSide: (side: UploadSide) => void;
+  onDragSide: (side: UploadSide | null) => void;
+  onDropFile: (file: File) => void;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
@@ -776,17 +1046,46 @@ function ImageInput({
         key={inputKey}
         type="file"
         accept="image/*"
+        onFocus={() => onFocusSide(side)}
+        onClick={() => onFocusSide(side)}
         onChange={onChange}
         className="mt-2 block w-full text-sm text-zinc-700 file:mr-3 file:h-9 file:rounded-md file:border-0 file:bg-zinc-950 file:px-3 file:text-sm file:font-semibold file:text-white"
       />
-      <div className="mt-3 aspect-[3/4] overflow-hidden rounded-md border border-zinc-200 bg-zinc-50">
+      <div
+        tabIndex={0}
+        onFocus={() => onFocusSide(side)}
+        onClick={() => onFocusSide(side)}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          onDragSide(side);
+          onFocusSide(side);
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          onDragSide(side);
+        }}
+        onDragLeave={() => onDragSide(null)}
+        onDrop={(event) => {
+          event.preventDefault();
+          onDragSide(null);
+          onFocusSide(side);
+          const file = imageFileFromDataTransfer(event.dataTransfer);
+
+          if (file) {
+            onDropFile(file);
+          }
+        }}
+        className={`mt-3 aspect-[3/4] overflow-hidden rounded-md border bg-zinc-50 outline-none ${
+          active ? "border-zinc-950 ring-2 ring-zinc-950/10" : "border-zinc-200"
+        } ${dragging ? "bg-emerald-50" : ""}`}
+      >
         {value ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={value} alt={label} className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full items-center justify-center text-xs text-zinc-400">
-            <Upload className="mr-2 h-4 w-4" />
-            업로드
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-zinc-400">
+            <Upload className="h-5 w-5" />
+            <span>업로드 / 드롭 / Ctrl+V</span>
           </div>
         )}
       </div>
@@ -806,6 +1105,39 @@ function MiniPreview({ src, label }: { src: string | null; label: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+function imageFileFromDataTransfer(dataTransfer: DataTransfer | null) {
+  if (!dataTransfer) {
+    return null;
+  }
+
+  const file = Array.from(dataTransfer.files).find((entry) =>
+    entry.type.startsWith("image/"),
+  );
+
+  if (file) {
+    return file;
+  }
+
+  return (
+    Array.from(dataTransfer.items)
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .find((entry): entry is File => Boolean(entry?.type.startsWith("image/"))) ??
+    null
+  );
+}
+
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return (
+    target.isContentEditable ||
+    ["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(target.tagName)
   );
 }
 
