@@ -31,6 +31,13 @@ export function ProductsControls() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [facets, setFacets] = useState<ProductFacetOptions>(emptyFacets);
+  const [q, setQ] = useState(searchParams.get("q") ?? "");
+  const [group, setGroup] = useState(searchParams.get("group") ?? "");
+  const [member, setMember] = useState(searchParams.get("member") ?? "");
+  const [album, setAlbum] = useState(searchParams.get("album") ?? "");
+  const [version, setVersion] = useState(searchParams.get("version") ?? "");
+  const [status, setStatus] = useState(searchParams.get("status") ?? "all");
+  const [stock, setStock] = useState(searchParams.get("stock") ?? "all");
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadFileName, setUploadFileName] = useState("");
@@ -45,24 +52,46 @@ export function ProductsControls() {
 
   useEffect(() => {
     const controller = new AbortController();
-
-    fetch("/api/inventory/photo-card-candidates?includeRegistered=1&limit=1", {
-      signal: controller.signal,
-    })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data: { facets?: ProductFacetOptions } | null) => {
-        if (data?.facets) {
-          setFacets(data.facets);
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setFacets(emptyFacets);
-        }
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({
+        includeRegistered: "1",
+        limit: "1",
       });
 
-    return () => controller.abort();
-  }, []);
+      for (const [key, value] of Object.entries({
+        group,
+        member,
+        album,
+        version,
+      })) {
+        const text = value.trim();
+
+        if (text) {
+          params.set(key, text);
+        }
+      }
+
+      fetch(`/api/inventory/photo-card-candidates?${params.toString()}`, {
+        signal: controller.signal,
+      })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data: { facets?: ProductFacetOptions } | null) => {
+          if (data?.facets) {
+            setFacets(data.facets);
+          }
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setFacets(emptyFacets);
+          }
+        });
+    }, 200);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [group, member, album, version]);
 
   useEffect(() => {
     if (!uploadStartedAt) {
@@ -78,22 +107,21 @@ export function ProductsControls() {
 
   function applyFilters(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
     const params = new URLSearchParams();
 
-    for (const key of [
-      "q",
-      "group",
-      "member",
-      "album",
-      "version",
-      "status",
-      "stock",
-    ]) {
-      const value = String(form.get(key) ?? "").trim();
+    for (const [key, value] of Object.entries({
+      q,
+      group,
+      member,
+      album,
+      version,
+      status,
+      stock,
+    })) {
+      const text = value.trim();
 
-      if (value && value !== "all") {
-        params.set(key, value);
+      if (text && text !== "all") {
+        params.set(key, text);
       }
     }
 
@@ -160,7 +188,8 @@ export function ProductsControls() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
               <input
                 name="q"
-                defaultValue={searchParams.get("q") ?? ""}
+                value={q}
+                onChange={(event) => setQ(event.currentTarget.value)}
                 placeholder="키워드, SKU, 상품명"
                 className="h-10 w-full rounded-md border border-zinc-300 pl-9 pr-3 text-sm outline-none focus:border-zinc-900"
               />
@@ -168,30 +197,35 @@ export function ProductsControls() {
             <FilterInput
               name="group"
               label="그룹"
-              value={searchParams.get("group") ?? ""}
+              value={group}
+              onChange={setGroup}
               options={facets.groups}
             />
             <FilterInput
               name="member"
               label="멤버"
-              value={searchParams.get("member") ?? ""}
+              value={member}
+              onChange={setMember}
               options={facets.members}
             />
             <FilterInput
               name="album"
               label="앨범"
-              value={searchParams.get("album") ?? ""}
+              value={album}
+              onChange={setAlbum}
               options={facets.albums}
             />
             <FilterInput
               name="version"
               label="버전/특전처"
-              value={searchParams.get("version") ?? ""}
+              value={version}
+              onChange={setVersion}
               options={facets.versions}
             />
             <select
               name="status"
-              defaultValue={searchParams.get("status") ?? "all"}
+              value={status}
+              onChange={(event) => setStatus(event.currentTarget.value)}
               className="h-10 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
             >
               <option value="all">전체 상태</option>
@@ -201,7 +235,8 @@ export function ProductsControls() {
             </select>
             <select
               name="stock"
-              defaultValue={searchParams.get("stock") ?? "all"}
+              value={stock}
+              onChange={(event) => setStock(event.currentTarget.value)}
               className="h-10 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
             >
               <option value="all">전체 재고</option>
@@ -253,7 +288,7 @@ export function ProductsControls() {
             </Link>
             <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50">
               <Upload className="h-4 w-4" />
-              {uploading ? "처리 중" : "엑셀/CSV 업로드"}
+              {uploading ? "처리 중..." : "엑셀/CSV 업로드"}
               <input
                 type="file"
                 accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
@@ -288,11 +323,13 @@ function FilterInput({
   name,
   label,
   value,
+  onChange,
   options,
 }: {
   name: string;
   label: string;
   value: string;
+  onChange: (value: string) => void;
   options: string[];
 }) {
   const listId = `products-${name}-options`;
@@ -301,7 +338,8 @@ function FilterInput({
     <label className="block">
       <input
         name={name}
-        defaultValue={value}
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
         list={listId}
         placeholder={label}
         className="h-10 w-full rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
