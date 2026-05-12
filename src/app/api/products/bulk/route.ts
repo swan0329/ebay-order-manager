@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { asErrorMessage, jsonError } from "@/lib/http";
-import { bulkProductUpdateSchema, bulkUpdateProducts } from "@/lib/products";
+import {
+  bulkDeleteProducts,
+  bulkProductDeleteSchema,
+  bulkProductUpdateSchema,
+  bulkUpdateProducts,
+} from "@/lib/products";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
 export async function PATCH(request: Request) {
@@ -16,7 +21,27 @@ export async function PATCH(request: Request) {
     }
 
     if (error instanceof z.ZodError) {
-      return jsonError("일괄 수정 입력값을 확인해 주세요.", 422, error.flatten());
+      return jsonError("Invalid bulk update input.", 422, error.flatten());
+    }
+
+    return jsonError(asErrorMessage(error), 500);
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    await requireApiUser();
+    const input = bulkProductDeleteSchema.parse(await request.json());
+    const result = await bulkDeleteProducts(input);
+
+    return Response.json(result);
+  } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return jsonError("Unauthorized", 401);
+    }
+
+    if (error instanceof z.ZodError) {
+      return jsonError("Invalid bulk delete input.", 422, error.flatten());
     }
 
     return jsonError(asErrorMessage(error), 500);

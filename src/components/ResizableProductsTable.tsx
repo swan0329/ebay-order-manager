@@ -239,15 +239,58 @@ export function ResizableProductsTable({
     setBulkLoading(false);
 
     if (!response.ok) {
-      setBulkMessage(data?.error ?? "일괄 수정 실패");
+      setBulkMessage(data?.error ?? "일괄 수정에 실패했습니다.");
       return;
     }
 
+    const updated = data?.updated ?? 0;
+    const movements = data?.stockMovements ?? 0;
     setBulkMessage(
-      `일괄 수정 ${data?.updated ?? 0}건${
-        data?.stockMovements ? `, 재고 이력 ${data.stockMovements}건` : ""
-      }`,
+      movements > 0
+        ? `${updated}개 상품을 수정했습니다. (재고 변동 로그 ${movements}건)`
+        : `${updated}개 상품을 수정했습니다.`,
     );
+    router.refresh();
+  }
+
+  async function runBulkDelete() {
+    if (!selectedCount) {
+      setBulkMessage("삭제할 상품을 하나 이상 선택해 주세요.");
+      return;
+    }
+
+    const targetLabel =
+      selectedCount === 1
+        ? "선택한 상품 1개를 영구 삭제할까요?"
+        : `선택한 상품 ${selectedCount}개를 영구 삭제할까요?`;
+
+    if (!window.confirm(`${targetLabel}\n\n이 작업은 되돌릴 수 없습니다.`)) {
+      return;
+    }
+
+    setBulkLoading(true);
+    setBulkMessage("");
+
+    const response = await fetch("/api/products/bulk", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        ids: selectedProductIds,
+      }),
+    });
+    const data = (await response.json().catch(() => null)) as
+      | { deleted?: number; error?: string }
+      | null;
+
+    setBulkLoading(false);
+
+    if (!response.ok) {
+      setBulkMessage(data?.error ?? "선택 상품 삭제에 실패했습니다.");
+      return;
+    }
+
+    setBulkMessage(`${data?.deleted ?? 0}개 상품을 삭제했습니다.`);
+    setSelectedIds(new Set());
     router.refresh();
   }
 
@@ -277,6 +320,14 @@ export function ResizableProductsTable({
               className="h-8 rounded-md border border-zinc-300 px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
             >
               컬럼 초기화
+            </button>
+            <button
+              type="button"
+              onClick={() => void runBulkDelete()}
+              disabled={bulkLoading || !selectedCount}
+              className="h-8 rounded-md border border-rose-300 px-3 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
+            >
+              선택 삭제
             </button>
           </div>
         </div>
@@ -630,7 +681,7 @@ function InventoryPhotoUploadModal({
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-zinc-600">
-            {message || "이미지를 클릭한 뒤 Ctrl+V로 붙여넣거나 드래그앤드롭할 수 있습니다."}
+            {message || "이미지를 클릭하거나 Ctrl+V로 붙여넣거나 드래그할 수 있습니다."}
           </p>
           <div className="flex gap-2">
             <button
@@ -748,7 +799,7 @@ function PhotoDropBox({
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-zinc-400">
             <Upload className="h-5 w-5" />
-            <span>업로드 / 드롭 / Ctrl+V</span>
+            <span>업로드 / 드래그 / Ctrl+V</span>
           </div>
         )}
       </div>
@@ -782,7 +833,7 @@ async function imageUrlToDataUrl(url: string) {
   const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error("기존 촬영본 이미지를 읽지 못했습니다.");
+    throw new Error("기존 촬영본 이미지를 불러오지 못했습니다.");
   }
 
   return blobToDataUrl(await response.blob());
@@ -792,7 +843,7 @@ function blobToDataUrl(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("이미지를 읽지 못했습니다."));
+    reader.onerror = () => reject(new Error("이미지를 읽어오지 못했습니다."));
     reader.readAsDataURL(blob);
   });
 }
@@ -827,7 +878,8 @@ function loadImage(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("이미지를 읽지 못했습니다."));
+    image.onerror = () => reject(new Error("이미지를 읽어오지 못했습니다."));
     image.src = src;
   });
 }
+

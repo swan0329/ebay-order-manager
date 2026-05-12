@@ -70,15 +70,22 @@ export async function DELETE(_request: Request, context: RouteContext) {
   try {
     await requireApiUser();
     const { id } = await context.params;
-    const product = await prisma.product.update({
+    const product = await prisma.product.delete({
       where: { id },
-      data: { status: "inactive" },
+      select: { id: true, sku: true },
     });
 
-    return Response.json({ product });
+    return Response.json({ deleted: true, product });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return jsonError("Unauthorized", 401);
+    }
+
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      return jsonError("Product not found.", 404);
     }
 
     return jsonError(asErrorMessage(error), 500);

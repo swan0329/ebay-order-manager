@@ -184,7 +184,7 @@ export function ProductsControls() {
       );
       router.refresh();
     } catch {
-      setMessage("업로드 요청이 끊겼습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.");
+      setMessage("업로드 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setUploading(false);
       setUploadStartedAt(null);
@@ -198,16 +198,16 @@ export function ProductsControls() {
         <div className="flex flex-col gap-3">
           <form
             onSubmit={applyFilters}
-            className="grid flex-1 gap-2 lg:grid-cols-4 xl:grid-cols-[minmax(180px,1.2fr)_repeat(4,minmax(120px,1fr))_130px_130px_auto_auto]"
+            className="grid flex-1 gap-2 lg:grid-cols-4 xl:grid-cols-[minmax(320px,2fr)_repeat(4,minmax(120px,1fr))_130px_130px_auto_auto]"
           >
-            <label className="relative block">
+            <label className="relative block lg:col-span-2 xl:col-span-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
               <input
                 name="q"
                 value={q}
                 onChange={(event) => setQ(event.currentTarget.value)}
-                placeholder="키워드, SKU, 상품명"
-                className="h-10 w-full rounded-md border border-zinc-300 pl-9 pr-3 text-sm outline-none focus:border-zinc-900"
+                placeholder="키워드 / SKU / 상품명 검색"
+                className="h-12 w-full rounded-md border border-zinc-300 pl-10 pr-4 text-base outline-none focus:border-zinc-900"
               />
             </label>
             <FilterInput

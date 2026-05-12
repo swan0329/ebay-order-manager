@@ -109,6 +109,12 @@ export const bulkProductUpdateSchema = z
 
 export type BulkProductUpdateInput = z.infer<typeof bulkProductUpdateSchema>;
 
+export const bulkProductDeleteSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, "Select at least one product.").max(5000),
+});
+
+export type BulkProductDeleteInput = z.infer<typeof bulkProductDeleteSchema>;
+
 function statusForStock(status: (typeof productStatuses)[number], stockQuantity: number) {
   if (stockQuantity <= 0) {
     return "sold_out";
@@ -382,6 +388,25 @@ export async function bulkUpdateProducts(
   return {
     updated: products.length,
     stockMovements: changedStockProducts.length,
+  };
+}
+
+export async function bulkDeleteProducts(input: BulkProductDeleteInput) {
+  const ids = [...new Set(input.ids)];
+  const existingCount = await prisma.product.count({
+    where: { id: { in: ids } },
+  });
+
+  if (!existingCount) {
+    throw new Error("No matching products found.");
+  }
+
+  const result = await prisma.product.deleteMany({
+    where: { id: { in: ids } },
+  });
+
+  return {
+    deleted: result.count,
   };
 }
 
