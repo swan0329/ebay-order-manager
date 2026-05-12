@@ -1,30 +1,60 @@
+import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import {
-  cosineSimilarity,
-  imageSignatureFromBuffer,
-  imageSignatureFromDataUrl,
+  computeImageFingerprintFromBuffer,
+  hammingDistance,
+  imageFingerprintFromDataUrl,
 } from "@/lib/services/productImageMatchService";
 
+async function sampleImage(color: string) {
+  return sharp({
+    create: {
+      width: 96,
+      height: 128,
+      channels: 3,
+      background: color,
+    },
+  })
+    .composite([
+      {
+        input: Buffer.from(
+          `<svg width="96" height="128"><rect x="18" y="22" width="60" height="80" fill="white"/><circle cx="48" cy="62" r="18" fill="black"/></svg>`,
+        ),
+      },
+    ])
+    .png()
+    .toBuffer();
+}
+
 describe("product image matching helpers", () => {
-  it("builds stable signatures from image bytes", () => {
-    const buffer = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]);
+  it("builds stable perceptual fingerprints from image bytes", async () => {
+    const buffer = await sampleImage("#f2f2f2");
 
-    expect(imageSignatureFromBuffer(buffer)).toEqual(imageSignatureFromBuffer(buffer));
-  });
-
-  it("scores identical signatures higher than different signatures", () => {
-    const first = imageSignatureFromBuffer(Buffer.from([1, 2, 3, 4, 5]));
-    const second = imageSignatureFromBuffer(Buffer.from([1, 2, 3, 4, 5]));
-    const different = imageSignatureFromBuffer(Buffer.from([200, 201, 202, 203, 204]));
-
-    expect(cosineSimilarity(first, second)).toBeGreaterThan(
-      cosineSimilarity(first, different),
+    expect(await computeImageFingerprintFromBuffer(buffer)).toEqual(
+      await computeImageFingerprintFromBuffer(buffer),
     );
   });
 
-  it("reads data URL images", () => {
-    const dataUrl = `data:image/png;base64,${Buffer.from([9, 8, 7]).toString("base64")}`;
+  it("returns 64-bit hashes", async () => {
+    const fingerprint = await computeImageFingerprintFromBuffer(
+      await sampleImage("#dddddd"),
+    );
 
-    expect(imageSignatureFromDataUrl(dataUrl)).toHaveLength(64);
+    expect(fingerprint.ahash).toHaveLength(16);
+    expect(fingerprint.dhash).toHaveLength(16);
+    expect(fingerprint.phash).toHaveLength(16);
+    expect(fingerprint.descriptors.length).toBeGreaterThan(0);
+  });
+
+  it("reads data URL images", async () => {
+    const buffer = await sampleImage("#ffffff");
+    const dataUrl = `data:image/png;base64,${buffer.toString("base64")}`;
+
+    expect((await imageFingerprintFromDataUrl(dataUrl)).phash).toHaveLength(16);
+  });
+
+  it("computes hex hamming distance", () => {
+    expect(hammingDistance("ffff", "0000")).toBe(16);
+    expect(hammingDistance("abcd", "abcd")).toBe(0);
   });
 });

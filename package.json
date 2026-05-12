@@ -15,7 +15,8 @@
     "db:seed": "prisma db seed",
     "admin:password": "powershell -ExecutionPolicy Bypass -File scripts/set-admin-password.ps1",
     "products:import": "tsx scripts/import-products.ts",
-    "products:image-signatures": "tsx scripts/build-product-image-signatures.ts"
+    "products:image-signatures": "tsx scripts/build-product-image-signatures.ts",
+    "products:image-fingerprints": "tsx scripts/build_image_fingerprints.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -29,6 +30,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "server-only": "^0.0.1",
+    "sharp": "^0.34.5",
     "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },

@@ -1,6 +1,13 @@
 "use client";
 
-import { ArrowLeft, Check, ExternalLink, Image as ImageIcon, Search, Upload } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  ExternalLink,
+  Image as ImageIcon,
+  Search,
+  Upload,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -17,13 +24,16 @@ type Candidate = {
   category: string | null;
   brand: string | null;
   imageUrl: string | null;
-  sourceImageUrl: string | null;
-  similarity: number;
+  finalScore: number;
+  hashDistance: number;
+  orbMatchCount: number;
+  homographyInliers: number;
 };
 
 type SearchResponse = {
   upload: UploadedImages;
   candidates: Candidate[];
+  confidentCandidate?: boolean;
   error?: string;
 };
 
@@ -75,25 +85,35 @@ export function ProductImageMatchClient() {
     }
 
     setSearching(true);
-    setMessage("DB 이미지와 비교 중입니다.");
+    setMessage("해시와 특징점으로 DB 이미지를 비교 중입니다.");
 
     try {
-      const response = await fetch("/api/products/image-match/search", {
+      const response = await fetch("/api/inventory/image-match", {
         method: "POST",
         body: formData,
       });
-      const data = (await response.json().catch(() => null)) as SearchResponse | null;
+      const raw = (await response.json().catch(() => null)) as
+        | (SearchResponse & {
+            candidates?: Array<Candidate | { product?: Candidate }>;
+          })
+        | null;
 
-      if (!response.ok || !data) {
-        throw new Error(data?.error ?? "이미지 매칭에 실패했습니다.");
+      if (!response.ok || !raw) {
+        throw new Error(raw?.error ?? "이미지 매칭에 실패했습니다.");
       }
 
-      setUploadedImages(data.upload);
-      setCandidates(data.candidates);
+      const normalizedCandidates = (raw.candidates ?? []).map((candidate) =>
+        "product" in candidate && candidate.product ? candidate.product : candidate,
+      ) as Candidate[];
+
+      setUploadedImages(raw.upload);
+      setCandidates(normalizedCandidates);
       setMessage(
-        data.candidates.length
-          ? `후보 ${data.candidates.length}개를 찾았습니다.`
-          : "후보를 찾지 못했습니다.",
+        normalizedCandidates.length
+          ? raw.confidentCandidate === false
+            ? "후보는 찾았지만 확실한 후보는 없습니다. 점수를 보고 직접 선택해 주세요."
+            : `후보 ${normalizedCandidates.length}개를 찾았습니다.`
+          : "확실한 후보가 없습니다.",
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "이미지 매칭에 실패했습니다.");
@@ -112,15 +132,14 @@ export function ProductImageMatchClient() {
     setMessage("선택한 상품에 이미지를 연결 중입니다.");
 
     try {
-      const response = await fetch("/api/products/image-match/confirm", {
+      const response = await fetch("/api/inventory/confirm-image-match", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          productId: candidate.id,
-          frontImageUrl: uploadedImages.frontImageUrl,
-          backImageUrl: uploadedImages.backImageUrl,
-          matchConfidence: candidate.similarity,
-          matchedBy: "image_similarity",
+          card_id: candidate.id,
+          uploaded_front_image_url: uploadedImages.frontImageUrl,
+          uploaded_back_image_url: uploadedImages.backImageUrl,
+          matchConfidence: candidate.finalScore,
         }),
       });
       const data = (await response.json().catch(() => null)) as ConfirmResponse | null;
@@ -143,7 +162,7 @@ export function ProductImageMatchClient() {
         <div>
           <h1 className="text-2xl font-semibold text-zinc-950">포토카드 이미지 매칭</h1>
           <p className="mt-1 text-sm text-zinc-600">
-            업로드한 사진과 기존 상품 이미지를 비교한 뒤 선택한 상품에 앞면/뒷면 이미지를 저장합니다.
+            pHash, dHash, aHash로 후보를 줄이고 특징점 매칭 점수로 같은 카드를 찾습니다.
           </p>
         </div>
         <Link
@@ -220,13 +239,17 @@ export function ProductImageMatchClient() {
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-semibold text-zinc-950">{candidate.sku}</p>
                   <p className="rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-700">
-                    {formatSimilarity(candidate.similarity)}
+                    {formatScore(candidate.finalScore)}
                   </p>
                 </div>
                 <p className="line-clamp-2 text-zinc-800">{candidate.productName}</p>
                 <p className="text-zinc-600">그룹: {candidate.brand ?? "-"}</p>
                 <p className="text-zinc-600">멤버/옵션: {candidate.optionName ?? "-"}</p>
                 <p className="text-zinc-600">앨범/분류: {candidate.category ?? "-"}</p>
+                <p className="text-xs text-zinc-500">
+                  hash {candidate.hashDistance.toFixed(1)} · ORB{" "}
+                  {candidate.orbMatchCount} · inlier {candidate.homographyInliers}
+                </p>
               </div>
               <button
                 type="button"
@@ -266,6 +289,6 @@ function PreviewImage({ src, label }: { src: string | null | undefined; label: s
   );
 }
 
-function formatSimilarity(value: number) {
+function formatScore(value: number) {
   return `${Math.round(value * 100)}%`;
 }
