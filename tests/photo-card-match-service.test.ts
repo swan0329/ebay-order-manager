@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizePhotoCardCandidateFilters,
+  photoCardGroupSlug,
   photoCardListingImageUrls,
+  photoCardProductCode,
+  photoCardR2ObjectKeys,
   sourceImageUrlForPhotoCardUpdate,
 } from "@/lib/services/photoCardMatchService";
 
@@ -38,34 +41,70 @@ describe("photo card candidate filters", () => {
     ).toBe(true);
   });
 
-  it("builds listing image URLs from user-uploaded front and back assets first", () => {
+  it("builds listing image URLs with front/back priority", () => {
     expect(
       photoCardListingImageUrls({
-        cardId: "card-1",
-        userFrontImageUrl: "data:image/png;base64,front",
-        userBackImageUrl: "data:image/png;base64,back",
-        publicBaseUrl: "https://example.com/",
+        userFrontImageUrl: "https://r2.example/front.jpg",
+        userBackImageUrl: "https://r2.example/back.jpg",
+        sourceImageUrl: "https://poca.example/source.jpg",
       }),
     ).toMatchObject({
-      frontListingImageUrl:
-        "https://example.com/api/products/image-match/assets/card-1/front",
-      backListingImageUrl:
-        "https://example.com/api/products/image-match/assets/card-1/back",
+      frontListingImageUrl: "https://r2.example/front.jpg",
+      backListingImageUrl: "https://r2.example/back.jpg",
       imageUrls: [
-        "https://example.com/api/products/image-match/assets/card-1/front",
-        "https://example.com/api/products/image-match/assets/card-1/back",
+        "https://r2.example/front.jpg",
+        "https://r2.example/back.jpg",
       ],
     });
   });
 
-  it("preserves the original source image and does not promote generated asset URLs", () => {
-    expect(sourceImageUrlForPhotoCardUpdate("https://source.example/card.jpg")).toBe(
+  it("falls back to source image when front image is missing", () => {
+    expect(
+      photoCardListingImageUrls({
+        userFrontImageUrl: null,
+        userBackImageUrl: "https://r2.example/back.jpg",
+        sourceImageUrl: "https://poca.example/source.jpg",
+        imageUrl: "https://fallback.example/image.jpg",
+      }).imageUrls,
+    ).toEqual(["https://poca.example/source.jpg"]);
+  });
+
+  it("preserves existing source image or derives it from non-r2 current image", () => {
+    expect(
+      sourceImageUrlForPhotoCardUpdate(
+        "https://source.example/card.jpg",
+        "https://ignored.example/current.jpg",
+      ),
+    ).toBe("https://source.example/card.jpg");
+    expect(sourceImageUrlForPhotoCardUpdate(null, "https://source.example/card.jpg")).toBe(
       "https://source.example/card.jpg",
     );
     expect(
       sourceImageUrlForPhotoCardUpdate(
+        null,
         "https://example.com/api/products/image-match/assets/card-1/front",
       ),
     ).toBeNull();
+  });
+
+  it("creates group slug and deterministic r2 object keys", () => {
+    expect(photoCardGroupSlug("Stray Kids")).toBe("stray-kids");
+    expect(
+      photoCardProductCode({
+        productCode: null,
+        internalCode: "SKZ 00123",
+        sku: "SKU-001",
+        id: "id-1",
+      }),
+    ).toBe("SKZ-00123");
+    expect(
+      photoCardR2ObjectKeys({
+        groupName: "Stray Kids",
+        productCode: "SKZ00123",
+      }),
+    ).toEqual({
+      frontKey: "stray-kids/SKZ00123_front.jpg",
+      backKey: "stray-kids/SKZ00123_back.jpg",
+    });
   });
 });

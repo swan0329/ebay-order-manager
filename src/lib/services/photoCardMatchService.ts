@@ -1,4 +1,6 @@
+import sharp from "sharp";
 import { Prisma } from "@/generated/prisma";
+import { deleteObjectFromR2, r2KeyFromPublicUrl, uploadBufferToR2 } from "@/lib/r2";
 import { prisma } from "@/lib/prisma";
 import { ensureProductImageMatchColumns } from "@/lib/services/productImageMatchService";
 
@@ -6,10 +8,13 @@ const defaultLimit = 50;
 const maxLimit = 50;
 const facetCacheTtlMs = 60_000;
 let photoCardSearchSupportPromise: Promise<void> | null = null;
-const photoCardFacetCache = new Map<string, {
-  expiresAt: number;
-  value: PhotoCardFacetOptions;
-}>();
+const photoCardFacetCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    value: PhotoCardFacetOptions;
+  }
+>();
 
 export type PhotoCardCandidateFilters = {
   group?: string | null;
@@ -33,6 +38,12 @@ export type PhotoCardCandidate = {
   versionName: string | null;
   existingImageUrl: string | null;
   currentImageUrl: string | null;
+  sourceImageUrl: string | null;
+  imageSource: string | null;
+  userFrontImageUrl: string | null;
+  userBackImageUrl: string | null;
+  userFrontR2Key: string | null;
+  userBackR2Key: string | null;
   stockQuantity: number;
   userImageRegistered: boolean;
   hasBackImage: boolean;
@@ -55,9 +66,29 @@ type PhotoCardCandidateRow = {
   versionName: string | null;
   existingImageUrl: string | null;
   currentImageUrl: string | null;
+  sourceImageUrl: string | null;
+  imageSource: string | null;
+  userFrontImageUrl: string | null;
+  userBackImageUrl: string | null;
+  userFrontR2Key: string | null;
+  userBackR2Key: string | null;
   stockQuantity: number;
   userImageRegistered: boolean;
   hasBackImage: boolean;
+};
+
+type ProductPhotoCardRow = {
+  id: string;
+  sku: string;
+  internalCode: string | null;
+  groupName: string | null;
+  imageUrl: string | null;
+  sourceImageUrl: string | null;
+  imageSource: string | null;
+  userFrontImageUrl: string | null;
+  userBackImageUrl: string | null;
+  userFrontR2Key: string | null;
+  userBackR2Key: string | null;
 };
 
 type DistinctValueRow = {
@@ -69,6 +100,24 @@ export type ConfirmPhotoCardImageInput = {
   userFrontImageUrl: string;
   userBackImageUrl?: string | null;
   publicBaseUrl?: string | null;
+};
+
+export type DeleteR2PhotoCardImageInput = {
+  productId: string;
+  side: "front" | "back" | "all";
+};
+
+export type PhotoCardImageUpdateResult = {
+  id: string;
+  sku: string;
+  imageUrl: string | null;
+  sourceImageUrl: string | null;
+  userFrontImageUrl: string | null;
+  userBackImageUrl: string | null;
+  userFrontR2Key: string | null;
+  userBackR2Key: string | null;
+  hasBackImage: boolean;
+  ebayImageUrls: string[];
 };
 
 export async function listPhotoCardCandidates(filters: PhotoCardCandidateFilters) {
@@ -91,6 +140,12 @@ export async function listPhotoCardCandidates(filters: PhotoCardCandidateFilters
       "product_name" AS "versionName",
       COALESCE("source_image_url", "image_url") AS "existingImageUrl",
       COALESCE("image_url", "source_image_url") AS "currentImageUrl",
+      "source_image_url" AS "sourceImageUrl",
+      "image_source" AS "imageSource",
+      "user_front_image_url" AS "userFrontImageUrl",
+      "user_back_image_url" AS "userBackImageUrl",
+      "user_front_r2_key" AS "userFrontR2Key",
+      "user_back_r2_key" AS "userBackR2Key",
       "stock_quantity" AS "stockQuantity",
       ("user_front_image_url" IS NOT NULL AND "user_front_image_url" <> '') AS "userImageRegistered",
       "has_back_image" AS "hasBackImage"
@@ -113,35 +168,89 @@ export async function listPhotoCardCandidates(filters: PhotoCardCandidateFilters
   };
 }
 
-export async function confirmPhotoCardImage(input: ConfirmPhotoCardImageInput) {
+export async function confirmPhotoCardImage(
+  input: ConfirmPhotoCardImageInput,
+): Promise<PhotoCardImageUpdateResult> {
   await ensurePhotoCardSearchSupport();
 
-  const product = await prisma.product.findUnique({
-    where: { id: input.cardId },
-    select: { id: true, imageUrl: true },
-  });
+  const product = await loadProductForPhotoCard(input.cardId);
 
   if (!product) {
     throw new Error("Product not found.");
   }
 
-  if (!input.userFrontImageUrl.startsWith("data:image/")) {
-    throw new Error("user_front_image_url must be an image data URL.");
+  const frontBuffer = await optimizedJpegBufferFromDataUrl(input.userFrontImageUrl);
+  const backBuffer = input.userBackImageUrl
+    ? await optimizedJpegBufferFromDataUrl(input.userBackImageUrl)
+    : null;
+  const objectKeys = photoCardR2ObjectKeys({
+    groupName: product.groupName,
+    productCode: photoCardProductCode({
+      internalCode: product.internalCode,
+      sku: product.sku,
+      id: product.id,
+    }),
+  });
+
+  const uploadedKeys: string[] = [];
+  let frontUpload: { key: string; url: string } | null = null;
+  let backUpload: { key: string; url: string } | null = null;
+
+  try {
+    frontUpload = await uploadBufferToR2({
+      buffer: frontBuffer,
+      key: objectKeys.frontKey,
+      contentType: "image/jpeg",
+    });
+    uploadedKeys.push(frontUpload.key);
+
+    if (backBuffer) {
+      backUpload = await uploadBufferToR2({
+        buffer: backBuffer,
+        key: objectKeys.backKey,
+        contentType: "image/jpeg",
+      });
+      uploadedKeys.push(backUpload.key);
+    }
+  } catch (error) {
+    await cleanupUploadedR2Objects(uploadedKeys);
+    throw error;
   }
 
-  const { frontListingImageUrl, imageUrls } = photoCardListingImageUrls(input);
-  const sourceImageUrl = sourceImageUrlForPhotoCardUpdate(product.imageUrl);
+  if (!frontUpload) {
+    throw new Error("Failed to upload front image to R2.");
+  }
+
+  const previousFrontKey =
+    normalizeText(product.userFrontR2Key) ?? r2KeyFromPublicUrl(product.userFrontImageUrl);
+  const previousBackKey =
+    normalizeText(product.userBackR2Key) ?? r2KeyFromPublicUrl(product.userBackImageUrl);
+  const sourceImageUrl = sourceImageUrlForPhotoCardUpdate(
+    product.sourceImageUrl,
+    product.imageUrl,
+    product.imageSource,
+  );
+  const nextBackImageUrl = backUpload?.url ?? normalizeText(product.userBackImageUrl);
+  const nextBackR2Key = backUpload?.key ?? previousBackKey;
+  const imageUrls = photoCardListingImageUrls({
+    userFrontImageUrl: frontUpload.url,
+    userBackImageUrl: nextBackImageUrl,
+    sourceImageUrl,
+    imageUrl: frontUpload.url,
+  }).imageUrls;
 
   await prisma.$executeRaw`
     UPDATE "products"
     SET
-      "image_url" = ${frontListingImageUrl},
+      "image_url" = ${frontUpload.url},
       "ebay_image_urls" = ${textArraySql(imageUrls)},
-      "source_image_url" = COALESCE("source_image_url", ${sourceImageUrl}),
-      "user_front_image_url" = ${input.userFrontImageUrl},
-      "user_back_image_url" = ${input.userBackImageUrl ?? null},
-      "image_source" = 'user_uploaded',
-      "has_back_image" = ${Boolean(input.userBackImageUrl)},
+      "source_image_url" = ${sourceImageUrl},
+      "user_front_image_url" = ${frontUpload.url},
+      "user_back_image_url" = ${nextBackImageUrl},
+      "user_front_r2_key" = ${frontUpload.key},
+      "user_back_r2_key" = ${nextBackR2Key},
+      "image_source" = 'r2_user_uploaded',
+      "has_back_image" = ${Boolean(nextBackImageUrl)},
       "matched_by" = 'manual',
       "match_confidence" = NULL,
       "verified_at" = CURRENT_TIMESTAMP,
@@ -155,17 +264,130 @@ export async function confirmPhotoCardImage(input: ConfirmPhotoCardImageInput) {
     WHERE "id" = ${input.cardId}
   `;
 
-  return prisma.product.findUniqueOrThrow({
-    where: { id: input.cardId },
-    select: {
-      id: true,
-      sku: true,
-      productName: true,
-      optionName: true,
-      imageUrl: true,
-      ebayImageUrls: true,
-    },
+  await cleanupStaleUploadedKeys({
+    previousFrontKey,
+    previousBackKey,
+    currentFrontKey: frontUpload.key,
+    currentBackKey: nextBackR2Key,
+    backReplaced: Boolean(backUpload),
   });
+
+  const updated = await loadProductForPhotoCard(input.cardId);
+
+  if (!updated) {
+    throw new Error("Product not found after update.");
+  }
+
+  return {
+    id: updated.id,
+    sku: updated.sku,
+    imageUrl: frontUpload.url,
+    sourceImageUrl,
+    userFrontImageUrl: frontUpload.url,
+    userBackImageUrl: nextBackImageUrl,
+    userFrontR2Key: frontUpload.key,
+    userBackR2Key: nextBackR2Key,
+    hasBackImage: Boolean(nextBackImageUrl),
+    ebayImageUrls: imageUrls,
+  };
+}
+
+export async function deleteR2PhotoCardImage(
+  input: DeleteR2PhotoCardImageInput,
+): Promise<PhotoCardImageUpdateResult> {
+  await ensurePhotoCardSearchSupport();
+
+  const product = await loadProductForPhotoCard(input.productId);
+
+  if (!product) {
+    throw new Error("Product not found.");
+  }
+
+  const currentFrontKey =
+    normalizeText(product.userFrontR2Key) ?? r2KeyFromPublicUrl(product.userFrontImageUrl);
+  const currentBackKey =
+    normalizeText(product.userBackR2Key) ?? r2KeyFromPublicUrl(product.userBackImageUrl);
+  const deleteTargets =
+    input.side === "front"
+      ? [currentFrontKey]
+      : input.side === "back"
+        ? [currentBackKey]
+        : [currentFrontKey, currentBackKey];
+  const uniqueDeleteTargets = [...new Set(deleteTargets.filter(Boolean))];
+
+  for (const key of uniqueDeleteTargets) {
+    const result = await deleteObjectFromR2(key);
+
+    if (!result.ok) {
+      throw new Error(result.error ?? `Failed to delete R2 object: ${key}`);
+    }
+  }
+
+  const sourceImageUrl = normalizeText(product.sourceImageUrl);
+  let nextFrontImageUrl = normalizeText(product.userFrontImageUrl);
+  let nextBackImageUrl = normalizeText(product.userBackImageUrl);
+  let nextFrontR2Key = currentFrontKey;
+  let nextBackR2Key = currentBackKey;
+
+  if (input.side === "front" || input.side === "all") {
+    nextFrontImageUrl = null;
+    nextFrontR2Key = null;
+  }
+
+  if (input.side === "back" || input.side === "all") {
+    nextBackImageUrl = null;
+    nextBackR2Key = null;
+  }
+
+  const nextImageUrl =
+    input.side === "front" || input.side === "all"
+      ? sourceImageUrl
+      : nextFrontImageUrl ?? sourceImageUrl;
+  const nextImageSource = nextFrontImageUrl ? "r2_user_uploaded" : "pocamarket";
+  const nextHasBackImage = Boolean(nextBackImageUrl);
+  const imageUrls =
+    input.side === "front" && !nextFrontImageUrl && nextBackImageUrl
+      ? [nextBackImageUrl]
+      : photoCardListingImageUrls({
+          userFrontImageUrl: nextFrontImageUrl,
+          userBackImageUrl: nextBackImageUrl,
+          sourceImageUrl,
+          imageUrl: nextImageUrl,
+        }).imageUrls;
+
+  await prisma.$executeRaw`
+    UPDATE "products"
+    SET
+      "image_url" = ${nextImageUrl},
+      "ebay_image_urls" = ${textArraySql(imageUrls)},
+      "user_front_image_url" = ${nextFrontImageUrl},
+      "user_back_image_url" = ${nextBackImageUrl},
+      "user_front_r2_key" = ${nextFrontR2Key},
+      "user_back_r2_key" = ${nextBackR2Key},
+      "image_source" = ${nextImageSource},
+      "has_back_image" = ${nextHasBackImage},
+      "updated_at" = CURRENT_TIMESTAMP
+    WHERE "id" = ${input.productId}
+  `;
+
+  const updated = await loadProductForPhotoCard(input.productId);
+
+  if (!updated) {
+    throw new Error("Product not found after delete.");
+  }
+
+  return {
+    id: updated.id,
+    sku: updated.sku,
+    imageUrl: nextImageUrl,
+    sourceImageUrl,
+    userFrontImageUrl: nextFrontImageUrl,
+    userBackImageUrl: nextBackImageUrl,
+    userFrontR2Key: nextFrontR2Key,
+    userBackR2Key: nextBackR2Key,
+    hasBackImage: nextHasBackImage,
+    ebayImageUrls: imageUrls,
+  };
 }
 
 export function normalizePhotoCardCandidateFilters(
@@ -183,26 +405,112 @@ export function normalizePhotoCardCandidateFilters(
   };
 }
 
-export function photoCardListingImageUrls(input: ConfirmPhotoCardImageInput) {
-  const publicBaseUrl = input.publicBaseUrl?.replace(/\/+$/, "");
-  const frontListingImageUrl = publicBaseUrl
-    ? `${publicBaseUrl}/api/products/image-match/assets/${input.cardId}/front`
-    : input.userFrontImageUrl;
-  const backListingImageUrl =
-    publicBaseUrl && input.userBackImageUrl
-      ? `${publicBaseUrl}/api/products/image-match/assets/${input.cardId}/back`
-      : input.userBackImageUrl;
-  const imageUrls = [frontListingImageUrl, backListingImageUrl].filter(
-    (value): value is string => Boolean(value),
-  );
+export function photoCardListingImageUrls(input: {
+  userFrontImageUrl?: string | null;
+  userBackImageUrl?: string | null;
+  sourceImageUrl?: string | null;
+  imageUrl?: string | null;
+}) {
+  const frontListingImageUrl = normalizeText(input.userFrontImageUrl);
+  const backListingImageUrl = normalizeText(input.userBackImageUrl);
+  const sourceImageUrl = normalizeText(input.sourceImageUrl);
+  const imageUrl = normalizeText(input.imageUrl);
+  const imageUrls: string[] = [];
+
+  if (frontListingImageUrl) {
+    imageUrls.push(frontListingImageUrl);
+
+    if (backListingImageUrl) {
+      imageUrls.push(backListingImageUrl);
+    }
+
+    return { frontListingImageUrl, backListingImageUrl, imageUrls };
+  }
+
+  if (sourceImageUrl) {
+    imageUrls.push(sourceImageUrl);
+  } else if (imageUrl) {
+    imageUrls.push(imageUrl);
+  }
 
   return { frontListingImageUrl, backListingImageUrl, imageUrls };
 }
 
-export function sourceImageUrlForPhotoCardUpdate(currentImageUrl: string | null) {
-  return currentImageUrl?.includes("/api/products/image-match/assets/")
-    ? null
-    : currentImageUrl;
+export function sourceImageUrlForPhotoCardUpdate(
+  currentSourceImageUrl: string | null,
+  currentImageUrl?: string | null,
+  currentImageSource?: string | null,
+) {
+  const source = normalizeText(currentSourceImageUrl);
+
+  if (source) {
+    return source;
+  }
+
+  const current = normalizeText(currentImageUrl);
+
+  if (!current) {
+    return null;
+  }
+
+  const imageSource = String(currentImageSource ?? "").toLowerCase();
+
+  if (imageSource && imageSource !== "pocamarket") {
+    return null;
+  }
+
+  if (current.includes("/api/products/image-match/assets/")) {
+    return null;
+  }
+
+  if (r2KeyFromPublicUrl(current)) {
+    return null;
+  }
+
+  if (/\.r2\.(?:dev|cloudflarestorage\.com)/i.test(current)) {
+    return null;
+  }
+
+  return current;
+}
+
+export function photoCardGroupSlug(groupName: string | null | undefined) {
+  const text = String(groupName ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, "")
+    .replace(/[_\s]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return text || "unknown";
+}
+
+export function photoCardProductCode(input: {
+  productCode?: string | null;
+  internalCode?: string | null;
+  sku?: string | null;
+  id: string;
+}) {
+  const primary = sanitizeProductCode(input.productCode);
+  const secondary = sanitizeProductCode(input.internalCode);
+  const tertiary = sanitizeProductCode(input.sku);
+  const fallback = sanitizeProductCode(input.id);
+
+  return primary ?? secondary ?? tertiary ?? fallback ?? input.id;
+}
+
+export function photoCardR2ObjectKeys(input: {
+  groupName: string | null | undefined;
+  productCode: string;
+}) {
+  const groupSlug = photoCardGroupSlug(input.groupName);
+  const productCode = sanitizeProductCode(input.productCode) ?? "item";
+
+  return {
+    frontKey: `${groupSlug}/${productCode}_front.jpg`,
+    backKey: `${groupSlug}/${productCode}_back.jpg`,
+  };
 }
 
 async function ensurePhotoCardSearchSupport() {
@@ -233,6 +541,94 @@ async function createPhotoCardSearchSupport() {
     CREATE INDEX IF NOT EXISTS "products_photo_title_lower_idx"
       ON "products" (LOWER("product_name"))
   `;
+}
+
+async function loadProductForPhotoCard(cardId: string) {
+  const rows = await prisma.$queryRaw<ProductPhotoCardRow[]>`
+    SELECT
+      "id",
+      "sku",
+      "internal_code" AS "internalCode",
+      "brand" AS "groupName",
+      "image_url" AS "imageUrl",
+      "source_image_url" AS "sourceImageUrl",
+      "image_source" AS "imageSource",
+      "user_front_image_url" AS "userFrontImageUrl",
+      "user_back_image_url" AS "userBackImageUrl",
+      "user_front_r2_key" AS "userFrontR2Key",
+      "user_back_r2_key" AS "userBackR2Key"
+    FROM "products"
+    WHERE "id" = ${cardId}
+    LIMIT 1
+  `;
+
+  return rows[0] ?? null;
+}
+
+async function optimizedJpegBufferFromDataUrl(dataUrl: string) {
+  const sourceBuffer = imageBufferFromDataUrl(dataUrl);
+
+  return sharp(sourceBuffer, { failOn: "none" })
+    .rotate()
+    .flatten({ background: "#ffffff" })
+    .resize({
+      width: 1600,
+      height: 1600,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .jpeg({
+      quality: 90,
+      mozjpeg: true,
+    })
+    .toBuffer();
+}
+
+function imageBufferFromDataUrl(dataUrl: string) {
+  const text = String(dataUrl ?? "").trim();
+  const match = text.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/);
+
+  if (!match) {
+    throw new Error("user_front_image_url must be an image data URL.");
+  }
+
+  return Buffer.from(match[1], "base64");
+}
+
+async function cleanupUploadedR2Objects(keys: string[]) {
+  if (!keys.length) {
+    return;
+  }
+
+  await Promise.all(keys.map((key) => deleteObjectFromR2(key)));
+}
+
+async function cleanupStaleUploadedKeys(input: {
+  previousFrontKey: string | null;
+  previousBackKey: string | null;
+  currentFrontKey: string | null;
+  currentBackKey: string | null;
+  backReplaced: boolean;
+}) {
+  const staleKeys: string[] = [];
+
+  if (input.previousFrontKey && input.previousFrontKey !== input.currentFrontKey) {
+    staleKeys.push(input.previousFrontKey);
+  }
+
+  if (
+    input.backReplaced &&
+    input.previousBackKey &&
+    input.previousBackKey !== input.currentBackKey
+  ) {
+    staleKeys.push(input.previousBackKey);
+  }
+
+  if (!staleKeys.length) {
+    return;
+  }
+
+  await Promise.all(staleKeys.map((key) => deleteObjectFromR2(key)));
 }
 
 function textArraySql(values: string[]) {
@@ -415,6 +811,12 @@ function toPhotoCardCandidate(row: PhotoCardCandidateRow): PhotoCardCandidate {
     versionName: row.versionName,
     existingImageUrl: row.existingImageUrl,
     currentImageUrl: row.currentImageUrl,
+    sourceImageUrl: row.sourceImageUrl,
+    imageSource: row.imageSource,
+    userFrontImageUrl: row.userFrontImageUrl,
+    userBackImageUrl: row.userBackImageUrl,
+    userFrontR2Key: row.userFrontR2Key,
+    userBackR2Key: row.userBackR2Key,
     stockQuantity: row.stockQuantity,
     userImageRegistered: row.userImageRegistered,
     hasBackImage: row.hasBackImage,
@@ -423,6 +825,17 @@ function toPhotoCardCandidate(row: PhotoCardCandidateRow): PhotoCardCandidate {
 
 function normalizeText(value: string | null | undefined) {
   const text = String(value ?? "").trim();
+  return text || null;
+}
+
+function sanitizeProductCode(value: string | null | undefined) {
+  const text = String(value ?? "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^\p{L}\p{N}_-]/gu, "")
+    .replace(/-+/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
+
   return text || null;
 }
 

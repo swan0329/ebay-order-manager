@@ -111,6 +111,8 @@ async function createProductImageMatchColumns() {
       ADD COLUMN IF NOT EXISTS "source_image_url" TEXT,
       ADD COLUMN IF NOT EXISTS "user_front_image_url" TEXT,
       ADD COLUMN IF NOT EXISTS "user_back_image_url" TEXT,
+      ADD COLUMN IF NOT EXISTS "user_front_r2_key" TEXT,
+      ADD COLUMN IF NOT EXISTS "user_back_r2_key" TEXT,
       ADD COLUMN IF NOT EXISTS "image_source" TEXT NOT NULL DEFAULT 'pocamarket',
       ADD COLUMN IF NOT EXISTS "has_back_image" BOOLEAN NOT NULL DEFAULT false,
       ADD COLUMN IF NOT EXISTS "matched_by" TEXT,

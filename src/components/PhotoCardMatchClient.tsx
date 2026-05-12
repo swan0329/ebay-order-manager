@@ -29,6 +29,12 @@ type Candidate = {
   versionName: string | null;
   existingImageUrl: string | null;
   currentImageUrl: string | null;
+  sourceImageUrl: string | null;
+  imageSource: string | null;
+  userFrontImageUrl: string | null;
+  userBackImageUrl: string | null;
+  userFrontR2Key: string | null;
+  userBackR2Key: string | null;
   stockQuantity: number | null;
   userImageRegistered: boolean;
   hasBackImage: boolean;
@@ -46,6 +52,23 @@ type CandidateResponse = {
   candidates: Candidate[];
   facets: Facets;
   paging: { limit: number; offset: number; hasMore: boolean };
+  error?: string;
+};
+
+type DeleteR2Response = {
+  deleted?: "front" | "back" | "all";
+  product?: {
+    id: string;
+    sku: string;
+    imageUrl: string | null;
+    sourceImageUrl: string | null;
+    userFrontImageUrl: string | null;
+    userBackImageUrl: string | null;
+    userFrontR2Key: string | null;
+    userBackR2Key: string | null;
+    hasBackImage: boolean;
+    ebayImageUrls: string[];
+  };
   error?: string;
 };
 
@@ -99,6 +122,7 @@ export function PhotoCardMatchClient() {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [deletingTarget, setDeletingTarget] = useState<string | null>(null);
   const [continuousMode, setContinuousMode] = useState(true);
   const [uploadResetKey, setUploadResetKey] = useState(0);
   const [filtersLoaded, setFiltersLoaded] = useState(false);
@@ -252,12 +276,28 @@ export function PhotoCardMatchClient() {
         }),
       });
       const data = (await response.json().catch(() => null)) as
-        | { product?: { sku: string }; error?: string }
+        | {
+            product?: {
+              id: string;
+              sku: string;
+              imageUrl: string | null;
+              sourceImageUrl: string | null;
+              userFrontImageUrl: string | null;
+              userBackImageUrl: string | null;
+              userFrontR2Key: string | null;
+              userBackR2Key: string | null;
+              hasBackImage: boolean;
+              ebayImageUrls: string[];
+            };
+            error?: string;
+          }
         | null;
 
       if (!response.ok || !data?.product) {
         throw new Error(data?.error ?? "촬영본 저장에 실패했습니다.");
       }
+
+      const savedProduct = data.product;
 
       setCandidates((current) =>
         current.map((item) =>
@@ -265,8 +305,14 @@ export function PhotoCardMatchClient() {
             ? {
                 ...item,
                 userImageRegistered: true,
-                hasBackImage: Boolean(savedBackImageUrl),
-                currentImageUrl: savedFrontImageUrl,
+                hasBackImage: savedProduct.hasBackImage,
+                currentImageUrl: savedProduct.imageUrl,
+                sourceImageUrl: savedProduct.sourceImageUrl,
+                imageSource: savedProduct.userFrontR2Key ? "r2_user_uploaded" : "pocamarket",
+                userFrontImageUrl: savedProduct.userFrontImageUrl,
+                userBackImageUrl: savedProduct.userBackImageUrl,
+                userFrontR2Key: savedProduct.userFrontR2Key,
+                userBackR2Key: savedProduct.userBackR2Key,
               }
             : item,
         ),
@@ -274,8 +320,8 @@ export function PhotoCardMatchClient() {
       setCompletedPreviews((current) => ({
         ...current,
         [candidate.cardId]: {
-          frontImageUrl: savedFrontImageUrl,
-          backImageUrl: savedBackImageUrl,
+          frontImageUrl: savedProduct.userFrontImageUrl ?? savedFrontImageUrl,
+          backImageUrl: savedProduct.userBackImageUrl ?? savedBackImageUrl,
         },
       }));
       setMessage(`${data.product.sku} 촬영본 연결 완료`);
@@ -316,6 +362,76 @@ export function PhotoCardMatchClient() {
 
     void saveCandidate(candidate);
   }, [saveCandidate]);
+
+  const deleteR2Images = useCallback(
+    async (candidate: Candidate, side: "front" | "back" | "all") => {
+      const actionLabel =
+        side === "front"
+          ? "R2 앞면 파일"
+          : side === "back"
+            ? "R2 뒷면 파일"
+            : "R2 앞/뒷면 파일 전체";
+
+      if (
+        !window.confirm(
+          `${candidate.sku}\n\n${actionLabel}을(를) 삭제할까요?\nCloudflare R2 버킷의 실제 파일이 삭제됩니다.`,
+        )
+      ) {
+        return;
+      }
+
+      const targetId = `${candidate.cardId}:${side}`;
+      setDeletingTarget(targetId);
+
+      try {
+        const response = await fetch("/api/inventory/delete-r2-photo-card-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            product_id: candidate.cardId,
+            side,
+          }),
+        });
+        const data = (await response.json().catch(() => null)) as DeleteR2Response | null;
+
+        if (!response.ok || !data?.product) {
+          throw new Error(data?.error ?? "R2 이미지 삭제에 실패했습니다.");
+        }
+
+        setCandidates((current) =>
+          current.map((item) =>
+            item.cardId === candidate.cardId
+              ? {
+                  ...item,
+                  userImageRegistered: Boolean(data.product?.userFrontImageUrl),
+                  hasBackImage: data.product?.hasBackImage ?? false,
+                  currentImageUrl: data.product?.imageUrl ?? item.currentImageUrl,
+                  sourceImageUrl: data.product?.sourceImageUrl ?? item.sourceImageUrl,
+                  imageSource: data.product?.userFrontR2Key
+                    ? "r2_user_uploaded"
+                    : "pocamarket",
+                  userFrontImageUrl: data.product?.userFrontImageUrl ?? null,
+                  userBackImageUrl: data.product?.userBackImageUrl ?? null,
+                  userFrontR2Key: data.product?.userFrontR2Key ?? null,
+                  userBackR2Key: data.product?.userBackR2Key ?? null,
+                }
+              : item,
+          ),
+        );
+        setCompletedPreviews((current) => {
+          const next = { ...current };
+          delete next[candidate.cardId];
+          return next;
+        });
+        setMessage(`${candidate.sku} ${actionLabel} 삭제 완료`);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "R2 이미지 삭제에 실패했습니다.");
+      } finally {
+        setDeletingTarget(null);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const handler = (event: ClipboardEvent) => {
@@ -527,6 +643,12 @@ export function PhotoCardMatchClient() {
           versionName: item.productName,
           existingImageUrl: item.imageUrl,
           currentImageUrl: item.imageUrl,
+          sourceImageUrl: null,
+          imageSource: null,
+          userFrontImageUrl: null,
+          userBackImageUrl: null,
+          userFrontR2Key: null,
+          userBackR2Key: null,
           stockQuantity: null,
           userImageRegistered: false,
           hasBackImage: false,
@@ -732,9 +854,11 @@ export function PhotoCardMatchClient() {
                 selected={selectedCandidateId === candidate.cardId}
                 saving={savingId === candidate.cardId}
                 canSave={Boolean(frontImageUrl) && savingId === null}
+                deletingTarget={deletingTarget}
                 onSelect={() => setSelectedCandidateId(candidate.cardId)}
                 onPreview={() => setPreviewCandidate(candidate)}
                 onSave={() => requestSaveCandidate(candidate)}
+                onDelete={(side) => void deleteR2Images(candidate, side)}
               />
             ))}
           </div>
@@ -790,9 +914,11 @@ function CandidateCard({
   selected,
   saving,
   canSave,
+  deletingTarget,
   onSelect,
   onPreview,
   onSave,
+  onDelete,
 }: {
   index: number;
   candidate: Candidate;
@@ -800,11 +926,15 @@ function CandidateCard({
   selected: boolean;
   saving: boolean;
   canSave: boolean;
+  deletingTarget: string | null;
   onSelect: () => void;
   onPreview: () => void;
   onSave: () => void;
+  onDelete: (side: "front" | "back" | "all") => void;
 }) {
   const registered = candidate.userImageRegistered || Boolean(completedPreview);
+  const hasFrontR2 = Boolean(candidate.userFrontR2Key);
+  const hasBackR2 = Boolean(candidate.userBackR2Key);
 
   return (
     <article
@@ -858,6 +988,10 @@ function CandidateCard({
         <p className="text-zinc-600">멤버: {candidate.memberName ?? "-"}</p>
         <p className="text-zinc-600">앨범: {candidate.albumName ?? "-"}</p>
         <p className="text-zinc-600">재고: {candidate.stockQuantity ?? "-"}</p>
+        <p className="text-xs text-zinc-500">
+          R2 상태: front {hasFrontR2 ? "등록" : "없음"} / back{" "}
+          {hasBackR2 ? "등록" : "없음"}
+        </p>
         {candidate.imageScore !== undefined ? (
           <p className="text-xs text-zinc-500">
             이미지 참고 점수 {Math.round(candidate.imageScore * 100)}%
@@ -882,6 +1016,41 @@ function CandidateCard({
         <Check className="h-4 w-4" />
         {saving ? "저장 중" : registered ? "촬영본 교체" : "이 카드로 연결"}
       </button>
+      <div className="mt-2 grid grid-cols-3 gap-2">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete("front");
+          }}
+          disabled={!hasFrontR2 || deletingTarget !== null}
+          className="h-8 rounded-md border border-zinc-300 bg-white px-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {deletingTarget === `${candidate.cardId}:front` ? "삭제 중" : "앞면 삭제"}
+        </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete("back");
+          }}
+          disabled={!hasBackR2 || deletingTarget !== null}
+          className="h-8 rounded-md border border-zinc-300 bg-white px-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {deletingTarget === `${candidate.cardId}:back` ? "삭제 중" : "뒷면 삭제"}
+        </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete("all");
+          }}
+          disabled={(!hasFrontR2 && !hasBackR2) || deletingTarget !== null}
+          className="h-8 rounded-md border border-rose-300 bg-white px-2 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {deletingTarget === `${candidate.cardId}:all` ? "삭제 중" : "전체 삭제"}
+        </button>
+      </div>
     </article>
   );
 }

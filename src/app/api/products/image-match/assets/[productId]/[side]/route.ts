@@ -6,8 +6,17 @@ type RouteContext = {
 };
 
 type ProductImageAssetRow = {
-  dataUrl: string | null;
+  imageValue: string | null;
 };
+
+type LoadedAsset =
+  | {
+      buffer: Uint8Array;
+      headers: Headers;
+    }
+  | {
+      redirectUrl: string;
+    };
 
 export async function GET(_request: Request, context: RouteContext) {
   const asset = await loadAsset(context);
@@ -16,9 +25,16 @@ export async function GET(_request: Request, context: RouteContext) {
     return new Response("Not found", { status: 404 });
   }
 
-  return new Response(asset.buffer, {
-    headers: asset.headers,
-  });
+  if ("redirectUrl" in asset) {
+    return Response.redirect(asset.redirectUrl, 307);
+  }
+
+  const body = asset.buffer.buffer.slice(
+    asset.buffer.byteOffset,
+    asset.buffer.byteOffset + asset.buffer.byteLength,
+  ) as ArrayBuffer;
+
+  return new Response(body, { headers: asset.headers });
 }
 
 export async function HEAD(_request: Request, context: RouteContext) {
@@ -28,12 +44,14 @@ export async function HEAD(_request: Request, context: RouteContext) {
     return new Response(null, { status: 404 });
   }
 
-  return new Response(null, {
-    headers: asset.headers,
-  });
+  if ("redirectUrl" in asset) {
+    return Response.redirect(asset.redirectUrl, 307);
+  }
+
+  return new Response(null, { headers: asset.headers });
 }
 
-async function loadAsset(context: RouteContext) {
+async function loadAsset(context: RouteContext): Promise<LoadedAsset | null> {
   const { productId, side } = await context.params;
 
   if (side !== "front" && side !== "back") {
@@ -47,18 +65,22 @@ async function loadAsset(context: RouteContext) {
       CASE
         WHEN ${side} = 'back' THEN "user_back_image_url"
         ELSE "user_front_image_url"
-      END AS "dataUrl"
+      END AS "imageValue"
     FROM "products"
     WHERE "id" = ${productId}
     LIMIT 1
   `;
-  const dataUrl = rows[0]?.dataUrl;
+  const imageValue = rows[0]?.imageValue?.trim();
 
-  if (!dataUrl) {
+  if (!imageValue) {
     return null;
   }
 
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (/^https?:\/\//i.test(imageValue)) {
+    return { redirectUrl: imageValue };
+  }
+
+  const match = imageValue.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
 
   if (!match) {
     return null;
@@ -71,5 +93,5 @@ async function loadAsset(context: RouteContext) {
     "Content-Type": match[1],
   });
 
-  return { buffer, headers };
+  return { buffer: new Uint8Array(buffer), headers };
 }
