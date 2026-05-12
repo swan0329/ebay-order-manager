@@ -44,6 +44,22 @@ export function ProductsControls() {
   const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const paramsText = useMemo(() => searchParams.toString(), [searchParams]);
+  const filteredGroupOptions = useMemo(
+    () => filterFacetOptions(facets.groups, group),
+    [facets.groups, group],
+  );
+  const filteredMemberOptions = useMemo(
+    () => filterFacetOptions(facets.members, member),
+    [facets.members, member],
+  );
+  const filteredAlbumOptions = useMemo(
+    () => filterFacetOptions(facets.albums, album),
+    [facets.albums, album],
+  );
+  const filteredVersionOptions = useMemo(
+    () => filterFacetOptions(facets.versions, version),
+    [facets.versions, version],
+  );
   const resetHref = useMemo(() => {
     const pageSize = searchParams.get("pageSize");
 
@@ -85,7 +101,7 @@ export function ProductsControls() {
             setFacets(emptyFacets);
           }
         });
-    }, 200);
+    }, 80);
 
     return () => {
       window.clearTimeout(timer);
@@ -199,28 +215,28 @@ export function ProductsControls() {
               label="그룹"
               value={group}
               onChange={setGroup}
-              options={facets.groups}
+              options={filteredGroupOptions}
             />
             <FilterInput
               name="member"
               label="멤버"
               value={member}
               onChange={setMember}
-              options={facets.members}
+              options={filteredMemberOptions}
             />
             <FilterInput
               name="album"
               label="앨범"
               value={album}
               onChange={setAlbum}
-              options={facets.albums}
+              options={filteredAlbumOptions}
             />
             <FilterInput
               name="version"
               label="버전/특전처"
               value={version}
               onChange={setVersion}
-              options={facets.versions}
+              options={filteredVersionOptions}
             />
             <select
               name="status"
@@ -351,4 +367,14 @@ function FilterInput({
       </datalist>
     </label>
   );
+}
+
+function filterFacetOptions(options: string[], query: string) {
+  const keyword = query.trim().toLowerCase();
+
+  if (!keyword) {
+    return options;
+  }
+
+  return options.filter((option) => option.toLowerCase().includes(keyword));
 }

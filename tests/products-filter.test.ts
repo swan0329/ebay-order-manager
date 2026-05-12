@@ -15,7 +15,7 @@ describe("product inventory filters", () => {
       AND: expect.arrayContaining([
         { brand: { startsWith: "ive", mode: "insensitive" } },
         { optionName: { startsWith: "rei", mode: "insensitive" } },
-        { category: { startsWith: "after", mode: "insensitive" } },
+        { category: { contains: "after", mode: "insensitive" } },
         {
           OR: [
             { productName: { contains: "soundwave", mode: "insensitive" } },

@@ -178,7 +178,7 @@ export function productWhere(params: {
   }
 
   if (album) {
-    and.push({ category: { startsWith: album, mode: "insensitive" } });
+    and.push({ category: { contains: album, mode: "insensitive" } });
   }
 
   if (version) {

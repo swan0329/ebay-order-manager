@@ -320,7 +320,7 @@ function candidateWhereClauses(
   }
 
   if (filters.album && !omitted.has("album")) {
-    clauses.push(Prisma.sql`COALESCE("category", '') ILIKE ${prefixPattern(filters.album)}`);
+    clauses.push(Prisma.sql`COALESCE("category", '') ILIKE ${likePattern(filters.album)}`);
   }
 
   if (filters.version && !omitted.has("version")) {
