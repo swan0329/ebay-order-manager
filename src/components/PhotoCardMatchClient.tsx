@@ -1,15 +1,18 @@
 "use client";
 
 import {
+  AlertTriangle,
   ArrowLeft,
   Camera,
   Check,
   Image as ImageIcon,
   Loader2,
   Plus,
+  RotateCcw,
   Search,
   Sparkles,
   Upload,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -45,6 +48,11 @@ type CandidateResponse = {
   error?: string;
 };
 
+type CompletedPreview = {
+  frontImageUrl: string;
+  backImageUrl: string | null;
+};
+
 type ImageMatchCandidate = {
   product?: {
     id: string;
@@ -66,6 +74,8 @@ const emptyFacets: Facets = {
   versions: [],
 };
 
+const storageKey = "photo-card-match.recent-filters.v1";
+
 export function PhotoCardMatchClient() {
   const [frontFile, setFrontFile] = useState<File | null>(null);
   const [frontImageUrl, setFrontImageUrl] = useState<string | null>(null);
@@ -83,7 +93,53 @@ export function PhotoCardMatchClient() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [continuousMode, setContinuousMode] = useState(true);
   const [uploadResetKey, setUploadResetKey] = useState(0);
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
+  const [completedPreviews, setCompletedPreviews] = useState<
+    Record<string, CompletedPreview>
+  >({});
+  const [replaceCandidate, setReplaceCandidate] = useState<Candidate | null>(null);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const saved = window.localStorage.getItem(storageKey);
+
+      if (!saved) {
+        setFiltersLoaded(true);
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(saved) as Partial<{
+          group: string;
+          member: string;
+          album: string;
+          version: string;
+        }>;
+        setGroup(parsed.group ?? "");
+        setMember(parsed.member ?? "");
+        setAlbum(parsed.album ?? "");
+        setVersion(parsed.version ?? "");
+      } catch {
+        window.localStorage.removeItem(storageKey);
+      } finally {
+        setFiltersLoaded(true);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!filtersLoaded) {
+      return;
+    }
+
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({ group, member, album, version }),
+    );
+  }, [filtersLoaded, group, member, album, version]);
 
   const fetchCandidates = useCallback(async (nextOffset: number) => {
     const params = new URLSearchParams({
@@ -139,7 +195,7 @@ export function PhotoCardMatchClient() {
           setLoading(false);
         }
       }
-    }, 180);
+    }, 300);
 
     return () => {
       active = false;
@@ -190,13 +246,25 @@ export function PhotoCardMatchClient() {
     }
   }
 
+  function requestSaveCandidate(candidate: Candidate) {
+    if (candidate.userImageRegistered) {
+      setReplaceCandidate(candidate);
+      return;
+    }
+
+    void saveCandidate(candidate);
+  }
+
   async function saveCandidate(candidate: Candidate) {
     if (!frontImageUrl) {
       setMessage("앞면 이미지를 먼저 업로드해 주세요.");
       return;
     }
 
+    const savedFrontImageUrl = frontImageUrl;
+    const savedBackImageUrl = backImageUrl;
     setSavingId(candidate.cardId);
+    setReplaceCandidate(null);
     setMessage("촬영본을 연결 중입니다.");
 
     try {
@@ -205,8 +273,8 @@ export function PhotoCardMatchClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           card_id: candidate.cardId,
-          user_front_image_url: frontImageUrl,
-          user_back_image_url: backImageUrl,
+          user_front_image_url: savedFrontImageUrl,
+          user_back_image_url: savedBackImageUrl,
         }),
       });
       const data = (await response.json().catch(() => null)) as
@@ -223,13 +291,20 @@ export function PhotoCardMatchClient() {
             ? {
                 ...item,
                 userImageRegistered: true,
-                hasBackImage: Boolean(backImageUrl),
-                currentImageUrl: frontImageUrl,
+                hasBackImage: Boolean(savedBackImageUrl),
+                currentImageUrl: savedFrontImageUrl,
               }
             : item,
         ),
       );
-      setMessage(`${data.product.sku} 촬영본이 연결되었습니다.`);
+      setCompletedPreviews((current) => ({
+        ...current,
+        [candidate.cardId]: {
+          frontImageUrl: savedFrontImageUrl,
+          backImageUrl: savedBackImageUrl,
+        },
+      }));
+      setMessage(`${data.product.sku} 촬영본 연결 완료`);
 
       if (continuousMode) {
         clearUploadedImages();
@@ -308,6 +383,15 @@ export function PhotoCardMatchClient() {
     setUploadResetKey((current) => current + 1);
   }
 
+  function resetFilters() {
+    setGroup("");
+    setMember("");
+    setAlbum("");
+    setVersion("");
+    setKeyword("");
+    window.localStorage.removeItem(storageKey);
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -382,7 +466,8 @@ export function PhotoCardMatchClient() {
 
       <section className="rounded-lg border border-zinc-200 bg-white p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <SelectFilter
+          <AutocompleteFilter
+            id="photo-card-group"
             label="그룹"
             value={group}
             options={facets.groups}
@@ -391,19 +476,22 @@ export function PhotoCardMatchClient() {
               setMember("");
             }}
           />
-          <SelectFilter
+          <AutocompleteFilter
+            id="photo-card-member"
             label="멤버"
             value={member}
             options={facets.members}
             onChange={setMember}
           />
-          <SelectFilter
+          <AutocompleteFilter
+            id="photo-card-album"
             label="앨범"
             value={album}
             options={facets.albums}
             onChange={setAlbum}
           />
-          <SelectFilter
+          <AutocompleteFilter
+            id="photo-card-version"
             label="버전/특전처"
             value={version}
             options={facets.versions}
@@ -421,6 +509,16 @@ export function PhotoCardMatchClient() {
               />
             </div>
           </label>
+        </div>
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+          >
+            <RotateCcw className="h-4 w-4" />
+            필터 초기화
+          </button>
         </div>
       </section>
 
@@ -440,59 +538,20 @@ export function PhotoCardMatchClient() {
         {candidates.length ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {candidates.map((candidate) => (
-              <article
+              <CandidateCard
                 key={candidate.cardId}
-                className="rounded-lg border border-zinc-200 bg-white p-3"
-              >
-                <div className="aspect-[3/4] overflow-hidden rounded-md border border-zinc-200 bg-zinc-50">
-                  {candidate.existingImageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={candidate.existingImageUrl}
-                      alt={candidate.title}
-                      loading="lazy"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-zinc-400">
-                      <ImageIcon className="h-7 w-7" />
-                    </div>
-                  )}
-                </div>
-                <div className="mt-3 space-y-1 text-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold text-zinc-950">{candidate.sku}</p>
-                    <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs text-zinc-700">
-                      {candidate.userImageRegistered ? "촬영본 있음" : "미등록"}
-                    </span>
-                  </div>
-                  <p className="line-clamp-2 text-zinc-800">{candidate.title}</p>
-                  <p className="text-zinc-600">그룹: {candidate.groupName ?? "-"}</p>
-                  <p className="text-zinc-600">멤버: {candidate.memberName ?? "-"}</p>
-                  <p className="text-zinc-600">앨범: {candidate.albumName ?? "-"}</p>
-                  <p className="text-zinc-600">재고: {candidate.stockQuantity ?? "-"}</p>
-                  {candidate.imageScore !== undefined ? (
-                    <p className="text-xs text-zinc-500">
-                      이미지 참고 점수 {Math.round(candidate.imageScore * 100)}%
-                    </p>
-                  ) : null}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => saveCandidate(candidate)}
-                  disabled={savingId !== null || !frontImageUrl}
-                  className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-zinc-950 px-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Check className="h-4 w-4" />
-                  {savingId === candidate.cardId ? "저장 중" : "이 카드로 연결"}
-                </button>
-              </article>
+                candidate={candidate}
+                completedPreview={completedPreviews[candidate.cardId]}
+                saving={savingId === candidate.cardId}
+                canSave={Boolean(frontImageUrl) && savingId === null}
+                onSave={() => requestSaveCandidate(candidate)}
+              />
             ))}
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center">
             <Camera className="mx-auto h-8 w-8 text-zinc-400" />
-            <p className="mt-3 text-sm text-zinc-600">필터를 선택하면 후보 카드가 표시됩니다.</p>
+            <p className="mt-3 text-sm text-zinc-600">필터를 입력하면 후보 카드가 표시됩니다.</p>
           </div>
         )}
 
@@ -507,16 +566,174 @@ export function PhotoCardMatchClient() {
           </button>
         ) : null}
       </section>
+
+      {replaceCandidate ? (
+        <ConfirmReplaceModal
+          candidate={replaceCandidate}
+          onCancel={() => setReplaceCandidate(null)}
+          onConfirm={() => void saveCandidate(replaceCandidate)}
+        />
+      ) : null}
     </div>
   );
 }
 
-function SelectFilter({
+function CandidateCard({
+  candidate,
+  completedPreview,
+  saving,
+  canSave,
+  onSave,
+}: {
+  candidate: Candidate;
+  completedPreview?: CompletedPreview;
+  saving: boolean;
+  canSave: boolean;
+  onSave: () => void;
+}) {
+  const registered = candidate.userImageRegistered || Boolean(completedPreview);
+
+  return (
+    <article className="rounded-lg border border-zinc-200 bg-white p-3">
+      <div className="aspect-[3/4] overflow-hidden rounded-md border border-zinc-200 bg-zinc-50">
+        {candidate.existingImageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={candidate.existingImageUrl}
+            alt={candidate.title}
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-zinc-400">
+            <ImageIcon className="h-7 w-7" />
+          </div>
+        )}
+      </div>
+      <div className="mt-3 space-y-1 text-sm">
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-semibold text-zinc-950">{candidate.sku}</p>
+          <StatusBadge candidate={candidate} completedPreview={completedPreview} />
+        </div>
+        {registered ? (
+          <p className="text-xs font-semibold text-emerald-700">촬영본 연결 완료</p>
+        ) : null}
+        <p className="line-clamp-2 text-zinc-800">{candidate.title}</p>
+        <p className="text-zinc-600">그룹: {candidate.groupName ?? "-"}</p>
+        <p className="text-zinc-600">멤버: {candidate.memberName ?? "-"}</p>
+        <p className="text-zinc-600">앨범: {candidate.albumName ?? "-"}</p>
+        <p className="text-zinc-600">재고: {candidate.stockQuantity ?? "-"}</p>
+        {candidate.imageScore !== undefined ? (
+          <p className="text-xs text-zinc-500">
+            이미지 참고 점수 {Math.round(candidate.imageScore * 100)}%
+          </p>
+        ) : null}
+      </div>
+      {completedPreview ? (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <MiniPreview src={completedPreview.frontImageUrl} label="저장된 앞면" />
+          <MiniPreview src={completedPreview.backImageUrl} label="저장된 뒷면" />
+        </div>
+      ) : null}
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={saving || !canSave}
+        className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-zinc-950 px-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <Check className="h-4 w-4" />
+        {saving ? "저장 중" : registered ? "촬영본 교체" : "이 카드로 연결"}
+      </button>
+    </article>
+  );
+}
+
+function StatusBadge({
+  candidate,
+  completedPreview,
+}: {
+  candidate: Candidate;
+  completedPreview?: CompletedPreview;
+}) {
+  const registered = candidate.userImageRegistered || Boolean(completedPreview);
+  const hasBack = candidate.hasBackImage || Boolean(completedPreview?.backImageUrl);
+
+  if (!registered) {
+    return (
+      <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs text-zinc-700">
+        미등록
+      </span>
+    );
+  }
+
+  return (
+    <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
+      {hasBack ? "앞/뒤 등록 완료" : "앞면만 등록"}
+    </span>
+  );
+}
+
+function ConfirmReplaceModal({
+  candidate,
+  onCancel,
+  onConfirm,
+}: {
+  candidate: Candidate;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-lg">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-600" />
+            <div>
+              <h2 className="text-base font-semibold text-zinc-950">촬영본 교체 확인</h2>
+              <p className="mt-2 text-sm text-zinc-600">
+                이미 촬영본이 연결된 카드입니다. {candidate.sku} 촬영본을 새 이미지로
+                교체할까요?
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100"
+            aria-label="닫기"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="h-10 rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="h-10 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
+          >
+            교체 저장
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AutocompleteFilter({
+  id,
   label,
   value,
   options,
   onChange,
 }: {
+  id: string;
   label: string;
   value: string;
   options: string[];
@@ -525,18 +742,18 @@ function SelectFilter({
   return (
     <label className="block">
       <span className="text-sm font-medium text-zinc-800">{label}</span>
-      <select
+      <input
         value={value}
+        list={`${id}-options`}
         onChange={(event) => onChange(event.currentTarget.value)}
+        placeholder={`${label} 입력`}
         className="mt-2 h-10 w-full rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
-      >
-        <option value="">전체</option>
+      />
+      <datalist id={`${id}-options`}>
         {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
+          <option key={option} value={option} />
         ))}
-      </select>
+      </datalist>
     </label>
   );
 }
@@ -574,6 +791,21 @@ function ImageInput({
         )}
       </div>
     </label>
+  );
+}
+
+function MiniPreview({ src, label }: { src: string | null; label: string }) {
+  return (
+    <div className="aspect-[3/4] overflow-hidden rounded-md border border-zinc-200 bg-zinc-50">
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={label} className="h-full w-full object-cover" />
+      ) : (
+        <div className="flex h-full items-center justify-center text-xs text-zinc-400">
+          {label}
+        </div>
+      )}
+    </div>
   );
 }
 

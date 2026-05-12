@@ -72,6 +72,7 @@ export async function listPhotoCardCandidates(filters: PhotoCardCandidateFilters
   const whereSql = clauses.length
     ? Prisma.sql`WHERE ${Prisma.join(clauses, " AND ")}`
     : Prisma.empty;
+  const orderSql = Prisma.join(candidateOrderClauses(normalized), ", ");
   const rows = await prisma.$queryRaw<PhotoCardCandidateRow[]>`
     SELECT
       "id" AS "cardId",
@@ -88,13 +89,7 @@ export async function listPhotoCardCandidates(filters: PhotoCardCandidateFilters
       "has_back_image" AS "hasBackImage"
     FROM "products"
     ${whereSql}
-    ORDER BY
-      CASE WHEN "stock_quantity" > 0 THEN 0 ELSE 1 END,
-      LOWER(COALESCE("brand", '')),
-      LOWER(COALESCE("category", '')),
-      LOWER(COALESCE("option_name", '')),
-      LOWER(COALESCE("product_name", '')),
-      "sku"
+    ORDER BY ${orderSql}
     LIMIT ${normalized.limit}
     OFFSET ${normalized.offset}
   `;
@@ -266,17 +261,17 @@ function candidateWhereClauses(
   const clauses = [Prisma.sql`("status" IS NULL OR "status" <> 'inactive')`];
 
   if (filters.group && !omitted.has("group")) {
-    clauses.push(Prisma.sql`LOWER(COALESCE("brand", '')) = LOWER(${filters.group})`);
+    clauses.push(Prisma.sql`COALESCE("brand", '') ILIKE ${prefixPattern(filters.group)}`);
   }
 
   if (filters.member && !omitted.has("member")) {
     clauses.push(
-      Prisma.sql`LOWER(COALESCE("option_name", '')) = LOWER(${filters.member})`,
+      Prisma.sql`COALESCE("option_name", '') ILIKE ${prefixPattern(filters.member)}`,
     );
   }
 
   if (filters.album && !omitted.has("album")) {
-    clauses.push(Prisma.sql`LOWER(COALESCE("category", '')) = LOWER(${filters.album})`);
+    clauses.push(Prisma.sql`COALESCE("category", '') ILIKE ${prefixPattern(filters.album)}`);
   }
 
   if (filters.version && !omitted.has("version")) {
@@ -300,6 +295,48 @@ function candidateWhereClauses(
   }
 
   return clauses;
+}
+
+function candidateOrderClauses(
+  filters: ReturnType<typeof normalizePhotoCardCandidateFilters>,
+) {
+  const clauses = [
+    Prisma.sql`CASE WHEN "user_front_image_url" IS NOT NULL AND "user_front_image_url" <> '' THEN 1 ELSE 0 END`,
+    Prisma.sql`CASE WHEN "stock_quantity" > 0 THEN 0 ELSE 1 END`,
+  ];
+
+  if (filters.member) {
+    clauses.push(
+      Prisma.sql`CASE WHEN LOWER(COALESCE("option_name", '')) = LOWER(${filters.member}) THEN 0 ELSE 1 END`,
+    );
+  }
+
+  if (filters.album) {
+    clauses.push(
+      Prisma.sql`CASE WHEN LOWER(COALESCE("category", '')) = LOWER(${filters.album}) THEN 0 ELSE 1 END`,
+    );
+  }
+
+  if (filters.group) {
+    clauses.push(
+      Prisma.sql`CASE WHEN LOWER(COALESCE("brand", '')) = LOWER(${filters.group}) THEN 0 ELSE 1 END`,
+    );
+  }
+
+  if (filters.version) {
+    clauses.push(
+      Prisma.sql`CASE WHEN LOWER(COALESCE("product_name", '')) = LOWER(${filters.version}) THEN 0 ELSE 1 END`,
+    );
+  }
+
+  return [
+    ...clauses,
+    Prisma.sql`LOWER(COALESCE("brand", ''))`,
+    Prisma.sql`LOWER(COALESCE("category", ''))`,
+    Prisma.sql`LOWER(COALESCE("option_name", ''))`,
+    Prisma.sql`LOWER(COALESCE("product_name", ''))`,
+    Prisma.sql`"sku"`,
+  ];
 }
 
 function facetColumnSql(
@@ -352,4 +389,8 @@ function clampLimit(value: number | null | undefined) {
 
 function likePattern(value: string) {
   return `%${value.replace(/[%_\\]/g, "\\$&")}%`;
+}
+
+function prefixPattern(value: string) {
+  return `${value.replace(/[%_\\]/g, "\\$&")}%`;
 }
