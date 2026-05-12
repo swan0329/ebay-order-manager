@@ -108,6 +108,13 @@ export function PhotoCardMatchClient() {
   const [message, setMessage] = useState("");
   const autoNextTimer = useRef<number | null>(null);
 
+  const cancelAutoNext = useCallback(() => {
+    if (autoNextTimer.current) {
+      window.clearTimeout(autoNextTimer.current);
+      autoNextTimer.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const saved = window.localStorage.getItem(storageKey);
@@ -140,11 +147,9 @@ export function PhotoCardMatchClient() {
 
   useEffect(() => {
     return () => {
-      if (autoNextTimer.current) {
-        window.clearTimeout(autoNextTimer.current);
-      }
+      cancelAutoNext();
     };
-  }, []);
+  }, [cancelAutoNext]);
 
   useEffect(() => {
     if (!filtersLoaded) {
@@ -197,6 +202,7 @@ export function PhotoCardMatchClient() {
       return;
     }
 
+    cancelAutoNext();
     const dataUrl = await fileToDataUrl(file);
 
     if (side === "front") {
@@ -209,9 +215,10 @@ export function PhotoCardMatchClient() {
     }
 
     setMessage(`${side === "front" ? "앞면" : "뒷면"} 이미지가 준비되었습니다.`);
-  }, []);
+  }, [cancelAutoNext]);
 
   const clearUploadedImages = useCallback(() => {
+    cancelAutoNext();
     setFrontFile(null);
     setFrontImageUrl(null);
     setBackImageUrl(null);
@@ -219,7 +226,7 @@ export function PhotoCardMatchClient() {
     setPreviewCandidate(null);
     setActiveUploadSide("front");
     setUploadResetKey((current) => current + 1);
-  }, []);
+  }, [cancelAutoNext]);
 
   const saveCandidate = useCallback(async (candidate: Candidate) => {
     if (!frontImageUrl) {
@@ -278,6 +285,7 @@ export function PhotoCardMatchClient() {
         }
 
         autoNextTimer.current = window.setTimeout(() => {
+          autoNextTimer.current = null;
           clearUploadedImages();
           setMessage("다음 카드 업로드 상태로 전환했습니다.");
         }, 1000);
@@ -322,7 +330,7 @@ export function PhotoCardMatchClient() {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (isEditableTarget(event.target)) {
+      if (isTextEditingTarget(event.target) && event.key !== "Escape") {
         return;
       }
 
@@ -335,6 +343,10 @@ export function PhotoCardMatchClient() {
       }
 
       if (event.key === "Enter") {
+        if (isNativeCommandTarget(event.target)) {
+          return;
+        }
+
         if (!selectedCandidate) {
           return;
         }
@@ -1130,15 +1142,24 @@ function imageFileFromDataTransfer(dataTransfer: DataTransfer | null) {
   );
 }
 
-function isEditableTarget(target: EventTarget | null) {
+function isTextEditingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) {
     return false;
   }
 
-  return (
-    target.isContentEditable ||
-    ["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(target.tagName)
-  );
+  if (target.isContentEditable) {
+    return true;
+  }
+
+  if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+    return true;
+  }
+
+  return target instanceof HTMLInputElement && target.type !== "file";
+}
+
+function isNativeCommandTarget(target: EventTarget | null) {
+  return target instanceof HTMLElement && ["BUTTON", "A"].includes(target.tagName);
 }
 
 function fileToDataUrl(file: File) {

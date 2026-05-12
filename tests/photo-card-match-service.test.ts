@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { normalizePhotoCardCandidateFilters } from "@/lib/services/photoCardMatchService";
+import {
+  normalizePhotoCardCandidateFilters,
+  photoCardListingImageUrls,
+  sourceImageUrlForPhotoCardUpdate,
+} from "@/lib/services/photoCardMatchService";
 
 describe("photo card candidate filters", () => {
   it("trims empty filter values", () => {
@@ -24,5 +28,36 @@ describe("photo card candidate filters", () => {
   it("normalizes offset", () => {
     expect(normalizePhotoCardCandidateFilters({ offset: 20 }).offset).toBe(20);
     expect(normalizePhotoCardCandidateFilters({ offset: -20 }).offset).toBe(0);
+  });
+
+  it("builds listing image URLs from user-uploaded front and back assets first", () => {
+    expect(
+      photoCardListingImageUrls({
+        cardId: "card-1",
+        userFrontImageUrl: "data:image/png;base64,front",
+        userBackImageUrl: "data:image/png;base64,back",
+        publicBaseUrl: "https://example.com/",
+      }),
+    ).toMatchObject({
+      frontListingImageUrl:
+        "https://example.com/api/products/image-match/assets/card-1/front",
+      backListingImageUrl:
+        "https://example.com/api/products/image-match/assets/card-1/back",
+      imageUrls: [
+        "https://example.com/api/products/image-match/assets/card-1/front",
+        "https://example.com/api/products/image-match/assets/card-1/back",
+      ],
+    });
+  });
+
+  it("preserves the original source image and does not promote generated asset URLs", () => {
+    expect(sourceImageUrlForPhotoCardUpdate("https://source.example/card.jpg")).toBe(
+      "https://source.example/card.jpg",
+    );
+    expect(
+      sourceImageUrlForPhotoCardUpdate(
+        "https://example.com/api/products/image-match/assets/card-1/front",
+      ),
+    ).toBeNull();
   });
 });

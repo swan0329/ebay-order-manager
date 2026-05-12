@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
 
 export const maxProductMatchImageBytes = 2_500_000;
@@ -8,6 +9,7 @@ const hashCandidateLimit = 30;
 const defaultScanLimit = 3000;
 const lazyFingerprintLimit = 80;
 const descriptorPairs = buildDescriptorPairs();
+let productImageMatchColumnsPromise: Promise<void> | null = null;
 
 type ImageSource = "pocamarket" | "user_uploaded";
 type MatchedBy = "image_similarity" | "manual" | "google_search";
@@ -95,6 +97,15 @@ type MatchSummary = {
 };
 
 export async function ensureProductImageMatchColumns() {
+  productImageMatchColumnsPromise ??= createProductImageMatchColumns().catch((error) => {
+    productImageMatchColumnsPromise = null;
+    throw error;
+  });
+
+  await productImageMatchColumnsPromise;
+}
+
+async function createProductImageMatchColumns() {
   await prisma.$executeRaw`
     ALTER TABLE "products"
       ADD COLUMN IF NOT EXISTS "source_image_url" TEXT,
@@ -275,38 +286,35 @@ export async function confirmProductImageMatch(input: ConfirmProductImageMatchIn
   const imageUrls = [frontListingImageUrl, backListingImageUrl].filter(
     (value): value is string => Boolean(value),
   );
+  const sourceImageUrl =
+    product.imageUrl && product.imageUrl.includes("/api/products/image-match/assets/")
+      ? null
+      : product.imageUrl;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.product.update({
-      where: { id: input.productId },
-      data: {
-        imageUrl: frontListingImageUrl,
-        ebayImageUrls: imageUrls,
-      },
-    });
-
-    await tx.$executeRaw`
-      UPDATE "products"
-      SET
-        "source_image_url" = COALESCE("source_image_url", ${product.imageUrl}),
-        "user_front_image_url" = ${input.frontImageUrl},
-        "user_back_image_url" = ${input.backImageUrl ?? null},
-        "image_source" = ${"user_uploaded" satisfies ImageSource},
-        "has_back_image" = ${Boolean(input.backImageUrl)},
-        "matched_by" = ${input.matchedBy ?? "image_similarity"},
-        "match_confidence" = ${clampConfidence(input.matchConfidence)},
-        "verified_at" = CURRENT_TIMESTAMP,
-        "image_signature" = ${JSON.stringify(frontFingerprint)}::jsonb,
-        "image_phash" = ${frontFingerprint.phash},
-        "image_dhash" = ${frontFingerprint.dhash},
-        "image_ahash" = ${frontFingerprint.ahash},
-        "orb_descriptor_path" = ${"db:image_signature.descriptors"},
-        "image_width" = ${frontFingerprint.width},
-        "image_height" = ${frontFingerprint.height},
-        "image_fingerprint_updated_at" = CURRENT_TIMESTAMP
-      WHERE "id" = ${input.productId}
-    `;
-  });
+  await prisma.$executeRaw`
+    UPDATE "products"
+    SET
+      "image_url" = ${frontListingImageUrl},
+      "ebay_image_urls" = ${textArraySql(imageUrls)},
+      "source_image_url" = COALESCE("source_image_url", ${sourceImageUrl}),
+      "user_front_image_url" = ${input.frontImageUrl},
+      "user_back_image_url" = ${input.backImageUrl ?? null},
+      "image_source" = ${"user_uploaded" satisfies ImageSource},
+      "has_back_image" = ${Boolean(input.backImageUrl)},
+      "matched_by" = ${input.matchedBy ?? "image_similarity"},
+      "match_confidence" = ${clampConfidence(input.matchConfidence)},
+      "verified_at" = CURRENT_TIMESTAMP,
+      "image_signature" = ${JSON.stringify(frontFingerprint)}::jsonb,
+      "image_phash" = ${frontFingerprint.phash},
+      "image_dhash" = ${frontFingerprint.dhash},
+      "image_ahash" = ${frontFingerprint.ahash},
+      "orb_descriptor_path" = ${"db:image_signature.descriptors"},
+      "image_width" = ${frontFingerprint.width},
+      "image_height" = ${frontFingerprint.height},
+      "image_fingerprint_updated_at" = CURRENT_TIMESTAMP,
+      "updated_at" = CURRENT_TIMESTAMP
+    WHERE "id" = ${input.productId}
+  `;
 
   return prisma.product.findUniqueOrThrow({
     where: { id: input.productId },
@@ -950,6 +958,14 @@ function clampConfidence(value: number | null | undefined) {
   }
 
   return Math.max(0, Math.min(1, value));
+}
+
+function textArraySql(values: string[]) {
+  if (!values.length) {
+    return Prisma.sql`ARRAY[]::TEXT[]`;
+  }
+
+  return Prisma.sql`ARRAY[${Prisma.join(values)}]::TEXT[]`;
 }
 
 const nibblePopcount = [0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4];

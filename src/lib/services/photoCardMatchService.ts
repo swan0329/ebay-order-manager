@@ -4,6 +4,7 @@ import { ensureProductImageMatchColumns } from "@/lib/services/productImageMatch
 
 const defaultLimit = 50;
 const maxLimit = 50;
+let photoCardSearchSupportPromise: Promise<void> | null = null;
 
 export type PhotoCardCandidateFilters = {
   group?: string | null;
@@ -122,51 +123,31 @@ export async function confirmPhotoCardImage(input: ConfirmPhotoCardImageInput) {
     throw new Error("user_front_image_url must be an image data URL.");
   }
 
-  const publicBaseUrl = input.publicBaseUrl?.replace(/\/+$/, "");
-  const frontListingImageUrl = publicBaseUrl
-    ? `${publicBaseUrl}/api/products/image-match/assets/${input.cardId}/front`
-    : input.userFrontImageUrl;
-  const backListingImageUrl =
-    publicBaseUrl && input.userBackImageUrl
-      ? `${publicBaseUrl}/api/products/image-match/assets/${input.cardId}/back`
-      : input.userBackImageUrl;
-  const imageUrls = [frontListingImageUrl, backListingImageUrl].filter(
-    (value): value is string => Boolean(value),
-  );
-  const sourceImageUrl =
-    product.imageUrl && product.imageUrl.includes("/api/products/image-match/assets/")
-      ? null
-      : product.imageUrl;
+  const { frontListingImageUrl, imageUrls } = photoCardListingImageUrls(input);
+  const sourceImageUrl = sourceImageUrlForPhotoCardUpdate(product.imageUrl);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.product.update({
-      where: { id: input.cardId },
-      data: {
-        imageUrl: frontListingImageUrl,
-        ebayImageUrls: imageUrls,
-      },
-    });
-
-    await tx.$executeRaw`
-      UPDATE "products"
-      SET
-        "source_image_url" = COALESCE("source_image_url", ${sourceImageUrl}),
-        "user_front_image_url" = ${input.userFrontImageUrl},
-        "user_back_image_url" = ${input.userBackImageUrl ?? null},
-        "image_source" = 'user_uploaded',
-        "has_back_image" = ${Boolean(input.userBackImageUrl)},
-        "matched_by" = 'manual',
-        "match_confidence" = NULL,
-        "verified_at" = CURRENT_TIMESTAMP,
-        "image_signature" = NULL,
-        "image_phash" = NULL,
-        "image_dhash" = NULL,
-        "image_ahash" = NULL,
-        "orb_descriptor_path" = NULL,
-        "image_fingerprint_updated_at" = NULL
-      WHERE "id" = ${input.cardId}
-    `;
-  });
+  await prisma.$executeRaw`
+    UPDATE "products"
+    SET
+      "image_url" = ${frontListingImageUrl},
+      "ebay_image_urls" = ${textArraySql(imageUrls)},
+      "source_image_url" = COALESCE("source_image_url", ${sourceImageUrl}),
+      "user_front_image_url" = ${input.userFrontImageUrl},
+      "user_back_image_url" = ${input.userBackImageUrl ?? null},
+      "image_source" = 'user_uploaded',
+      "has_back_image" = ${Boolean(input.userBackImageUrl)},
+      "matched_by" = 'manual',
+      "match_confidence" = NULL,
+      "verified_at" = CURRENT_TIMESTAMP,
+      "image_signature" = NULL,
+      "image_phash" = NULL,
+      "image_dhash" = NULL,
+      "image_ahash" = NULL,
+      "orb_descriptor_path" = NULL,
+      "image_fingerprint_updated_at" = NULL,
+      "updated_at" = CURRENT_TIMESTAMP
+    WHERE "id" = ${input.cardId}
+  `;
 
   return prisma.product.findUniqueOrThrow({
     where: { id: input.cardId },
@@ -195,7 +176,38 @@ export function normalizePhotoCardCandidateFilters(
   };
 }
 
+export function photoCardListingImageUrls(input: ConfirmPhotoCardImageInput) {
+  const publicBaseUrl = input.publicBaseUrl?.replace(/\/+$/, "");
+  const frontListingImageUrl = publicBaseUrl
+    ? `${publicBaseUrl}/api/products/image-match/assets/${input.cardId}/front`
+    : input.userFrontImageUrl;
+  const backListingImageUrl =
+    publicBaseUrl && input.userBackImageUrl
+      ? `${publicBaseUrl}/api/products/image-match/assets/${input.cardId}/back`
+      : input.userBackImageUrl;
+  const imageUrls = [frontListingImageUrl, backListingImageUrl].filter(
+    (value): value is string => Boolean(value),
+  );
+
+  return { frontListingImageUrl, backListingImageUrl, imageUrls };
+}
+
+export function sourceImageUrlForPhotoCardUpdate(currentImageUrl: string | null) {
+  return currentImageUrl?.includes("/api/products/image-match/assets/")
+    ? null
+    : currentImageUrl;
+}
+
 async function ensurePhotoCardSearchSupport() {
+  photoCardSearchSupportPromise ??= createPhotoCardSearchSupport().catch((error) => {
+    photoCardSearchSupportPromise = null;
+    throw error;
+  });
+
+  await photoCardSearchSupportPromise;
+}
+
+async function createPhotoCardSearchSupport() {
   await ensureProductImageMatchColumns();
 
   await prisma.$executeRaw`
@@ -214,6 +226,14 @@ async function ensurePhotoCardSearchSupport() {
     CREATE INDEX IF NOT EXISTS "products_photo_title_lower_idx"
       ON "products" (LOWER("product_name"))
   `;
+}
+
+function textArraySql(values: string[]) {
+  if (!values.length) {
+    return Prisma.sql`ARRAY[]::TEXT[]`;
+  }
+
+  return Prisma.sql`ARRAY[${Prisma.join(values)}]::TEXT[]`;
 }
 
 async function loadPhotoCardFacets(

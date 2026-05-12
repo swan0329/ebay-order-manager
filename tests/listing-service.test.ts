@@ -6,7 +6,10 @@ vi.mock("@/lib/services/ebayApiService", () => ({
   ebayApiRequest: ebayApiRequestMock,
 }));
 
-import { publishProductListing } from "../src/lib/services/listingService";
+import {
+  productToListingInput,
+  publishProductListing,
+} from "../src/lib/services/listingService";
 
 const account = { id: "account-1" };
 const product = {
@@ -37,6 +40,37 @@ beforeEach(() => {
 });
 
 describe("publishProductListing", () => {
+  it("uses user-uploaded front and back image asset URLs before the product image", () => {
+    const listingInput = productToListingInput({
+      sku: "SKU-USER-IMAGE",
+      productName: "IVE Rei Photocard",
+      ebayTitle: null,
+      descriptionHtml: null,
+      memo: null,
+      ebayPrice: "12.50",
+      salePrice: null,
+      stockQuantity: 1,
+      ebayImageUrls: [
+        "https://example.com/api/products/image-match/assets/card-1/front",
+        "https://example.com/api/products/image-match/assets/card-1/back",
+      ],
+      imageUrl: "https://source.example/original.jpg",
+      ebayCategoryId: "261328",
+      ebayCondition: "NEW",
+      ebayShippingProfile: "ship-1",
+      ebayReturnProfile: "return-1",
+      ebayPaymentProfile: "pay-1",
+      ebayMerchantLocationKey: "loc-1",
+      ebayMarketplaceId: "EBAY_US",
+      ebayCurrency: "USD",
+    } as never);
+
+    expect(listingInput.imageUrls).toEqual([
+      "https://example.com/api/products/image-match/assets/card-1/front",
+      "https://example.com/api/products/image-match/assets/card-1/back",
+    ]);
+  });
+
   it("creates inventory item, offer, and publishes when no offer exists", async () => {
     ebayApiRequestMock
       .mockResolvedValueOnce({ body: null, status: 204, headers: new Headers() })
