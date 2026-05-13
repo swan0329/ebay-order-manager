@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ListingTemplateManager } from "@/components/ListingTemplateManager";
 import { TopNav } from "@/components/TopNav";
+import { getCachedPolicies } from "@/lib/services/ebayAccountService";
 import { listListingTemplates } from "@/lib/services/listingTemplateService";
 import { requireUser } from "@/lib/session";
 
@@ -9,7 +10,10 @@ export const dynamic = "force-dynamic";
 
 export default async function ProductTemplatesPage() {
   const user = await requireUser();
-  const templates = await listListingTemplates(user.id);
+  const [templates, cachedPolicies] = await Promise.all([
+    listListingTemplates(user.id),
+    getCachedPolicies(user.id),
+  ]);
   const clientTemplates = templates.map((template) => ({
     ...template,
     defaultPrice: template.defaultPrice?.toString() ?? null,
@@ -18,6 +22,21 @@ export default async function ProductTemplatesPage() {
     createdAt: template.createdAt.toISOString(),
     updatedAt: template.updatedAt.toISOString(),
   }));
+  const initialPolicies = {
+    paymentPolicies: cachedPolicies.policies
+      .filter((policy) => policy.policyType === "payment")
+      .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
+    fulfillmentPolicies: cachedPolicies.policies
+      .filter((policy) => policy.policyType === "fulfillment")
+      .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
+    returnPolicies: cachedPolicies.policies
+      .filter((policy) => policy.policyType === "return")
+      .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
+    inventoryLocations: cachedPolicies.locations.map((location) => ({
+      id: location.merchantLocationKey,
+      name: location.name ?? location.merchantLocationKey,
+    })),
+  };
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -34,7 +53,10 @@ export default async function ProductTemplatesPage() {
           <h1 className="text-xl font-semibold text-zinc-950">업로드 템플릿</h1>
         </div>
 
-        <ListingTemplateManager initialTemplates={clientTemplates} />
+        <ListingTemplateManager
+          initialTemplates={clientTemplates}
+          initialPolicies={initialPolicies}
+        />
       </main>
     </div>
   );

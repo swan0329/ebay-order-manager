@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { RefreshCcw } from "lucide-react";
 
 export function ListingPolicySync({ marketplaceId = "EBAY_US" }: { marketplaceId?: string }) {
+  const router = useRouter();
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -51,6 +53,7 @@ export function ListingPolicySync({ marketplaceId = "EBAY_US" }: { marketplaceId
         data?.inventoryLocations?.length ?? 0
       }건 동기화${skippedLocation}`,
     );
+    router.refresh();
   }
 
   return (

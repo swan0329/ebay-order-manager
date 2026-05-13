@@ -4,16 +4,20 @@ import { ListingTemplateManager } from "@/components/ListingTemplateManager";
 import { ListingUploadNav } from "@/components/ListingUploadNav";
 import { TopNav } from "@/components/TopNav";
 import { listListingTemplates } from "@/lib/services/listingTemplateService";
-import { getEbayConnectionSummary } from "@/lib/services/ebayAccountService";
+import {
+  getCachedPolicies,
+  getEbayConnectionSummary,
+} from "@/lib/services/ebayAccountService";
 import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export default async function ListingUploadTemplatesPage() {
   const user = await requireUser();
-  const [templates, ebayConnection] = await Promise.all([
+  const [templates, ebayConnection, cachedPolicies] = await Promise.all([
     listListingTemplates(user.id),
     getEbayConnectionSummary(user.id),
+    getCachedPolicies(user.id),
   ]);
   const clientTemplates = templates.map((template) => ({
     ...template,
@@ -23,6 +27,21 @@ export default async function ListingUploadTemplatesPage() {
     createdAt: template.createdAt.toISOString(),
     updatedAt: template.updatedAt.toISOString(),
   }));
+  const initialPolicies = {
+    paymentPolicies: cachedPolicies.policies
+      .filter((policy) => policy.policyType === "payment")
+      .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
+    fulfillmentPolicies: cachedPolicies.policies
+      .filter((policy) => policy.policyType === "fulfillment")
+      .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
+    returnPolicies: cachedPolicies.policies
+      .filter((policy) => policy.policyType === "return")
+      .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
+    inventoryLocations: cachedPolicies.locations.map((location) => ({
+      id: location.merchantLocationKey,
+      name: location.name ?? location.merchantLocationKey,
+    })),
+  };
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -41,7 +60,10 @@ export default async function ListingUploadTemplatesPage() {
           <ListingPolicySync />
         </div>
         <ListingUploadNav active="/listing-upload/templates" />
-        <ListingTemplateManager initialTemplates={clientTemplates} />
+        <ListingTemplateManager
+          initialTemplates={clientTemplates}
+          initialPolicies={initialPolicies}
+        />
       </main>
     </div>
   );

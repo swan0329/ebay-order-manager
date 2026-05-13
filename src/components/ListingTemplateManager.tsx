@@ -340,8 +340,10 @@ function Checkbox({
 
 export function ListingTemplateManager({
   initialTemplates,
+  initialPolicies = null,
 }: {
   initialTemplates: Template[];
+  initialPolicies?: Policies | null;
 }) {
   const router = useRouter();
   const [templates, setTemplates] = useState(initialTemplates);
@@ -354,7 +356,7 @@ export function ListingTemplateManager({
     selected ? formFromTemplate(selected) : emptyForm,
   );
   const [message, setMessage] = useState("");
-  const [policies, setPolicies] = useState<Policies | null>(null);
+  const [policies, setPolicies] = useState<Policies | null>(initialPolicies);
 
   async function refreshTemplates(nextSelectedId?: string) {
     const response = await fetch("/api/listings/templates");
