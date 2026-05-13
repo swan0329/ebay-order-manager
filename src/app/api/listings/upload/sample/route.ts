@@ -1,7 +1,15 @@
-import * as XLSX from "xlsx";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { resolveListingTemplateDefaults } from "@/lib/services/listingTemplateService";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
+
+const ebayTemplatePath = path.join(
+  process.cwd(),
+  "public",
+  "templates",
+  "eBay-category-listing-template.xlsx",
+);
 
 const requiredColumns = [
   "sku",
@@ -31,26 +39,12 @@ const optionalColumns = [
   "auto_accept_price",
   "private_listing",
   "immediate_pay_required",
+  "promoted_listing_enabled",
+  "promoted_campaign_id",
+  "promoted_ad_rate",
+  "promoted_funding_model",
 ];
 const columns = [...requiredColumns, ...optionalColumns];
-
-const columnDescriptions: Record<string, string> = {
-  sku: "eBay Inventory SKU. 기존 SKU는 update/revise 대상입니다.",
-  title: "eBay 리스팅 제목",
-  price: "판매가",
-  quantity: "업로드 수량",
-  image_urls: "공개 이미지 URL 또는 R2 key. 여러 이미지는 쉼표로 구분합니다.",
-  source_inventory_id: "로컬 재고 상품 id. 비워도 SKU로 재고 연결을 시도합니다.",
-  description_html: "HTML 상세설명",
-  category_id: "eBay category id",
-  condition: "예: NEW",
-  condition_description: "상태 상세 설명",
-  item_specifics_json: "예: {\"Brand\":[\"IVE\"],\"Type\":[\"Photocard\"]}",
-  payment_policy_id: "eBay payment policy id",
-  fulfillment_policy_id: "eBay fulfillment/shipping policy id",
-  return_policy_id: "eBay return policy id",
-  merchant_location_key: "Inventory location key",
-};
 
 function csvEscape(value: unknown) {
   const text = String(value ?? "");
@@ -95,21 +89,14 @@ export async function GET(request: Request) {
       auto_accept_price: defaults?.autoAcceptPrice ?? "",
       private_listing: defaults?.privateListing ? "true" : "",
       immediate_pay_required: defaults?.immediatePayRequired ? "true" : "",
+      promoted_listing_enabled: defaults?.promotedListingEnabled ? "true" : "",
+      promoted_campaign_id: defaults?.promotedCampaignId ?? "",
+      promoted_ad_rate: defaults?.promotedAdRate ?? "",
+      promoted_funding_model: defaults?.promotedFundingModel ?? "COST_PER_SALE",
     };
 
     if (format === "xlsx") {
-      const workbook = XLSX.utils.book_new();
-      const sheet = XLSX.utils.json_to_sheet([row], { header: columns });
-      const columnSheet = XLSX.utils.json_to_sheet(
-        columns.map((column) => ({
-          column,
-          required: requiredColumns.includes(column) ? "필수" : "선택",
-          description: columnDescriptions[column] ?? "",
-        })),
-      );
-      XLSX.utils.book_append_sheet(workbook, sheet, "listing-upload");
-      XLSX.utils.book_append_sheet(workbook, columnSheet, "columns");
-      const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
+      const buffer = await readFile(ebayTemplatePath);
       const body = new Blob([new Uint8Array(buffer)], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
@@ -117,7 +104,7 @@ export async function GET(request: Request) {
       return new Response(body, {
         headers: {
           "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          "content-disposition": 'attachment; filename="listing-upload-template.xlsx"',
+          "content-disposition": 'attachment; filename="eBay-category-listing-template.xlsx"',
         },
       });
     }

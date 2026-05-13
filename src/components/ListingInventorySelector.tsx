@@ -66,14 +66,6 @@ export function ListingInventorySelector({
   const [creating, setCreating] = useState(false);
   const [exporting, setExporting] = useState(false);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-  const sampleXlsxHref = useMemo(
-    () =>
-      `/api/listings/upload/sample?format=xlsx${
-        templateId ? `&templateId=${encodeURIComponent(templateId)}` : ""
-      }`,
-    [templateId],
-  );
-
   function toggle(id: string) {
     setSelectedIds((current) =>
       current.includes(id)
@@ -255,15 +247,8 @@ export function ListingInventorySelector({
               className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-600 disabled:bg-zinc-400"
             >
               <Download className="h-4 w-4" />
-              {exporting ? "XLSX 준비 중" : "선택 XLSX"}
+              {exporting ? "XLSX 준비 중" : "선택상품 eBay XLSX"}
             </button>
-            <a
-              href={sampleXlsxHref}
-              className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-md border border-zinc-300 px-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
-            >
-              <Download className="h-4 w-4" />
-              템플릿 XLSX
-            </a>
           </div>
           <div className="text-sm text-zinc-600">
             선택 {selectedIds.length} / 표시 {products.length}
