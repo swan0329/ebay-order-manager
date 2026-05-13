@@ -64,6 +64,7 @@ export function ListingInventorySelector({
   );
   const [message, setMessage] = useState("");
   const [creating, setCreating] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const sampleXlsxHref = useMemo(
     () =>
@@ -132,6 +133,42 @@ export function ListingInventorySelector({
     setMessage(`${data?.created ?? 0}개 draft를 저장했습니다.`);
     setSelectedIds([]);
     router.refresh();
+  }
+
+  async function downloadSelectedXlsx() {
+    if (!selectedIds.length) {
+      setMessage("XLSX로 받을 상품을 하나 이상 선택해 주세요.");
+      return;
+    }
+
+    setExporting(true);
+    setMessage("");
+
+    const response = await fetch("/api/listing-upload/inventory/export", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ productIds: selectedIds, templateId: templateId || null }),
+    });
+
+    if (!response.ok) {
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+      setExporting(false);
+      setMessage(data?.error ?? "XLSX 다운로드에 실패했습니다.");
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "ebay-category-listing-upload.xlsx";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    setExporting(false);
   }
 
   return (
@@ -210,6 +247,15 @@ export function ListingInventorySelector({
             >
               <UploadCloud className="h-4 w-4" />
               Draft 저장
+            </button>
+            <button
+              type="button"
+              onClick={() => void downloadSelectedXlsx()}
+              disabled={exporting || !selectedIds.length}
+              className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-600 disabled:bg-zinc-400"
+            >
+              <Download className="h-4 w-4" />
+              {exporting ? "XLSX 준비 중" : "선택 XLSX"}
             </button>
             <a
               href={sampleXlsxHref}

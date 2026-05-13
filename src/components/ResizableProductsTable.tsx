@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Image as ImageIcon, Loader2, Upload, X } from "lucide-react";
+import { Download, Image as ImageIcon, Loader2, Upload, X } from "lucide-react";
 import {
   ProductQuickEditCard,
   ProductQuickEditRow,
@@ -77,6 +77,7 @@ export function ResizableProductsTable({
   const [bulkStock, setBulkStock] = useState("");
   const [bulkPrice, setBulkPrice] = useState("");
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
   const [bulkMessage, setBulkMessage] = useState("");
   const [photoTarget, setPhotoTarget] = useState<ProductQuickEditValue | null>(null);
 
@@ -294,6 +295,42 @@ export function ResizableProductsTable({
     router.refresh();
   }
 
+  async function downloadSelectedListingXlsx() {
+    if (!selectedCount) {
+      setBulkMessage("XLSX로 받을 상품을 하나 이상 선택해 주세요.");
+      return;
+    }
+
+    setExportLoading(true);
+    setBulkMessage("");
+
+    const response = await fetch("/api/listing-upload/inventory/export", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ productIds: selectedProductIds }),
+    });
+
+    if (!response.ok) {
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+      setExportLoading(false);
+      setBulkMessage(data?.error ?? "이베이 업로드 XLSX 다운로드에 실패했습니다.");
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "ebay-category-listing-upload.xlsx";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    setExportLoading(false);
+  }
+
   return (
     <div className="space-y-3">
       <section className="rounded-lg border border-zinc-200 bg-white p-3">
@@ -320,6 +357,15 @@ export function ResizableProductsTable({
               className="h-8 rounded-md border border-zinc-300 px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
             >
               컬럼 초기화
+            </button>
+            <button
+              type="button"
+              onClick={() => void downloadSelectedListingXlsx()}
+              disabled={exportLoading || !selectedCount}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-emerald-700 bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
+            >
+              <Download className="h-3.5 w-3.5" />
+              {exportLoading ? "XLSX 준비 중" : "이베이 XLSX"}
             </button>
             <button
               type="button"
