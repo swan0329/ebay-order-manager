@@ -8,6 +8,9 @@ import { safeLog } from "@/lib/safe-log";
 export const sellInventoryScope = "https://api.ebay.com/oauth/api_scope/sell.inventory";
 export const sellAccountReadonlyScope =
   "https://api.ebay.com/oauth/api_scope/sell.account.readonly";
+export const sellMarketingScope = "https://api.ebay.com/oauth/api_scope/sell.marketing";
+export const sellMarketingReadonlyScope =
+  "https://api.ebay.com/oauth/api_scope/sell.marketing.readonly";
 
 type EbayApiRequestInput = {
   method?: string;
@@ -33,11 +36,11 @@ async function parseEbayResponse(response: Response) {
   }
 }
 
-export function accountHasScope(account: EbayAccount, scope: string) {
+export function accountHasScope(account: Pick<EbayAccount, "scopes">, scope: string) {
   return account.scopes.split(/\s+/).includes(scope);
 }
 
-export async function getActiveEbayInventoryAccount(userId: string) {
+export async function getActiveEbayAccount(userId: string) {
   const account = await prisma.ebayAccount.findFirst({
     where: { userId, environment: currentEbayEnvironment() },
     orderBy: { updatedAt: "desc" },
@@ -46,6 +49,12 @@ export async function getActiveEbayInventoryAccount(userId: string) {
   if (!account) {
     throw new Error("eBay 계정이 연결되어 있지 않습니다.");
   }
+
+  return account;
+}
+
+export async function getActiveEbayInventoryAccount(userId: string) {
+  const account = await getActiveEbayAccount(userId);
 
   if (!accountHasScope(account, sellInventoryScope)) {
     throw new Error(
@@ -57,11 +66,26 @@ export async function getActiveEbayInventoryAccount(userId: string) {
 }
 
 export async function getActiveEbayAccountPolicyAccount(userId: string) {
-  const account = await getActiveEbayInventoryAccount(userId);
+  const account = await getActiveEbayAccount(userId);
 
   if (!accountHasScope(account, sellAccountReadonlyScope)) {
     throw new Error(
       "eBay 정책 조회 권한이 없습니다. eBay 연결을 다시 진행해 sell.account.readonly 권한을 승인해야 합니다.",
+    );
+  }
+
+  return account;
+}
+
+export async function getActiveEbayMarketingAccount(userId: string, write = false) {
+  const account = await getActiveEbayInventoryAccount(userId);
+  const requiredScope = write ? sellMarketingScope : sellMarketingReadonlyScope;
+
+  if (!accountHasScope(account, requiredScope)) {
+    throw new Error(
+      write
+        ? "eBay Marketing API write permission is missing. Reconnect eBay with sell.marketing scope."
+        : "eBay Marketing API read permission is missing. Reconnect eBay with sell.marketing.readonly scope.",
     );
   }
 

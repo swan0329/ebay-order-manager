@@ -1,6 +1,8 @@
 import {
+  accountHasScope,
   ebayApiRequest,
   getActiveEbayAccountPolicyAccount,
+  sellInventoryScope,
 } from "@/lib/services/ebayApiService";
 
 type PolicyRecord = Record<string, unknown>;
@@ -29,6 +31,11 @@ function simplifyLocation(location: PolicyRecord) {
 
 export async function getSellerListingPolicies(userId: string, marketplaceId = "EBAY_US") {
   const account = await getActiveEbayAccountPolicyAccount(userId);
+  const locationRequest = accountHasScope(account, sellInventoryScope)
+    ? ebayApiRequest(account, {
+        path: "/sell/inventory/v1/location",
+      })
+    : Promise.resolve(null);
   const [payment, fulfillment, returns, locations] = await Promise.all([
     ebayApiRequest(account, {
       path: "/sell/account/v1/payment_policy",
@@ -45,18 +52,17 @@ export async function getSellerListingPolicies(userId: string, marketplaceId = "
       query: { marketplace_id: marketplaceId },
       contentLanguage: "en-US",
     }),
-    ebayApiRequest(account, {
-      path: "/sell/inventory/v1/location",
-    }),
+    locationRequest,
   ]);
 
   const paymentBody = payment.body as { paymentPolicies?: PolicyRecord[] } | null;
   const fulfillmentBody = fulfillment.body as { fulfillmentPolicies?: PolicyRecord[] } | null;
   const returnBody = returns.body as { returnPolicies?: PolicyRecord[] } | null;
-  const locationBody = locations.body as { locations?: PolicyRecord[] } | null;
+  const locationBody = locations?.body as { locations?: PolicyRecord[] } | null;
 
   return {
     marketplaceId,
+    inventoryLocationsSkipped: !locations,
     paymentPolicies:
       paymentBody?.paymentPolicies?.map((policy) =>
         simplifyPolicy(policy, "paymentPolicyId"),
