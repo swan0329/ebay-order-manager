@@ -343,35 +343,19 @@ export default async function OrdersPage({
     to: params.to,
   });
   const filteredWhere = withInventoryWhere(where, params.inventory);
-  const shortageCountPromise = countShortageOrders(sqlConditions);
-  const [
-    totalFiltered,
-    openCount,
-    fulfilledCount,
-    failedShipments,
-    shortageCount,
-    warningCount,
-  ] = await Promise.all([
+  const totalFiltered = await (
     params.inventory === "shortage"
-      ? shortageCountPromise
-      : prisma.order.count({ where: filteredWhere }),
-    prisma.order.count({
-      where: {
-        userId: user.id,
-        fulfillmentStatus: { in: ["NOT_STARTED", "IN_PROGRESS"] },
-      },
-    }),
-    prisma.order.count({
-      where: { userId: user.id, fulfillmentStatus: "FULFILLED" },
-    }),
-    prisma.shipment.count({
-      where: { order: { userId: user.id }, status: "FAILED" },
-    }),
-    shortageCountPromise,
-    prisma.order.count({
-      where: { AND: [where, { warningLevel: { not: "none" } }] },
-    }),
-  ]);
+      ? countShortageOrders(sqlConditions)
+      : prisma.order.count({ where: filteredWhere })
+  );
+  const openCount =
+    (status === "OPEN" || !status) && !q && !params.from && !params.to && !params.inventory
+      ? totalFiltered
+      : null;
+  const fulfilledCount = status === "FULFILLED" ? totalFiltered : null;
+  const failedShipments = null;
+  const shortageCount = params.inventory === "shortage" ? totalFiltered : null;
+  const warningCount = params.inventory === "warning" ? totalFiltered : null;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
   const currentPage = Math.min(requestedPage, totalPages);
   const skip = (currentPage - 1) * pageSize;
@@ -418,7 +402,7 @@ export default async function OrdersPage({
               <PackageOpen className="h-5 w-5 text-amber-600" />
             </div>
             <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              {openCount}
+              {openCount ?? "-"}
             </p>
           </div>
           <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -427,7 +411,7 @@ export default async function OrdersPage({
               <PackageCheck className="h-5 w-5 text-emerald-600" />
             </div>
             <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              {fulfilledCount}
+              {fulfilledCount ?? "-"}
             </p>
           </div>
           <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -436,7 +420,7 @@ export default async function OrdersPage({
               <Truck className="h-5 w-5 text-rose-600" />
             </div>
             <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              {failedShipments}
+              {failedShipments ?? "-"}
             </p>
           </div>
           <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -445,7 +429,7 @@ export default async function OrdersPage({
               <AlertTriangle className="h-5 w-5 text-rose-600" />
             </div>
             <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              {shortageCount}
+              {shortageCount ?? "-"}
             </p>
           </div>
           <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -454,7 +438,7 @@ export default async function OrdersPage({
               <AlertTriangle className="h-5 w-5 text-amber-600" />
             </div>
             <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              {warningCount}
+              {warningCount ?? "-"}
             </p>
           </div>
         </section>

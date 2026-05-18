@@ -68,13 +68,7 @@ export default async function ProductsPage({
   const pageSize = parsePageSize(params.pageSize);
   const requestedPage = Math.max(1, Number(params.page) || 1);
   const where = productWhere(params);
-  const [totalFiltered, totalCount, inStockCount, soldOutCount] =
-    await Promise.all([
-      prisma.product.count({ where }),
-      prisma.product.count(),
-      prisma.product.count({ where: productWhere({ stock: "in_stock" }) }),
-      prisma.product.count({ where: productWhere({ stock: "sold_out" }) }),
-    ]);
+  const totalFiltered = await prisma.product.count({ where });
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
   const currentPage = Math.min(requestedPage, totalPages);
   const products = await prisma.product.findMany({
@@ -100,20 +94,6 @@ export default async function ProductsPage({
       uploadError: true,
       lastUploadedAt: true,
       updatedAt: true,
-      listingDrafts: {
-        where: { userId: user.id },
-        select: { status: true, updatedAt: true },
-        orderBy: { updatedAt: "desc" },
-        take: 3,
-      },
-      listingLinks: {
-        select: {
-          listingStatus: true,
-          ebayItemId: true,
-          offerId: true,
-          lastUploadedAt: true,
-        },
-      },
     },
     orderBy: { sku: "asc" },
     skip: (currentPage - 1) * pageSize,
@@ -190,7 +170,7 @@ export default async function ProductsPage({
               <PackageOpen className="h-5 w-5 text-zinc-700" />
             </div>
             <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              {totalCount}
+              {totalFiltered}
             </p>
           </Link>
           <Link
@@ -203,7 +183,7 @@ export default async function ProductsPage({
               <PackageCheck className="h-5 w-5 text-emerald-600" />
             </div>
             <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              {inStockCount}
+              -
             </p>
           </Link>
           <Link
@@ -216,7 +196,7 @@ export default async function ProductsPage({
               <AlertTriangle className="h-5 w-5 text-rose-600" />
             </div>
             <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              {soldOutCount}
+              -
             </p>
           </Link>
         </section>
