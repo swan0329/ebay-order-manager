@@ -1,4 +1,4 @@
-import type { Prisma } from "@/generated/prisma";
+import { Prisma } from "@/generated/prisma";
 import { AlertTriangle, PackageCheck, PackageOpen, Truck } from "lucide-react";
 import { OrdersControls } from "@/components/OrdersControls";
 import { OrdersPager } from "@/components/OrdersPager";
@@ -87,27 +87,8 @@ type OrderWithInventory = Prisma.OrderGetPayload<{
   include: { items: { include: { product: true } }; shipments: true };
 }>;
 
-type ShortageOrder = {
-  id: string;
-  items: {
-    quantity: number;
-    stockDeducted: boolean;
-    product: { stockQuantity: number } | null;
-  }[];
-};
-
-function hasInventoryShortage(order: ShortageOrder) {
-  return order.items.some(
-    (item) =>
-      !item.stockDeducted &&
-      item.product &&
-      item.product.stockQuantity < item.quantity,
-  );
-}
-
 function inventoryWhere(
   inventory?: string,
-  shortageOrderIds?: string[],
 ): Prisma.OrderWhereInput | undefined {
   if (inventory === "unmatched") {
     return { items: { some: { productId: null } } };
@@ -121,39 +102,113 @@ function inventoryWhere(
     return { warningLevel: { not: "none" } };
   }
 
-  if (inventory === "shortage") {
-    return { id: { in: shortageOrderIds ?? [] } };
-  }
-
   return undefined;
 }
 
-function withInventoryWhere(
-  where: Prisma.OrderWhereInput,
-  inventory?: string,
-  shortageOrderIds?: string[],
-) {
-  const filter = inventoryWhere(inventory, shortageOrderIds);
+function withInventoryWhere(where: Prisma.OrderWhereInput, inventory?: string) {
+  const filter = inventoryWhere(inventory);
 
   return filter ? { AND: [where, filter] } : where;
 }
 
-async function shortageOrderIds(where: Prisma.OrderWhereInput) {
-  const orders = await prisma.order.findMany({
-    where,
-    select: {
-      id: true,
-      items: {
-        select: {
-          quantity: true,
-          stockDeducted: true,
-          product: { select: { stockQuantity: true } },
-        },
-      },
-    },
-  });
+function orderSqlConditions({
+  userId,
+  q,
+  status,
+  from,
+  to,
+}: {
+  userId: string;
+  q?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+}) {
+  const conditions: Prisma.Sql[] = [Prisma.sql`o."user_id" = ${userId}`];
 
-  return orders.filter(hasInventoryShortage).map((order) => order.id);
+  if (from) {
+    conditions.push(Prisma.sql`o."order_date" >= ${new Date(`${from}T00:00:00.000`)}`);
+  }
+
+  if (to) {
+    conditions.push(Prisma.sql`o."order_date" <= ${new Date(`${to}T23:59:59.999`)}`);
+  }
+
+  if (status === "OPEN" || !status) {
+    conditions.push(
+      Prisma.sql`o."fulfillment_status" IN (${Prisma.join([
+        "NOT_STARTED",
+        "IN_PROGRESS",
+      ])})`,
+    );
+  } else if (status !== "ALL") {
+    conditions.push(Prisma.sql`o."fulfillment_status" = ${status}`);
+  }
+
+  if (q) {
+    const pattern = `%${q}%`;
+    conditions.push(Prisma.sql`(
+      o."ebay_order_id" ILIKE ${pattern}
+      OR o."buyer_name" ILIKE ${pattern}
+      OR o."buyer_username" ILIKE ${pattern}
+      OR EXISTS (
+        SELECT 1
+        FROM "order_items" oi_search
+        LEFT JOIN "products" p_search ON p_search."id" = oi_search."product_id"
+        WHERE oi_search."order_id" = o."id"
+          AND (
+            oi_search."title" ILIKE ${pattern}
+            OR oi_search."sku" ILIKE ${pattern}
+            OR p_search."sku" ILIKE ${pattern}
+            OR p_search."product_name" ILIKE ${pattern}
+          )
+      )
+    )`);
+  }
+
+  return conditions;
+}
+
+function orderWhereSql(conditions: Prisma.Sql[]) {
+  return Prisma.sql`WHERE ${Prisma.join(conditions, " AND ")}`;
+}
+
+function shortageSqlCondition() {
+  return Prisma.sql`EXISTS (
+    SELECT 1
+    FROM "order_items" oi_shortage
+    JOIN "products" p_shortage ON p_shortage."id" = oi_shortage."product_id"
+    WHERE oi_shortage."order_id" = o."id"
+      AND oi_shortage."stock_deducted" = false
+      AND p_shortage."stock_quantity" < oi_shortage."quantity"
+  )`;
+}
+
+async function countShortageOrders(conditions: Prisma.Sql[]) {
+  const rows = await prisma.$queryRaw<{ count: bigint }[]>`
+    SELECT COUNT(*)::bigint AS "count"
+    FROM "orders" o
+    ${orderWhereSql([...conditions, shortageSqlCondition()])}
+  `;
+
+  return Number(rows[0]?.count ?? 0);
+}
+
+async function shortageOrderPageIds(
+  conditions: Prisma.Sql[],
+  skip: number,
+  take: number,
+) {
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT o."id"
+    FROM "orders" o
+    ${orderWhereSql([...conditions, shortageSqlCondition()])}
+    ORDER BY o."order_date" DESC, o."id" DESC
+    OFFSET ${skip}
+    LIMIT ${take}
+  `;
+
+  return rows.map((row) => row.id);
 }
 
 function uniqueStrings(values: (string | null | undefined)[]) {
@@ -238,18 +293,26 @@ export default async function OrdersPage({
   const pageSize = parsePageSize(params.pageSize);
   const requestedPage = Math.max(1, Number(params.page) || 1);
   const where = orderWhere(user.id, q, status, params.from, params.to);
-  const shortageIds =
-    params.inventory === "shortage" ? await shortageOrderIds(where) : undefined;
-  const filteredWhere = withInventoryWhere(where, params.inventory, shortageIds);
+  const sqlConditions = orderSqlConditions({
+    userId: user.id,
+    q,
+    status,
+    from: params.from,
+    to: params.to,
+  });
+  const filteredWhere = withInventoryWhere(where, params.inventory);
+  const shortageCountPromise = countShortageOrders(sqlConditions);
   const [
     totalFiltered,
     openCount,
     fulfilledCount,
     failedShipments,
-    shortageIdsForStats,
+    shortageCount,
     warningCount,
   ] = await Promise.all([
-    prisma.order.count({ where: filteredWhere }),
+    params.inventory === "shortage"
+      ? shortageCountPromise
+      : prisma.order.count({ where: filteredWhere }),
     prisma.order.count({
       where: {
         userId: user.id,
@@ -262,23 +325,43 @@ export default async function OrdersPage({
     prisma.shipment.count({
       where: { order: { userId: user.id }, status: "FAILED" },
     }),
-    shortageOrderIds(where),
+    shortageCountPromise,
     prisma.order.count({
       where: { AND: [where, { warningLevel: { not: "none" } }] },
     }),
   ]);
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
   const currentPage = Math.min(requestedPage, totalPages);
-  const rawOrders = await prisma.order.findMany({
-    where: filteredWhere,
-    include: { items: { include: { product: true } }, shipments: true },
-    orderBy: { orderDate: "desc" },
-    skip: (currentPage - 1) * pageSize,
-    take: pageSize,
-  });
+  const skip = (currentPage - 1) * pageSize;
+  const rawOrders =
+    params.inventory === "shortage"
+      ? await (async () => {
+          const ids = await shortageOrderPageIds(sqlConditions, skip, pageSize);
+
+          if (!ids.length) {
+            return [];
+          }
+
+          const orderPosition = new Map(ids.map((id, index) => [id, index]));
+          const orders = await prisma.order.findMany({
+            where: { id: { in: ids } },
+            include: { items: { include: { product: true } }, shipments: true },
+          });
+
+          return orders.sort(
+            (left, right) =>
+              (orderPosition.get(left.id) ?? 0) - (orderPosition.get(right.id) ?? 0),
+          );
+        })()
+      : await prisma.order.findMany({
+          where: filteredWhere,
+          include: { items: { include: { product: true } }, shipments: true },
+          orderBy: [{ orderDate: "desc" }, { id: "desc" }],
+          skip,
+          take: pageSize,
+        });
   const orderRows = rawOrders.map(toOrderListRow);
-  const shortageCount = shortageIdsForStats.length;
-  const start = totalFiltered ? (currentPage - 1) * pageSize + 1 : 0;
+  const start = totalFiltered ? skip + 1 : 0;
   const end = totalFiltered ? start + rawOrders.length - 1 : 0;
 
   return (

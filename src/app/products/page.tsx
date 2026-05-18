@@ -12,7 +12,6 @@ import {
 } from "@/lib/listing-upload-status";
 import { productWhere } from "@/lib/products";
 import { prisma } from "@/lib/prisma";
-import { ensureProductImageMatchColumns } from "@/lib/services/productImageMatchService";
 import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -68,7 +67,6 @@ export default async function ProductsPage({
   const params = await searchParams;
   const pageSize = parsePageSize(params.pageSize);
   const requestedPage = Math.max(1, Number(params.page) || 1);
-  await ensureProductImageMatchColumns();
   const where = productWhere(params);
   const [totalFiltered, totalCount, inStockCount, soldOutCount] =
     await Promise.all([
