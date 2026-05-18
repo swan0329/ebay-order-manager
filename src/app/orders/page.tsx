@@ -27,7 +27,7 @@ const pageSizeOptions = [25, 50, 100, 200];
 
 function parsePageSize(value?: string) {
   const parsed = Number(value);
-  return pageSizeOptions.includes(parsed) ? parsed : 50;
+  return pageSizeOptions.includes(parsed) ? parsed : 25;
 }
 
 function dateRange(from?: string, to?: string) {

@@ -27,11 +27,11 @@ type ProductsSearchParams = Promise<{
   pageSize?: string;
 }>;
 
-const pageSizeOptions = [50, 100, 200, 500, 1000, 2000];
+const pageSizeOptions = [25, 50, 100, 200, 500, 1000, 2000];
 
 function parsePageSize(value?: string) {
   const parsed = Number(value);
-  return pageSizeOptions.includes(parsed) ? parsed : 100;
+  return pageSizeOptions.includes(parsed) ? parsed : 25;
 }
 
 function statsHref(pageSize: number, stock?: "in_stock" | "sold_out") {
@@ -41,7 +41,7 @@ function statsHref(pageSize: number, stock?: "in_stock" | "sold_out") {
     params.set("stock", stock);
   }
 
-  if (pageSize !== 100) {
+  if (pageSize !== 25) {
     params.set("pageSize", String(pageSize));
   }
 
