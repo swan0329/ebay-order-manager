@@ -7,7 +7,6 @@ import {
   type OrderListRow,
 } from "@/components/ResizableOrdersTable";
 import { TopNav } from "@/components/TopNav";
-import { orderItemImageUrlFromRaw } from "@/lib/order-images";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 
@@ -23,11 +22,11 @@ type OrdersSearchParams = Promise<{
   pageSize?: string;
 }>;
 
-const pageSizeOptions = [25, 50, 100, 200];
+const pageSizeOptions = [10, 25, 50, 100, 200];
 
 function parsePageSize(value?: string) {
   const parsed = Number(value);
-  return pageSizeOptions.includes(parsed) ? parsed : 25;
+  return pageSizeOptions.includes(parsed) ? parsed : 10;
 }
 
 function dateRange(from?: string, to?: string) {
@@ -107,7 +106,6 @@ const orderListSelect = {
       stockDeducted: true,
       matchedBy: true,
       matchScore: true,
-      rawJson: true,
       product: {
         select: {
           sku: true,
@@ -300,7 +298,7 @@ function toOrderListRow(order: OrderWithInventory): OrderListRow {
     warningLevel: order.warningLevel,
     warningMessage: order.warningMessage,
     itemImages: order.items.map((item) => ({
-      src: orderItemImageUrlFromRaw(item.rawJson) ?? item.product?.imageUrl ?? null,
+      src: item.product?.imageUrl ?? null,
       title: item.title,
       sku: item.sku,
       productSku: item.product?.sku ?? null,
