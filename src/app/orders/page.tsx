@@ -29,127 +29,38 @@ function parsePageSize(value?: string) {
   return pageSizeOptions.includes(parsed) ? parsed : 10;
 }
 
-function dateRange(from?: string, to?: string) {
-  if (!from && !to) {
-    return undefined;
-  }
-
-  return {
-    ...(from ? { gte: new Date(`${from}T00:00:00.000`) } : {}),
-    ...(to ? { lte: new Date(`${to}T23:59:59.999`) } : {}),
-  };
-}
-
-function orderWhere(
-  userId: string,
-  q?: string,
-  status?: string,
-  from?: string,
-  to?: string,
-): Prisma.OrderWhereInput {
-  const range = dateRange(from, to);
-  const where: Prisma.OrderWhereInput = {
-    userId,
-    ...(range ? { orderDate: range } : {}),
-  };
-
-  if (status === "OPEN" || !status) {
-    where.fulfillmentStatus = { in: ["NOT_STARTED", "IN_PROGRESS"] };
-  } else if (status !== "ALL") {
-    where.fulfillmentStatus = status;
-  }
-
-  if (q) {
-    where.OR = [
-      { ebayOrderId: { contains: q, mode: "insensitive" } },
-      { buyerName: { contains: q, mode: "insensitive" } },
-      { buyerUsername: { contains: q, mode: "insensitive" } },
-      {
-        items: {
-          some: {
-            OR: [
-              { title: { contains: q, mode: "insensitive" } },
-              { sku: { contains: q, mode: "insensitive" } },
-              { product: { sku: { contains: q, mode: "insensitive" } } },
-              { product: { productName: { contains: q, mode: "insensitive" } } },
-            ],
-          },
-        },
-      },
-    ];
-  }
-
-  return where;
-}
-
-const orderListSelect = {
-  id: true,
-  ebayOrderId: true,
-  buyerName: true,
-  buyerUsername: true,
-  buyerCountry: true,
-  paidAt: true,
-  orderDate: true,
-  fulfillmentStatus: true,
-  totalAmount: true,
-  currency: true,
-  tags: true,
-  warningLevel: true,
-  warningMessage: true,
+type OrderWithInventory = {
+  id: string;
+  ebayOrderId: string;
+  buyerName: string | null;
+  buyerUsername: string | null;
+  buyerCountry: string | null;
+  paidAt: Date | null;
+  orderDate: Date;
+  fulfillmentStatus: string;
+  totalAmount: { toString(): string };
+  currency: string;
+  tags: string[];
+  warningLevel: string;
+  warningMessage: string | null;
   items: {
-    select: {
-      productId: true,
-      lineItemId: true,
-      title: true,
-      sku: true,
-      quantity: true,
-      stockDeducted: true,
-      matchedBy: true,
-      matchScore: true,
-      product: {
-        select: {
-          sku: true,
-          productName: true,
-          stockQuantity: true,
-          imageUrl: true,
-        },
-      },
-    },
-  },
-  shipments: {
-    select: {
-      trackingNumber: true,
-    },
-  },
-} satisfies Prisma.OrderSelect;
-
-type OrderWithInventory = Prisma.OrderGetPayload<{
-  select: typeof orderListSelect;
-}>;
-
-function inventoryWhere(
-  inventory?: string,
-): Prisma.OrderWhereInput | undefined {
-  if (inventory === "unmatched") {
-    return { items: { some: { productId: null } } };
-  }
-
-  if (inventory === "deducted") {
-    return { items: { some: { stockDeducted: true } } };
-  }
-
-  if (inventory === "warning") {
-    return { warningLevel: { not: "none" } };
-  }
-
-  return undefined;
-}
-
-function withInventoryWhere(where: Prisma.OrderWhereInput, inventory?: string) {
-  const filter = inventoryWhere(inventory);
-
-  return filter ? { AND: [where, filter] } : where;
-}
+    productId: string | null;
+    lineItemId: string;
+    title: string;
+    sku: string | null;
+    quantity: number;
+    stockDeducted: boolean;
+    matchedBy: string | null;
+    matchScore: number | null;
+    product: {
+      sku: string;
+      productName: string;
+      stockQuantity: number;
+      imageUrl: string | null;
+    } | null;
+  }[];
+  shipments: { trackingNumber: string }[];
+};
 
 function orderSqlConditions({
   userId,
@@ -224,21 +135,124 @@ function shortageSqlCondition() {
   )`;
 }
 
-async function shortageOrderPageIds(
+function inventorySqlCondition(inventory?: string) {
+  if (inventory === "unmatched") {
+    return Prisma.sql`EXISTS (
+      SELECT 1
+      FROM "order_items" oi_unmatched
+      WHERE oi_unmatched."order_id" = o."id"
+        AND oi_unmatched."product_id" IS NULL
+    )`;
+  }
+
+  if (inventory === "deducted") {
+    return Prisma.sql`EXISTS (
+      SELECT 1
+      FROM "order_items" oi_deducted
+      WHERE oi_deducted."order_id" = o."id"
+        AND oi_deducted."stock_deducted" = true
+    )`;
+  }
+
+  if (inventory === "warning") {
+    return Prisma.sql`o."warning_level" <> 'none'`;
+  }
+
+  if (inventory === "shortage") {
+    return shortageSqlCondition();
+  }
+
+  return null;
+}
+
+async function orderListRows(
   conditions: Prisma.Sql[],
+  inventory: string | undefined,
   skip: number,
   take: number,
 ) {
-  const rows = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT o."id"
-    FROM "orders" o
-    ${orderWhereSql([...conditions, shortageSqlCondition()])}
-    ORDER BY o."order_date" DESC, o."id" DESC
-    OFFSET ${skip}
-    LIMIT ${take}
-  `;
+  const inventoryCondition = inventorySqlCondition(inventory);
+  const whereConditions = inventoryCondition
+    ? [...conditions, inventoryCondition]
+    : conditions;
 
-  return rows.map((row) => row.id);
+  return prisma.$queryRaw<OrderWithInventory[]>`
+    WITH page_orders AS (
+      SELECT
+        o."id",
+        o."ebay_order_id",
+        o."buyer_name",
+        o."buyer_username",
+        o."buyer_country",
+        o."paid_at",
+        o."order_date",
+        o."fulfillment_status",
+        o."total_amount",
+        o."currency",
+        o."tags",
+        o."warning_level",
+        o."warning_message"
+      FROM "orders" o
+      ${orderWhereSql(whereConditions)}
+      ORDER BY o."order_date" DESC, o."id" DESC
+      OFFSET ${skip}
+      LIMIT ${take}
+    )
+    SELECT
+      po."id",
+      po."ebay_order_id" AS "ebayOrderId",
+      po."buyer_name" AS "buyerName",
+      po."buyer_username" AS "buyerUsername",
+      po."buyer_country" AS "buyerCountry",
+      po."paid_at" AS "paidAt",
+      po."order_date" AS "orderDate",
+      po."fulfillment_status" AS "fulfillmentStatus",
+      po."total_amount" AS "totalAmount",
+      po."currency",
+      po."tags",
+      po."warning_level" AS "warningLevel",
+      po."warning_message" AS "warningMessage",
+      COALESCE(order_items."items", '[]'::jsonb) AS "items",
+      COALESCE(order_shipments."shipments", '[]'::jsonb) AS "shipments"
+    FROM page_orders po
+    LEFT JOIN LATERAL (
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'productId', oi."product_id",
+          'lineItemId', oi."line_item_id",
+          'title', oi."title",
+          'sku', oi."sku",
+          'quantity', oi."quantity",
+          'stockDeducted', oi."stock_deducted",
+          'matchedBy', oi."matched_by",
+          'matchScore', oi."match_score",
+          'product',
+            CASE
+              WHEN p."id" IS NULL THEN NULL
+              ELSE jsonb_build_object(
+                'sku', p."sku",
+                'productName', p."product_name",
+                'stockQuantity', p."stock_quantity",
+                'imageUrl', p."image_url"
+              )
+            END
+        )
+        ORDER BY oi."created_at" ASC, oi."id" ASC
+      ) AS "items"
+      FROM "order_items" oi
+      LEFT JOIN "products" p ON p."id" = oi."product_id"
+      WHERE oi."order_id" = po."id"
+    ) order_items ON true
+    LEFT JOIN LATERAL (
+      SELECT jsonb_agg(
+        jsonb_build_object('trackingNumber', s."tracking_number")
+        ORDER BY s."created_at" ASC, s."id" ASC
+      ) AS "shipments"
+      FROM "shipments" s
+      WHERE s."order_id" = po."id"
+    ) order_shipments ON true
+    ORDER BY po."order_date" DESC, po."id" DESC
+  `;
 }
 
 function uniqueStrings(values: (string | null | undefined)[]) {
@@ -322,7 +336,6 @@ export default async function OrdersPage({
   const status = params.status ?? "OPEN";
   const pageSize = parsePageSize(params.pageSize);
   const requestedPage = Math.max(1, Number(params.page) || 1);
-  const where = orderWhere(user.id, q, status, params.from, params.to);
   const sqlConditions = orderSqlConditions({
     userId: user.id,
     q,
@@ -330,38 +343,16 @@ export default async function OrdersPage({
     from: params.from,
     to: params.to,
   });
-  const filteredWhere = withInventoryWhere(where, params.inventory);
   const openCount = null;
   const failedShipments = null;
   const currentPage = requestedPage;
   const skip = (currentPage - 1) * pageSize;
-  const fetchedOrders =
-    params.inventory === "shortage"
-      ? await (async () => {
-          const ids = await shortageOrderPageIds(sqlConditions, skip, pageSize + 1);
-
-          if (!ids.length) {
-            return [];
-          }
-
-          const orderPosition = new Map(ids.map((id, index) => [id, index]));
-          const orders = await prisma.order.findMany({
-            where: { id: { in: ids } },
-            select: orderListSelect,
-          });
-
-          return orders.sort(
-            (left, right) =>
-              (orderPosition.get(left.id) ?? 0) - (orderPosition.get(right.id) ?? 0),
-          );
-        })()
-      : await prisma.order.findMany({
-          where: filteredWhere,
-          select: orderListSelect,
-          orderBy: [{ orderDate: "desc" }, { id: "desc" }],
-          skip,
-          take: pageSize + 1,
-        });
+  const fetchedOrders = await orderListRows(
+    sqlConditions,
+    params.inventory,
+    skip,
+    pageSize + 1,
+  );
   const hasNextPage = fetchedOrders.length > pageSize;
   const rawOrders = fetchedOrders.slice(0, pageSize);
   const totalFiltered = skip + rawOrders.length + (hasNextPage ? 1 : 0);
