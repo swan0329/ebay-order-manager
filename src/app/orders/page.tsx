@@ -87,7 +87,16 @@ type OrderWithInventory = Prisma.OrderGetPayload<{
   include: { items: { include: { product: true } }; shipments: true };
 }>;
 
-function hasInventoryShortage(order: OrderWithInventory) {
+type ShortageOrder = {
+  id: string;
+  items: {
+    quantity: number;
+    stockDeducted: boolean;
+    product: { stockQuantity: number } | null;
+  }[];
+};
+
+function hasInventoryShortage(order: ShortageOrder) {
   return order.items.some(
     (item) =>
       !item.stockDeducted &&
@@ -96,24 +105,55 @@ function hasInventoryShortage(order: OrderWithInventory) {
   );
 }
 
-function matchesInventoryFilter(order: OrderWithInventory, inventory?: string) {
+function inventoryWhere(
+  inventory?: string,
+  shortageOrderIds?: string[],
+): Prisma.OrderWhereInput | undefined {
   if (inventory === "unmatched") {
-    return order.items.some((item) => !item.productId);
-  }
-
-  if (inventory === "shortage") {
-    return hasInventoryShortage(order);
+    return { items: { some: { productId: null } } };
   }
 
   if (inventory === "deducted") {
-    return order.items.some((item) => item.stockDeducted);
+    return { items: { some: { stockDeducted: true } } };
   }
 
   if (inventory === "warning") {
-    return order.warningLevel !== "none";
+    return { warningLevel: { not: "none" } };
   }
 
-  return true;
+  if (inventory === "shortage") {
+    return { id: { in: shortageOrderIds ?? [] } };
+  }
+
+  return undefined;
+}
+
+function withInventoryWhere(
+  where: Prisma.OrderWhereInput,
+  inventory?: string,
+  shortageOrderIds?: string[],
+) {
+  const filter = inventoryWhere(inventory, shortageOrderIds);
+
+  return filter ? { AND: [where, filter] } : where;
+}
+
+async function shortageOrderIds(where: Prisma.OrderWhereInput) {
+  const orders = await prisma.order.findMany({
+    where,
+    select: {
+      id: true,
+      items: {
+        select: {
+          quantity: true,
+          stockDeducted: true,
+          product: { select: { stockQuantity: true } },
+        },
+      },
+    },
+  });
+
+  return orders.filter(hasInventoryShortage).map((order) => order.id);
 }
 
 function uniqueStrings(values: (string | null | undefined)[]) {
@@ -198,12 +238,18 @@ export default async function OrdersPage({
   const pageSize = parsePageSize(params.pageSize);
   const requestedPage = Math.max(1, Number(params.page) || 1);
   const where = orderWhere(user.id, q, status, params.from, params.to);
-  const [rawOrders, openCount, fulfilledCount, failedShipments] = await Promise.all([
-    prisma.order.findMany({
-      where,
-      include: { items: { include: { product: true } }, shipments: true },
-      orderBy: { orderDate: "desc" },
-    }),
+  const shortageIds =
+    params.inventory === "shortage" ? await shortageOrderIds(where) : undefined;
+  const filteredWhere = withInventoryWhere(where, params.inventory, shortageIds);
+  const [
+    totalFiltered,
+    openCount,
+    fulfilledCount,
+    failedShipments,
+    shortageIdsForStats,
+    warningCount,
+  ] = await Promise.all([
+    prisma.order.count({ where: filteredWhere }),
     prisma.order.count({
       where: {
         userId: user.id,
@@ -216,24 +262,24 @@ export default async function OrdersPage({
     prisma.shipment.count({
       where: { order: { userId: user.id }, status: "FAILED" },
     }),
+    shortageOrderIds(where),
+    prisma.order.count({
+      where: { AND: [where, { warningLevel: { not: "none" } }] },
+    }),
   ]);
-  const filteredOrders = rawOrders.filter((order) =>
-    matchesInventoryFilter(order, params.inventory),
-  );
-  const totalFiltered = filteredOrders.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
   const currentPage = Math.min(requestedPage, totalPages);
-  const orders = filteredOrders.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize,
-  );
-  const orderRows = orders.map(toOrderListRow);
-  const shortageCount = rawOrders.filter(hasInventoryShortage).length;
-  const warningCount = rawOrders.filter(
-    (order) => order.warningLevel !== "none",
-  ).length;
+  const rawOrders = await prisma.order.findMany({
+    where: filteredWhere,
+    include: { items: { include: { product: true } }, shipments: true },
+    orderBy: { orderDate: "desc" },
+    skip: (currentPage - 1) * pageSize,
+    take: pageSize,
+  });
+  const orderRows = rawOrders.map(toOrderListRow);
+  const shortageCount = shortageIdsForStats.length;
   const start = totalFiltered ? (currentPage - 1) * pageSize + 1 : 0;
-  const end = totalFiltered ? start + orders.length - 1 : 0;
+  const end = totalFiltered ? start + rawOrders.length - 1 : 0;
 
   return (
     <div className="min-h-screen bg-zinc-50">
