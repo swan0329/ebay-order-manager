@@ -9,6 +9,8 @@ const sessionTtlMs = 7 * 24 * 60 * 60 * 1000;
 
 type SessionPayload = {
   userId: string;
+  loginId?: string;
+  name?: string | null;
   role: "ADMIN";
 };
 
@@ -16,9 +18,18 @@ function sessionSecret() {
   return new TextEncoder().encode(requiredEnv("SESSION_SECRET"));
 }
 
-export async function createSession(userId: string) {
+export async function createSession(user: {
+  id: string;
+  loginId: string;
+  name?: string | null;
+}) {
   const expiresAt = new Date(Date.now() + sessionTtlMs);
-  const token = await new SignJWT({ userId, role: "ADMIN" } satisfies SessionPayload)
+  const token = await new SignJWT({
+    userId: user.id,
+    loginId: user.loginId,
+    name: user.name ?? null,
+    role: "ADMIN",
+  } satisfies SessionPayload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(Math.floor(expiresAt.getTime() / 1000))
@@ -52,7 +63,15 @@ export async function readSession(): Promise<SessionPayload | null> {
       return null;
     }
 
-    return { userId: payload.userId, role: "ADMIN" };
+    return {
+      userId: payload.userId,
+      loginId: typeof payload.loginId === "string" ? payload.loginId : undefined,
+      name:
+        typeof payload.name === "string" || payload.name === null
+          ? payload.name
+          : undefined,
+      role: "ADMIN",
+    };
   } catch {
     return null;
   }
@@ -63,6 +82,15 @@ export async function getCurrentUser() {
 
   if (!session) {
     return null;
+  }
+
+  if (session.loginId) {
+    return {
+      id: session.userId,
+      loginId: session.loginId,
+      name: session.name ?? null,
+      role: session.role,
+    };
   }
 
   return prisma.user.findUnique({

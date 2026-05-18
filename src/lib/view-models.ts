@@ -1,8 +1,19 @@
-import type { Order, OrderItem, Shipment } from "@/generated/prisma";
+import type { Shipment } from "@/generated/prisma";
 import type { ShippingOrder } from "@/components/BulkShippingClient";
 
-type OrderWithItems = Order & {
-  items: OrderItem[];
+type OrderWithItems = {
+  id: string;
+  ebayOrderId: string;
+  buyerName: string | null;
+  buyerUsername: string | null;
+  buyerCountry: string | null;
+  orderDate: Date;
+  fulfillmentStatus: string;
+  items: {
+    title: string;
+    sku: string | null;
+    quantity: number;
+  }[];
   shipments?: Shipment[];
 };
 

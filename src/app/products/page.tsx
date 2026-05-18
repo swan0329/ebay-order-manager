@@ -79,14 +79,41 @@ export default async function ProductsPage({
   const currentPage = Math.min(requestedPage, totalPages);
   const products = await prisma.product.findMany({
     where,
-    include: {
+    select: {
+      id: true,
+      sku: true,
+      internalCode: true,
+      productName: true,
+      optionName: true,
+      category: true,
+      brand: true,
+      costPrice: true,
+      salePrice: true,
+      stockQuantity: true,
+      safetyStock: true,
+      location: true,
+      memo: true,
+      imageUrl: true,
+      status: true,
+      listingStatus: true,
+      ebayItemId: true,
+      uploadError: true,
+      lastUploadedAt: true,
+      updatedAt: true,
       listingDrafts: {
         where: { userId: user.id },
         select: { status: true, updatedAt: true },
         orderBy: { updatedAt: "desc" },
         take: 3,
       },
-      listingLinks: true,
+      listingLinks: {
+        select: {
+          listingStatus: true,
+          ebayItemId: true,
+          offerId: true,
+          lastUploadedAt: true,
+        },
+      },
     },
     orderBy: { sku: "asc" },
     skip: (currentPage - 1) * pageSize,

@@ -13,7 +13,17 @@ export default async function ShippingPage() {
       userId: user.id,
       fulfillmentStatus: { in: ["NOT_STARTED", "IN_PROGRESS"] },
     },
-    include: { items: true, shipments: true },
+    select: {
+      id: true,
+      ebayOrderId: true,
+      buyerName: true,
+      buyerUsername: true,
+      buyerCountry: true,
+      orderDate: true,
+      fulfillmentStatus: true,
+      items: { select: { title: true, sku: true, quantity: true } },
+      shipments: true,
+    },
     orderBy: { orderDate: "desc" },
     take: 200,
   });

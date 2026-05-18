@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       return jsonError("로그인 ID 또는 비밀번호가 올바르지 않습니다.", 401);
     }
 
-    await createSession(user.id);
+    await createSession(user);
 
     return Response.json({
       user: { id: user.id, loginId: user.loginId, name: user.name, role: user.role },

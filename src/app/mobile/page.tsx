@@ -16,7 +16,17 @@ export default async function MobilePage() {
       fulfillmentStatus: { in: ["NOT_STARTED", "IN_PROGRESS"] },
       OR: [{ shipByDate: null }, { shipByDate: { gte: today } }],
     },
-    include: { items: true, shipments: true },
+    select: {
+      id: true,
+      ebayOrderId: true,
+      buyerName: true,
+      buyerUsername: true,
+      buyerCountry: true,
+      orderDate: true,
+      fulfillmentStatus: true,
+      items: { select: { title: true, sku: true, quantity: true } },
+      shipments: true,
+    },
     orderBy: [{ shipByDate: "asc" }, { orderDate: "desc" }],
     take: 100,
   });

@@ -83,8 +83,50 @@ function orderWhere(
   return where;
 }
 
+const orderListSelect = {
+  id: true,
+  ebayOrderId: true,
+  buyerName: true,
+  buyerUsername: true,
+  buyerCountry: true,
+  paidAt: true,
+  orderDate: true,
+  fulfillmentStatus: true,
+  totalAmount: true,
+  currency: true,
+  tags: true,
+  warningLevel: true,
+  warningMessage: true,
+  items: {
+    select: {
+      productId: true,
+      lineItemId: true,
+      title: true,
+      sku: true,
+      quantity: true,
+      stockDeducted: true,
+      matchedBy: true,
+      matchScore: true,
+      rawJson: true,
+      product: {
+        select: {
+          sku: true,
+          productName: true,
+          stockQuantity: true,
+          imageUrl: true,
+        },
+      },
+    },
+  },
+  shipments: {
+    select: {
+      trackingNumber: true,
+    },
+  },
+} satisfies Prisma.OrderSelect;
+
 type OrderWithInventory = Prisma.OrderGetPayload<{
-  include: { items: { include: { product: true } }; shipments: true };
+  select: typeof orderListSelect;
 }>;
 
 function inventoryWhere(
@@ -345,7 +387,7 @@ export default async function OrdersPage({
           const orderPosition = new Map(ids.map((id, index) => [id, index]));
           const orders = await prisma.order.findMany({
             where: { id: { in: ids } },
-            include: { items: { include: { product: true } }, shipments: true },
+            select: orderListSelect,
           });
 
           return orders.sort(
@@ -353,9 +395,9 @@ export default async function OrdersPage({
               (orderPosition.get(left.id) ?? 0) - (orderPosition.get(right.id) ?? 0),
           );
         })()
-      : await prisma.order.findMany({
+        : await prisma.order.findMany({
           where: filteredWhere,
-          include: { items: { include: { product: true } }, shipments: true },
+          select: orderListSelect,
           orderBy: [{ orderDate: "desc" }, { id: "desc" }],
           skip,
           take: pageSize,
