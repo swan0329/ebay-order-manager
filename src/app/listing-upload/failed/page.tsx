@@ -2,7 +2,10 @@ import { EbayEnvironmentBadge } from "@/components/EbayEnvironmentBadge";
 import { ListingDraftTable } from "@/components/ListingDraftTable";
 import { ListingUploadNav } from "@/components/ListingUploadNav";
 import { TopNav } from "@/components/TopNav";
-import { getEbayConnectionSummary } from "@/lib/services/ebayAccountService";
+import {
+  getCachedPolicies,
+  getEbayConnectionSummary,
+} from "@/lib/services/ebayAccountService";
 import { listDrafts } from "@/lib/services/listingDraftService";
 import { requireUser } from "@/lib/session";
 
@@ -14,6 +17,7 @@ function serializeDrafts(drafts: Awaited<ReturnType<typeof listDrafts>>) {
     price: draft.price?.toString() ?? null,
     minimumOfferPrice: draft.minimumOfferPrice?.toString() ?? null,
     autoAcceptPrice: draft.autoAcceptPrice?.toString() ?? null,
+    promotedAdRate: draft.promotedAdRate?.toString() ?? null,
     lastUploadedAt: draft.lastUploadedAt?.toISOString() ?? null,
     createdAt: draft.createdAt.toISOString(),
     updatedAt: draft.updatedAt.toISOString(),
@@ -22,9 +26,10 @@ function serializeDrafts(drafts: Awaited<ReturnType<typeof listDrafts>>) {
 
 export default async function ListingUploadFailedPage() {
   const user = await requireUser();
-  const [drafts, ebayConnection] = await Promise.all([
+  const [drafts, ebayConnection, cachedPolicies] = await Promise.all([
     listDrafts(user.id, "failed"),
     getEbayConnectionSummary(user.id),
+    getCachedPolicies(user.id),
   ]);
 
   return (
@@ -45,6 +50,23 @@ export default async function ListingUploadFailedPage() {
           drafts={serializeDrafts(drafts)}
           failedOnly
           ebayEnvironment={ebayConnection.environment}
+          canReadMarketing={ebayConnection.canReadMarketing}
+          canWriteMarketing={ebayConnection.canWriteMarketing}
+          policyOptions={{
+            paymentPolicies: cachedPolicies.policies
+              .filter((policy) => policy.policyType === "payment")
+              .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
+            fulfillmentPolicies: cachedPolicies.policies
+              .filter((policy) => policy.policyType === "fulfillment")
+              .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
+            returnPolicies: cachedPolicies.policies
+              .filter((policy) => policy.policyType === "return")
+              .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
+            inventoryLocations: cachedPolicies.locations.map((location) => ({
+              id: location.merchantLocationKey,
+              name: location.name ?? location.merchantLocationKey,
+            })),
+          }}
         />
       </main>
     </div>

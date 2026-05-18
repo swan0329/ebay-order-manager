@@ -47,6 +47,10 @@ const singleUploadSchema = z
     type: z.string().optional().nullable(),
     countryOfOrigin: z.string().optional().nullable(),
     customLabel: z.string().optional().nullable(),
+    promotedListingEnabled: z.union([z.boolean(), z.string()]).optional().nullable(),
+    promotedCampaignId: z.string().optional().nullable(),
+    promotedAdRate: z.union([z.string(), z.number()]).optional().nullable(),
+    promotedFundingModel: z.string().optional().nullable(),
   })
   .passthrough();
 
@@ -64,6 +68,7 @@ export async function POST(request: Request) {
       userId: user.id,
       checkImageUrls: true,
       checkOAuthScope: true,
+      checkCategoryAspects: true,
     });
 
     if (raw.previewOnly || raw.validateOnly) {

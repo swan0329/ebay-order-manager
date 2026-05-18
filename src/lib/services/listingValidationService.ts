@@ -6,6 +6,7 @@ import {
 } from "@/lib/services/ebayApiService";
 import type { ListingUploadInput } from "@/lib/services/inventoryService";
 import { currentEbayEnvironment } from "@/lib/ebay-environment";
+import { getCategoryAspects } from "@/lib/services/ebayTaxonomyService";
 
 export type ListingValidationIssue = {
   field: string;
@@ -105,12 +106,42 @@ async function validateInventoryScope(userId: string) {
   return [];
 }
 
+async function validateRequiredAspects(userId: string, input: ListingUploadInput) {
+  if (!input.categoryId) {
+    return [];
+  }
+
+  const { aspects } = await getCategoryAspects({
+    userId,
+    categoryId: input.categoryId,
+    marketplaceId: input.marketplaceId,
+  });
+  const issues: ListingValidationIssue[] = [];
+  const itemSpecifics = input.itemSpecifics ?? {};
+
+  for (const aspect of aspects.filter((entry) => entry.required)) {
+    const values = itemSpecifics[aspect.name] ?? [];
+
+    if (!values.length || values.every((value) => !String(value).trim())) {
+      issues.push(
+        issue(
+          `item_specifics.${aspect.name}`,
+          `Required eBay item specific is missing: ${aspect.name}`,
+        ),
+      );
+    }
+  }
+
+  return issues;
+}
+
 export async function validateListingUploadInput(
   input: ListingUploadInput,
   options?: {
     userId?: string;
     checkImageUrls?: boolean;
     checkOAuthScope?: boolean;
+    checkCategoryAspects?: boolean;
   },
 ): Promise<ListingValidationResult> {
   const issues: ListingValidationIssue[] = [];
@@ -140,6 +171,10 @@ export async function validateListingUploadInput(
 
   if (options?.checkOAuthScope && options.userId) {
     issues.push(...(await validateInventoryScope(options.userId)));
+  }
+
+  if (options?.checkCategoryAspects && options.userId && parsed.success) {
+    issues.push(...(await validateRequiredAspects(options.userId, input)));
   }
 
   return {

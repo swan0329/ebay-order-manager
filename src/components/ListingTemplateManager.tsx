@@ -33,6 +33,10 @@ type Template = {
   skuSettingsJson: unknown;
   titleTemplate: string | null;
   excludedLocationsJson: unknown;
+  promotedListingEnabled: boolean;
+  promotedCampaignId: string | null;
+  promotedAdRate: string | number | null;
+  promotedFundingModel: string | null;
   isDefault: boolean;
 };
 
@@ -84,6 +88,10 @@ type FormState = {
   autoGenerateSku: boolean;
   inventoryTrackingEnabled: boolean;
   outOfStockControl: boolean;
+  promotedListingEnabled: boolean;
+  promotedCampaignId: string;
+  promotedAdRate: string;
+  promotedFundingModel: string;
   isDefault: boolean;
 };
 
@@ -127,6 +135,10 @@ const emptyForm: FormState = {
   autoGenerateSku: false,
   inventoryTrackingEnabled: true,
   outOfStockControl: true,
+  promotedListingEnabled: false,
+  promotedCampaignId: "",
+  promotedAdRate: "2.0",
+  promotedFundingModel: "COST_PER_SALE",
   isDefault: false,
 };
 
@@ -200,6 +212,10 @@ function formFromTemplate(template: Template): FormState {
     autoGenerateSku: boolJsonValue(skuSettings, "autoGenerateSku"),
     inventoryTrackingEnabled: boolJsonValue(skuSettings, "inventoryTrackingEnabled", true),
     outOfStockControl: boolJsonValue(skuSettings, "outOfStockControl", true),
+    promotedListingEnabled: template.promotedListingEnabled,
+    promotedCampaignId: template.promotedCampaignId ?? "",
+    promotedAdRate: stringValue(template.promotedAdRate ?? "2.0"),
+    promotedFundingModel: template.promotedFundingModel ?? "COST_PER_SALE",
     isDefault: template.isDefault,
   };
 }
@@ -278,6 +294,10 @@ function formPayload(form: FormState) {
       inventoryTrackingEnabled: form.inventoryTrackingEnabled,
       outOfStockControl: form.outOfStockControl,
     },
+    promotedListingEnabled: form.promotedListingEnabled,
+    promotedCampaignId: form.promotedCampaignId,
+    promotedAdRate: form.promotedAdRate,
+    promotedFundingModel: form.promotedFundingModel,
     isDefault: form.isDefault,
   };
 }
@@ -334,6 +354,38 @@ function Checkbox({
         onChange={(event) => onChange(name, event.target.checked)}
       />
       {label}
+    </label>
+  );
+}
+
+function PolicySelect({
+  name,
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  name: keyof FormState;
+  label: string;
+  value: string;
+  options: PolicyOption[];
+  onChange: (name: keyof FormState, value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-medium text-zinc-600">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(name, event.target.value)}
+        className={fieldClass()}
+      >
+        <option value="">Select</option>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name} ({option.id})
+          </option>
+        ))}
+      </select>
     </label>
   );
 }
@@ -602,10 +654,15 @@ export function ListingTemplateManager({
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
-            <TextInput name="paymentPolicyId" label="payment_policy_id" value={form.paymentPolicyId} onChange={updateForm} list="payment-policy-options" />
-            <TextInput name="fulfillmentPolicyId" label="fulfillment_policy_id" value={form.fulfillmentPolicyId} onChange={updateForm} list="fulfillment-policy-options" />
-            <TextInput name="returnPolicyId" label="return_policy_id" value={form.returnPolicyId} onChange={updateForm} list="return-policy-options" />
-            <TextInput name="merchantLocationKey" label="merchant_location_key" value={form.merchantLocationKey} onChange={updateForm} list="location-options" />
+            <PolicySelect name="paymentPolicyId" label="payment_policy" value={form.paymentPolicyId} options={policies?.paymentPolicies ?? []} onChange={updateForm} />
+            <PolicySelect name="fulfillmentPolicyId" label="fulfillment_policy" value={form.fulfillmentPolicyId} options={policies?.fulfillmentPolicies ?? []} onChange={updateForm} />
+            <PolicySelect name="returnPolicyId" label="return_policy" value={form.returnPolicyId} options={policies?.returnPolicies ?? []} onChange={updateForm} />
+            <PolicySelect name="merchantLocationKey" label="merchant_location" value={form.merchantLocationKey} options={policies?.inventoryLocations ?? []} onChange={updateForm} />
+            {!policies ? (
+              <p className="md:col-span-2 text-xs text-zinc-500">
+                Click eBay policy load/sync before selecting policies.
+              </p>
+            ) : null}
           </div>
 
           <div className="grid gap-3 md:grid-cols-4">
@@ -649,6 +706,13 @@ export function ListingTemplateManager({
             <Checkbox name="autoGenerateSku" label="auto_generate_sku" checked={form.autoGenerateSku} onChange={updateForm} />
             <Checkbox name="inventoryTrackingEnabled" label="inventory_tracking" checked={form.inventoryTrackingEnabled} onChange={updateForm} />
             <Checkbox name="outOfStockControl" label="out_of_stock_control" checked={form.outOfStockControl} onChange={updateForm} />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-4">
+            <Checkbox name="promotedListingEnabled" label="promoted_listing" checked={form.promotedListingEnabled} onChange={updateForm} />
+            <TextInput name="promotedCampaignId" label="promoted_campaign_id" value={form.promotedCampaignId} onChange={updateForm} />
+            <TextInput name="promotedAdRate" label="promoted_ad_rate" value={form.promotedAdRate} onChange={updateForm} type="number" />
+            <TextInput name="promotedFundingModel" label="promoted_funding_model" value={form.promotedFundingModel} onChange={updateForm} />
           </div>
 
           <label className="block">

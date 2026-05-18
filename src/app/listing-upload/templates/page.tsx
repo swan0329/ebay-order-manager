@@ -24,6 +24,7 @@ export default async function ListingUploadTemplatesPage() {
     defaultPrice: template.defaultPrice?.toString() ?? null,
     minimumOfferPrice: template.minimumOfferPrice?.toString() ?? null,
     autoAcceptPrice: template.autoAcceptPrice?.toString() ?? null,
+    promotedAdRate: template.promotedAdRate?.toString() ?? null,
     createdAt: template.createdAt.toISOString(),
     updatedAt: template.updatedAt.toISOString(),
   }));

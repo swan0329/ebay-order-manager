@@ -2,6 +2,7 @@ import { Prisma, type ListingDraft } from "@/generated/prisma";
 import { EbayApiError } from "@/lib/ebay";
 import { prisma } from "@/lib/prisma";
 import { getActiveEbayInventoryAccount } from "@/lib/services/ebayApiService";
+import { addListingToPromotedCampaign } from "@/lib/services/ebayMarketingService";
 import { upsertProductFromListingInput } from "@/lib/services/inventoryService";
 import { draftToListingInput } from "@/lib/services/listingDraftService";
 import { publishProductListing } from "@/lib/services/listingService";
@@ -87,6 +88,7 @@ export async function uploadDraft(userId: string, draft: ListingDraft) {
     userId,
     checkImageUrls: true,
     checkOAuthScope: true,
+    checkCategoryAspects: true,
   });
 
   if (!validation.valid) {
@@ -117,6 +119,31 @@ export async function uploadDraft(userId: string, draft: ListingDraft) {
     const { product } = await upsertProductFromListingInput(input, userId);
     const result = await publishProductListing(account, product, input);
     const now = new Date();
+    let promotedStatus: string | null = null;
+    let promotedErrorSummary: string | null = null;
+
+    if (draft.promotedListingEnabled) {
+      if (!result.listingId) {
+        promotedStatus = "failed";
+        promotedErrorSummary = "Promoted Listings requires a published listing ID.";
+      } else if (!draft.promotedCampaignId) {
+        promotedStatus = "failed";
+        promotedErrorSummary = "Promoted campaign is not selected.";
+      } else {
+        try {
+          const promoted = await addListingToPromotedCampaign({
+            userId,
+            campaignId: draft.promotedCampaignId,
+            listingId: result.listingId,
+            adRate: draft.promotedAdRate?.toString() ?? null,
+          });
+          promotedStatus = promoted.status;
+        } catch (error) {
+          promotedStatus = "failed";
+          promotedErrorSummary = errorSummary(error);
+        }
+      }
+    }
 
     await prisma.listingDraft.update({
       where: { id: draft.id },
@@ -125,6 +152,8 @@ export async function uploadDraft(userId: string, draft: ListingDraft) {
         ebayItemId: result.listingId,
         offerId: result.offerId,
         listingStatus: result.listingStatus,
+        promotedStatus,
+        promotedErrorSummary,
         lastUploadedAt: now,
         errorSummary: null,
         rawErrorJson: Prisma.JsonNull,
@@ -150,7 +179,7 @@ export async function uploadDraft(userId: string, draft: ListingDraft) {
       },
     });
 
-    return { draftId: draft.id, result };
+    return { draftId: draft.id, result, promotedStatus, promotedErrorSummary };
   } catch (error) {
     const summary = errorSummary(error);
     const raw = ebayErrorJson(error);

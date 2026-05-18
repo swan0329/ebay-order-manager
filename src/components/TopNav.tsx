@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Camera,
   Package,
@@ -57,6 +58,35 @@ function isActive(pathname: string, item: NavItem) {
 
 export function TopNav({ loginId }: { loginId: string }) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    const targets = nav
+      .map((item) => item.href)
+      .filter((href) => href !== pathname);
+    let cancelled = false;
+    let timer: number | null = null;
+    let index = 0;
+
+    const prefetchNext = () => {
+      if (cancelled || index >= targets.length) {
+        return;
+      }
+
+      router.prefetch(targets[index]);
+      index += 1;
+      timer = window.setTimeout(prefetchNext, 120);
+    };
+
+    timer = window.setTimeout(prefetchNext, 160);
+
+    return () => {
+      cancelled = true;
+      if (timer) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [pathname, router]);
 
   return (
     <header className="border-b border-zinc-200 bg-white">
@@ -77,6 +107,7 @@ export function TopNav({ loginId }: { loginId: string }) {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch
                 aria-current={active ? "page" : undefined}
                 className={`inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3.5 text-sm font-semibold transition-colors ${
                   active

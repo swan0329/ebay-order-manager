@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ClipboardList,
@@ -34,6 +35,35 @@ function isActiveItem(pathname: string, href: string, active?: string) {
 
 export function ListingUploadNav({ active }: ListingUploadNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    const targets = items
+      .map((item) => item.href)
+      .filter((href) => href !== pathname);
+    let cancelled = false;
+    let timer: number | null = null;
+    let index = 0;
+
+    const prefetchNext = () => {
+      if (cancelled || index >= targets.length) {
+        return;
+      }
+
+      router.prefetch(targets[index]);
+      index += 1;
+      timer = window.setTimeout(prefetchNext, 120);
+    };
+
+    timer = window.setTimeout(prefetchNext, 120);
+
+    return () => {
+      cancelled = true;
+      if (timer) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [pathname, router]);
 
   return (
     <nav className="mb-5 flex gap-2 overflow-x-auto border-b border-zinc-200 pb-3">
@@ -44,6 +74,7 @@ export function ListingUploadNav({ active }: ListingUploadNavProps) {
           <Link
             key={item.href}
             href={item.href}
+            prefetch
             aria-current={selected ? "page" : undefined}
             className={`inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3.5 text-sm font-semibold transition-colors ${
               selected

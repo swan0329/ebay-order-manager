@@ -28,6 +28,10 @@ export type ListingUploadInput = {
   autoAcceptPrice?: string | null;
   privateListing?: boolean | null;
   immediatePayRequired?: boolean | null;
+  promotedListingEnabled?: boolean | null;
+  promotedCampaignId?: string | null;
+  promotedAdRate?: string | number | null;
+  promotedFundingModel?: string | null;
   itemSpecifics?: Record<string, string[]>;
   brand?: string | null;
   type?: string | null;

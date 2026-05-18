@@ -56,7 +56,11 @@ export async function POST() {
     await prisma.$executeRawUnsafe(`
       ALTER TABLE "listing_templates"
         ADD COLUMN IF NOT EXISTS "title_template" TEXT,
-        ADD COLUMN IF NOT EXISTS "excluded_locations_json" JSONB;
+        ADD COLUMN IF NOT EXISTS "excluded_locations_json" JSONB,
+        ADD COLUMN IF NOT EXISTS "promoted_listing_enabled" BOOLEAN NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS "promoted_campaign_id" TEXT,
+        ADD COLUMN IF NOT EXISTS "promoted_ad_rate" DECIMAL(5, 2),
+        ADD COLUMN IF NOT EXISTS "promoted_funding_model" TEXT;
     `);
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "listing_drafts" (
@@ -95,6 +99,11 @@ export async function POST() {
         "raw_error_json" JSONB,
         "validation_json" JSONB,
         "field_source_json" JSONB,
+        "promoted_listing_enabled" BOOLEAN NOT NULL DEFAULT false,
+        "promoted_campaign_id" TEXT,
+        "promoted_ad_rate" DECIMAL(5, 2),
+        "promoted_status" TEXT,
+        "promoted_error_summary" TEXT,
         "last_uploaded_at" TIMESTAMP(3),
         "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -103,7 +112,12 @@ export async function POST() {
     `);
     await prisma.$executeRawUnsafe(`
       ALTER TABLE "listing_drafts"
-        ADD COLUMN IF NOT EXISTS "field_source_json" JSONB;
+        ADD COLUMN IF NOT EXISTS "field_source_json" JSONB,
+        ADD COLUMN IF NOT EXISTS "promoted_listing_enabled" BOOLEAN NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS "promoted_campaign_id" TEXT,
+        ADD COLUMN IF NOT EXISTS "promoted_ad_rate" DECIMAL(5, 2),
+        ADD COLUMN IF NOT EXISTS "promoted_status" TEXT,
+        ADD COLUMN IF NOT EXISTS "promoted_error_summary" TEXT;
     `);
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "ebay_policy_caches" (

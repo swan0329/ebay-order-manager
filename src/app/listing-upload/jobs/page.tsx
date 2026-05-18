@@ -3,7 +3,10 @@ import { ListingDraftTable } from "@/components/ListingDraftTable";
 import { ListingUploadNav } from "@/components/ListingUploadNav";
 import { TopNav } from "@/components/TopNav";
 import { prisma } from "@/lib/prisma";
-import { getEbayConnectionSummary } from "@/lib/services/ebayAccountService";
+import {
+  getCachedPolicies,
+  getEbayConnectionSummary,
+} from "@/lib/services/ebayAccountService";
 import { listDrafts } from "@/lib/services/listingDraftService";
 import { requireUser } from "@/lib/session";
 
@@ -17,6 +20,7 @@ function serializeDrafts(drafts: Awaited<ReturnType<typeof listDrafts>>) {
     price: draft.price?.toString() ?? null,
     minimumOfferPrice: draft.minimumOfferPrice?.toString() ?? null,
     autoAcceptPrice: draft.autoAcceptPrice?.toString() ?? null,
+    promotedAdRate: draft.promotedAdRate?.toString() ?? null,
     lastUploadedAt: draft.lastUploadedAt?.toISOString() ?? null,
     createdAt: draft.createdAt.toISOString(),
     updatedAt: draft.updatedAt.toISOString(),
@@ -30,7 +34,7 @@ export default async function ListingUploadJobsPage({
 }) {
   const user = await requireUser();
   const params = await searchParams;
-  const [drafts, ebayConnection, counts] = await Promise.all([
+  const [drafts, ebayConnection, counts, cachedPolicies] = await Promise.all([
     listDrafts(user.id, params.status ?? "all"),
     getEbayConnectionSummary(user.id),
     prisma.listingDraft.groupBy({
@@ -38,6 +42,7 @@ export default async function ListingUploadJobsPage({
       where: { userId: user.id },
       _count: { _all: true },
     }),
+    getCachedPolicies(user.id),
   ]);
   const countMap = Object.fromEntries(
     counts.map((entry) => [entry.status, entry._count._all]),
@@ -50,7 +55,7 @@ export default async function ListingUploadJobsPage({
         <div className="mb-5">
           <h1 className="text-xl font-semibold text-zinc-950">업로드 작업내역</h1>
           <p className="mt-1 text-sm text-zinc-600">
-            저장된 draft를 검증하고 eBay Inventory API로 업로드합니다.
+            저장된 draft를 검증하고, 수동 업로드 전 최종 데이터 품질을 점검합니다.
           </p>
           <div className="mt-2">
             <EbayEnvironmentBadge {...ebayConnection} />
@@ -89,6 +94,23 @@ export default async function ListingUploadJobsPage({
           drafts={serializeDrafts(drafts)}
           showRetryAll
           ebayEnvironment={ebayConnection.environment}
+          canReadMarketing={ebayConnection.canReadMarketing}
+          canWriteMarketing={ebayConnection.canWriteMarketing}
+          policyOptions={{
+            paymentPolicies: cachedPolicies.policies
+              .filter((policy) => policy.policyType === "payment")
+              .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
+            fulfillmentPolicies: cachedPolicies.policies
+              .filter((policy) => policy.policyType === "fulfillment")
+              .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
+            returnPolicies: cachedPolicies.policies
+              .filter((policy) => policy.policyType === "return")
+              .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
+            inventoryLocations: cachedPolicies.locations.map((location) => ({
+              id: location.merchantLocationKey,
+              name: location.name ?? location.merchantLocationKey,
+            })),
+          }}
         />
       </main>
     </div>

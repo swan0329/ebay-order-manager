@@ -20,13 +20,13 @@ export async function POST(request: Request) {
       file.name,
       Buffer.from(await file.arrayBuffer()),
     );
-    const drafts = await createDraftsFromRows({
+    const created = await createDraftsFromRows({
       userId: user.id,
       rows,
       templateId,
     });
 
-    return Response.json({ drafts, created: drafts.length });
+    return Response.json({ created });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return jsonError("Unauthorized", 401);

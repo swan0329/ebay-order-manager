@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -48,6 +48,11 @@ type DraftRow = {
   validationJson: unknown;
   rawErrorJson: unknown;
   fieldSourceJson: unknown;
+  promotedListingEnabled: boolean;
+  promotedCampaignId: string | null;
+  promotedAdRate: string | number | null;
+  promotedStatus: string | null;
+  promotedErrorSummary: string | null;
   lastUploadedAt: string | null;
   updatedAt: string;
   template: { id: string; name: string } | null;
@@ -61,6 +66,40 @@ type DraftRow = {
     ebayOfferId: string | null;
     listingStatus: string | null;
   } | null;
+};
+
+type PolicyOption = { id: string; name: string };
+
+type PolicyOptions = {
+  paymentPolicies: PolicyOption[];
+  fulfillmentPolicies: PolicyOption[];
+  returnPolicies: PolicyOption[];
+  inventoryLocations: PolicyOption[];
+};
+
+type CategoryAspect = {
+  name: string;
+  requirement: "required" | "recommended" | "optional";
+  required: boolean;
+  mode: string;
+  dataType: string;
+  cardinality: "single" | "multi";
+  maxLength: number | null;
+  values: string[];
+};
+
+type CampaignOption = {
+  id: string;
+  name: string;
+  status: string;
+  fundingModel: string;
+};
+
+const emptyPolicyOptions: PolicyOptions = {
+  paymentPolicies: [],
+  fulfillmentPolicies: [],
+  returnPolicies: [],
+  inventoryLocations: [],
 };
 
 function jsonArray(value: unknown) {
@@ -202,18 +241,21 @@ function EditableCell({
   onChange,
   className = "",
   type = "text",
+  disabled = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   className?: string;
   type?: string;
+  disabled?: boolean;
 }) {
   return (
     <input
       value={value}
       type={type}
+      disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
-      className={`h-9 rounded-md border border-zinc-300 px-2 text-sm outline-none focus:border-zinc-900 ${className}`}
+      className={`h-9 rounded-md border border-zinc-300 px-2 text-sm outline-none focus:border-zinc-900 disabled:bg-zinc-100 disabled:text-zinc-400 ${className}`}
     />
   );
 }
@@ -241,20 +283,535 @@ function ToggleInput({
   label,
   checked,
   onChange,
+  disabled = false,
 }: {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
-    <label className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 px-2 text-xs text-zinc-700">
+    <label className={`inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 px-2 text-xs ${
+      disabled ? "bg-zinc-100 text-zinc-400" : "text-zinc-700"
+    }`}>
       <input
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
       />
       {label}
     </label>
+  );
+}
+
+function SelectInput({
+  label,
+  value,
+  options,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  options: PolicyOption[] | CampaignOption[];
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs text-zinc-500">{label}</span>
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-9 w-full rounded-md border border-zinc-300 px-2 text-sm outline-none focus:border-zinc-900 disabled:bg-zinc-100 disabled:text-zinc-400"
+      >
+        <option value="">Select</option>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name} ({option.id})
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function parseItemSpecificsText(value: string) {
+  try {
+    const parsed = JSON.parse(value || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function itemSpecificValues(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry).trim()).filter(Boolean);
+  }
+
+  return String(value ?? "")
+    .split(/[,\n|]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function setItemSpecificValue(
+  current: string,
+  name: string,
+  values: string[],
+) {
+  const parsed = parseItemSpecificsText(current);
+  const clean = values.map((value) => value.trim()).filter(Boolean);
+
+  if (clean.length) {
+    parsed[name] = clean;
+  } else {
+    delete parsed[name];
+  }
+
+  return JSON.stringify(parsed, null, 2);
+}
+
+function requirementLabel(requirement: CategoryAspect["requirement"]) {
+  if (requirement === "required") {
+    return "Required";
+  }
+
+  if (requirement === "recommended") {
+    return "Recommended";
+  }
+
+  return "Optional";
+}
+
+function AspectInput({
+  aspect,
+  current,
+  onChange,
+}: {
+  aspect: CategoryAspect;
+  current: string[];
+  onChange: (values: string[]) => void;
+}) {
+  if (aspect.values.length) {
+    return (
+      <select
+        multiple={aspect.cardinality === "multi"}
+        value={aspect.cardinality === "multi" ? current : current[0] ?? ""}
+        onChange={(event) => {
+          if (aspect.cardinality === "multi") {
+            onChange(
+              Array.from(event.currentTarget.selectedOptions).map(
+                (option) => option.value,
+              ),
+            );
+            return;
+          }
+
+          onChange(event.target.value ? [event.target.value] : []);
+        }}
+        className="min-h-9 w-full rounded-md border border-zinc-300 px-2 py-1 text-sm outline-none focus:border-zinc-900"
+      >
+        {aspect.cardinality === "single" ? <option value="">Select</option> : null}
+        {aspect.values.map((value) => (
+          <option key={value} value={value}>
+            {value}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  return (
+    <input
+      value={current.join(", ")}
+      maxLength={aspect.maxLength ?? undefined}
+      onChange={(event) =>
+        onChange(
+          aspect.cardinality === "multi"
+            ? event.target.value.split(",").map((entry) => entry.trim())
+            : [event.target.value],
+        )
+      }
+      className="h-9 w-full rounded-md border border-zinc-300 px-2 text-sm outline-none focus:border-zinc-900"
+    />
+  );
+}
+
+function DraftEditTabs({
+  draft,
+  issues,
+  value,
+  checkedValue,
+  setEdit,
+  policyOptions,
+  canReadMarketing,
+  canWriteMarketing,
+}: {
+  draft: DraftRow;
+  issues: ReturnType<typeof validationIssues>;
+  value: (id: string, key: string) => string;
+  checkedValue: (id: string, key: string) => boolean;
+  setEdit: (id: string, key: string, next: string | boolean) => void;
+  policyOptions: PolicyOptions;
+  canReadMarketing: boolean;
+  canWriteMarketing: boolean;
+}) {
+  const [activeTab, setActiveTab] = useState("basic");
+  const [aspects, setAspects] = useState<CategoryAspect[]>([]);
+  const [aspectMessage, setAspectMessage] = useState("");
+  const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
+  const [campaignMessage, setCampaignMessage] = useState("");
+  const [newCampaignName, setNewCampaignName] = useState("");
+  const categoryId = value(draft.id, "categoryId");
+  const marketplaceId = value(draft.id, "marketplaceId") || "EBAY_US";
+  const itemSpecificsText = value(draft.id, "itemSpecifics");
+  const itemSpecifics = parseItemSpecificsText(itemSpecificsText);
+  const tabs = [
+    ["basic", "기본정보"],
+    ["media", "이미지/설명"],
+    ["aspects", "카테고리 세부항목"],
+    ["policies", "배송/정책"],
+    ["ads", "광고설정"],
+    ["preview", "미리보기"],
+  ] as const;
+
+  useEffect(() => {
+    if (activeTab !== "aspects" || !categoryId) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    void (async () => {
+      setAspectMessage("Loading eBay aspects...");
+
+      try {
+        const response = await fetch(
+          `/api/listing-upload/taxonomy/aspects?categoryId=${encodeURIComponent(
+            categoryId,
+          )}&marketplaceId=${encodeURIComponent(marketplaceId)}`,
+          { signal: controller.signal },
+        );
+        const data = (await response.json().catch(() => null)) as
+          | { aspects?: CategoryAspect[]; error?: string }
+          | null;
+
+        if (!response.ok) {
+          throw new Error(data?.error ?? "Failed to load category aspects.");
+        }
+
+        setAspects(data?.aspects ?? []);
+        setAspectMessage(`Loaded ${data?.aspects?.length ?? 0} eBay aspects.`);
+      } catch (error: unknown) {
+        if (!controller.signal.aborted) {
+          setAspects([]);
+          setAspectMessage(error instanceof Error ? error.message : "Failed to load aspects.");
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [activeTab, categoryId, marketplaceId]);
+
+  useEffect(() => {
+    if (activeTab !== "ads" || !canReadMarketing) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    void (async () => {
+      setCampaignMessage("Loading campaigns...");
+
+      try {
+        const response = await fetch(
+          `/api/listing-upload/promoted/campaigns?marketplaceId=${encodeURIComponent(
+            marketplaceId,
+          )}`,
+          { signal: controller.signal },
+        );
+        const data = (await response.json().catch(() => null)) as
+          | { campaigns?: CampaignOption[]; error?: string }
+          | null;
+
+        if (!response.ok) {
+          throw new Error(data?.error ?? "Failed to load campaigns.");
+        }
+
+        setCampaigns(data?.campaigns ?? []);
+        setCampaignMessage(`Loaded ${data?.campaigns?.length ?? 0} campaigns.`);
+      } catch (error: unknown) {
+        if (!controller.signal.aborted) {
+          setCampaigns([]);
+          setCampaignMessage(error instanceof Error ? error.message : "Failed to load campaigns.");
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [activeTab, canReadMarketing, marketplaceId]);
+
+  async function createCampaign() {
+    if (!newCampaignName.trim()) {
+      setCampaignMessage("Enter a campaign name first.");
+      return;
+    }
+
+    setCampaignMessage("Creating campaign...");
+    const response = await fetch("/api/listing-upload/promoted/campaigns", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        campaignName: newCampaignName,
+        marketplaceId,
+        adRate: value(draft.id, "promotedAdRate") || "2.0",
+        fundingModel: "COST_PER_SALE",
+      }),
+    });
+    const data = (await response.json().catch(() => null)) as
+      | { campaignId?: string; error?: string }
+      | null;
+
+    if (!response.ok || !data?.campaignId) {
+      setCampaignMessage(data?.error ?? "Failed to create campaign.");
+      return;
+    }
+
+    setEdit(draft.id, "promotedCampaignId", data.campaignId);
+    setNewCampaignName("");
+    setCampaignMessage(`Created campaign ${data.campaignId}. Save the draft.`);
+  }
+
+  function updateAspect(name: string, values: string[]) {
+    setEdit(draft.id, "itemSpecifics", setItemSpecificValue(itemSpecificsText, name, values));
+  }
+
+  return (
+    <div className="mt-3 grid gap-3">
+      <div className="flex flex-wrap gap-1">
+        {tabs.map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveTab(id)}
+            className={`h-8 rounded-md px-3 text-xs font-semibold ${
+              activeTab === id
+                ? "bg-zinc-950 text-white"
+                : "border border-zinc-300 text-zinc-700 hover:bg-zinc-100"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "basic" ? (
+        <div className="grid gap-2 md:grid-cols-3">
+          <label className="block">
+            <span className="mb-1 block text-xs text-zinc-500">subtitle</span>
+            <EditableCell value={value(draft.id, "subtitle")} onChange={(next) => setEdit(draft.id, "subtitle", next)} className="w-full" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-zinc-500">marketplace_id</span>
+            <EditableCell value={marketplaceId} onChange={(next) => setEdit(draft.id, "marketplaceId", next)} className="w-full" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-zinc-500">listing_format</span>
+            <EditableCell value={value(draft.id, "listingFormat")} onChange={(next) => setEdit(draft.id, "listingFormat", next)} className="w-full" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-zinc-500">currency</span>
+            <EditableCell value={value(draft.id, "currency")} onChange={(next) => setEdit(draft.id, "currency", next)} className="w-full" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-zinc-500">condition_description</span>
+            <EditableCell value={value(draft.id, "conditionDescription")} onChange={(next) => setEdit(draft.id, "conditionDescription", next)} className="w-full" />
+          </label>
+          <ToggleInput label="best_offer" checked={checkedValue(draft.id, "bestOfferEnabled")} onChange={(next) => setEdit(draft.id, "bestOfferEnabled", next)} />
+          <ToggleInput label="private_listing" checked={checkedValue(draft.id, "privateListing")} onChange={(next) => setEdit(draft.id, "privateListing", next)} />
+          <ToggleInput label="immediate_pay" checked={checkedValue(draft.id, "immediatePayRequired")} onChange={(next) => setEdit(draft.id, "immediatePayRequired", next)} />
+          <label className="block">
+            <span className="mb-1 block text-xs text-zinc-500">minimum_offer_price</span>
+            <EditableCell value={value(draft.id, "minimumOfferPrice")} onChange={(next) => setEdit(draft.id, "minimumOfferPrice", next)} className="w-full" type="number" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-zinc-500">auto_accept_price</span>
+            <EditableCell value={value(draft.id, "autoAcceptPrice")} onChange={(next) => setEdit(draft.id, "autoAcceptPrice", next)} className="w-full" type="number" />
+          </label>
+        </div>
+      ) : null}
+
+      {activeTab === "media" ? (
+        <div className="grid gap-3">
+          <label className="block">
+            <span className="mb-1 block text-xs text-zinc-500">image_urls</span>
+            <EditableArea value={value(draft.id, "imageUrls")} onChange={(next) => setEdit(draft.id, "imageUrls", next)} />
+            <SourceBadge draft={draft} field="imageUrls" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-zinc-500">description_html</span>
+            <EditableArea value={value(draft.id, "descriptionHtml")} onChange={(next) => setEdit(draft.id, "descriptionHtml", next)} rows={5} />
+            <SourceBadge draft={draft} field="descriptionHtml" />
+          </label>
+        </div>
+      ) : null}
+
+      {activeTab === "aspects" ? (
+        <div className="grid gap-3">
+          <p className="text-xs text-zinc-500">
+            category_id {categoryId || "missing"} / {aspectMessage}
+          </p>
+          {(["required", "recommended", "optional"] as const).map((requirement) => {
+            const group = aspects.filter((aspect) => aspect.requirement === requirement);
+
+            if (!group.length) {
+              return null;
+            }
+
+            return (
+              <div key={requirement} className="grid gap-2">
+                <p className="text-xs font-semibold uppercase text-zinc-500">
+                  {requirementLabel(requirement)}
+                </p>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {group.map((aspect) => {
+                    const current = itemSpecificValues(itemSpecifics[aspect.name]);
+
+                    return (
+                      <label key={aspect.name} className="block rounded-md border border-zinc-200 p-2">
+                        <span className="mb-1 flex items-center justify-between gap-2 text-xs font-medium text-zinc-700">
+                          {aspect.name}
+                          <span className="text-[11px] text-zinc-400">
+                            {aspect.cardinality}
+                          </span>
+                        </span>
+                        <AspectInput aspect={aspect} current={current} onChange={(next) => updateAspect(aspect.name, next)} />
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {!aspects.length ? (
+            <label className="block">
+              <span className="mb-1 block text-xs text-zinc-500">item_specifics_json</span>
+              <EditableArea value={itemSpecificsText} onChange={(next) => setEdit(draft.id, "itemSpecifics", next)} rows={5} />
+            </label>
+          ) : null}
+        </div>
+      ) : null}
+
+      {activeTab === "policies" ? (
+        <div className="grid gap-3 md:grid-cols-2">
+          <SelectInput label="payment_policy" value={value(draft.id, "paymentPolicyId")} options={policyOptions.paymentPolicies} onChange={(next) => setEdit(draft.id, "paymentPolicyId", next)} />
+          <SelectInput label="fulfillment_policy" value={value(draft.id, "fulfillmentPolicyId")} options={policyOptions.fulfillmentPolicies} onChange={(next) => setEdit(draft.id, "fulfillmentPolicyId", next)} />
+          <SelectInput label="return_policy" value={value(draft.id, "returnPolicyId")} options={policyOptions.returnPolicies} onChange={(next) => setEdit(draft.id, "returnPolicyId", next)} />
+          <SelectInput label="merchant_location" value={value(draft.id, "merchantLocationKey")} options={policyOptions.inventoryLocations} onChange={(next) => setEdit(draft.id, "merchantLocationKey", next)} />
+          {!policyOptions.paymentPolicies.length ||
+          !policyOptions.fulfillmentPolicies.length ||
+          !policyOptions.returnPolicies.length ||
+          !policyOptions.inventoryLocations.length ? (
+            <p className="md:col-span-2 text-xs text-amber-700">
+              Policy or location options are empty. Run eBay policy/location sync first.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {activeTab === "ads" ? (
+        <div className="grid gap-3">
+          {!canReadMarketing || !canWriteMarketing ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              Marketing API scope is missing. Reconnect eBay with sell.marketing and sell.marketing.readonly to enable Promoted Listings.
+            </div>
+          ) : null}
+          <ToggleInput
+            label="promoted_listing_enabled"
+            checked={checkedValue(draft.id, "promotedListingEnabled")}
+            disabled={!canWriteMarketing}
+            onChange={(next) => setEdit(draft.id, "promotedListingEnabled", next)}
+          />
+          <div className="grid gap-3 md:grid-cols-2">
+            <SelectInput
+              label="campaign"
+              value={value(draft.id, "promotedCampaignId")}
+              options={campaigns}
+              disabled={!canReadMarketing}
+              onChange={(next) => setEdit(draft.id, "promotedCampaignId", next)}
+            />
+            <label className="block">
+              <span className="mb-1 block text-xs text-zinc-500">ad_rate / bid_percentage</span>
+              <EditableCell
+              value={value(draft.id, "promotedAdRate")}
+              onChange={(next) => setEdit(draft.id, "promotedAdRate", next)}
+              className="w-full"
+              type="number"
+              disabled={!canWriteMarketing}
+            />
+            </label>
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="block min-w-[260px]">
+              <span className="mb-1 block text-xs text-zinc-500">new campaign name</span>
+              <input
+                value={newCampaignName}
+                disabled={!canWriteMarketing}
+                onChange={(event) => setNewCampaignName(event.target.value)}
+                className="h-9 w-full rounded-md border border-zinc-300 px-2 text-sm outline-none focus:border-zinc-900 disabled:bg-zinc-100"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={!canWriteMarketing}
+              onClick={createCampaign}
+              className="h-9 rounded-md border border-zinc-300 px-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:text-zinc-400"
+            >
+              Create campaign
+            </button>
+            <span className="text-xs text-zinc-500">{campaignMessage}</span>
+          </div>
+          {draft.promotedStatus ? (
+            <p className="text-xs text-zinc-600">promoted_status: {draft.promotedStatus}</p>
+          ) : null}
+          {draft.promotedErrorSummary ? (
+            <p className="text-xs text-rose-700">{draft.promotedErrorSummary}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {activeTab === "preview" ? (
+        <div className="grid gap-3">
+          <label className="block">
+            <span className="mb-1 block text-xs text-zinc-500">item_specifics_json</span>
+            <EditableArea value={itemSpecificsText} onChange={(next) => setEdit(draft.id, "itemSpecifics", next)} rows={5} />
+          </label>
+          {issues.length ? (
+            <div className="rounded-md border border-rose-200 bg-rose-50 p-2">
+              <p className="text-xs font-semibold text-rose-800">Validation issues</p>
+              <ul className="mt-1 space-y-1 text-xs text-rose-700">
+                {issues.map((issue) => (
+                  <li key={`${issue.field}-${issue.message}`}>
+                    {issue.field}: {issue.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {draft.validationJson ? (
+            <pre className="max-h-96 overflow-auto rounded-md bg-zinc-100 p-2 text-[11px] text-zinc-700">
+              {JSON.stringify(draft.validationJson, null, 2)}
+            </pre>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -263,11 +820,17 @@ export function ListingDraftTable({
   failedOnly = false,
   showRetryAll = false,
   ebayEnvironment = null,
+  canReadMarketing = false,
+  canWriteMarketing = false,
+  policyOptions = emptyPolicyOptions,
 }: {
   drafts: DraftRow[];
   failedOnly?: boolean;
   showRetryAll?: boolean;
   ebayEnvironment?: string | null;
+  canReadMarketing?: boolean;
+  canWriteMarketing?: boolean;
+  policyOptions?: PolicyOptions;
 }) {
   const router = useRouter();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -806,7 +1369,17 @@ export function ListingDraftTable({
                           <summary className="cursor-pointer text-xs font-semibold text-zinc-700">
                             상세 편집
                           </summary>
-                          <div className="mt-3 grid gap-3">
+                          <DraftEditTabs
+                            draft={draft}
+                            issues={issues}
+                            value={value}
+                            checkedValue={checkedValue}
+                            setEdit={setEdit}
+                            policyOptions={policyOptions}
+                            canReadMarketing={canReadMarketing}
+                            canWriteMarketing={canWriteMarketing}
+                          />
+                          <div className="hidden">
                             <div className="grid gap-2 md:grid-cols-3">
                               <label className="block">
                                 <span className="mb-1 block text-xs text-zinc-500">

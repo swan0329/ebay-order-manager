@@ -42,6 +42,10 @@ export type ListingUploadDraft = {
   r2UrlPrefix?: string | null;
   skuPrefix?: string | null;
   autoGenerateSku?: boolean | string | null;
+  promotedListingEnabled?: boolean | string | null;
+  promotedCampaignId?: string | null;
+  promotedAdRate?: string | number | null;
+  promotedFundingModel?: string | null;
 };
 
 type NormalizeOptions = {
@@ -288,6 +292,10 @@ export const listingUploadSchema = z.object({
   type: z.string().trim().optional().nullable(),
   countryOfOrigin: z.string().trim().optional().nullable(),
   customLabel: z.string().trim().optional().nullable(),
+  promotedListingEnabled: z.boolean().optional().nullable(),
+  promotedCampaignId: z.string().trim().optional().nullable(),
+  promotedAdRate: z.coerce.number().positive().optional().nullable(),
+  promotedFundingModel: z.string().trim().optional().nullable(),
 });
 
 export function mergeListingUploadDrafts(
@@ -351,6 +359,7 @@ export function mergeListingUploadDrafts(
     bestOfferEnabled: toBoolean(base.bestOfferEnabled),
     privateListing: toBoolean(base.privateListing),
     immediatePayRequired: toBoolean(base.immediatePayRequired),
+    promotedListingEnabled: toBoolean(base.promotedListingEnabled),
     itemSpecifics,
   } satisfies ListingUploadDraft;
 }
@@ -422,6 +431,14 @@ export function readListingUploadRowDraft(row: ListingRow): ListingUploadDraft {
     type: rowValue(row, ["type", "종류"]),
     countryOfOrigin: rowValue(row, ["country_of_origin", "원산지"]),
     customLabel: rowValue(row, ["custom_label", "custom_label_sku"]),
+    promotedListingEnabled: rowValue(row, [
+      "promoted_listing_enabled",
+      "promoted_enabled",
+      "ad_enabled",
+    ]),
+    promotedCampaignId: rowValue(row, ["promoted_campaign_id", "campaign_id"]),
+    promotedAdRate: rowValue(row, ["promoted_ad_rate", "ad_rate", "bid_percentage"]),
+    promotedFundingModel: rowValue(row, ["promoted_funding_model", "funding_model"]),
   };
 }
 

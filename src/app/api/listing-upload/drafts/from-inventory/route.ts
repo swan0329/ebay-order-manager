@@ -12,13 +12,13 @@ export async function POST(request: Request) {
   try {
     const user = await requireApiUser();
     const input = schema.parse(await request.json());
-    const drafts = await createDraftsFromInventory({
+    const created = await createDraftsFromInventory({
       userId: user.id,
       productIds: input.productIds,
       templateId: input.templateId,
     });
 
-    return Response.json({ drafts, created: drafts.length });
+    return Response.json({ created });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return jsonError("Unauthorized", 401);

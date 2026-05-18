@@ -30,6 +30,10 @@ export type ListingTemplateInput = {
   skuSettingsJson?: unknown;
   titleTemplate?: string | null;
   excludedLocationsJson?: unknown;
+  promotedListingEnabled?: boolean | null;
+  promotedCampaignId?: string | null;
+  promotedAdRate?: number | string | null;
+  promotedFundingModel?: string | null;
   isDefault?: boolean;
 };
 
@@ -146,6 +150,10 @@ function templateData(userId: string, input: ListingTemplateInput) {
     skuSettingsJson: jsonOrNull(input.skuSettingsJson),
     titleTemplate: nullableText(input.titleTemplate),
     excludedLocationsJson: jsonOrNull(input.excludedLocationsJson),
+    promotedListingEnabled: Boolean(input.promotedListingEnabled),
+    promotedCampaignId: nullableText(input.promotedCampaignId),
+    promotedAdRate: nullableNumberText(input.promotedAdRate),
+    promotedFundingModel: nullableText(input.promotedFundingModel),
     isDefault: Boolean(input.isDefault),
   };
 }
@@ -198,6 +206,10 @@ export function listingTemplateToDefaults(template: ListingTemplate): ListingUpl
     r2UrlPrefix: stringFromJson(imageSettings, "r2UrlPrefix"),
     skuPrefix: stringFromJson(skuSettings, "skuPrefix"),
     autoGenerateSku: boolFromJson(skuSettings, "autoGenerateSku"),
+    promotedListingEnabled: template.promotedListingEnabled,
+    promotedCampaignId: template.promotedCampaignId,
+    promotedAdRate: template.promotedAdRate?.toString(),
+    promotedFundingModel: template.promotedFundingModel,
   };
 }
 
@@ -285,6 +297,10 @@ export async function copyListingTemplate(userId: string, id: string) {
         skuSettingsJson: current.skuSettingsJson,
         titleTemplate: current.titleTemplate,
         excludedLocationsJson: current.excludedLocationsJson,
+        promotedListingEnabled: current.promotedListingEnabled,
+        promotedCampaignId: current.promotedCampaignId,
+        promotedAdRate: current.promotedAdRate?.toString(),
+        promotedFundingModel: current.promotedFundingModel,
         isDefault: false,
       }),
       isDefault: false,

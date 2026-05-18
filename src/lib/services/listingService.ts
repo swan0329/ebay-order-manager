@@ -217,6 +217,9 @@ export function buildListingPayloadPreview(input: ListingUploadInput) {
       descriptionHtml: input.descriptionHtml,
       bestOfferEnabled: Boolean(input.bestOfferEnabled),
       privateListing: Boolean(input.privateListing),
+      promotedListingEnabled: Boolean(input.promotedListingEnabled),
+      promotedCampaignId: input.promotedCampaignId ?? null,
+      promotedAdRate: input.promotedAdRate ?? null,
     },
   };
 }

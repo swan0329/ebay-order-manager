@@ -1,6 +1,11 @@
 import { Prisma } from "@/generated/prisma";
 import { currentEbayEnvironment } from "@/lib/ebay-environment";
 import { prisma } from "@/lib/prisma";
+import {
+  accountHasScope,
+  sellMarketingReadonlyScope,
+  sellMarketingScope,
+} from "@/lib/services/ebayApiService";
 import { getSellerListingPolicies } from "@/lib/services/listingPolicyService";
 
 type CachedPolicy = {
@@ -111,5 +116,11 @@ export async function getEbayConnectionSummary(userId: string) {
     username: account?.username ?? account?.ebayUserId ?? null,
     scopes: account?.scopes ?? "",
     connected: Boolean(account),
+    canReadMarketing: Boolean(
+      account && accountHasScope(account, sellMarketingReadonlyScope),
+    ),
+    canWriteMarketing: Boolean(
+      account && accountHasScope(account, sellMarketingScope),
+    ),
   };
 }

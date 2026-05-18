@@ -17,6 +17,7 @@ const upsertProductMock = vi.hoisted(() => vi.fn());
 const draftToListingInputMock = vi.hoisted(() => vi.fn());
 const publishProductListingMock = vi.hoisted(() => vi.fn());
 const validateListingUploadInputMock = vi.hoisted(() => vi.fn());
+const addListingToPromotedCampaignMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/prisma", () => ({
   prisma: prismaMock,
@@ -35,6 +36,9 @@ vi.mock("@/lib/services/listingService", () => ({
 }));
 vi.mock("@/lib/services/listingValidationService", () => ({
   validateListingUploadInput: validateListingUploadInputMock,
+}));
+vi.mock("@/lib/services/ebayMarketingService", () => ({
+  addListingToPromotedCampaign: addListingToPromotedCampaignMock,
 }));
 
 import { uploadDraft } from "../src/lib/services/ebayListingUploadService";
@@ -69,6 +73,7 @@ beforeEach(() => {
     listingId: "item-1",
     listingStatus: "ACTIVE",
   });
+  addListingToPromotedCampaignMock.mockResolvedValue({ status: "active" });
   prismaMock.listingDraft.update.mockResolvedValue({});
   prismaMock.inventoryListingLink.upsert.mockResolvedValue({});
   prismaMock.product.update.mockResolvedValue({});
@@ -123,5 +128,43 @@ describe("uploadDraft", () => {
     });
     expect(publishProductListingMock).not.toHaveBeenCalled();
     expect(prismaMock.inventoryListingLink.upsert).not.toHaveBeenCalled();
+  });
+
+  it("keeps the listing uploaded when promoted listing setup fails", async () => {
+    addListingToPromotedCampaignMock.mockRejectedValueOnce(
+      new Error("Marketing scope missing"),
+    );
+
+    const result = await uploadDraft("user-1", {
+      id: "draft-1",
+      sourceInventoryId: "inventory-1",
+      sku: "SKU-1",
+      promotedListingEnabled: true,
+      promotedCampaignId: "campaign-1",
+      promotedAdRate: "2.5",
+    } as never);
+
+    expect(result).toMatchObject({
+      draftId: "draft-1",
+      result: { offerId: "offer-1", listingId: "item-1" },
+      promotedStatus: "failed",
+      promotedErrorSummary: "Marketing scope missing",
+    });
+    expect(addListingToPromotedCampaignMock).toHaveBeenCalledWith({
+      userId: "user-1",
+      campaignId: "campaign-1",
+      listingId: "item-1",
+      adRate: "2.5",
+    });
+    expect(prismaMock.listingDraft.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "draft-1" },
+        data: expect.objectContaining({
+          status: "uploaded",
+          promotedStatus: "failed",
+          promotedErrorSummary: "Marketing scope missing",
+        }),
+      }),
+    );
   });
 });

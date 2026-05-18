@@ -18,6 +18,8 @@ import {
 import { validateListingUploadInput } from "@/lib/services/listingValidationService";
 import { parseCsvObjects, toCsv } from "@/lib/csv";
 
+const draftInsertBatchSize = 200;
+
 type DraftUpdateInput = Partial<{
   sku: string;
   title: string;
@@ -42,6 +44,9 @@ type DraftUpdateInput = Partial<{
   privateListing: boolean;
   immediatePayRequired: boolean;
   listingFormat: string | null;
+  promotedListingEnabled: boolean;
+  promotedCampaignId: string | null;
+  promotedAdRate: string | number | null;
   templateId: string | null;
   titlePrefix: string | null;
   titleSuffix: string | null;
@@ -147,6 +152,9 @@ function buildFieldSource(
     ["privateListing", "privateListing"],
     ["immediatePayRequired", "immediatePayRequired"],
     ["listingFormat", "listingFormat"],
+    ["promotedListingEnabled", "promotedListingEnabled"],
+    ["promotedCampaignId", "promotedCampaignId"],
+    ["promotedAdRate", "promotedAdRate"],
   ];
 
   return Object.fromEntries(
@@ -190,6 +198,9 @@ function markManualSources(
     "privateListing",
     "immediatePayRequired",
     "listingFormat",
+    "promotedListingEnabled",
+    "promotedCampaignId",
+    "promotedAdRate",
     "templateId",
   ] as const;
 
@@ -302,6 +313,9 @@ function draftCreateData(input: {
     privateListing: Boolean(input.draft.privateListing),
     immediatePayRequired: Boolean(input.draft.immediatePayRequired),
     listingFormat: text(input.draft.listingFormat) ?? "FIXED_PRICE",
+    promotedListingEnabled: Boolean(input.draft.promotedListingEnabled),
+    promotedCampaignId: text(input.draft.promotedCampaignId),
+    promotedAdRate: decimal(input.draft.promotedAdRate),
     fieldSourceJson: toJson(input.fieldSource ?? {}),
     status: "draft",
   };
@@ -331,7 +345,32 @@ function draftToPrimary(draft: ListingDraft): ListingUploadDraft {
     privateListing: draft.privateListing,
     immediatePayRequired: draft.immediatePayRequired,
     listingFormat: draft.listingFormat,
+    promotedListingEnabled: draft.promotedListingEnabled,
+    promotedCampaignId: draft.promotedCampaignId,
+    promotedAdRate: draft.promotedAdRate?.toString() ?? null,
   };
+}
+
+async function createListingDraftsInBatches(
+  rows: Prisma.ListingDraftCreateManyInput[],
+) {
+  let created = 0;
+
+  for (let start = 0; start < rows.length; start += draftInsertBatchSize) {
+    const batch = rows.slice(start, start + draftInsertBatchSize);
+
+    if (!batch.length) {
+      continue;
+    }
+
+    const result = await prisma.listingDraft.createMany({
+      data: batch,
+    });
+
+    created += result.count;
+  }
+
+  return created;
 }
 
 export async function createDraftsFromInventory(input: {
@@ -351,26 +390,24 @@ export async function createDraftsFromInventory(input: {
         where: { userId: input.userId, isDefault: true },
       });
   const templateDefaults = template ? listingTemplateToDefaults(template) : null;
-  const drafts = [];
+  const rows: Prisma.ListingDraftCreateManyInput[] = [];
 
   for (const product of products) {
     const primary = productDraft(product);
     const merged = mergeListingUploadDrafts(primary, templateDefaults);
     const title = renderTitle(template?.titleTemplate, merged);
-    drafts.push(
-      await prisma.listingDraft.create({
-        data: draftCreateData({
-          userId: input.userId,
-          sourceInventoryId: product.id,
-          templateId: template?.id ?? null,
-          draft: { ...merged, title: title || merged.title },
-          fieldSource: buildFieldSource(primary, templateDefaults, "inventory"),
-        }),
+    rows.push(
+      draftCreateData({
+        userId: input.userId,
+        sourceInventoryId: product.id,
+        templateId: template?.id ?? null,
+        draft: { ...merged, title: title || merged.title },
+        fieldSource: buildFieldSource(primary, templateDefaults, "inventory"),
       }),
     );
   }
 
-  return drafts;
+  return createListingDraftsInBatches(rows);
 }
 
 export async function createDraftsFromRows(input: {
@@ -411,7 +448,7 @@ export async function createDraftsFromRows(input: {
     : [];
   const inventoryById = new Map(inventoryMatches.map((product) => [product.id, product]));
   const inventoryBySku = new Map(inventoryMatches.map((product) => [product.sku, product]));
-  const drafts = [];
+  const rows: Prisma.ListingDraftCreateManyInput[] = [];
 
   for (const { row, index, primary } of rowDrafts) {
     const merged = mergeListingUploadDrafts(primary, defaults, { rowIndex: index + 1 });
@@ -422,20 +459,18 @@ export async function createDraftsFromRows(input: {
       (sourceId ? inventoryById.get(sourceId) : null) ??
       (sku ? inventoryBySku.get(sku) : null) ??
       null;
-    drafts.push(
-      await prisma.listingDraft.create({
-        data: draftCreateData({
-          userId: input.userId,
-          sourceInventoryId: sourceInventory?.id ?? null,
-          templateId: template?.id ?? null,
-          draft: { ...merged, title: title || merged.title },
-          fieldSource: buildFieldSource(primary, defaults, "excel"),
-        }),
+    rows.push(
+      draftCreateData({
+        userId: input.userId,
+        sourceInventoryId: sourceInventory?.id ?? null,
+        templateId: template?.id ?? null,
+        draft: { ...merged, title: title || merged.title },
+        fieldSource: buildFieldSource(primary, defaults, "excel"),
       }),
     );
   }
 
-  return drafts;
+  return createListingDraftsInBatches(rows);
 }
 
 export function parseListingDraftRows(fileName: string, content: Buffer | string) {
@@ -500,6 +535,10 @@ export async function updateDraft(
             : stringArray(input.imageUrls),
           input.imageUrlPrefix,
         );
+  const promotedChanged =
+    input.promotedListingEnabled !== undefined ||
+    input.promotedCampaignId !== undefined ||
+    input.promotedAdRate !== undefined;
 
   return prisma.listingDraft.update({
     where: { id: draftId },
@@ -545,6 +584,13 @@ export async function updateDraft(
       immediatePayRequired: input.immediatePayRequired,
       listingFormat:
         input.listingFormat === undefined ? undefined : text(input.listingFormat),
+      promotedListingEnabled: input.promotedListingEnabled,
+      promotedCampaignId:
+        input.promotedCampaignId === undefined ? undefined : text(input.promotedCampaignId),
+      promotedAdRate:
+        input.promotedAdRate === undefined ? undefined : decimal(input.promotedAdRate),
+      promotedStatus: promotedChanged ? null : undefined,
+      promotedErrorSummary: promotedChanged ? null : undefined,
       templateId: input.templateId === undefined ? undefined : text(input.templateId),
       fieldSourceJson: toJson(markManualSources(current, input)),
       status: "draft",
@@ -613,6 +659,7 @@ export async function validateDrafts(userId: string, ids: string[]) {
         userId,
         checkImageUrls: true,
         checkOAuthScope: true,
+        checkCategoryAspects: true,
       });
       const issues = [...validation.issues];
 
