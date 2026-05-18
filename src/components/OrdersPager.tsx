@@ -13,6 +13,7 @@ export function OrdersPager({
   totalCount,
   start,
   end,
+  hasNextPage = false,
 }: {
   currentPage: number;
   totalPages: number;
@@ -20,6 +21,7 @@ export function OrdersPager({
   totalCount: number;
   start: number;
   end: number;
+  hasNextPage?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -65,7 +67,7 @@ export function OrdersPager({
   return (
     <div className="mt-4 flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-3 text-sm text-zinc-700 sm:flex-row sm:items-center sm:justify-between">
       <p className="font-medium">
-        {totalCount ? `${start}-${end} / ${totalCount}` : "표시할 주문이 없습니다."}
+        {totalCount ? `${start}-${end}${hasNextPage ? "+" : ` / ${totalCount}`}` : "표시할 주문이 없습니다."}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-2">
@@ -120,7 +122,7 @@ export function OrdersPager({
         <button
           type="button"
           onClick={() => goToPage(currentPage + 1)}
-          disabled={currentPage >= totalPages}
+          disabled={!hasNextPage && currentPage >= totalPages}
           className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-300 text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-300"
           title="다음 페이지"
         >
@@ -129,7 +131,7 @@ export function OrdersPager({
         <button
           type="button"
           onClick={() => goToPage(totalPages)}
-          disabled={currentPage >= totalPages}
+          disabled={!hasNextPage && currentPage >= totalPages}
           className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-300 text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-300"
           title="마지막 페이지"
         >

@@ -1,6 +1,5 @@
 import { AlertTriangle, PackageCheck, PackageOpen } from "lucide-react";
 import Link from "next/link";
-import { Prisma } from "@/generated/prisma";
 import type { ProductQuickEditValue } from "@/components/ProductQuickEdit";
 import { ProductsPager } from "@/components/ProductsPager";
 import { ProductsControls } from "@/components/ProductsControls";
@@ -27,13 +26,6 @@ type ProductsSearchParams = Promise<{
   page?: string;
   pageSize?: string;
 }>;
-
-type ProductImageMetaRow = {
-  id: string;
-  sourceImageUrl: string | null;
-  userImageRegistered: boolean;
-  hasBackImage: boolean;
-};
 
 const pageSizeOptions = [50, 100, 200, 500, 1000, 2000];
 
@@ -68,10 +60,9 @@ export default async function ProductsPage({
   const pageSize = parsePageSize(params.pageSize);
   const requestedPage = Math.max(1, Number(params.page) || 1);
   const where = productWhere(params);
-  const totalFiltered = await prisma.product.count({ where });
-  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
-  const currentPage = Math.min(requestedPage, totalPages);
-  const products = await prisma.product.findMany({
+  const currentPage = requestedPage;
+  const skip = (currentPage - 1) * pageSize;
+  const fetchedProducts = await prisma.product.findMany({
     where,
     select: {
       id: true,
@@ -96,33 +87,15 @@ export default async function ProductsPage({
       updatedAt: true,
     },
     orderBy: { sku: "asc" },
-    skip: (currentPage - 1) * pageSize,
-    take: pageSize,
+    skip,
+    take: pageSize + 1,
   });
-  const imageMetaRows = products.length
-    ? await prisma.$queryRaw<ProductImageMetaRow[]>`
-        SELECT
-          "id",
-          "source_image_url" AS "sourceImageUrl",
-          ("user_front_image_url" IS NOT NULL AND "user_front_image_url" <> '') AS "userImageRegistered",
-          "has_back_image" AS "hasBackImage"
-        FROM "products"
-        WHERE "id" IN (${Prisma.join(products.map((product) => product.id))})
-      `
-    : [];
-  const imageMetaById = new Map(
-    imageMetaRows.map((row) => [
-      row.id,
-      {
-        sourceImageUrl: row.sourceImageUrl,
-        userImageRegistered: row.userImageRegistered,
-        hasBackImage: row.hasBackImage,
-      },
-    ]),
-  );
+  const hasNextPage = fetchedProducts.length > pageSize;
+  const products = fetchedProducts.slice(0, pageSize);
+  const totalFiltered = skip + products.length + (hasNextPage ? 1 : 0);
+  const totalPages = Math.max(1, hasNextPage ? currentPage + 1 : currentPage);
   const productRows: ProductQuickEditValue[] = products.map((product) => {
     const listingUploadStatus = resolveInventoryListingUploadStatus(product);
-    const imageMeta = imageMetaById.get(product.id);
 
     return {
       id: product.id,
@@ -139,9 +112,9 @@ export default async function ProductsPage({
       location: product.location,
       memo: product.memo,
       imageUrl: product.imageUrl,
-      sourceImageUrl: imageMeta?.sourceImageUrl ?? null,
-      userImageRegistered: imageMeta?.userImageRegistered ?? false,
-      hasBackImage: imageMeta?.hasBackImage ?? false,
+      sourceImageUrl: null,
+      userImageRegistered: false,
+      hasBackImage: false,
       status: product.status,
       listingStatus: product.listingStatus,
       listingUploadStatus,
@@ -210,6 +183,7 @@ export default async function ProductsPage({
           totalCount={totalFiltered}
           start={start}
           end={end}
+          hasNextPage={hasNextPage}
         />
       </main>
     </div>

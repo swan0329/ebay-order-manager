@@ -226,16 +226,6 @@ function shortageSqlCondition() {
   )`;
 }
 
-async function countShortageOrders(conditions: Prisma.Sql[]) {
-  const rows = await prisma.$queryRaw<{ count: bigint }[]>`
-    SELECT COUNT(*)::bigint AS "count"
-    FROM "orders" o
-    ${orderWhereSql([...conditions, shortageSqlCondition()])}
-  `;
-
-  return Number(rows[0]?.count ?? 0);
-}
-
 async function shortageOrderPageIds(
   conditions: Prisma.Sql[],
   skip: number,
@@ -343,26 +333,14 @@ export default async function OrdersPage({
     to: params.to,
   });
   const filteredWhere = withInventoryWhere(where, params.inventory);
-  const totalFiltered = await (
-    params.inventory === "shortage"
-      ? countShortageOrders(sqlConditions)
-      : prisma.order.count({ where: filteredWhere })
-  );
-  const openCount =
-    (status === "OPEN" || !status) && !q && !params.from && !params.to && !params.inventory
-      ? totalFiltered
-      : null;
-  const fulfilledCount = status === "FULFILLED" ? totalFiltered : null;
+  const openCount = null;
   const failedShipments = null;
-  const shortageCount = params.inventory === "shortage" ? totalFiltered : null;
-  const warningCount = params.inventory === "warning" ? totalFiltered : null;
-  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
-  const currentPage = Math.min(requestedPage, totalPages);
+  const currentPage = requestedPage;
   const skip = (currentPage - 1) * pageSize;
-  const rawOrders =
+  const fetchedOrders =
     params.inventory === "shortage"
       ? await (async () => {
-          const ids = await shortageOrderPageIds(sqlConditions, skip, pageSize);
+          const ids = await shortageOrderPageIds(sqlConditions, skip, pageSize + 1);
 
           if (!ids.length) {
             return [];
@@ -379,13 +357,20 @@ export default async function OrdersPage({
               (orderPosition.get(left.id) ?? 0) - (orderPosition.get(right.id) ?? 0),
           );
         })()
-        : await prisma.order.findMany({
+      : await prisma.order.findMany({
           where: filteredWhere,
           select: orderListSelect,
           orderBy: [{ orderDate: "desc" }, { id: "desc" }],
           skip,
-          take: pageSize,
+          take: pageSize + 1,
         });
+  const hasNextPage = fetchedOrders.length > pageSize;
+  const rawOrders = fetchedOrders.slice(0, pageSize);
+  const totalFiltered = skip + rawOrders.length + (hasNextPage ? 1 : 0);
+  const totalPages = Math.max(1, hasNextPage ? currentPage + 1 : currentPage);
+  const fulfilledCount = status === "FULFILLED" ? totalFiltered : null;
+  const shortageCount = params.inventory === "shortage" ? totalFiltered : null;
+  const warningCount = params.inventory === "warning" ? totalFiltered : null;
   const orderRows = rawOrders.map(toOrderListRow);
   const start = totalFiltered ? skip + 1 : 0;
   const end = totalFiltered ? start + rawOrders.length - 1 : 0;
@@ -452,6 +437,7 @@ export default async function OrdersPage({
           totalCount={totalFiltered}
           start={start}
           end={end}
+          hasNextPage={hasNextPage}
         />
       </main>
     </div>
