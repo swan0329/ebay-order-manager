@@ -62,6 +62,51 @@ function productEditKey(product: ProductQuickEditValue) {
   ].join(":");
 }
 
+type BulkUpdatePayload = {
+  status?: string;
+  stockQuantity?: string;
+  salePrice?: string;
+};
+
+type PendingBulkUpdate = {
+  ids: string[];
+  payload: BulkUpdatePayload;
+};
+
+function bulkUpdateChanges(payload: BulkUpdatePayload) {
+  const changes: string[] = [];
+
+  if (payload.status !== undefined) {
+    changes.push(`상태: ${statusLabel(payload.status)}`);
+  }
+
+  if (payload.stockQuantity !== undefined) {
+    changes.push(`재고: ${payload.stockQuantity}`);
+  }
+
+  if (payload.salePrice !== undefined) {
+    changes.push(`가격: ${payload.salePrice}`);
+  }
+
+  return changes;
+}
+
+function statusLabel(status: string) {
+  if (status === "active") {
+    return "활성";
+  }
+
+  if (status === "inactive") {
+    return "비활성";
+  }
+
+  if (status === "sold_out") {
+    return "품절";
+  }
+
+  return status;
+}
+
 export function ResizableProductsTable({
   products,
 }: {
@@ -79,6 +124,8 @@ export function ResizableProductsTable({
   const [bulkLoading, setBulkLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [bulkMessage, setBulkMessage] = useState("");
+  const [pendingBulkUpdate, setPendingBulkUpdate] =
+    useState<PendingBulkUpdate | null>(null);
   const [photoTarget, setPhotoTarget] = useState<ProductQuickEditValue | null>(null);
   const [renderMobileCards, setRenderMobileCards] = useState(false);
 
@@ -213,11 +260,7 @@ export function ResizableProductsTable({
     window.addEventListener("pointerup", onPointerUp);
   }
 
-  async function runBulkUpdate(payload: {
-    status?: string;
-    stockQuantity?: string;
-    salePrice?: string;
-  }) {
+  function requestBulkUpdate(payload: BulkUpdatePayload) {
     if (!selectedCount) {
       setBulkMessage("선택된 상품이 없습니다.");
       return;
@@ -233,6 +276,18 @@ export function ResizableProductsTable({
       return;
     }
 
+    setBulkMessage("");
+    setPendingBulkUpdate({
+      ids: selectedProductIds,
+      payload,
+    });
+  }
+
+  async function runBulkUpdate() {
+    if (!pendingBulkUpdate) {
+      return;
+    }
+
     setBulkLoading(true);
     setBulkMessage("");
 
@@ -240,8 +295,8 @@ export function ResizableProductsTable({
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        ids: selectedProductIds,
-        ...payload,
+        ids: pendingBulkUpdate.ids,
+        ...pendingBulkUpdate.payload,
       }),
     });
     const data = (await response.json().catch(() => null)) as
@@ -251,6 +306,7 @@ export function ResizableProductsTable({
     setBulkLoading(false);
 
     if (!response.ok) {
+      setPendingBulkUpdate(null);
       setBulkMessage(data?.error ?? "일괄 수정에 실패했습니다.");
       return;
     }
@@ -262,6 +318,7 @@ export function ResizableProductsTable({
         ? `${updated}개 상품을 수정했습니다. (재고 변동 로그 ${movements}건)`
         : `${updated}개 상품을 수정했습니다.`,
     );
+    setPendingBulkUpdate(null);
     router.refresh();
   }
 
@@ -401,7 +458,7 @@ export function ResizableProductsTable({
           </select>
           <button
             type="button"
-            onClick={() => runBulkUpdate({ status: bulkStatus })}
+            onClick={() => requestBulkUpdate({ status: bulkStatus })}
             disabled={bulkLoading || !selectedCount}
             className="h-10 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
           >
@@ -417,7 +474,7 @@ export function ResizableProductsTable({
           />
           <button
             type="button"
-            onClick={() => runBulkUpdate({ stockQuantity: bulkStock })}
+            onClick={() => requestBulkUpdate({ stockQuantity: bulkStock })}
             disabled={bulkLoading || !selectedCount}
             className="h-10 rounded-md border border-zinc-300 px-4 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-400"
           >
@@ -434,7 +491,7 @@ export function ResizableProductsTable({
           />
           <button
             type="button"
-            onClick={() => runBulkUpdate({ salePrice: bulkPrice })}
+            onClick={() => requestBulkUpdate({ salePrice: bulkPrice })}
             disabled={bulkLoading || !selectedCount}
             className="h-10 rounded-md border border-zinc-300 px-4 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-400"
           >
@@ -544,6 +601,51 @@ export function ResizableProductsTable({
             ))
           : null}
       </section>
+
+      {pendingBulkUpdate ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+            <div className="border-b border-zinc-200 p-4">
+              <h2 className="text-base font-semibold text-zinc-950">
+                일괄 수정 확인
+              </h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                선택한 상품 {pendingBulkUpdate.ids.length}개에 아래 변경을 적용합니다.
+              </p>
+            </div>
+            <div className="space-y-3 p-4">
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                이 작업은 선택 상품 전체에 같은 값을 적용합니다. 적용 전 선택 수와 변경 값을 확인하세요.
+              </div>
+              <ul className="space-y-2 text-sm text-zinc-800">
+                {bulkUpdateChanges(pendingBulkUpdate.payload).map((change) => (
+                  <li key={change} className="rounded-md bg-zinc-50 px-3 py-2">
+                    {change}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-zinc-200 p-4">
+              <button
+                type="button"
+                onClick={() => setPendingBulkUpdate(null)}
+                disabled={bulkLoading}
+                className="h-9 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:cursor-wait disabled:text-zinc-400"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => void runBulkUpdate()}
+                disabled={bulkLoading}
+                className="h-9 rounded-md bg-zinc-950 px-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-wait disabled:bg-zinc-400"
+              >
+                {bulkLoading ? "적용 중..." : "확인 후 적용"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {photoTarget ? (
         <InventoryPhotoUploadModal
