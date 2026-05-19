@@ -13,7 +13,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 
-type ProductFacetOptions = {
+export type ProductFacetOptions = {
   groups: string[];
   members: string[];
   albums: string[];
@@ -27,10 +27,14 @@ const emptyFacets: ProductFacetOptions = {
   versions: [],
 };
 
-export function ProductsControls() {
+export function ProductsControls({
+  initialFacets = emptyFacets,
+}: {
+  initialFacets?: ProductFacetOptions;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [facets, setFacets] = useState<ProductFacetOptions>(emptyFacets);
+  const [facets, setFacets] = useState<ProductFacetOptions>(initialFacets);
   const [q, setQ] = useState(searchParams.get("q") ?? "");
   const [group, setGroup] = useState(searchParams.get("group") ?? "");
   const [member, setMember] = useState(searchParams.get("member") ?? "");

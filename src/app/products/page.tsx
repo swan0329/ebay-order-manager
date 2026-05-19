@@ -1,7 +1,10 @@
 import type { ProductQuickEditValue } from "@/components/ProductQuickEdit";
 import { ProductStatsCards } from "@/components/ProductStatsCards";
 import { ProductsPager } from "@/components/ProductsPager";
-import { ProductsControls } from "@/components/ProductsControls";
+import {
+  ProductsControls,
+  type ProductFacetOptions,
+} from "@/components/ProductsControls";
 import { ResizableProductsTable } from "@/components/ResizableProductsTable";
 import { TopNav } from "@/components/TopNav";
 import {
@@ -31,6 +34,34 @@ const pageSizeOptions = [25, 50, 100, 200, 500, 1000, 2000];
 function parsePageSize(value?: string) {
   const parsed = Number(value);
   return pageSizeOptions.includes(parsed) ? parsed : 25;
+}
+
+function uniqueOptions(values: Array<string | null>) {
+  return [
+    ...new Set(
+      values
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ]
+    .sort((left, right) => left.localeCompare(right))
+    .slice(0, 50);
+}
+
+function facetsFromProducts(
+  products: Array<{
+    brand: string | null;
+    optionName: string | null;
+    category: string | null;
+    productName: string;
+  }>,
+): ProductFacetOptions {
+  return {
+    groups: uniqueOptions(products.map((product) => product.brand)),
+    members: uniqueOptions(products.map((product) => product.optionName)),
+    albums: uniqueOptions(products.map((product) => product.category)),
+    versions: uniqueOptions(products.map((product) => product.productName)),
+  };
 }
 
 export default async function ProductsPage({
@@ -75,6 +106,7 @@ export default async function ProductsPage({
   });
   const hasNextPage = fetchedProducts.length > pageSize;
   const products = fetchedProducts.slice(0, pageSize);
+  const initialFacets = facetsFromProducts(products);
   const totalFiltered = skip + products.length + (hasNextPage ? 1 : 0);
   const totalPages = Math.max(1, hasNextPage ? currentPage + 1 : currentPage);
   const productRows: ProductQuickEditValue[] = products.map((product) => {
@@ -113,7 +145,7 @@ export default async function ProductsPage({
   return (
     <div className="min-h-screen bg-zinc-50">
       <TopNav loginId={user.loginId} />
-      <ProductsControls />
+      <ProductsControls initialFacets={initialFacets} />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <ProductStatsCards pageSize={pageSize} />
 
