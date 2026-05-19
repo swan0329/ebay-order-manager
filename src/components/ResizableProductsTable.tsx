@@ -80,6 +80,7 @@ export function ResizableProductsTable({
   const [exportLoading, setExportLoading] = useState(false);
   const [bulkMessage, setBulkMessage] = useState("");
   const [photoTarget, setPhotoTarget] = useState<ProductQuickEditValue | null>(null);
+  const [renderMobileCards, setRenderMobileCards] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -125,6 +126,16 @@ export function ResizableProductsTable({
 
     window.localStorage.setItem(visibilityStorageKey, JSON.stringify(visibility));
   }, [settingsLoaded, visibility]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px)");
+    const update = () => setRenderMobileCards(media.matches);
+
+    update();
+    media.addEventListener("change", update);
+
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   const visibleColumns = useMemo(
     () => columns.filter((column) => column.locked || visibility[column.id] !== false),
@@ -521,15 +532,17 @@ export function ResizableProductsTable({
       </section>
 
       <section className="space-y-3 md:hidden">
-        {products.map((product) => (
-          <ProductQuickEditCard
-            key={productEditKey(product)}
-            product={product}
-            selected={selectedIds.has(product.id)}
-            onSelectedChange={(checked) => toggleProduct(product.id, checked)}
-            onPhotoUploadClick={setPhotoTarget}
-          />
-        ))}
+        {renderMobileCards
+          ? products.map((product) => (
+              <ProductQuickEditCard
+                key={productEditKey(product)}
+                product={product}
+                selected={selectedIds.has(product.id)}
+                onSelectedChange={(checked) => toggleProduct(product.id, checked)}
+                onPhotoUploadClick={setPhotoTarget}
+              />
+            ))
+          : null}
       </section>
 
       {photoTarget ? (
