@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Bookmark,
   Download,
   Image as ImageIcon,
   Plus,
   Search,
   Settings,
+  Trash2,
   Upload,
   UploadCloud,
 } from "lucide-react";
@@ -27,6 +29,16 @@ const emptyFacets: ProductFacetOptions = {
   versions: [],
 };
 
+type SavedProductView = {
+  id: string;
+  name: string;
+  query: string;
+  createdAt: number;
+};
+
+const savedViewsStorageKey = "products-saved-filter-views";
+const maxSavedViews = 12;
+
 export function ProductsControls({
   initialFacets = emptyFacets,
 }: {
@@ -43,6 +55,9 @@ export function ProductsControls({
   const [status, setStatus] = useState(searchParams.get("status") ?? "all");
   const [stock, setStock] = useState(searchParams.get("stock") ?? "all");
   const [message, setMessage] = useState("");
+  const [savedViews, setSavedViews] = useState<SavedProductView[]>([]);
+  const [viewName, setViewName] = useState("");
+  const [viewMessage, setViewMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadFileName, setUploadFileName] = useState("");
   const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
@@ -71,6 +86,26 @@ export function ProductsControls({
   }, [searchParams]);
   const secondaryActionClass =
     "inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50";
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSavedViews(readSavedViews()), 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setQ(searchParams.get("q") ?? "");
+      setGroup(searchParams.get("group") ?? "");
+      setMember(searchParams.get("member") ?? "");
+      setAlbum(searchParams.get("album") ?? "");
+      setVersion(searchParams.get("version") ?? "");
+      setStatus(searchParams.get("status") ?? "all");
+      setStock(searchParams.get("stock") ?? "all");
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [searchParams]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -105,8 +140,7 @@ export function ProductsControls({
     return () => window.clearInterval(timer);
   }, [uploadStartedAt]);
 
-  function applyFilters(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function currentFilterParams() {
     const params = new URLSearchParams();
 
     for (const [key, value] of Object.entries({
@@ -131,8 +165,62 @@ export function ProductsControls({
       params.set("pageSize", pageSize);
     }
 
-    const query = params.toString();
-    router.push(query ? `/products?${query}` : "/products");
+    return params;
+  }
+
+  function applyFilters(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    router.push(productsHref(currentFilterParams()));
+  }
+
+  function storeSavedViews(nextViews: SavedProductView[]) {
+    setSavedViews(nextViews);
+
+    try {
+      window.localStorage.setItem(savedViewsStorageKey, JSON.stringify(nextViews));
+      return true;
+    } catch {
+      setViewMessage("보기 저장에 실패했습니다.");
+      return false;
+    }
+  }
+
+  function saveCurrentView() {
+    const name = viewName.trim();
+
+    if (!name) {
+      setViewMessage("보기 이름을 입력하세요.");
+      return;
+    }
+
+    const query = currentFilterParams().toString();
+    const view: SavedProductView = {
+      id: createViewId(),
+      name: name.slice(0, 40),
+      query,
+      createdAt: Date.now(),
+    };
+    const nextViews = [
+      view,
+      ...savedViews.filter(
+        (savedView) => savedView.name !== view.name && savedView.query !== view.query,
+      ),
+    ].slice(0, maxSavedViews);
+
+    if (storeSavedViews(nextViews)) {
+      setViewName("");
+      setViewMessage("보기를 저장했습니다.");
+    }
+  }
+
+  function applySavedView(view: SavedProductView) {
+    router.push(productsHref(new URLSearchParams(view.query)));
+  }
+
+  function deleteSavedView(id: string) {
+    if (storeSavedViews(savedViews.filter((view) => view.id !== id))) {
+      setViewMessage("보기를 삭제했습니다.");
+    }
   }
 
   async function importCsv(event: React.ChangeEvent<HTMLInputElement>) {
@@ -257,6 +345,71 @@ export function ProductsControls({
             </Link>
           </form>
 
+          <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-zinc-600">
+                저장된 보기
+              </span>
+              {savedViews.length ? (
+                savedViews.map((view) => (
+                  <span
+                    key={view.id}
+                    className="inline-flex max-w-full items-center overflow-hidden rounded-md border border-zinc-300 bg-white text-sm"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => applySavedView(view)}
+                      className="max-w-[180px] truncate px-3 py-1.5 text-zinc-800 hover:bg-zinc-100"
+                      title={view.name}
+                    >
+                      {view.name}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteSavedView(view.id)}
+                      className="border-l border-zinc-200 px-2 py-1.5 text-zinc-500 hover:bg-rose-50 hover:text-rose-700"
+                      aria-label={`${view.name} 보기 삭제`}
+                      title="삭제"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                ))
+              ) : (
+                <span className="text-sm text-zinc-500">없음</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                value={viewName}
+                onChange={(event) => {
+                  setViewName(event.currentTarget.value);
+                  setViewMessage("");
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    saveCurrentView();
+                  }
+                }}
+                maxLength={40}
+                placeholder="보기 이름"
+                className="h-9 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
+              />
+              <button
+                type="button"
+                onClick={saveCurrentView}
+                className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-100"
+              >
+                <Bookmark className="h-4 w-4" />
+                현재 보기 저장
+              </button>
+            </div>
+          </div>
+          {viewMessage ? (
+            <p className="text-sm text-zinc-600">{viewMessage}</p>
+          ) : null}
+
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
             <Link
               href="/products/new"
@@ -353,6 +506,50 @@ function FilterInput({
       </datalist>
     </label>
   );
+}
+
+function productsHref(params: URLSearchParams) {
+  const query = params.toString();
+
+  return query ? `/products?${query}` : "/products";
+}
+
+function createViewId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function readSavedViews(): SavedProductView[] {
+  try {
+    const raw = window.localStorage.getItem(savedViewsStorageKey);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .filter((entry): entry is SavedProductView => {
+        if (!entry || typeof entry !== "object") {
+          return false;
+        }
+
+        const view = entry as Partial<SavedProductView>;
+
+        return (
+          typeof view.id === "string" &&
+          typeof view.name === "string" &&
+          typeof view.query === "string" &&
+          typeof view.createdAt === "number"
+        );
+      })
+      .slice(0, maxSavedViews);
+  } catch {
+    return [];
+  }
 }
 
 function filterFacetOptions(options: string[], query: string) {
