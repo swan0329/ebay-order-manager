@@ -1,5 +1,4 @@
 import { asErrorMessage, jsonError } from "@/lib/http";
-import { productWhere } from "@/lib/products";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
@@ -22,12 +21,20 @@ export async function GET() {
       return Response.json(statsCache.value);
     }
 
-    const [totalCount, inStockCount, soldOutCount] = await Promise.all([
-      prisma.product.count(),
-      prisma.product.count({ where: productWhere({ stock: "in_stock" }) }),
-      prisma.product.count({ where: productWhere({ stock: "sold_out" }) }),
-    ]);
-    const value = { totalCount, inStockCount, soldOutCount };
+    const [row] = await prisma.$queryRaw<ProductStats[]>`
+      SELECT
+        COUNT(*)::int AS "totalCount",
+        COUNT(*) FILTER (
+          WHERE "stock_quantity" > 0
+            AND "status" NOT IN ('inactive', 'sold_out')
+        )::int AS "inStockCount",
+        COUNT(*) FILTER (
+          WHERE "stock_quantity" <= 0
+            OR "status" = 'sold_out'
+        )::int AS "soldOutCount"
+      FROM "products"
+    `;
+    const value = row ?? { totalCount: 0, inStockCount: 0, soldOutCount: 0 };
 
     statsCache = {
       expiresAt: Date.now() + cacheTtlMs,

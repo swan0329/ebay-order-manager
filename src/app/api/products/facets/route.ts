@@ -1,4 +1,3 @@
-import { Prisma } from "@/generated/prisma";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
@@ -12,51 +11,78 @@ type ProductFacetOptions = {
   versions: string[];
 };
 
-type FacetColumn = "brand" | "option_name" | "category" | "product_name";
+type ProductFacetKey = keyof ProductFacetOptions;
+type FacetRow = {
+  facet: ProductFacetKey;
+  value: string | null;
+};
 
 const cacheTtlMs = 5 * 60_000;
 const facetLimit = 300;
 let facetsCache: { expiresAt: number; value: ProductFacetOptions } | null = null;
 
-function columnSql(column: FacetColumn) {
-  switch (column) {
-    case "brand":
-      return Prisma.sql`"brand"`;
-    case "option_name":
-      return Prisma.sql`"option_name"`;
-    case "category":
-      return Prisma.sql`"category"`;
-    case "product_name":
-      return Prisma.sql`"product_name"`;
-  }
-}
-
-async function distinctFacet(column: FacetColumn) {
-  const columnExpr = columnSql(column);
-  const rows = await prisma.$queryRaw<Array<{ value: string | null }>>`
-    SELECT DISTINCT ${columnExpr} AS value
-    FROM "products"
-    WHERE ${columnExpr} IS NOT NULL
-      AND ${columnExpr} <> ''
-      AND "status" <> 'inactive'
-    ORDER BY ${columnExpr} ASC
-    LIMIT ${facetLimit}
-  `;
-
-  return rows
-    .map((row) => row.value?.trim())
-    .filter((value): value is string => Boolean(value));
-}
-
 async function loadFacets(): Promise<ProductFacetOptions> {
-  const [groups, members, albums, versions] = await Promise.all([
-    distinctFacet("brand"),
-    distinctFacet("option_name"),
-    distinctFacet("category"),
-    distinctFacet("product_name"),
-  ]);
+  const rows = await prisma.$queryRaw<FacetRow[]>`
+    SELECT 'groups' AS facet, value
+    FROM (
+      SELECT DISTINCT "brand" AS value
+      FROM "products"
+      WHERE "brand" IS NOT NULL
+        AND "brand" <> ''
+        AND "status" <> 'inactive'
+      ORDER BY "brand" ASC
+      LIMIT ${facetLimit}
+    ) groups
+    UNION ALL
+    SELECT 'members' AS facet, value
+    FROM (
+      SELECT DISTINCT "option_name" AS value
+      FROM "products"
+      WHERE "option_name" IS NOT NULL
+        AND "option_name" <> ''
+        AND "status" <> 'inactive'
+      ORDER BY "option_name" ASC
+      LIMIT ${facetLimit}
+    ) members
+    UNION ALL
+    SELECT 'albums' AS facet, value
+    FROM (
+      SELECT DISTINCT "category" AS value
+      FROM "products"
+      WHERE "category" IS NOT NULL
+        AND "category" <> ''
+        AND "status" <> 'inactive'
+      ORDER BY "category" ASC
+      LIMIT ${facetLimit}
+    ) albums
+    UNION ALL
+    SELECT 'versions' AS facet, value
+    FROM (
+      SELECT DISTINCT "product_name" AS value
+      FROM "products"
+      WHERE "product_name" IS NOT NULL
+        AND "product_name" <> ''
+        AND "status" <> 'inactive'
+      ORDER BY "product_name" ASC
+      LIMIT ${facetLimit}
+    ) versions
+  `;
+  const facets: ProductFacetOptions = {
+    groups: [],
+    members: [],
+    albums: [],
+    versions: [],
+  };
 
-  return { groups, members, albums, versions };
+  for (const row of rows) {
+    const value = row.value?.trim();
+
+    if (value && row.facet in facets) {
+      facets[row.facet].push(value);
+    }
+  }
+
+  return facets;
 }
 
 export async function GET() {
