@@ -172,6 +172,7 @@ export function productWhere(params: {
   if (params.stock === "in_stock" || params.stock === "low") {
     and.push({
       stockQuantity: { gt: 0 },
+      status: { notIn: ["inactive", "sold_out"] },
     });
   }
 
@@ -250,7 +251,11 @@ export function matchesProductStockFilter(
   }
 
   if (stock === "in_stock" || stock === "low") {
-    return product.stockQuantity > 0;
+    return (
+      product.stockQuantity > 0 &&
+      product.status !== "inactive" &&
+      product.status !== "sold_out"
+    );
   }
 
   return true;
