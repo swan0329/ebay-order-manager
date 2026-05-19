@@ -44,6 +44,18 @@ export async function POST() {
         ON "products" ("stock_quantity", "status");
     `);
     await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "products_brand_idx"
+        ON "products" ("brand");
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "products_option_name_idx"
+        ON "products" ("option_name");
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "products_category_idx"
+        ON "products" ("category");
+    `);
+    await prisma.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS "listing_drafts_source_inventory_id_user_id_updated_at_idx"
         ON "listing_drafts" ("source_inventory_id", "user_id", "updated_at");
     `);

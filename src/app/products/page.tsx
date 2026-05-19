@@ -1,6 +1,5 @@
-import { AlertTriangle, PackageCheck, PackageOpen } from "lucide-react";
-import Link from "next/link";
 import type { ProductQuickEditValue } from "@/components/ProductQuickEdit";
+import { ProductStatsCards } from "@/components/ProductStatsCards";
 import { ProductsPager } from "@/components/ProductsPager";
 import { ProductsControls } from "@/components/ProductsControls";
 import { ResizableProductsTable } from "@/components/ResizableProductsTable";
@@ -32,22 +31,6 @@ const pageSizeOptions = [25, 50, 100, 200, 500, 1000, 2000];
 function parsePageSize(value?: string) {
   const parsed = Number(value);
   return pageSizeOptions.includes(parsed) ? parsed : 25;
-}
-
-function statsHref(pageSize: number, stock?: "in_stock" | "sold_out") {
-  const params = new URLSearchParams();
-
-  if (stock) {
-    params.set("stock", stock);
-  }
-
-  if (pageSize !== 25) {
-    params.set("pageSize", String(pageSize));
-  }
-
-  const query = params.toString();
-
-  return query ? `/products?${query}` : "/products";
 }
 
 export default async function ProductsPage({
@@ -132,47 +115,7 @@ export default async function ProductsPage({
       <TopNav loginId={user.loginId} />
       <ProductsControls />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        <section className="mb-5 grid gap-3 sm:grid-cols-3">
-          <Link
-            href={statsHref(pageSize)}
-            className="rounded-lg border border-zinc-200 bg-white p-4 transition hover:border-zinc-300 hover:bg-zinc-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-zinc-900"
-            aria-label="전체 상품 조회"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-zinc-500">상품 수</p>
-              <PackageOpen className="h-5 w-5 text-zinc-700" />
-            </div>
-            <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              {totalFiltered}
-            </p>
-          </Link>
-          <Link
-            href={statsHref(pageSize, "in_stock")}
-            className="rounded-lg border border-zinc-200 bg-white p-4 transition hover:border-zinc-300 hover:bg-zinc-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-zinc-900"
-            aria-label="재고보유 상품 조회"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-zinc-500">재고보유</p>
-              <PackageCheck className="h-5 w-5 text-emerald-600" />
-            </div>
-            <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              -
-            </p>
-          </Link>
-          <Link
-            href={statsHref(pageSize, "sold_out")}
-            className="rounded-lg border border-zinc-200 bg-white p-4 transition hover:border-zinc-300 hover:bg-zinc-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-zinc-900"
-            aria-label="품절 상품 조회"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-zinc-500">품절</p>
-              <AlertTriangle className="h-5 w-5 text-rose-600" />
-            </div>
-            <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              -
-            </p>
-          </Link>
-        </section>
+        <ProductStatsCards pageSize={pageSize} />
 
         <ResizableProductsTable products={productRows} />
 

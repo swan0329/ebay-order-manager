@@ -70,46 +70,24 @@ export function ProductsControls() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      const params = new URLSearchParams({
-        includeRegistered: "1",
-        limit: "1",
+
+    fetch("/api/products/facets", { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { facets?: ProductFacetOptions } | null) => {
+        if (data?.facets) {
+          setFacets(data.facets);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setFacets(emptyFacets);
+        }
       });
 
-      for (const [key, value] of Object.entries({
-        group,
-        member,
-        album,
-        version,
-      })) {
-        const text = value.trim();
-
-        if (text) {
-          params.set(key, text);
-        }
-      }
-
-      fetch(`/api/inventory/photo-card-candidates?${params.toString()}`, {
-        signal: controller.signal,
-      })
-        .then((response) => (response.ok ? response.json() : null))
-        .then((data: { facets?: ProductFacetOptions } | null) => {
-          if (data?.facets) {
-            setFacets(data.facets);
-          }
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) {
-            setFacets(emptyFacets);
-          }
-        });
-    }, 80);
-
     return () => {
-      window.clearTimeout(timer);
       controller.abort();
     };
-  }, [group, member, album, version]);
+  }, []);
 
   useEffect(() => {
     if (!uploadStartedAt) {
