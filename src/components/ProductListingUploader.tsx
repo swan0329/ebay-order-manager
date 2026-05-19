@@ -4,6 +4,8 @@ import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Download, Eye, FileCheck2, FileUp, RefreshCw, Settings, UploadCloud } from "lucide-react";
+import { ListingErrorHint } from "@/components/ListingErrorHint";
+import { classifyListingError } from "@/lib/listing-error-classification";
 
 type UploadJob = {
   id: string;
@@ -569,28 +571,34 @@ export function ProductListingUploader({
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200">
-              {visibleJobs.map((job) => (
-                <tr key={job.id}>
-                  <td className="px-3 py-2 font-medium text-zinc-950">{job.sku}</td>
-                  <td className="px-3 py-2">
-                    <span className={`rounded-full px-2 py-1 text-xs font-semibold ring-1 ${statusClass(job.status)}`}>
-                      {job.status}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-zinc-700">{job.template?.name ?? "-"}</td>
-                  <td className="px-3 py-2 text-zinc-700">
-                    {[job.source, job.action].filter(Boolean).join(" / ") || "-"}
-                  </td>
-                  <td className="px-3 py-2 text-zinc-700">
-                    {job.product?.ebayItemId ?? "-"}
-                  </td>
-                  <td className="px-3 py-2 text-zinc-700">
-                    <span className="line-clamp-2" title={job.errorSummary ?? job.error ?? job.message ?? ""}>
-                      {job.errorSummary ?? job.message ?? job.error ?? "-"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {visibleJobs.map((job) => {
+                const message = job.errorSummary ?? job.error ?? job.message ?? "";
+                const errorClassification = classifyListingError({ message });
+
+                return (
+                  <tr key={job.id}>
+                    <td className="px-3 py-2 font-medium text-zinc-950">{job.sku}</td>
+                    <td className="px-3 py-2">
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ring-1 ${statusClass(job.status)}`}>
+                        {job.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-zinc-700">{job.template?.name ?? "-"}</td>
+                    <td className="px-3 py-2 text-zinc-700">
+                      {[job.source, job.action].filter(Boolean).join(" / ") || "-"}
+                    </td>
+                    <td className="px-3 py-2 text-zinc-700">
+                      {job.product?.ebayItemId ?? "-"}
+                    </td>
+                    <td className="px-3 py-2 text-zinc-700">
+                      <ListingErrorHint classification={errorClassification} compact />
+                      <span className="mt-1 line-clamp-2" title={message}>
+                        {message || "-"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
               {!visibleJobs.length ? (
                 <tr>
                   <td colSpan={6} className="px-3 py-6 text-center text-zinc-500">

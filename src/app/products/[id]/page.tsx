@@ -2,11 +2,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PackageOpen } from "lucide-react";
+import { ListingErrorHint } from "@/components/ListingErrorHint";
 import { TopNav } from "@/components/TopNav";
 import {
   listingUploadStatusLabel,
   resolveInventoryListingUploadStatus,
 } from "@/lib/listing-upload-status";
+import { classifyListingError } from "@/lib/listing-error-classification";
 import { productStockLabel } from "@/lib/products";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
@@ -64,6 +66,8 @@ export default async function ProductDetailPage({
     ]),
   );
   const listingUploadStatus = resolveInventoryListingUploadStatus(product);
+  const uploadError = product.uploadError ?? product.listingDrafts[0]?.errorSummary;
+  const uploadErrorClassification = classifyListingError({ message: uploadError });
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -200,11 +204,12 @@ export default async function ProductDetailPage({
                       : "-"}
                   </dd>
                 </div>
-                {product.uploadError || product.listingDrafts[0]?.errorSummary ? (
+                {uploadError ? (
                   <div>
                     <dt className="text-zinc-500">오류</dt>
                     <dd className="whitespace-pre-wrap font-medium text-rose-700">
-                      {product.uploadError ?? product.listingDrafts[0]?.errorSummary}
+                      <ListingErrorHint classification={uploadErrorClassification} />
+                      <span className="mt-2 block">{uploadError}</span>
                     </dd>
                   </div>
                 ) : null}

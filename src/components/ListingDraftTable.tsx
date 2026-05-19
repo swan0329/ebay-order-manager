@@ -13,6 +13,8 @@ import {
   UploadCloud,
   X,
 } from "lucide-react";
+import { ListingErrorHint } from "@/components/ListingErrorHint";
+import { classifyListingError } from "@/lib/listing-error-classification";
 
 type DraftRow = {
   id: string;
@@ -902,6 +904,31 @@ export function ListingDraftTable({
     }),
     [drafts],
   );
+  const errorCauseSummary = useMemo(() => {
+    const counts = new Map<string, { label: string; count: number }>();
+
+    for (const draft of drafts) {
+      const classification = classifyListingError({
+        message: [draft.errorSummary, draft.promotedErrorSummary]
+          .filter(Boolean)
+          .join("\n"),
+        rawError: draft.rawErrorJson,
+        validation: draft.validationJson,
+      });
+
+      if (!classification) {
+        continue;
+      }
+
+      const current = counts.get(classification.category);
+      counts.set(classification.category, {
+        label: classification.label,
+        count: (current?.count ?? 0) + 1,
+      });
+    }
+
+    return [...counts.values()].sort((left, right) => right.count - left.count);
+  }, [drafts]);
 
   function value(id: string, key: string) {
     const draft = drafts.find((entry) => entry.id === id);
@@ -1078,6 +1105,19 @@ export function ListingDraftTable({
             </p>
           </div>
         </div>
+        {errorCauseSummary.length ? (
+          <div className="flex flex-wrap gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-3">
+            <span className="text-xs font-semibold text-zinc-600">오류 원인</span>
+            {errorCauseSummary.map((entry) => (
+              <span
+                key={entry.label}
+                className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-zinc-700 ring-1 ring-zinc-200"
+              >
+                {entry.label} {entry.count}
+              </span>
+            ))}
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -1290,6 +1330,13 @@ export function ListingDraftTable({
               const changed = Boolean(edits[draft.id]);
               const missingFields = requiredMissingFields(draft);
               const issues = validationIssues(draft);
+              const errorClassification = classifyListingError({
+                message: [draft.errorSummary, draft.promotedErrorSummary]
+                  .filter(Boolean)
+                  .join("\n"),
+                rawError: draft.rawErrorJson,
+                validation: draft.validationJson,
+              });
 
               return (
                 <tr
@@ -1648,6 +1695,7 @@ export function ListingDraftTable({
                     <div className="mt-2 text-xs text-zinc-600">
                       {draft.ebayItemId ? <p>item {draft.ebayItemId}</p> : null}
                       {draft.offerId ? <p>offer {draft.offerId}</p> : null}
+                      <ListingErrorHint classification={errorClassification} />
                       {draft.errorSummary ? (
                         <p className="max-w-[240px] whitespace-pre-wrap text-rose-700">
                           {draft.errorSummary}
