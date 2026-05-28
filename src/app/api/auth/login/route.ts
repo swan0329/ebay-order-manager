@@ -30,6 +30,26 @@ export async function POST(request: Request) {
       return jsonError("입력값을 확인해 주세요.", 422, error.flatten());
     }
 
+    if (isDatabaseConnectionError(error)) {
+      console.error("Login database connection failed:", asErrorMessage(error));
+      return jsonError(
+        "데이터베이스 연결에 실패했습니다. DATABASE_URL 설정을 확인해 주세요.",
+        500,
+      );
+    }
+
     return jsonError(asErrorMessage(error), 500);
   }
+}
+
+function isDatabaseConnectionError(error: unknown) {
+  const message = asErrorMessage(error);
+
+  return (
+    message.includes("Error querying the database") ||
+    message.includes("Can't reach database server") ||
+    message.includes("Tenant or user not found") ||
+    message.includes("tenant/user") ||
+    message.includes("Authentication failed against database server")
+  );
 }
