@@ -372,31 +372,35 @@ export function ResizableProductsTable({
     setExportLoading(true);
     setBulkMessage("");
 
-    const response = await fetch("/api/listing-upload/inventory/export", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ productIds: selectedProductIds }),
-    });
+    try {
+      const response = await fetch("/api/listing-upload/inventory/export", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ productIds: selectedProductIds }),
+      });
 
-    if (!response.ok) {
-      const data = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null;
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        setBulkMessage(data?.error ?? "이베이 XLSX 다운로드에 실패했습니다.");
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "ebay-category-listing-upload.xlsx";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setBulkMessage("이베이 XLSX 다운로드 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
       setExportLoading(false);
-      setBulkMessage(data?.error ?? "이베이 업로드 XLSX 다운로드에 실패했습니다.");
-      return;
     }
-
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "ebay-category-listing-upload.xlsx";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
-    setExportLoading(false);
   }
 
   return (
