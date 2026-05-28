@@ -759,8 +759,8 @@ function InventoryPhotoUploadModal({
     try {
       const preservedFrontImageUrl =
         frontImageUrl ??
-        (product.userImageRegistered && product.imageUrl
-          ? await imageUrlToDataUrl(product.imageUrl)
+        (product.userImageRegistered
+          ? await imageUrlToDataUrl(`/api/products/image-match/assets/${product.id}/front`)
           : null);
 
       if (!preservedFrontImageUrl) {

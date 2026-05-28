@@ -77,7 +77,20 @@ async function loadAsset(context: RouteContext): Promise<LoadedAsset | null> {
   }
 
   if (/^https?:\/\//i.test(imageValue)) {
-    return { redirectUrl: imageValue };
+    // Proxy the image server-side so clients can fetch without CORS restrictions
+    const r2Res = await fetch(imageValue);
+
+    if (!r2Res.ok) return null;
+
+    const buffer = new Uint8Array(await r2Res.arrayBuffer());
+    const contentType = r2Res.headers.get("content-type") ?? "image/jpeg";
+    const headers = new Headers({
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=3600",
+      "Content-Length": String(buffer.length),
+    });
+
+    return { buffer, headers };
   }
 
   const match = imageValue.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
