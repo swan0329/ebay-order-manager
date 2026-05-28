@@ -288,6 +288,9 @@ export async function confirmPhotoCardImage(
   const backBuffer = input.userBackImageUrl
     ? await optimizedJpegBufferFromDataUrl(input.userBackImageUrl)
     : null;
+  // Use a timestamp suffix so each re-upload gets a unique R2 key and URL,
+  // bypassing Cloudflare CDN cache on overwrites.
+  const uploadTs = Date.now();
   const objectKeys = photoCardR2ObjectKeys({
     groupName: product.groupName,
     productCode: photoCardProductCode({
@@ -295,6 +298,7 @@ export async function confirmPhotoCardImage(
       sku: product.sku,
       id: product.id,
     }),
+    ts: uploadTs,
   });
 
   const uploadedKeys: string[] = [];
@@ -628,13 +632,15 @@ export function photoCardProductCode(input: {
 export function photoCardR2ObjectKeys(input: {
   groupName: string | null | undefined;
   productCode: string;
+  ts?: number;
 }) {
   const groupSlug = photoCardGroupSlug(input.groupName);
   const productCode = sanitizeProductCode(input.productCode) ?? "item";
+  const suffix = input.ts ? `_${input.ts}` : "";
 
   return {
-    frontKey: `${groupSlug}/${productCode}_front.jpg`,
-    backKey: `${groupSlug}/${productCode}_back.jpg`,
+    frontKey: `${groupSlug}/${productCode}_front${suffix}.jpg`,
+    backKey: `${groupSlug}/${productCode}_back${suffix}.jpg`,
   };
 }
 
