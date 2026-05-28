@@ -688,7 +688,9 @@ function InventoryPhotoUploadModal({
   const [message, setMessage] = useState("");
   const sourceImageUrl =
     product.sourceImageUrl ?? (product.userImageRegistered ? null : product.imageUrl);
-  const currentFrontUrl = product.userImageRegistered ? product.imageUrl : null;
+  const currentFrontUrl = product.userImageRegistered
+    ? `/api/products/image-match/assets/${product.id}/front`
+    : null;
   const currentBackUrl = product.hasBackImage
     ? `/api/products/image-match/assets/${product.id}/back`
     : null;

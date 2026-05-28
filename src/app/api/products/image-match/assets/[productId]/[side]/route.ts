@@ -1,3 +1,4 @@
+import { getObjectFromR2 } from "@/lib/r2";
 import { prisma } from "@/lib/prisma";
 import { ensureProductImageMatchColumns } from "@/lib/services/productImageMatchService";
 
@@ -6,6 +7,7 @@ type RouteContext = {
 };
 
 type ProductImageAssetRow = {
+  r2Key: string | null;
   imageValue: string | null;
 };
 
@@ -63,6 +65,10 @@ async function loadAsset(context: RouteContext): Promise<LoadedAsset | null> {
   const rows = await prisma.$queryRaw<ProductImageAssetRow[]>`
     SELECT
       CASE
+        WHEN ${side} = 'back' THEN "user_back_r2_key"
+        ELSE "user_front_r2_key"
+      END AS "r2Key",
+      CASE
         WHEN ${side} = 'back' THEN "user_back_image_url"
         ELSE "user_front_image_url"
       END AS "imageValue"
@@ -70,14 +76,33 @@ async function loadAsset(context: RouteContext): Promise<LoadedAsset | null> {
     WHERE "id" = ${productId}
     LIMIT 1
   `;
+  const r2Key = rows[0]?.r2Key?.trim() || null;
   const imageValue = rows[0]?.imageValue?.trim();
+
+  if (!r2Key && !imageValue) {
+    return null;
+  }
+
+  // Fetch directly from R2 via S3 API to bypass Cloudflare CDN cache
+  if (r2Key) {
+    const r2Data = await getObjectFromR2(r2Key);
+
+    if (r2Data) {
+      const headers = new Headers({
+        "Content-Type": r2Data.contentType,
+        "Cache-Control": "no-store",
+        "Content-Length": String(r2Data.buffer.length),
+      });
+      return { buffer: r2Data.buffer, headers };
+    }
+  }
 
   if (!imageValue) {
     return null;
   }
 
   if (/^https?:\/\//i.test(imageValue)) {
-    // Proxy the image server-side so clients can fetch without CORS restrictions
+    // Fallback: fetch via URL (for items without an r2_key stored)
     const r2Res = await fetch(imageValue);
 
     if (!r2Res.ok) return null;
@@ -86,7 +111,6 @@ async function loadAsset(context: RouteContext): Promise<LoadedAsset | null> {
     const contentType = r2Res.headers.get("content-type") ?? "image/jpeg";
     const headers = new Headers({
       "Content-Type": contentType,
-      // R2 images can be overwritten — never cache so re-uploads are visible immediately
       "Cache-Control": "no-store",
       "Content-Length": String(buffer.length),
     });
