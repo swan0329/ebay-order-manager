@@ -483,6 +483,13 @@ export function ProductsControls({
               <Download className="h-4 w-4" />
               CSV
             </a>
+            <a
+              href={`/api/export/ebay-listings${paramsText ? `?${paramsText}` : ""}`}
+              className={secondaryActionClass}
+            >
+              <Download className="h-4 w-4" />
+              eBay 파일
+            </a>
           </div>
         </div>
         {uploading ? (
