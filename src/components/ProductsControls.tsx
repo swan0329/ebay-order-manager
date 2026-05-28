@@ -61,6 +61,7 @@ export function ProductsControls({
   const [uploading, setUploading] = useState(false);
   const [uploadFileName, setUploadFileName] = useState("");
   const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
+  const [normalizing, setNormalizing] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const paramsText = useMemo(() => searchParams.toString(), [searchParams]);
   const filteredGroupOptions = useMemo(
@@ -264,6 +265,29 @@ export function ProductsControls({
     }
   }
 
+  async function normalizeStatus() {
+    setNormalizing(true);
+    setMessage("상태 정규화 중...");
+
+    try {
+      const response = await fetch("/api/admin/normalize-product-status", { method: "POST" });
+      const data = (await response.json().catch(() => null)) as
+        | { updated?: number; soldOut?: number; reactivated?: number; error?: string }
+        | null;
+
+      setMessage(
+        response.ok
+          ? `상태 정규화 완료: 품절처리 ${data?.soldOut ?? 0}건, 활성화 ${data?.reactivated ?? 0}건`
+          : data?.error ?? "상태 정규화 실패",
+      );
+      router.refresh();
+    } catch {
+      setMessage("상태 정규화 요청에 실패했습니다.");
+    } finally {
+      setNormalizing(false);
+    }
+  }
+
   return (
     <section className="border-b border-zinc-200 bg-white">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6">
@@ -459,6 +483,14 @@ export function ProductsControls({
               <Download className="h-4 w-4" />
               CSV
             </a>
+            <button
+              type="button"
+              onClick={() => void normalizeStatus()}
+              disabled={normalizing || uploading}
+              className={`${secondaryActionClass} disabled:cursor-not-allowed disabled:opacity-60`}
+            >
+              상태 자동정리
+            </button>
           </div>
         </div>
         {uploading ? (

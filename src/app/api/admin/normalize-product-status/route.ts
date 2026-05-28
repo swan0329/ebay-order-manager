@@ -16,7 +16,7 @@ export async function POST() {
       prisma.product.updateMany({
         where: {
           stockQuantity: { gt: 0 },
-          status: "sold_out",
+          status: { not: "active" },
         },
         data: { status: "active" },
       }),
