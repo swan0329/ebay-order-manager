@@ -63,6 +63,8 @@ export function ProductsControls({
   const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
   const [normalizing, setNormalizing] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [templateColumnCount, setTemplateColumnCount] = useState<number | null>(null);
+  const [templateUploading, setTemplateUploading] = useState(false);
   const paramsText = useMemo(() => searchParams.toString(), [searchParams]);
   const filteredGroupOptions = useMemo(
     () => filterFacetOptions(facets.groups, group),
@@ -107,6 +109,15 @@ export function ProductsControls({
 
     return () => window.clearTimeout(timer);
   }, [searchParams]);
+
+  useEffect(() => {
+    fetch("/api/export/ebay-template")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { template?: { columnCount: number } | null } | null) => {
+        setTemplateColumnCount(data?.template?.columnCount ?? null);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -262,6 +273,53 @@ export function ProductsControls({
       setUploading(false);
       setUploadStartedAt(null);
       event.currentTarget.value = "";
+    }
+  }
+
+  async function uploadEbayTemplate(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+
+    if (!file) return;
+
+    setTemplateUploading(true);
+    setMessage("eBay 템플릿 업로드 중...");
+    const form = new FormData();
+    form.set("file", file);
+
+    try {
+      const response = await fetch("/api/export/ebay-template", { method: "POST", body: form });
+      const data = (await response.json().catch(() => null)) as
+        | { columnCount?: number; error?: string }
+        | null;
+
+      if (response.ok && data?.columnCount != null) {
+        setTemplateColumnCount(data.columnCount);
+        setMessage(`eBay 템플릿 저장 완료 (${data.columnCount}개 컬럼)`);
+      } else {
+        setMessage(data?.error ?? "템플릿 업로드 실패");
+      }
+    } catch {
+      setMessage("템플릿 업로드 요청에 실패했습니다.");
+    } finally {
+      setTemplateUploading(false);
+      event.currentTarget.value = "";
+    }
+  }
+
+  async function deleteEbayTemplate() {
+    setMessage("eBay 템플릿 삭제 중...");
+
+    try {
+      const response = await fetch("/api/export/ebay-template", { method: "DELETE" });
+
+      if (response.ok) {
+        setTemplateColumnCount(null);
+        setMessage("eBay 템플릿이 삭제되었습니다. 기본 형식으로 내보냅니다.");
+      } else {
+        setMessage("템플릿 삭제 실패");
+      }
+    } catch {
+      setMessage("템플릿 삭제 요청에 실패했습니다.");
     }
   }
 
@@ -490,6 +548,51 @@ export function ProductsControls({
               <Download className="h-4 w-4" />
               eBay 파일
             </a>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
+            <span className="text-xs font-semibold text-zinc-600 shrink-0">eBay 템플릿</span>
+            {templateColumnCount != null ? (
+              <>
+                <span className="text-sm text-zinc-700">
+                  저장됨 ({templateColumnCount}개 컬럼)
+                </span>
+                <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-100">
+                  <Upload className="h-3.5 w-3.5" />
+                  {templateUploading ? "업로드 중..." : "교체"}
+                  <input
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={uploadEbayTemplate}
+                    disabled={templateUploading}
+                    className="sr-only"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void deleteEbayTemplate()}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  삭제
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="text-sm text-zinc-500">없음 — 기본 형식 사용</span>
+                <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-100">
+                  <Upload className="h-3.5 w-3.5" />
+                  {templateUploading ? "업로드 중..." : "템플릿 업로드"}
+                  <input
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={uploadEbayTemplate}
+                    disabled={templateUploading}
+                    className="sr-only"
+                  />
+                </label>
+              </>
+            )}
           </div>
         </div>
         {uploading ? (

@@ -3,11 +3,13 @@ import { productWhere } from "@/lib/products";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 import { toCsv } from "@/lib/csv";
+import {
+  getEbayFileTemplate,
+  getProductValue,
+} from "@/lib/services/ebayFileTemplateService";
 
-// eBay File Exchange format for Seller Hub bulk upload
-// https://developer.ebay.com/DevZone/file-exchange/docs/index.html
-
-const HEADER = [
+// Fallback header when no template is uploaded
+const DEFAULT_HEADER = [
   "*Action",
   "SiteID",
   "*Category",
@@ -36,24 +38,14 @@ const HEADER = [
 
 export async function GET(request: Request) {
   try {
-    await requireApiUser();
+    const user = await requireApiUser();
 
     const url = new URL(request.url);
     const p = (key: string, fallback: string) =>
       url.searchParams.get(key)?.trim() || fallback;
 
-    const defaultCategoryId = p("category_id", "");
-    const defaultConditionId = p("condition_id", "3000");
-    const defaultCurrency = p("currency", "USD");
-    const defaultHandlingTime = p("handling_time", "3");
-    const defaultShippingService = p("shipping_service", "USPSFirstClass");
-    const defaultShippingCost = p("shipping_cost", "0");
-    const defaultFreeShipping = p("free_shipping", "Y");
-    const defaultReturnsAccepted = p("returns_accepted", "ReturnsAccepted");
-    const defaultReturnsWithin = p("returns_within", "Days_30");
-    const defaultRefundOption = p("refund_option", "MoneyBackOrExchange");
-    const defaultShippingCostPaidBy = p("shipping_cost_paid_by", "Buyer");
-    const defaultSiteId = p("site_id", "0");
+    // Load saved template if available
+    const savedTemplate = await getEbayFileTemplate(user.id);
 
     const products = await prisma.product.findMany({
       where: productWhere({
@@ -68,42 +60,66 @@ export async function GET(request: Request) {
       orderBy: { sku: "asc" },
     });
 
-    const rows = products
-      .filter((product) => {
-        const hasPrice = Boolean(product.ebayPrice ?? product.salePrice);
-        const hasImage =
-          product.ebayImageUrls.length > 0 || Boolean(product.imageUrl);
-        return hasPrice && hasImage;
-      })
-      .map((product) => {
-        const title = (product.ebayTitle ?? product.productName).slice(0, 80);
-        const price = (product.ebayPrice ?? product.salePrice)?.toFixed(2) ?? "";
-        const description =
-          product.descriptionHtml ??
-          product.memo ??
-          `<p>${product.productName}</p>`;
+    const exportable = products.filter((product) => {
+      const hasPrice = Boolean(product.ebayPrice ?? product.salePrice);
+      const hasImage =
+        product.ebayImageUrls.length > 0 || Boolean(product.imageUrl);
+      return hasPrice && hasImage;
+    });
+
+    let header: string[];
+    let rows: string[][];
+
+    if (savedTemplate) {
+      // Use saved template structure
+      header = savedTemplate.columns;
+
+      rows = exportable.map((product) =>
+        header.map((col) =>
+          getProductValue(col, product, savedTemplate.defaults[col] ?? ""),
+        ),
+      );
+    } else {
+      // Fallback: default File Exchange format with query-param defaults
+      const defaultSiteId = p("site_id", "0");
+      const defaultConditionId = p("condition_id", "3000");
+      const defaultCurrency = p("currency", "USD");
+      const defaultHandlingTime = p("handling_time", "3");
+      const defaultShippingService = p("shipping_service", "USPSFirstClass");
+      const defaultShippingCost = p("shipping_cost", "0");
+      const defaultFreeShipping = p("free_shipping", "Y");
+      const defaultReturnsAccepted = p("returns_accepted", "ReturnsAccepted");
+      const defaultReturnsWithin = p("returns_within", "Days_30");
+      const defaultRefundOption = p("refund_option", "MoneyBackOrExchange");
+      const defaultShippingCostPaidBy = p("shipping_cost_paid_by", "Buyer");
+      const defaultCategoryId = p("category_id", "");
+
+      header = DEFAULT_HEADER;
+
+      rows = exportable.map((product) => {
+        const price =
+          (product.ebayPrice ?? product.salePrice)?.toFixed(2) ?? "";
         const picUrl =
           product.ebayImageUrls.length > 0
             ? product.ebayImageUrls.join("|")
             : (product.imageUrl ?? "");
-        const categoryId =
-          defaultCategoryId || (product.ebayCategoryId ?? "");
-        const currency = product.ebayCurrency ?? defaultCurrency;
 
         return [
           "Add",
           defaultSiteId,
-          categoryId,
+          defaultCategoryId || (product.ebayCategoryId ?? ""),
           product.sku,
-          title,
-          description,
+          (product.ebayTitle ?? product.productName).slice(0, 80),
+          product.descriptionHtml ??
+            product.memo ??
+            `<p>${product.productName}</p>`,
           picUrl,
           "Gallery",
           price,
-          product.stockQuantity,
+          String(product.stockQuantity),
           "FixedPriceItem",
           "GTC",
-          currency,
+          product.ebayCurrency ?? defaultCurrency,
           defaultConditionId,
           defaultHandlingTime,
           defaultShippingService,
@@ -117,8 +133,9 @@ export async function GET(request: Request) {
           product.optionName ?? product.productName,
         ];
       });
+    }
 
-    const csv = toCsv([HEADER, ...rows]);
+    const csv = toCsv([header, ...rows]);
     const date = new Date().toISOString().slice(0, 10);
 
     return new Response(`﻿${csv}`, {
