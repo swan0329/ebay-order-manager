@@ -62,12 +62,7 @@ export async function createInventoryMovement(input: {
     where: { id: input.productId },
     data: {
       stockQuantity: afterQuantity,
-      status:
-        afterQuantity <= 0
-          ? "sold_out"
-          : product.status === "sold_out"
-            ? "active"
-            : product.status,
+      status: afterQuantity <= 0 ? "sold_out" : "active",
     },
   });
 
@@ -123,7 +118,7 @@ export async function createInventoryMovementTx(
     where: { id: input.productId },
     data: {
       stockQuantity: afterQuantity,
-      status: afterQuantity <= 0 ? "sold_out" : product.status === "sold_out" ? "active" : product.status,
+      status: afterQuantity <= 0 ? "sold_out" : "active",
     },
   });
 

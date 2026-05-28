@@ -1268,6 +1268,9 @@ function CandidateCard({
   const registered = candidate.userImageRegistered || Boolean(completedPreview);
   const hasFrontR2 = Boolean(candidate.userFrontR2Key);
   const hasBackR2 = Boolean(candidate.userBackR2Key);
+  const displayImageUrl = registered
+    ? (completedPreview?.frontImageUrl ?? candidate.userFrontImageUrl ?? candidate.existingImageUrl)
+    : candidate.existingImageUrl;
 
   return (
     <article
@@ -1286,10 +1289,10 @@ function CandidateCard({
         }}
         className="group relative block aspect-[3/4] w-full overflow-hidden rounded-md border border-zinc-200 bg-zinc-50"
       >
-        {candidate.existingImageUrl ? (
+        {displayImageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={candidate.existingImageUrl}
+            src={displayImageUrl}
             alt={candidate.title}
             loading="lazy"
             className="h-full w-full object-cover"
@@ -1302,6 +1305,12 @@ function CandidateCard({
         {index < 9 ? (
           <span className="absolute left-2 top-2 rounded-md bg-zinc-950 px-2 py-1 text-xs font-semibold text-white">
             {index + 1}
+          </span>
+        ) : null}
+        {registered ? (
+          <span className="absolute right-2 top-2 flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white">
+            <Camera className="h-3 w-3" />
+            촬영본
           </span>
         ) : null}
         <span className="absolute bottom-2 right-2 rounded-md bg-white/90 p-1 text-zinc-700 opacity-0 shadow-sm transition group-hover:opacity-100">

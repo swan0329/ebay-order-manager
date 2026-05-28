@@ -115,16 +115,8 @@ export const bulkProductDeleteSchema = z.object({
 
 export type BulkProductDeleteInput = z.infer<typeof bulkProductDeleteSchema>;
 
-function statusForStock(status: (typeof productStatuses)[number], stockQuantity: number) {
-  if (stockQuantity <= 0) {
-    return "sold_out";
-  }
-
-  if (status === "sold_out") {
-    return "active";
-  }
-
-  return status;
+function statusForStock(_status: (typeof productStatuses)[number], stockQuantity: number) {
+  return stockQuantity <= 0 ? "sold_out" : "active";
 }
 
 export function productData(input: ProductInput) {
@@ -345,26 +337,10 @@ export async function bulkUpdateProducts(
   }
 
   if (input.status === undefined && stockQuantity > 0) {
-    const soldOutIds = products
-      .filter((product) => product.status === "sold_out")
-      .map((product) => product.id);
-    const unchangedStatusIds = products
-      .filter((product) => product.status !== "sold_out")
-      .map((product) => product.id);
-
-    if (soldOutIds.length) {
-      await prisma.product.updateMany({
-        where: { id: { in: soldOutIds } },
-        data: { ...stockData, status: "active" },
-      });
-    }
-
-    if (unchangedStatusIds.length) {
-      await prisma.product.updateMany({
-        where: { id: { in: unchangedStatusIds } },
-        data: stockData,
-      });
-    }
+    await prisma.product.updateMany({
+      where: { id: { in: productIds } },
+      data: { ...stockData, status: "active" },
+    });
   } else {
     await prisma.product.updateMany({
       where: { id: { in: productIds } },
