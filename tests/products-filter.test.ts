@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { productWhere } from "@/lib/products";
+import { productData, productWhere } from "@/lib/products";
 
 describe("product inventory filters", () => {
   it("adds photo-card field filters independently from keyword search", () => {
@@ -24,5 +24,26 @@ describe("product inventory filters", () => {
         },
       ]),
     });
+  });
+
+  it("reactivates sold out products when positive stock is saved", () => {
+    expect(
+      productData({
+        sku: "sku-1",
+        internalCode: null,
+        productName: "Product 1",
+        optionName: null,
+        category: null,
+        brand: null,
+        costPrice: null,
+        salePrice: null,
+        stockQuantity: 3,
+        safetyStock: 0,
+        location: null,
+        memo: null,
+        imageUrl: null,
+        status: "sold_out",
+      }),
+    ).toMatchObject({ stockQuantity: 3, status: "active" });
   });
 });

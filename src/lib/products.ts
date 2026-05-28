@@ -120,6 +120,10 @@ function statusForStock(status: (typeof productStatuses)[number], stockQuantity:
     return "sold_out";
   }
 
+  if (status === "sold_out") {
+    return "active";
+  }
+
   return status;
 }
 
@@ -340,6 +344,9 @@ export async function bulkUpdateProducts(
     ...baseData,
     stockQuantity,
   };
+  if (input.status !== undefined) {
+    stockData.status = statusForStock(input.status, stockQuantity);
+  }
 
   if (input.status === undefined && stockQuantity > 0) {
     const soldOutIds = products
@@ -367,7 +374,10 @@ export async function bulkUpdateProducts(
       where: { id: { in: productIds } },
       data: {
         ...stockData,
-        status: input.status ?? "sold_out",
+        status:
+          input.status === undefined
+            ? "sold_out"
+            : statusForStock(input.status, stockQuantity),
       },
     });
   }
