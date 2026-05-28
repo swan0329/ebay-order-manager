@@ -119,6 +119,49 @@ function listingStatusClass(status?: string | null) {
   return "bg-zinc-100 text-zinc-600 ring-zinc-200";
 }
 
+function PhotoThumb({
+  src,
+  label,
+  registered,
+  showCamera,
+  sizeClass,
+  onClick,
+}: {
+  src: string | null;
+  label: string;
+  registered: boolean;
+  showCamera: boolean;
+  sizeClass: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group relative flex ${sizeClass} shrink-0 items-center justify-center overflow-hidden rounded-md bg-zinc-100 ring-1 ring-zinc-200 transition hover:ring-zinc-900`}
+      title="촬영본 등록"
+    >
+      {src ? (
+        <img src={src} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <PackageOpen className="h-5 w-5 text-zinc-400" />
+      )}
+      <span
+        className={`absolute bottom-1 left-1 rounded px-1.5 py-0.5 text-[10px] font-semibold shadow-sm ${
+          registered ? "bg-emerald-600 text-white" : "bg-zinc-950 text-white"
+        }`}
+      >
+        {label}
+      </span>
+      {showCamera ? (
+        <span className="absolute right-1 top-1 rounded bg-white/90 p-1 text-zinc-700 opacity-0 shadow-sm transition group-hover:opacity-100">
+          <Camera className="h-3 w-3" />
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
 function ProductImageButton({
   product,
   sizeClass,
@@ -135,42 +178,39 @@ function ProductImageButton({
   const backUrl = product.hasBackImage && t
     ? `/api/products/image-match/assets/${product.id}/back?t=${t}`
     : null;
-  const badge = product.userImageRegistered
-    ? product.hasBackImage
-      ? "앞/뒤"
-      : "앞면"
-    : "촬영";
+
+  if (backUrl) {
+    return (
+      <div className="flex gap-1">
+        <PhotoThumb
+          src={frontUrl}
+          label="앞"
+          registered
+          showCamera={false}
+          sizeClass={sizeClass}
+          onClick={onClick}
+        />
+        <PhotoThumb
+          src={backUrl}
+          label="뒤"
+          registered
+          showCamera
+          sizeClass={sizeClass}
+          onClick={onClick}
+        />
+      </div>
+    );
+  }
 
   return (
-    <button
-      type="button"
+    <PhotoThumb
+      src={frontUrl}
+      label={product.userImageRegistered ? "앞면" : "촬영"}
+      registered={product.userImageRegistered}
+      showCamera
+      sizeClass={sizeClass}
       onClick={onClick}
-      className={`group relative flex ${sizeClass} items-center justify-center overflow-hidden rounded-md bg-zinc-100 ring-1 ring-zinc-200 transition hover:ring-zinc-900`}
-      title="촬영본 등록"
-    >
-      {backUrl ? (
-        <div className="flex h-full w-full">
-          <img src={frontUrl ?? ""} alt="" className="h-full w-1/2 object-cover" />
-          <img src={backUrl} alt="" className="h-full w-1/2 object-cover border-l border-zinc-200" />
-        </div>
-      ) : frontUrl ? (
-        <img src={frontUrl} alt="" className="h-full w-full object-cover" />
-      ) : (
-        <PackageOpen className="h-5 w-5 text-zinc-400" />
-      )}
-      <span
-        className={`absolute bottom-1 left-1 rounded px-1.5 py-0.5 text-[10px] font-semibold shadow-sm ${
-          product.userImageRegistered
-            ? "bg-emerald-600 text-white"
-            : "bg-zinc-950 text-white"
-        }`}
-      >
-        {badge}
-      </span>
-      <span className="absolute right-1 top-1 rounded bg-white/90 p-1 text-zinc-700 opacity-0 shadow-sm transition group-hover:opacity-100">
-        <Camera className="h-3 w-3" />
-      </span>
-    </button>
+    />
   );
 }
 
