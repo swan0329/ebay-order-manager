@@ -86,7 +86,8 @@ async function loadAsset(context: RouteContext): Promise<LoadedAsset | null> {
     const contentType = r2Res.headers.get("content-type") ?? "image/jpeg";
     const headers = new Headers({
       "Content-Type": contentType,
-      "Cache-Control": "public, max-age=3600",
+      // R2 images can be overwritten — never cache so re-uploads are visible immediately
+      "Cache-Control": "no-store",
       "Content-Length": String(buffer.length),
     });
 
