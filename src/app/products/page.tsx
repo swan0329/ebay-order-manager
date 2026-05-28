@@ -163,6 +163,7 @@ export default async function ProductsPage({
       sourceImageUrl: photo?.sourceImageUrl ?? null,
       userImageRegistered: photo?.userImageRegistered ?? false,
       hasBackImage: photo?.hasBackImage ?? false,
+      imageUpdatedAt: product.updatedAt.toISOString(),
       status: product.status,
       listingStatus: product.listingStatus,
       listingUploadStatus,

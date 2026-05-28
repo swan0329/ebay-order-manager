@@ -24,6 +24,7 @@ export type ProductQuickEditValue = {
   sourceImageUrl: string | null;
   userImageRegistered: boolean;
   hasBackImage: boolean;
+  imageUpdatedAt?: string | null;
   status: string;
   listingStatus?: string | null;
   listingUploadStatus?: string | null;
@@ -127,7 +128,13 @@ function ProductImageButton({
   sizeClass: string;
   onClick: () => void;
 }) {
-  const displayImageUrl = product.sourceImageUrl ?? product.imageUrl;
+  const t = product.imageUpdatedAt ? new Date(product.imageUpdatedAt).getTime() : null;
+  const frontUrl = product.userImageRegistered && t
+    ? `/api/products/image-match/assets/${product.id}/front?t=${t}`
+    : (product.sourceImageUrl ?? product.imageUrl);
+  const backUrl = product.hasBackImage && t
+    ? `/api/products/image-match/assets/${product.id}/back?t=${t}`
+    : null;
   const badge = product.userImageRegistered
     ? product.hasBackImage
       ? "앞/뒤"
@@ -141,8 +148,13 @@ function ProductImageButton({
       className={`group relative flex ${sizeClass} items-center justify-center overflow-hidden rounded-md bg-zinc-100 ring-1 ring-zinc-200 transition hover:ring-zinc-900`}
       title="촬영본 등록"
     >
-      {displayImageUrl ? (
-        <img src={displayImageUrl} alt="" className="h-full w-full object-cover" />
+      {backUrl ? (
+        <div className="flex h-full w-full">
+          <img src={frontUrl ?? ""} alt="" className="h-full w-1/2 object-cover" />
+          <img src={backUrl} alt="" className="h-full w-1/2 object-cover border-l border-zinc-200" />
+        </div>
+      ) : frontUrl ? (
+        <img src={frontUrl} alt="" className="h-full w-full object-cover" />
       ) : (
         <PackageOpen className="h-5 w-5 text-zinc-400" />
       )}
