@@ -1,4 +1,3 @@
-import path from "node:path";
 import * as XLSX from "xlsx";
 import { z } from "zod";
 import { asErrorMessage, jsonError } from "@/lib/http";
@@ -18,12 +17,18 @@ const schema = z.object({
   templateId: z.string().optional().nullable(),
 });
 
-const ebayTemplatePath = path.join(
-  process.cwd(),
-  "public",
-  "templates",
-  "eBay-category-listing-template.xlsx",
-);
+async function readEbayTemplate(requestUrl: string): Promise<XLSX.WorkBook> {
+  const origin = new URL(requestUrl).origin;
+  const templateUrl = `${origin}/templates/eBay-category-listing-template.xlsx`;
+  const res = await fetch(templateUrl);
+
+  if (!res.ok) {
+    throw new Error(`템플릿 파일을 읽을 수 없습니다 (${res.status})`);
+  }
+
+  const buffer = await res.arrayBuffer();
+  return XLSX.read(new Uint8Array(buffer), { type: "array" });
+}
 
 type ProductForExport = Awaited<ReturnType<typeof getProducts>>[number];
 type PolicyLookup = Awaited<ReturnType<typeof policyLookup>>;
@@ -322,7 +327,7 @@ export async function POST(request: Request) {
         policies,
       });
     });
-    const workbook = XLSX.readFile(ebayTemplatePath, { cellStyles: true });
+    const workbook = await readEbayTemplate(request.url);
 
     fillListingsSheet(workbook, rows);
     fillBusinessPolicySheet(workbook, policies);

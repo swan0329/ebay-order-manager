@@ -364,8 +364,11 @@ export function ResizableProductsTable({
   }
 
   async function downloadSelectedListingXlsx() {
-    if (!selectedCount) {
-      setBulkMessage("XLSX로 받을 상품을 하나 이상 선택해 주세요.");
+    // Use checked items if any, otherwise fall back to all current-page products
+    const ids = selectedCount > 0 ? selectedProductIds : products.map((p) => p.id);
+
+    if (ids.length === 0) {
+      setBulkMessage("다운로드할 상품이 없습니다.");
       return;
     }
 
@@ -376,7 +379,7 @@ export function ResizableProductsTable({
       const response = await fetch("/api/listing-upload/inventory/export", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ productIds: selectedProductIds }),
+        body: JSON.stringify({ productIds: ids }),
       });
 
       if (!response.ok) {
@@ -433,11 +436,11 @@ export function ResizableProductsTable({
             <button
               type="button"
               onClick={() => void downloadSelectedListingXlsx()}
-              disabled={exportLoading || !selectedCount}
+              disabled={exportLoading || products.length === 0}
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-emerald-700 bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
             >
               <Download className="h-3.5 w-3.5" />
-              {exportLoading ? "XLSX 준비 중" : "이베이 XLSX"}
+              {exportLoading ? "XLSX 준비 중" : selectedCount > 0 ? `이베이 XLSX (${selectedCount}개)` : "이베이 XLSX (전체)"}
             </button>
             <button
               type="button"
