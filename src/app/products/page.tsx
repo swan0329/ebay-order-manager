@@ -11,6 +11,7 @@ import {
   resolveInventoryListingUploadStatus,
   listingUploadStatusLabel,
 } from "@/lib/listing-upload-status";
+import { getProductStats } from "@/lib/product-stats";
 import { productWhere } from "@/lib/products";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
@@ -76,34 +77,37 @@ export default async function ProductsPage({
   const where = productWhere(params);
   const currentPage = requestedPage;
   const skip = (currentPage - 1) * pageSize;
-  const fetchedProducts = await prisma.product.findMany({
-    where,
-    select: {
-      id: true,
-      sku: true,
-      internalCode: true,
-      productName: true,
-      optionName: true,
-      category: true,
-      brand: true,
-      costPrice: true,
-      salePrice: true,
-      stockQuantity: true,
-      safetyStock: true,
-      location: true,
-      memo: true,
-      imageUrl: true,
-      status: true,
-      listingStatus: true,
-      ebayItemId: true,
-      uploadError: true,
-      lastUploadedAt: true,
-      updatedAt: true,
-    },
-    orderBy: { sku: "asc" },
-    skip,
-    take: pageSize + 1,
-  });
+  const [fetchedProducts, productStats] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      select: {
+        id: true,
+        sku: true,
+        internalCode: true,
+        productName: true,
+        optionName: true,
+        category: true,
+        brand: true,
+        costPrice: true,
+        salePrice: true,
+        stockQuantity: true,
+        safetyStock: true,
+        location: true,
+        memo: true,
+        imageUrl: true,
+        status: true,
+        listingStatus: true,
+        ebayItemId: true,
+        uploadError: true,
+        lastUploadedAt: true,
+        updatedAt: true,
+      },
+      orderBy: { sku: "asc" },
+      skip,
+      take: pageSize + 1,
+    }),
+    getProductStats(),
+  ]);
   const hasNextPage = fetchedProducts.length > pageSize;
   const products = fetchedProducts.slice(0, pageSize);
   const initialFacets = facetsFromProducts(products);
@@ -147,7 +151,7 @@ export default async function ProductsPage({
       <TopNav loginId={user.loginId} />
       <ProductsControls initialFacets={initialFacets} />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        <ProductStatsCards pageSize={pageSize} />
+        <ProductStatsCards pageSize={pageSize} stats={productStats} />
 
         <ResizableProductsTable products={productRows} />
 

@@ -1,20 +1,6 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, PackageCheck, PackageOpen } from "lucide-react";
-
-type ProductStats = {
-  totalCount: number;
-  inStockCount: number;
-  soldOutCount: number;
-};
-
-const emptyStats: ProductStats = {
-  totalCount: 0,
-  inStockCount: 0,
-  soldOutCount: 0,
-};
+import type { ProductStats } from "@/lib/product-stats";
 
 function statsHref(pageSize: number, stock?: "in_stock" | "sold_out") {
   const params = new URLSearchParams();
@@ -32,38 +18,17 @@ function statsHref(pageSize: number, stock?: "in_stock" | "sold_out") {
   return query ? `/products?${query}` : "/products";
 }
 
-function formatCount(value: number | null) {
-  return value === null ? "..." : value.toLocaleString();
+function formatCount(value: number) {
+  return value.toLocaleString();
 }
 
-export function ProductStatsCards({ pageSize }: { pageSize: number }) {
-  const [stats, setStats] = useState<ProductStats>(emptyStats);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    fetch("/api/products/stats", { signal: controller.signal })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data: ProductStats | null) => {
-        if (data) {
-          setStats(data);
-          setLoaded(true);
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setLoaded(true);
-        }
-      });
-
-    return () => controller.abort();
-  }, []);
-
-  const totalCount = loaded ? stats.totalCount : null;
-  const inStockCount = loaded ? stats.inStockCount : null;
-  const soldOutCount = loaded ? stats.soldOutCount : null;
-
+export function ProductStatsCards({
+  pageSize,
+  stats,
+}: {
+  pageSize: number;
+  stats: ProductStats;
+}) {
   return (
     <section className="mb-5 grid gap-3 sm:grid-cols-3">
       <Link
@@ -76,7 +41,7 @@ export function ProductStatsCards({ pageSize }: { pageSize: number }) {
           <PackageOpen className="h-5 w-5 text-zinc-700" />
         </div>
         <p className="mt-3 text-2xl font-semibold text-zinc-950">
-          {formatCount(totalCount)}
+          {formatCount(stats.totalCount)}
         </p>
       </Link>
       <Link
@@ -89,7 +54,7 @@ export function ProductStatsCards({ pageSize }: { pageSize: number }) {
           <PackageCheck className="h-5 w-5 text-emerald-600" />
         </div>
         <p className="mt-3 text-2xl font-semibold text-zinc-950">
-          {formatCount(inStockCount)}
+          {formatCount(stats.inStockCount)}
         </p>
       </Link>
       <Link
@@ -102,7 +67,7 @@ export function ProductStatsCards({ pageSize }: { pageSize: number }) {
           <AlertTriangle className="h-5 w-5 text-rose-600" />
         </div>
         <p className="mt-3 text-2xl font-semibold text-zinc-950">
-          {formatCount(soldOutCount)}
+          {formatCount(stats.soldOutCount)}
         </p>
       </Link>
     </section>
