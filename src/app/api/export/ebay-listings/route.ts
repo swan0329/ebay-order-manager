@@ -8,7 +8,7 @@ import {
   getProductValue,
 } from "@/lib/services/ebayFileTemplateService";
 
-// Fallback header when no template is uploaded
+// Fallback header when no template is uploaded (old File Exchange format)
 const DEFAULT_HEADER = [
   "*Action",
   "SiteID",
@@ -44,7 +44,6 @@ export async function GET(request: Request) {
     const p = (key: string, fallback: string) =>
       url.searchParams.get(key)?.trim() || fallback;
 
-    // Load saved template if available
     const savedTemplate = await getEbayFileTemplate(user.id);
 
     const products = await prisma.product.findMany({
@@ -67,20 +66,34 @@ export async function GET(request: Request) {
       return hasPrice && hasImage;
     });
 
-    let header: string[];
-    let rows: string[][];
+    const date = new Date().toISOString().slice(0, 10);
+    let csvBody: string;
 
     if (savedTemplate) {
-      // Use saved template structure
-      header = savedTemplate.columns;
+      const { columns, defaults, isSellerHubFormat } = savedTemplate;
 
-      rows = exportable.map((product) =>
-        header.map((col) =>
-          getProductValue(col, product, savedTemplate.defaults[col] ?? ""),
+      const rows = exportable.map((product) =>
+        columns.map((col) =>
+          getProductValue(col, product, defaults[col] ?? ""),
         ),
       );
+
+      const dataCsv = toCsv([columns, ...rows]);
+
+      if (isSellerHubFormat) {
+        // Prepend the #INFO metadata rows required by Seller Hub Reports format
+        const ts = Date.now();
+        const infoPart = [
+          `#INFO,Created=${ts}`,
+          `#INFO,Version=1.0,,Template=fx_category_template_EBAY_US`,
+          `#INFO`,
+        ].join("\n");
+        csvBody = `﻿${infoPart}\n${dataCsv}`;
+      } else {
+        csvBody = `﻿${dataCsv}`;
+      }
     } else {
-      // Fallback: default File Exchange format with query-param defaults
+      // Fallback: classic File Exchange format using query-param defaults
       const defaultSiteId = p("site_id", "0");
       const defaultConditionId = p("condition_id", "3000");
       const defaultCurrency = p("currency", "USD");
@@ -94,9 +107,7 @@ export async function GET(request: Request) {
       const defaultShippingCostPaidBy = p("shipping_cost_paid_by", "Buyer");
       const defaultCategoryId = p("category_id", "");
 
-      header = DEFAULT_HEADER;
-
-      rows = exportable.map((product) => {
+      const rows = exportable.map((product) => {
         const price =
           (product.ebayPrice ?? product.salePrice)?.toFixed(2) ?? "";
         const picUrl =
@@ -133,12 +144,11 @@ export async function GET(request: Request) {
           product.optionName ?? product.productName,
         ];
       });
+
+      csvBody = `﻿${toCsv([DEFAULT_HEADER, ...rows])}`;
     }
 
-    const csv = toCsv([header, ...rows]);
-    const date = new Date().toISOString().slice(0, 10);
-
-    return new Response(`﻿${csv}`, {
+    return new Response(csvBody, {
       headers: {
         "content-type": "text/csv; charset=utf-8",
         "content-disposition": `attachment; filename="ebay-listings-${date}.csv"`,
