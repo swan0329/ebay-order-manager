@@ -1,3 +1,4 @@
+import { Prisma } from "@/generated/prisma";
 import type { ProductQuickEditValue } from "@/components/ProductQuickEdit";
 import { ProductStatsCards } from "@/components/ProductStatsCards";
 import { ProductsPager } from "@/components/ProductsPager";
@@ -15,6 +16,32 @@ import { getProductStats } from "@/lib/product-stats";
 import { productWhere } from "@/lib/products";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+
+type ProductPhotoStatus = {
+  id: string;
+  userImageRegistered: boolean;
+  hasBackImage: boolean;
+  sourceImageUrl: string | null;
+};
+
+async function fetchPhotoStatusByIds(ids: string[]): Promise<Map<string, ProductPhotoStatus>> {
+  if (!ids.length) return new Map();
+
+  try {
+    const rows = await prisma.$queryRaw<ProductPhotoStatus[]>`
+      SELECT
+        "id",
+        ("user_front_image_url" IS NOT NULL AND "user_front_image_url" <> '') AS "userImageRegistered",
+        COALESCE("has_back_image", false) AS "hasBackImage",
+        "source_image_url" AS "sourceImageUrl"
+      FROM "products"
+      WHERE "id" IN (${Prisma.join(ids)})
+    `;
+    return new Map(rows.map((row) => [row.id, row]));
+  } catch {
+    return new Map();
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -113,8 +140,10 @@ export default async function ProductsPage({
   const initialFacets = facetsFromProducts(products);
   const totalFiltered = skip + products.length + (hasNextPage ? 1 : 0);
   const totalPages = Math.max(1, hasNextPage ? currentPage + 1 : currentPage);
+  const photoStatusById = await fetchPhotoStatusByIds(products.map((p) => p.id));
   const productRows: ProductQuickEditValue[] = products.map((product) => {
     const listingUploadStatus = resolveInventoryListingUploadStatus(product);
+    const photo = photoStatusById.get(product.id);
 
     return {
       id: product.id,
@@ -131,9 +160,9 @@ export default async function ProductsPage({
       location: product.location,
       memo: product.memo,
       imageUrl: product.imageUrl,
-      sourceImageUrl: null,
-      userImageRegistered: false,
-      hasBackImage: false,
+      sourceImageUrl: photo?.sourceImageUrl ?? null,
+      userImageRegistered: photo?.userImageRegistered ?? false,
+      hasBackImage: photo?.hasBackImage ?? false,
       status: product.status,
       listingStatus: product.listingStatus,
       listingUploadStatus,
