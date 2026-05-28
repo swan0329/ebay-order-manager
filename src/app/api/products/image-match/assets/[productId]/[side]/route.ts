@@ -83,14 +83,16 @@ async function loadAsset(context: RouteContext): Promise<LoadedAsset | null> {
     return null;
   }
 
-  // Fetch directly from R2 via S3 API to bypass Cloudflare CDN cache
+  // Fetch directly from R2 via S3 API to bypass Cloudflare CDN cache.
+  // The caller appends ?t=<timestamp> so the URL is unique per modal open,
+  // making it safe to cache in the browser for fast subsequent reads.
   if (r2Key) {
     const r2Data = await getObjectFromR2(r2Key);
 
     if (r2Data) {
       const headers = new Headers({
         "Content-Type": r2Data.contentType,
-        "Cache-Control": "no-store",
+        "Cache-Control": "public, max-age=3600",
         "Content-Length": String(r2Data.buffer.length),
       });
       return { buffer: r2Data.buffer, headers };
@@ -111,7 +113,7 @@ async function loadAsset(context: RouteContext): Promise<LoadedAsset | null> {
     const contentType = r2Res.headers.get("content-type") ?? "image/jpeg";
     const headers = new Headers({
       "Content-Type": contentType,
-      "Cache-Control": "no-store",
+      "Cache-Control": "public, max-age=3600",
       "Content-Length": String(buffer.length),
     });
 
