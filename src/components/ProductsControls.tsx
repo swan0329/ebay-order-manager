@@ -483,14 +483,6 @@ export function ProductsControls({
               <Download className="h-4 w-4" />
               CSV
             </a>
-            <button
-              type="button"
-              onClick={() => void normalizeStatus()}
-              disabled={normalizing || uploading}
-              className={`${secondaryActionClass} disabled:cursor-not-allowed disabled:opacity-60`}
-            >
-              상태 자동정리
-            </button>
           </div>
         </div>
         {uploading ? (
@@ -501,6 +493,19 @@ export function ProductsControls({
         ) : message ? (
           <p className="text-sm text-zinc-600">{message}</p>
         ) : null}
+        <div className="flex items-center gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-2">
+          <p className="flex-1 text-sm text-amber-900">
+            재고가 있는데 품절/비활성 상태인 상품이 있으면 아래 버튼으로 일괄 수정하세요.
+          </p>
+          <button
+            type="button"
+            onClick={() => void normalizeStatus()}
+            disabled={normalizing}
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md bg-amber-600 px-4 text-sm font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {normalizing ? "정리 중..." : "상태 자동정리"}
+          </button>
+        </div>
       </div>
     </section>
   );
