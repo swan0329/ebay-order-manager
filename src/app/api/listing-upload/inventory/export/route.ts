@@ -153,12 +153,31 @@ async function policyLookup(userId: string) {
   };
 }
 
+type TemplatePolicies = { shipping: string; return: string; payment: string };
+
 function policyName(
   lookup: Map<string, string>,
   value: string | null | undefined,
 ) {
   const key = text(value);
   return key ? lookup.get(key) ?? key : "";
+}
+
+function extractTemplatePolicies(workbook: XLSX.WorkBook): TemplatePolicies {
+  const sheet = workbook.Sheets.BusinessPolicy;
+  if (!sheet) return { shipping: "", return: "", payment: "" };
+
+  const rows = XLSX.utils.sheet_to_json<string[]>(sheet, {
+    header: 1,
+    raw: false,
+    defval: "",
+  });
+
+  return {
+    shipping: String(rows[1]?.[0] ?? "").trim(),
+    return: String(rows[1]?.[1] ?? "").trim(),
+    payment: String(rows[1]?.[2] ?? "").trim(),
+  };
 }
 
 function headerMap(sheet: XLSX.WorkSheet) {
@@ -214,8 +233,20 @@ function clearListingRows(sheet: XLSX.WorkSheet) {
 function listingRow(input: {
   draft: ListingUploadDraft;
   policies: PolicyLookup;
+  templatePolicies: TemplatePolicies;
 }) {
   const draft = input.draft;
+
+  // Resolve policy name: API cache first, then product field, then template default
+  const shippingProfile =
+    policyName(input.policies.fulfillment, text(draft.shippingProfile)) ||
+    input.templatePolicies.shipping;
+  const returnProfile =
+    policyName(input.policies.return, text(draft.returnProfile)) ||
+    input.templatePolicies.return;
+  const paymentProfile =
+    policyName(input.policies.payment, text(draft.paymentProfile)) ||
+    input.templatePolicies.payment;
 
   return {
     "*Action(SiteID=US|Country=US|Currency=USD|Version=1193)": "Add",
@@ -234,9 +265,9 @@ function listingRow(input: {
     "Minimum Best Offer Price": text(draft.minimumOfferPrice),
     "Immediate pay required": boolText(draft.immediatePayRequired),
     Location: text(draft.merchantLocationKey),
-    "Shipping profile name": policyName(input.policies.fulfillment, text(draft.shippingProfile)),
-    "Return profile name": policyName(input.policies.return, text(draft.returnProfile)),
-    "Payment profile name": policyName(input.policies.payment, text(draft.paymentProfile)),
+    "Shipping profile name": shippingProfile,
+    "Return profile name": returnProfile,
+    "Payment profile name": paymentProfile,
     "C:Original/Reproduction": "Original",
   };
 }
@@ -267,6 +298,15 @@ function fillBusinessPolicySheet(workbook: XLSX.WorkBook, policies: PolicyLookup
   const sheet = workbook.Sheets.BusinessPolicy;
 
   if (!sheet) {
+    return;
+  }
+
+  // If no API policies are cached, keep the template's existing policy names as-is
+  if (
+    policies.fulfillment.size === 0 &&
+    policies.return.size === 0 &&
+    policies.payment.size === 0
+  ) {
     return;
   }
 
@@ -315,6 +355,8 @@ export async function POST(request: Request) {
     const templateDefaults = templateResult.template
       ? listingTemplateToDefaults(templateResult.template)
       : templateResult.defaults;
+    const workbook = await readEbayTemplate(request.url);
+    const templatePolicies = extractTemplatePolicies(workbook);
     const rows = sortedProducts.map((product, index) => {
       const primary = productDraft(product);
       const merged = mergeListingUploadDrafts(primary, templateDefaults, {
@@ -325,9 +367,9 @@ export async function POST(request: Request) {
       return listingRow({
         draft: { ...merged, title: title || merged.title },
         policies,
+        templatePolicies,
       });
     });
-    const workbook = await readEbayTemplate(request.url);
 
     fillListingsSheet(workbook, rows);
     fillBusinessPolicySheet(workbook, policies);
