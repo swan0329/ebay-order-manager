@@ -142,6 +142,7 @@ export function PhotoCardMatchClient() {
   const [frontFile, setFrontFile] = useState<File | null>(null);
   const [frontImageUrl, setFrontImageUrl] = useState<string | null>(null);
   const [backImageUrl, setBackImageUrl] = useState<string | null>(null);
+  const [imageProcessing, setImageProcessing] = useState(false);
   const [activeUploadSide, setActiveUploadSide] = useState<UploadSide>("front");
   const [dragSide, setDragSide] = useState<UploadSide | null>(null);
   const [group, setGroup] = useState("");
@@ -344,18 +345,23 @@ export function PhotoCardMatchClient() {
     }
 
     cancelAutoNext();
-    const dataUrl = await fileToDataUrl(file);
+    setImageProcessing(true);
+    try {
+      const dataUrl = await fileToDataUrl(file);
 
-    if (side === "front") {
-      setFrontFile(file);
-      setFrontImageUrl(dataUrl);
-      setActiveUploadSide("back");
-    } else {
-      setBackImageUrl(dataUrl);
-      setActiveUploadSide("front");
+      if (side === "front") {
+        setFrontFile(file);
+        setFrontImageUrl(dataUrl);
+        setActiveUploadSide("back");
+      } else {
+        setBackImageUrl(dataUrl);
+        setActiveUploadSide("front");
+      }
+
+      setMessage(`${side === "front" ? "앞면" : "뒷면"} 이미지가 준비되었습니다.`);
+    } finally {
+      setImageProcessing(false);
     }
-
-    setMessage(`${side === "front" ? "앞면" : "뒷면"} 이미지가 준비되었습니다.`);
   }, [cancelAutoNext]);
 
   const clearUploadedImages = useCallback(() => {
@@ -438,10 +444,12 @@ export function PhotoCardMatchClient() {
         ...current,
         [candidate.cardId]: {
           frontImageUrl: savedProduct.userFrontImageUrl ?? savedFrontImageUrl,
-          backImageUrl: savedProduct.userBackImageUrl ?? savedBackImageUrl,
+          backImageUrl: savedProduct.userBackImageUrl ?? null,
         },
       }));
-      setMessage(`${data.product.sku} 촬영본 연결 완료`);
+      const backSavedMsg =
+        savedBackImageUrl && !savedProduct.hasBackImage ? " (뒷면 저장 실패 — 다시 시도해주세요)" : "";
+      setMessage(`${data.product.sku} 촬영본 연결 완료${backSavedMsg}`);
       void refreshR2PendingCount(true);
 
       if (continuousMode) {
@@ -698,7 +706,7 @@ export function PhotoCardMatchClient() {
           return;
         }
 
-        if (!selectedCandidate) {
+        if (!selectedCandidate || imageProcessing) {
           return;
         }
 
@@ -723,7 +731,7 @@ export function PhotoCardMatchClient() {
     window.addEventListener("keydown", handler);
 
     return () => window.removeEventListener("keydown", handler);
-  }, [candidates, selectedCandidate, requestSaveCandidate, clearUploadedImages]);
+  }, [candidates, selectedCandidate, requestSaveCandidate, clearUploadedImages, imageProcessing]);
 
   const fetchCandidates = useCallback(async (nextOffset: number) => {
     const params = buildPhotoCardFilterParams();
@@ -1172,7 +1180,7 @@ export function PhotoCardMatchClient() {
                 completedPreview={completedPreviews[candidate.cardId]}
                 selected={selectedCandidateId === candidate.cardId}
                 saving={savingId === candidate.cardId}
-                canSave={Boolean(frontImageUrl) && savingId === null}
+                canSave={Boolean(frontImageUrl) && savingId === null && !imageProcessing}
                 deletingTarget={deletingTarget}
                 onSelect={() => setSelectedCandidateId(candidate.cardId)}
                 onPreview={() => setPreviewCandidate(candidate)}

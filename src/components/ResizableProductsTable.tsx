@@ -677,6 +677,7 @@ function InventoryPhotoUploadModal({
   const [activeSide, setActiveSide] = useState<UploadSide>("front");
   const [dragSide, setDragSide] = useState<UploadSide | null>(null);
   const [saving, setSaving] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const [message, setMessage] = useState("");
   const sourceImageUrl =
     product.sourceImageUrl ?? (product.userImageRegistered ? null : product.imageUrl);
@@ -721,18 +722,23 @@ function InventoryPhotoUploadModal({
       return;
     }
 
+    setProcessing(true);
     setMessage("이미지를 최적화하는 중입니다.");
-    const dataUrl = await fileToOptimizedDataUrl(file);
+    try {
+      const dataUrl = await fileToOptimizedDataUrl(file);
 
-    if (side === "front") {
-      setFrontImageUrl(dataUrl);
-      setActiveSide("back");
-    } else {
-      setBackImageUrl(dataUrl);
-      setActiveSide("front");
+      if (side === "front") {
+        setFrontImageUrl(dataUrl);
+        setActiveSide("back");
+      } else {
+        setBackImageUrl(dataUrl);
+        setActiveSide("front");
+      }
+
+      setMessage(`${side === "front" ? "앞면" : "뒷면"} 촬영본이 준비되었습니다.`);
+    } finally {
+      setProcessing(false);
     }
-
-    setMessage(`${side === "front" ? "앞면" : "뒷면"} 촬영본이 준비되었습니다.`);
   }
 
   async function savePhoto() {
@@ -813,6 +819,9 @@ function InventoryPhotoUploadModal({
             {currentFrontUrl ? (
               <ReadonlyPreview title="현재 촬영본 앞면" src={currentFrontUrl} />
             ) : null}
+            {currentBackUrl ? (
+              <ReadonlyPreview title="현재 촬영본 뒷면" src={currentBackUrl} />
+            ) : null}
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <PhotoDropBox
@@ -855,11 +864,11 @@ function InventoryPhotoUploadModal({
             <button
               type="button"
               onClick={savePhoto}
-              disabled={saving || (!frontImageUrl && !product.userImageRegistered)}
+              disabled={saving || processing || (!frontImageUrl && !product.userImageRegistered)}
               className="inline-flex h-10 items-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              촬영본 저장
+              {saving || processing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {processing ? "이미지 준비 중..." : "촬영본 저장"}
             </button>
           </div>
         </div>
