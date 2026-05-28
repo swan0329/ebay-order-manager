@@ -688,11 +688,14 @@ function InventoryPhotoUploadModal({
   const [message, setMessage] = useState("");
   const sourceImageUrl =
     product.sourceImageUrl ?? (product.userImageRegistered ? null : product.imageUrl);
+  // Cache-bust with a stable timestamp so the browser never serves a stale proxy response.
+  // Using module-load time keeps it constant within a session but changes on hard-refresh.
+  const [cacheBust] = useState(() => Date.now());
   const currentFrontUrl = product.userImageRegistered
-    ? `/api/products/image-match/assets/${product.id}/front`
+    ? `/api/products/image-match/assets/${product.id}/front?t=${cacheBust}`
     : null;
   const currentBackUrl = product.hasBackImage
-    ? `/api/products/image-match/assets/${product.id}/back`
+    ? `/api/products/image-match/assets/${product.id}/back?t=${cacheBust}`
     : null;
 
   useEffect(() => {
