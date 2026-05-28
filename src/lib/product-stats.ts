@@ -14,11 +14,10 @@ export async function getProductStats() {
       COUNT(*)::int AS "totalCount",
       COUNT(*) FILTER (
         WHERE "stock_quantity" > 0
-          AND "status" NOT IN ('inactive', 'sold_out')
+          AND "status" != 'inactive'
       )::int AS "inStockCount",
       COUNT(*) FILTER (
         WHERE "stock_quantity" <= 0
-          OR "status" = 'sold_out'
       )::int AS "soldOutCount"
     FROM "products"
   `;

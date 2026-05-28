@@ -169,14 +169,14 @@ export function productWhere(params: {
 
   if (params.stock === "sold_out") {
     and.push({
-      OR: [{ stockQuantity: { lte: 0 } }, { status: "sold_out" }],
+      stockQuantity: { lte: 0 },
     });
   }
 
   if (params.stock === "in_stock" || params.stock === "low") {
     and.push({
       stockQuantity: { gt: 0 },
-      status: { notIn: ["inactive", "sold_out"] },
+      status: { not: "inactive" },
     });
   }
 
@@ -231,7 +231,7 @@ export function productStockLabel(product: {
     return "비활성";
   }
 
-  if (product.stockQuantity <= 0 || product.status === "sold_out") {
+  if (product.stockQuantity <= 0) {
     return "품절";
   }
 
@@ -251,15 +251,11 @@ export function matchesProductStockFilter(
   }
 
   if (stock === "sold_out") {
-    return product.stockQuantity <= 0 || product.status === "sold_out";
+    return product.stockQuantity <= 0;
   }
 
   if (stock === "in_stock" || stock === "low") {
-    return (
-      product.stockQuantity > 0 &&
-      product.status !== "inactive" &&
-      product.status !== "sold_out"
-    );
+    return product.stockQuantity > 0 && product.status !== "inactive";
   }
 
   return true;
