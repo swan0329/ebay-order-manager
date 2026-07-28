@@ -46,11 +46,12 @@ export function LocalAiStatusBadge({
         onEnabledChange?.(body.localAiEnabled);
       })
       .catch(() => undefined);
-    void check();
+    const initial = window.setTimeout(() => void check(), 0);
     const timer = window.setInterval(() => void check(), 15_000);
     const onFocus = () => void check();
     window.addEventListener("focus", onFocus);
     return () => {
+      window.clearTimeout(initial);
       window.clearInterval(timer);
       window.removeEventListener("focus", onFocus);
     };

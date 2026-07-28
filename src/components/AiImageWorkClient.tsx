@@ -326,8 +326,12 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
     done: number;
     total: number;
     started: number;
+    updated: number;
   } | null>(null);
-  useEffect(() => setLocalItems(items), [items]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setLocalItems(items), 0);
+    return () => window.clearTimeout(timer);
+  }, [items]);
   async function call(body: object) {
     const r = await fetch("/api/ai-image-work", {
       method: "POST",
@@ -651,7 +655,7 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
     if (!targets.length) return;
     setBusy(true);
     const started = Date.now();
-    setUpload({ done: 0, total: targets.length, started });
+    setUpload({ done: 0, total: targets.length, started, updated: started });
     let done = 0;
     try {
       for (let index = 0; index < targets.length; index += 3) {
@@ -662,7 +666,12 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
           ),
         );
         done += batch.length;
-        setUpload({ done, total: targets.length, started });
+        setUpload({
+          done,
+          total: targets.length,
+          started,
+          updated: Date.now(),
+        });
         setLocalItems((current) =>
           current.filter(
             (item) => !batch.some((uploaded) => uploaded.id === item.id),
@@ -687,7 +696,7 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
     failed = localItems.filter((i) => i.status === "failed"),
     rework = localItems.filter((i) => i.status === "rework"),
     current = review[0] ?? null;
-  const elapsed = upload ? (Date.now() - upload.started) / 1000 : 0;
+  const elapsed = upload ? (upload.updated - upload.started) / 1000 : 0;
   const eta =
     upload && upload.done > 0
       ? (elapsed / upload.done) * (upload.total - upload.done)
