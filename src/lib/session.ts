@@ -11,7 +11,7 @@ type SessionPayload = {
   userId: string;
   loginId?: string;
   name?: string | null;
-  role: "ADMIN";
+  role: "ADMIN" | "WORKER";
 };
 
 function sessionSecret() {
@@ -22,13 +22,14 @@ export async function createSession(user: {
   id: string;
   loginId: string;
   name?: string | null;
+  role: "ADMIN" | "WORKER";
 }) {
   const expiresAt = new Date(Date.now() + sessionTtlMs);
   const token = await new SignJWT({
     userId: user.id,
     loginId: user.loginId,
     name: user.name ?? null,
-    role: "ADMIN",
+    role: user.role,
   } satisfies SessionPayload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -59,7 +60,10 @@ export async function readSession(): Promise<SessionPayload | null> {
 
   try {
     const { payload } = await jwtVerify(token, sessionSecret());
-    if (typeof payload.userId !== "string" || payload.role !== "ADMIN") {
+    if (
+      typeof payload.userId !== "string" ||
+      !["ADMIN", "WORKER"].includes(String(payload.role))
+    ) {
       return null;
     }
 
@@ -70,7 +74,7 @@ export async function readSession(): Promise<SessionPayload | null> {
         typeof payload.name === "string" || payload.name === null
           ? payload.name
           : undefined,
-      role: "ADMIN",
+      role: payload.role as "ADMIN" | "WORKER",
     };
   } catch {
     return null;
@@ -105,6 +109,9 @@ export async function requireUser() {
   if (!user) {
     redirect("/login");
   }
+  if (user.role !== "ADMIN") {
+    redirect("/worker/images");
+  }
 
   return user;
 }
@@ -119,9 +126,16 @@ export class UnauthorizedError extends Error {
 export async function requireApiUser() {
   const user = await getCurrentUser();
 
-  if (!user) {
+  if (!user || user.role !== "ADMIN") {
     throw new UnauthorizedError();
   }
 
+  return user;
+}
+
+export async function requireWorker() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.role !== "WORKER") redirect("/products/image-workbench");
   return user;
 }
