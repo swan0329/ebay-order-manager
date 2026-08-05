@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, ImageOff, Link2, PackagePlus, Search } from "lucide-react";
+import {
+  ExternalLink,
+  Image as ImageIcon,
+  ImageOff,
+  Link2,
+  PackagePlus,
+  Search,
+} from "lucide-react";
 
 type LinkCandidate = {
   productId: string;
@@ -196,44 +203,75 @@ export function EbayLinkClient({
     setSearchingId(listing.listingId);
     setMessage("");
     try {
-      const response = await fetch(`/api/products?q=${encodeURIComponent(term)}`, {
-        cache: "no-store",
+      const response = await fetch("/api/ebay/active-report/search-products", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ q: term }),
       });
       const body = (await response.json().catch(() => null)) as
-        | {
-            products?: Array<{
-              id: string;
-              sku: string;
-              productName: string;
-              brand: string | null;
-              optionName: string | null;
-              category: string | null;
-              imageUrl: string | null;
-              ebayItemId: string | null;
-            }>;
-            error?: string;
-          }
+        | { products?: LinkCandidate[]; error?: string }
         | null;
       if (!response.ok) {
         throw new Error(body?.error ?? "상품을 찾지 못했습니다.");
       }
 
-      setSearchResults((prev) => ({
-        ...prev,
-        [listing.listingId]: (body?.products ?? []).slice(0, 8).map((product) => ({
-          productId: product.id,
-          sku: product.sku,
-          productName: product.productName,
-          brand: product.brand,
-          optionName: product.optionName,
-          category: product.category,
-          imageUrl: product.imageUrl,
-          score: 0,
-          alreadyLinkedItemId: product.ebayItemId,
-        })),
-      }));
+      const found = body?.products ?? [];
+      setSearchResults((prev) => ({ ...prev, [listing.listingId]: found }));
+      if (!found.length) {
+        setRowErrors((prev) => ({
+          ...prev,
+          [listing.listingId]: `"${term}"으로 찾은 상품이 없습니다.`,
+        }));
+      }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "상품을 찾지 못했습니다.");
+      setRowErrors((prev) => ({
+        ...prev,
+        [listing.listingId]:
+          error instanceof Error ? error.message : "상품을 찾지 못했습니다.",
+      }));
+    } finally {
+      setSearchingId(null);
+    }
+  }
+
+  // 사진으로 찾기. 제목 표기가 달라 글자로 못 찾는 카드를 잡아낸다.
+  async function searchByImage(listing: UnlinkedListing) {
+    setSearchingId(listing.listingId);
+    setRowErrors((prev) => {
+      const next = { ...prev };
+      delete next[listing.listingId];
+      return next;
+    });
+    try {
+      const response = await fetch("/api/ebay/active-report/image-candidates", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ listingId: listing.listingId }),
+      });
+      const body = (await response.json().catch(() => null)) as
+        | { candidates?: LinkCandidate[]; listingImageUrl?: string; error?: string }
+        | null;
+      if (!response.ok) {
+        throw new Error(body?.error ?? "사진으로 찾지 못했습니다.");
+      }
+
+      if (body?.listingImageUrl) {
+        setImages((prev) => ({ ...prev, [listing.listingId]: body.listingImageUrl! }));
+      }
+      const found = body?.candidates ?? [];
+      setSearchResults((prev) => ({ ...prev, [listing.listingId]: found }));
+      if (!found.length) {
+        setRowErrors((prev) => ({
+          ...prev,
+          [listing.listingId]: "사진이 비슷한 상품을 찾지 못했습니다.",
+        }));
+      }
+    } catch (error) {
+      setRowErrors((prev) => ({
+        ...prev,
+        [listing.listingId]:
+          error instanceof Error ? error.message : "사진으로 찾지 못했습니다.",
+      }));
     } finally {
       setSearchingId(null);
     }
@@ -394,7 +432,17 @@ export function EbayLinkClient({
                 </ul>
               )}
 
-              <div className="mt-3 flex gap-1.5">
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => void searchByImage(listing)}
+                  disabled={searchingId === listing.listingId}
+                  title="eBay 사진과 상품 사진을 비교해 찾습니다. 제목이 달라도 찾을 수 있습니다."
+                  className="inline-flex h-9 items-center gap-1.5 rounded-md bg-violet-600 px-3 text-xs font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+                >
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  {searchingId === listing.listingId ? "비교 중..." : "사진으로 찾기"}
+                </button>
                 <input
                   value={searchTerms[listing.listingId] ?? ""}
                   onChange={(event) => {
@@ -404,7 +452,7 @@ export function EbayLinkClient({
                   onKeyDown={(event) => {
                     if (event.key === "Enter") void search(listing);
                   }}
-                  placeholder="SKU나 상품명으로 직접 찾기"
+                  placeholder="SKU · 상품명 · 멤버(유닛 포함)로 찾기"
                   className="h-9 flex-1 rounded-md border border-zinc-300 px-2 text-sm text-zinc-900"
                 />
                 <button
