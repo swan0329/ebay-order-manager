@@ -14,6 +14,7 @@ type LinkCandidate = {
   imageUrl: string | null;
   score: number;
   alreadyLinkedItemId: string | null;
+  memberMismatch?: boolean;
 };
 
 type UnlinkedListing = {
@@ -63,6 +64,9 @@ export function EbayLinkClient({
   const [listings, setListings] = useState(initial);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  // 실패 사유는 해당 줄에도 같이 띄운다. 목록이 길면 화면 맨 위 알림이 보이지
+  // 않아 아무 일도 일어나지 않은 것처럼 보인다.
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [searchTerms, setSearchTerms] = useState<Record<string, string>>({});
   const [searchResults, setSearchResults] = useState<Record<string, LinkCandidate[]>>({});
   const [searchingId, setSearchingId] = useState<string | null>(null);
@@ -112,6 +116,11 @@ export function EbayLinkClient({
   async function link(listing: UnlinkedListing, candidate: LinkCandidate) {
     setBusyId(listing.listingId);
     setMessage("");
+    setRowErrors((prev) => {
+      const next = { ...prev };
+      delete next[listing.listingId];
+      return next;
+    });
     try {
       const response = await fetch("/api/ebay/active-report/link", {
         method: "POST",
@@ -127,7 +136,9 @@ export function EbayLinkClient({
       setMessage(`${candidate.sku} ↔ 상품번호 ${listing.itemId} 연결 완료. 판매중으로 바뀝니다.`);
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "연결하지 못했습니다.");
+      const text = error instanceof Error ? error.message : "연결하지 못했습니다.";
+      setMessage(text);
+      setRowErrors((prev) => ({ ...prev, [listing.listingId]: text }));
     } finally {
       setBusyId(null);
     }
@@ -272,6 +283,11 @@ export function EbayLinkClient({
             </div>
 
             <div className="mt-3 border-t border-zinc-100 pt-3">
+              {rowErrors[listing.listingId] ? (
+                <p className="mb-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+                  {rowErrors[listing.listingId]}
+                </p>
+              ) : null}
               <p className="mb-2 text-xs text-zinc-500">
                 이 리스팅과 짝지을 상품을 고르세요
               </p>
@@ -309,6 +325,11 @@ export function EbayLinkClient({
                               >
                                 {badge.text}
                               </span>
+                            ) : null}
+                            {candidate.memberMismatch ? (
+                              <p className="mt-0.5 text-[11px] font-medium text-rose-700">
+                                멤버가 제목에 없음 · 다른 멤버 카드일 수 있음
+                              </p>
                             ) : null}
                             {blocked ? (
                               <p className="mt-0.5 text-[11px] text-rose-700">

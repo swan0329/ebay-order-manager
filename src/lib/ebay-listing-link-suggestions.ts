@@ -1,7 +1,8 @@
 import "server-only";
 
+import { parseFeaturedMembers } from "@/lib/ebay-listing-fields";
 import { prisma } from "@/lib/prisma";
-import { rankFuzzyTitleMatches } from "@/lib/product-matching";
+import { normalizeMatchText, rankFuzzyTitleMatches } from "@/lib/product-matching";
 
 // eBay에는 올라가 있는데 프로그램의 상품과 연결되지 않은 리스팅을 모아,
 // 각 리스팅마다 "이 상품 같습니다" 후보를 제목 유사도로 붙여 돌려준다.
@@ -11,6 +12,40 @@ import { rankFuzzyTitleMatches } from "@/lib/product-matching";
 // 연결이 필요한 상태들. UNMATCHED는 짝을 못 찾은 것,
 // TITLE_MATCHED는 제목으로 추정만 해둔 것이라 사람 확인이 남아 있다.
 const LINK_PENDING_STATUSES = ["UNMATCHED", "TITLE_MATCHED", "DUPLICATE", "CONFLICT"];
+
+// 유닛 카드는 optionName이 멤버 이름이 아니라 "unit"이므로 멤버 판정에서 제외한다.
+const NON_MEMBER_OPTION_NAMES = new Set(["unit", "group", "all", "ot8", "ot9"]);
+
+// 포토카드는 그룹·앨범 단어가 여러 장에 공통으로 들어가서, 글자 겹침만 보면
+// 멤버가 달라도 점수가 높게 나온다. 멤버 이름이 리스팅 제목에 없으면 다른 카드로
+// 보고 순위를 크게 낮춘다.
+const MEMBER_MISMATCH_PENALTY = 0.25;
+
+export function productMemberNames(product: {
+  optionName?: string | null;
+  featuredMembers?: string | null;
+}) {
+  const featured = parseFeaturedMembers(product.featuredMembers);
+  if (featured.length) return featured;
+
+  const option = product.optionName?.trim();
+  if (!option || NON_MEMBER_OPTION_NAMES.has(option.toLowerCase())) return [];
+  return [option];
+}
+
+// 멤버 이름이 리스팅 제목에 하나라도 들어 있는지. 판단할 수 없으면(멤버 정보가
+// 없으면) 걸러내지 않고 그대로 둔다.
+export function memberMatches(listingTitle: string, memberNames: string[]) {
+  if (!memberNames.length) return null;
+
+  const title = normalizeMatchText(listingTitle);
+  if (!title) return null;
+
+  return memberNames.some((name) => {
+    const normalized = normalizeMatchText(name);
+    return normalized.length > 1 && title.includes(normalized);
+  });
+}
 
 export type LinkCandidate = {
   productId: string;
@@ -23,6 +58,8 @@ export type LinkCandidate = {
   score: number;
   // 이미 다른 eBay 상품번호가 붙어 있으면 연결이 거부되므로 미리 알려준다.
   alreadyLinkedItemId: string | null;
+  // 이 상품의 멤버가 리스팅 제목에 없음 — 다른 멤버의 카드일 가능성이 크다.
+  memberMismatch: boolean;
 };
 
 export type UnlinkedListing = {
@@ -113,19 +150,50 @@ export async function getEbayLinkSuggestions(
     },
   });
 
+  // 유닛 카드의 실제 멤버는 Prisma 모델에 없는 featured_members 열에 있다.
+  // 값이 들어 있는 상품만 나오므로 결과가 작다.
+  const featuredRows = await prisma.$queryRaw<
+    Array<{ id: string; featuredMembers: string | null }>
+  >`
+    SELECT "id", "featured_members" AS "featuredMembers"
+    FROM "products"
+    WHERE COALESCE("featured_members", '') <> ''
+  `;
+  const featuredById = new Map(
+    featuredRows.map((row) => [row.id, row.featuredMembers]),
+  );
+
   const listings = rows.map((row) => {
-    const candidates = row.title
-      ? rankFuzzyTitleMatches(row.title, products, 5).map(({ product, score }) => ({
-          productId: product.id,
-          sku: product.sku,
-          productName: product.productName,
-          brand: product.brand,
-          optionName: product.optionName,
-          category: product.category,
-          imageUrl: product.ebayImageUrls[0] ?? product.imageUrl ?? null,
-          score: Number(score.toFixed(3)),
-          alreadyLinkedItemId: product.ebayItemId,
-        }))
+    const title = row.title;
+    const candidates = title
+      ? rankFuzzyTitleMatches(title, products, 20)
+          .map(({ product, score }) => {
+            const members = productMemberNames({
+              optionName: product.optionName,
+              featuredMembers: featuredById.get(product.id) ?? null,
+            });
+            const matched = memberMatches(title, members);
+            const memberMismatch = matched === false;
+
+            return {
+              productId: product.id,
+              sku: product.sku,
+              productName: product.productName,
+              brand: product.brand,
+              optionName: product.optionName,
+              category: product.category,
+              imageUrl: product.ebayImageUrls[0] ?? product.imageUrl ?? null,
+              // 멤버가 어긋나면 점수를 크게 깎아 뒤로 보낸다.
+              score: Number(
+                (memberMismatch ? score * MEMBER_MISMATCH_PENALTY : score).toFixed(3),
+              ),
+              alreadyLinkedItemId: product.ebayItemId,
+              memberMismatch,
+            };
+          })
+          // 점수를 다시 매겼으므로 정렬도 다시 한다.
+          .sort((left, right) => right.score - left.score)
+          .slice(0, 5)
       : [];
 
     return {
