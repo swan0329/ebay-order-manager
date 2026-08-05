@@ -63,6 +63,30 @@ BEGIN
   END LOOP;
 END $$;
 
+-- 3) GraphQL 경로(/graphql/v1)도 함께 막는다. graphql_public 스키마의 graphql()
+--    리졸버는 public 스키마의 테이블을 반영하므로, Exposed schemas에서 public만
+--    빼고 graphql_public을 남기면 GraphQL로는 여전히 같은 테이블에 닿는다.
+--    이 리졸버는 호출한 역할의 권한과 RLS를 따르므로 2)의 권한 회수만으로도
+--    막히지만, 통로 자체를 닫아 확실히 한다.
+DO $$
+DECLARE
+  api_role text;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'graphql_public') THEN
+    RETURN;
+  END IF;
+
+  FOREACH api_role IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = api_role) THEN
+      EXECUTE format(
+        'REVOKE ALL ON ALL FUNCTIONS IN SCHEMA graphql_public FROM %I',
+        api_role
+      );
+      EXECUTE format('REVOKE ALL ON SCHEMA graphql_public FROM %I', api_role);
+    END IF;
+  END LOOP;
+END $$;
+
 -- 적용 후 확인 (rls_enabled가 모두 true, anon 권한이 0건이어야 한다):
 --   SELECT relname, relrowsecurity AS rls_enabled
 --   FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
