@@ -15,6 +15,8 @@ const schema = z.object({
   // 상품에 붙어 있던 예전 상품번호를 풀고 이것으로 바꾼다. 화면에서 기존 연결을
   // 보여주고 사람이 확인했을 때만 켜진다.
   replaceExisting: z.boolean().optional(),
+  // 기존 연결을 두고 이 리스팅도 같은 상품에 붙인다(같은 카드를 두 건으로 올린 경우).
+  allowMultiple: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {

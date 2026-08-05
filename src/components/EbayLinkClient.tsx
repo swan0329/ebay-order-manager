@@ -124,7 +124,7 @@ export function EbayLinkClient({
   async function link(
     listing: UnlinkedListing,
     candidate: LinkCandidate,
-    replaceExisting = false,
+    mode: "new" | "replace" | "alongside" = "new",
   ) {
     setBusyId(listing.listingId);
     setMessage("");
@@ -140,11 +140,12 @@ export function EbayLinkClient({
         body: JSON.stringify({
           productId: candidate.productId,
           itemId: listing.itemId,
-          replaceExisting,
+          replaceExisting: mode === "replace",
+          allowMultiple: mode === "alongside",
         }),
       });
       const body = (await response.json().catch(() => null)) as
-        | { error?: string; replacedItemId?: string | null }
+        | { error?: string; replacedItemId?: string | null; addedAlongside?: boolean }
         | null;
       if (!response.ok) {
         throw new Error(body?.error ?? "연결하지 못했습니다.");
@@ -155,7 +156,9 @@ export function EbayLinkClient({
         `${candidate.sku} ↔ 상품번호 ${listing.itemId} 연결 완료.` +
           (body?.replacedItemId
             ? ` 예전 연결(${body.replacedItemId})은 풀렸고 그 리스팅은 대기 목록으로 돌아갑니다.`
-            : " 판매중으로 바뀝니다."),
+            : body?.addedAlongside
+              ? " 기존 연결은 그대로 두고 함께 묶었습니다. 이 상품에 리스팅이 둘이니 재고에 주의하세요."
+              : " 판매중으로 바뀝니다."),
       );
       router.refresh();
     } catch (error) {
@@ -453,23 +456,35 @@ export function EbayLinkClient({
                               </p>
                             ) : null}
                             {blocked ? (
-                              <p className="mt-0.5 text-[11px] text-rose-700">
-                                이미 상품번호 {candidate.alreadyLinkedItemId} 연결됨 · 이
-                                카드가 맞으면 바꾸기
+                              <p className="mt-0.5 text-[11px] text-amber-700">
+                                이미 상품번호 {candidate.alreadyLinkedItemId} 연결됨 ·
+                                같은 카드를 두 건 올렸으면 &quot;함께&quot;, 예전 게
+                                잘못됐으면 &quot;바꿔서&quot;
                               </p>
                             ) : null}
                           </div>
                           {blocked ? (
-                            <button
-                              type="button"
-                              onClick={() => void link(listing, candidate, true)}
-                              disabled={busy}
-                              title={`예전 연결(${candidate.alreadyLinkedItemId})을 풀고 이 리스팅으로 바꿉니다`}
-                              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md bg-amber-600 px-2.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
-                            >
-                              <Link2 className="h-3.5 w-3.5" />
-                              {busy ? "처리 중..." : "바꿔서 연결"}
-                            </button>
+                            <div className="flex shrink-0 flex-col gap-1">
+                              <button
+                                type="button"
+                                onClick={() => void link(listing, candidate, "alongside")}
+                                disabled={busy}
+                                title="기존 연결을 그대로 두고 이 리스팅도 같은 상품에 묶습니다"
+                                className="inline-flex h-8 items-center gap-1 rounded-md bg-emerald-600 px-2.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+                              >
+                                <Link2 className="h-3.5 w-3.5" />
+                                {busy ? "처리 중..." : "함께 연결"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void link(listing, candidate, "replace")}
+                                disabled={busy}
+                                title={`예전 연결(${candidate.alreadyLinkedItemId})을 풀고 이 리스팅으로 바꿉니다`}
+                                className="inline-flex h-8 items-center gap-1 rounded-md border border-amber-500 px-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
+                              >
+                                바꿔서 연결
+                              </button>
+                            </div>
                           ) : (
                             <button
                               type="button"

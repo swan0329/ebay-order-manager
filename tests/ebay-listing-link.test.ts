@@ -51,6 +51,7 @@ describe("수동 리스팅 연결", () => {
       productId: "prod-1",
       itemId: input.itemId,
       replacedItemId: null,
+      addedAlongside: false,
     });
 
     // 연결 검토 파일이 matchStatus != MATCHED로 거르므로 MATCHED여야 목록에서 빠진다.
@@ -118,6 +119,7 @@ describe("수동 리스팅 연결", () => {
       productId: "prod-1",
       itemId: input.itemId,
       replacedItemId: "999999999999",
+      addedAlongside: false,
     });
 
     // 예전 리스팅이 같은 상품을 계속 가리키면 두 건이 한 상품을 물게 된다.
@@ -126,6 +128,26 @@ describe("수동 리스팅 연결", () => {
         where: { itemId: "999999999999", productId: "prod-1" },
         data: { productId: null, matchStatus: "UNMATCHED", linkedAt: null },
       }),
+    );
+  });
+
+  it("함께 연결하면 기존 상품번호를 그대로 두고 리스팅만 묶는다", async () => {
+    productFindUnique.mockResolvedValue({ id: "prod-1", ebayItemId: "999999999999" });
+
+    await expect(
+      linkEbayActiveListing("user-1", { ...input, allowMultiple: true }),
+    ).resolves.toEqual({
+      productId: "prod-1",
+      itemId: input.itemId,
+      replacedItemId: null,
+      addedAlongside: true,
+    });
+
+    // 예전 리스팅은 그대로 둔다.
+    expect(listingUpdateMany).not.toHaveBeenCalled();
+    // 상품의 대표 상품번호는 먼저 붙은 것을 유지한다.
+    expect(productUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { listingStatus: "ACTIVE" } }),
     );
   });
 
@@ -161,6 +183,7 @@ describe("수동 리스팅 연결", () => {
       productId: "prod-1",
       itemId: input.itemId,
       replacedItemId: null,
+      addedAlongside: false,
     });
   });
 });

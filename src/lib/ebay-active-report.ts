@@ -430,9 +430,12 @@ export async function linkEbayActiveListing(
     productId: string;
     itemId: string;
     // 상품에 이미 다른 상품번호가 붙어 있을 때, 그 연결을 풀고 이것으로 바꾼다.
-    // 같은 카드를 eBay에 두 번 올렸거나 예전 연결이 낡았을 때 쓴다.
-    // 사람이 기존 연결을 확인하고 명시적으로 요청했을 때만 true가 된다.
+    // 예전 연결이 낡았을 때 쓴다.
     replaceExisting?: boolean;
+    // 기존 연결을 그대로 두고 이 리스팅도 같은 상품에 붙인다. 같은 카드를 eBay에
+    // 두 건으로 올린 경우이며, 둘 다 그 상품이 맞다.
+    // 상품이 지닐 수 있는 상품번호는 하나뿐이라 대표값은 먼저 붙은 것을 유지한다.
+    allowMultiple?: boolean;
   },
 ) {
   const listing = await prisma.ebayActiveListing.findFirst({
@@ -462,13 +465,16 @@ export async function linkEbayActiveListing(
   if (!product) {
     throw new EbayListingLinkError("상품을 찾을 수 없습니다.");
   }
-  const replacedItemId =
+  const otherItemId =
     product.ebayItemId && product.ebayItemId !== input.itemId ? product.ebayItemId : null;
-  if (replacedItemId && !input.replaceExisting) {
+  if (otherItemId && !input.replaceExisting && !input.allowMultiple) {
     throw new EbayListingLinkError(
-      `이 상품에는 이미 다른 상품번호(${replacedItemId})가 연결되어 있습니다.`,
+      `이 상품에는 이미 다른 상품번호(${otherItemId})가 연결되어 있습니다.`,
     );
   }
+  // 바꾸기일 때만 예전 것을 풀고 대표 상품번호를 넘긴다. 함께 연결이면 그대로 둔다.
+  const replacedItemId = input.replaceExisting ? otherItemId : null;
+  const addedAlongside = Boolean(otherItemId && !input.replaceExisting);
   if (otherClaim) {
     throw new EbayListingLinkError(
       `이 상품번호는 이미 다른 상품(${otherClaim.sku})에 연결되어 있습니다.`,
@@ -491,11 +497,20 @@ export async function linkEbayActiveListing(
     });
     await tx.product.update({
       where: { id: product.id },
-      data: { ebayItemId: listing.itemId, listingStatus: "ACTIVE" },
+      // 함께 연결이면 대표 상품번호는 먼저 붙은 것을 그대로 둔다. 상품이 지닐 수
+      // 있는 값은 하나뿐이라 덮어쓰면 예전 리스팅의 대표성이 사라진다.
+      data: addedAlongside
+        ? { listingStatus: "ACTIVE" }
+        : { ebayItemId: listing.itemId, listingStatus: "ACTIVE" },
     });
   });
 
-  return { productId: product.id, itemId: listing.itemId, replacedItemId };
+  return {
+    productId: product.id,
+    itemId: listing.itemId,
+    replacedItemId,
+    addedAlongside,
+  };
 }
 
 // 잘못 연결된 활성상품 항목을 연결 해제한다. 제목 매칭으로 상품에 써넣은
