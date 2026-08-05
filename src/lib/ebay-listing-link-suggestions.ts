@@ -29,6 +29,7 @@ export type UnlinkedListing = {
   listingId: string;
   itemId: string;
   title: string | null;
+  imageUrl: string | null;
   sku: string | null;
   priceUsd: string | null;
   quantity: number | null;
@@ -73,6 +74,7 @@ export async function getEbayLinkSuggestions(
         id: true,
         itemId: true,
         title: true,
+        imageUrl: true,
         sku: true,
         price: true,
         quantity: true,
@@ -90,8 +92,13 @@ export async function getEbayLinkSuggestions(
 
   // 후보 상품은 한 번만 읽어 모든 리스팅에 재사용한다. 목록마다 조회하면
   // 상품 수만큼 질의가 늘어 함수 실행 시간이 길어진다.
+  // 이미 다른 상품번호가 붙은 상품은 연결이 거부되므로 후보에서 빼, 고를 수 없는
+  // 항목이 추천 자리를 차지하지 않게 한다.
   const products = await prisma.product.findMany({
-    where: { status: { not: "inactive" } },
+    where: {
+      status: { not: "inactive" },
+      OR: [{ ebayItemId: null }, { ebayItemId: "" }],
+    },
     select: {
       id: true,
       sku: true,
@@ -125,6 +132,7 @@ export async function getEbayLinkSuggestions(
       listingId: row.id,
       itemId: row.itemId,
       title: row.title,
+      imageUrl: row.imageUrl,
       sku: row.sku,
       priceUsd: row.price?.toString() ?? null,
       quantity: row.quantity,

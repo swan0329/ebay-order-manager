@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Link2, Search } from "lucide-react";
+import { ExternalLink, ImageOff, Link2, Search } from "lucide-react";
 
 type LinkCandidate = {
   productId: string;
@@ -20,6 +20,7 @@ type UnlinkedListing = {
   listingId: string;
   itemId: string;
   title: string | null;
+  imageUrl: string | null;
   sku: string | null;
   priceUsd: string | null;
   quantity: number | null;
@@ -65,6 +66,48 @@ export function EbayLinkClient({
   const [searchTerms, setSearchTerms] = useState<Record<string, string>>({});
   const [searchResults, setSearchResults] = useState<Record<string, LinkCandidate[]>>({});
   const [searchingId, setSearchingId] = useState<string | null>(null);
+  const [images, setImages] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      initial
+        .filter((listing) => listing.imageUrl)
+        .map((listing) => [listing.listingId, listing.imageUrl as string]),
+    ),
+  );
+  const [loadingImages, setLoadingImages] = useState(false);
+  // 같은 목록에 대해 이미지 요청을 한 번만 보내기 위한 표시.
+  const imagesRequested = useRef(false);
+
+  // 화면에 뜬 리스팅의 eBay 사진을 받아온다. 저장된 것은 그대로 쓰고, 없는 것만
+  // eBay에 물어본 뒤 저장하므로 다음부터는 호출이 없다.
+  const loadImages = useCallback(async (rows: UnlinkedListing[]) => {
+    const missing = rows.filter((row) => !row.imageUrl).map((row) => row.listingId);
+    if (!missing.length) return;
+
+    setLoadingImages(true);
+    try {
+      const response = await fetch("/api/ebay/active-report/listing-images", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ listingIds: missing }),
+      });
+      const body = (await response.json().catch(() => null)) as
+        | { images?: Record<string, string> }
+        | null;
+      if (response.ok && body?.images) {
+        setImages((prev) => ({ ...prev, ...body.images }));
+      }
+    } catch {
+      // 사진은 보조 정보다. 실패해도 목록과 연결 기능은 그대로 쓴다.
+    } finally {
+      setLoadingImages(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (imagesRequested.current) return;
+    imagesRequested.current = true;
+    void loadImages(initial);
+  }, [initial, loadImages]);
 
   async function link(listing: UnlinkedListing, candidate: LinkCandidate) {
     setBusyId(listing.listingId);
@@ -185,7 +228,24 @@ export function EbayLinkClient({
             className="rounded-xl border border-zinc-200 bg-white p-4"
           >
             <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
+              <div className="flex min-w-0 gap-3">
+                {images[listing.listingId] ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={images[listing.listingId]}
+                    alt=""
+                    loading="lazy"
+                    className="h-20 w-20 shrink-0 rounded-md border border-zinc-200 object-cover"
+                  />
+                ) : (
+                  <div className="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-zinc-300 text-zinc-400">
+                    <ImageOff className="h-5 w-5" />
+                    <span className="text-[10px]">
+                      {loadingImages ? "불러오는 중" : "사진 없음"}
+                    </span>
+                  </div>
+                )}
+                <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-zinc-900">
                   {listing.title || "(제목 없음)"}
                 </p>
@@ -198,6 +258,7 @@ export function EbayLinkClient({
                 <p className="mt-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
                   {statusLabels[listing.matchStatus] ?? listing.matchStatus}
                 </p>
+                </div>
               </div>
               <a
                 href={listing.itemWebUrl}

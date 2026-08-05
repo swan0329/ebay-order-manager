@@ -5,7 +5,9 @@ import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-const pageLimit = 100;
+// 한 화면에서 다루는 리스팅 수. eBay 사진을 이 개수만큼 받아오므로 너무 크게
+// 잡지 않는다. 처리한 만큼 목록에서 빠지고 새로고침하면 다음 묶음이 채워진다.
+const pageLimit = 20;
 
 export default async function EbayLinkPage() {
   const user = await requireUser();
