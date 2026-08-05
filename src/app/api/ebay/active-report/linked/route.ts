@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { unlinkEbayActiveListing } from "@/lib/ebay-active-report";
 import { asErrorMessage, jsonError } from "@/lib/http";
+import { productImageExtrasById } from "@/lib/product-export-image-extras";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
@@ -68,6 +69,14 @@ export async function GET(request: Request) {
       },
     });
 
+    // 상품 쪽 사진은 촬영본이 있으면 그것을 쓴다. eBay 사진과 나란히 놓고
+    // 같은 카드인지 눈으로 확인하기 위한 값이다.
+    const extras = await productImageExtrasById(
+      listings
+        .map((listing) => listing.product?.id)
+        .filter((id): id is string => Boolean(id)),
+    );
+
     return Response.json({
       links: listings.map((listing) => ({
         listingId: listing.id,
@@ -76,7 +85,14 @@ export async function GET(request: Request) {
         listingImageUrl: listing.imageUrl,
         matchStatus: listing.matchStatus,
         linkedAt: listing.linkedAt?.toISOString() ?? null,
-        product: listing.product,
+        product: listing.product
+          ? {
+              ...listing.product,
+              imageUrl:
+                extras.get(listing.product.id)?.userFrontImageUrl ||
+                listing.product.imageUrl,
+            }
+          : null,
       })),
     });
   } catch (error) {

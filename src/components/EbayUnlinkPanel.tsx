@@ -153,28 +153,53 @@ export function EbayUnlinkPanel() {
           {links.map((pair) => (
             <li
               key={pair.listingId}
-              className="flex items-center gap-2 rounded-md border border-amber-200 bg-white p-2"
+              className="flex flex-wrap items-center gap-3 rounded-md border border-amber-200 bg-white p-2"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={pair.listingImageUrl ?? pair.product?.imageUrl ?? ""}
-                alt=""
-                loading="lazy"
-                className="h-12 w-12 shrink-0 rounded border border-zinc-200 object-cover"
-              />
+              {/* eBay 카드와 프로그램 상품을 나란히 놓아 같은 카드인지 바로 보이게 한다. */}
+              <div className="flex shrink-0 items-center gap-2">
+                <figure className="w-20">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={pair.listingImageUrl ?? ""}
+                    alt=""
+                    loading="lazy"
+                    className="h-20 w-20 rounded border border-zinc-200 object-cover"
+                  />
+                  <figcaption className="mt-0.5 text-center text-[10px] text-zinc-500">
+                    eBay
+                  </figcaption>
+                </figure>
+                <span className="text-lg text-zinc-400">↔</span>
+                <figure className="w-20">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={pair.product?.imageUrl ?? ""}
+                    alt=""
+                    loading="lazy"
+                    className="h-20 w-20 rounded border border-zinc-200 object-cover"
+                  />
+                  <figcaption className="mt-0.5 text-center text-[10px] text-zinc-500">
+                    프로그램
+                  </figcaption>
+                </figure>
+              </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-zinc-900">
-                  {pair.product?.sku ?? "(상품 없음)"} ↔ {pair.itemId}
+                <p className="text-xs text-zinc-500">
+                  eBay {pair.itemId} · {pair.listingTitle ?? "(제목 없음)"}
+                </p>
+                <p className="mt-1 truncate text-sm font-semibold text-zinc-900">
+                  {pair.product?.sku ?? "(상품 없음)"}
+                </p>
+                <p className="truncate text-xs text-zinc-600">
+                  {pair.product?.productName ?? "-"}
                 </p>
                 <p className="truncate text-xs text-zinc-500">
-                  {pair.listingTitle ?? "(제목 없음)"}
-                </p>
-                <p className="truncate text-xs text-zinc-400">
-                  상품: {pair.product?.productName ?? "-"}
-                  {pair.product?.optionName ? ` · ${pair.product.optionName}` : ""}
+                  {[pair.product?.brand, pair.product?.optionName]
+                    .filter(Boolean)
+                    .join(" · ") || "-"}
                 </p>
                 {pair.linkedAt ? (
-                  <p className="text-[11px] text-zinc-400">
+                  <p className="mt-0.5 text-[11px] text-zinc-400">
                     연결 {new Date(pair.linkedAt).toLocaleString("ko-KR")}
                   </p>
                 ) : null}
