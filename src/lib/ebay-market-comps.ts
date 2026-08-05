@@ -3,6 +3,7 @@ import "server-only";
 import { buildEbayListingTitle } from "@/lib/ebay-listing-fields";
 import { ebayApplicationFetch } from "@/lib/ebay";
 import { getEbayConfig } from "@/lib/env";
+import { prisma } from "@/lib/prisma";
 import { safeLog } from "@/lib/safe-log";
 
 // eBay에 실제로 올라와 있는 같은 카드의 판매가를 찾아 "가격 참고 후보"를 만든다.
@@ -12,6 +13,8 @@ import { safeLog } from "@/lib/safe-log";
 
 export type MarketComp = {
   itemId: string;
+  // eBay 화면·보고서에서 쓰는 숫자 형태의 상품번호. 내 리스팅 대조에 쓴다.
+  legacyItemId: string | null;
   title: string;
   priceUsd: number;
   shippingUsd: number | null;
@@ -20,6 +23,10 @@ export type MarketComp = {
   condition: string | null;
   imageUrl: string | null;
   itemWebUrl: string | null;
+  sellerUsername: string | null;
+  // 내가 이미 eBay에 올려둔 리스팅인지. 시세 기준으로 삼으면 자기 가격을 다시
+  // 참고하는 셈이고, 더 중요하게는 같은 카드를 두 번 올릴 위험을 뜻한다.
+  isOwnListing: boolean;
 };
 
 export type MarketCompsResult = {
@@ -28,6 +35,8 @@ export type MarketCompsResult = {
   fallbackReason: string | null;
   query: string | null;
   comps: MarketComp[];
+  // 후보 중 내 리스팅이 섞여 있으면 이 카드는 이미 eBay에 올라가 있다는 뜻이다.
+  ownListingItemIds: string[];
 };
 
 // 제목 생성이 실제로 읽는 필드와 이미지 선택에 쓰는 필드만 요구한다.
@@ -51,6 +60,7 @@ const MAX_IMAGE_BYTES = 3_000_000;
 
 type BrowseItemSummary = {
   itemId?: string;
+  legacyItemId?: string;
   title?: string;
   condition?: string;
   itemWebUrl?: string;
@@ -58,7 +68,16 @@ type BrowseItemSummary = {
   thumbnailImages?: Array<{ imageUrl?: string }>;
   price?: { value?: string; currency?: string };
   shippingOptions?: Array<{ shippingCost?: { value?: string; currency?: string } }>;
+  seller?: { username?: string };
 };
+
+// Browse API의 itemId는 "v1|123456789|0" 형태다. 가운데가 eBay 화면과 활성상품
+// 보고서에서 쓰는 숫자 상품번호이므로, 내 리스팅 대조는 이 값으로 한다.
+function legacyItemIdOf(item: BrowseItemSummary) {
+  if (item.legacyItemId) return item.legacyItemId;
+  const parts = String(item.itemId ?? "").split("|");
+  return parts.length >= 2 && /^\d+$/.test(parts[1]) ? parts[1] : null;
+}
 
 function browseHeaders() {
   return {
@@ -82,6 +101,7 @@ function toComp(item: BrowseItemSummary): MarketComp | null {
 
   return {
     itemId: item.itemId,
+    legacyItemId: legacyItemIdOf(item),
     title: String(item.title ?? "").slice(0, 200),
     priceUsd,
     shippingUsd: shipping,
@@ -89,6 +109,8 @@ function toComp(item: BrowseItemSummary): MarketComp | null {
     condition: item.condition ?? null,
     imageUrl: item.thumbnailImages?.[0]?.imageUrl ?? item.image?.imageUrl ?? null,
     itemWebUrl: item.itemWebUrl ?? null,
+    sellerUsername: item.seller?.username ?? null,
+    isOwnListing: false,
   };
 }
 
@@ -97,6 +119,43 @@ function toComps(items: BrowseItemSummary[] | undefined) {
     .map(toComp)
     .filter((comp): comp is MarketComp => comp !== null)
     .sort((left, right) => left.totalUsd - right.totalUsd);
+}
+
+// 후보 중 내가 이미 올려둔 리스팅을 표시한다. 판단 근거는 두 가지다.
+//  1) 최근 전체 활성상품 보고서에 같은 상품번호가 있는가 — 프로그램을 거치지 않고
+//     수동으로 올린 리스팅도 보고서에는 들어 있으므로 이 대조로 잡힌다.
+//  2) 판매자 계정명이 내 eBay 계정과 같은가 — 보고서가 오래됐을 때를 위한 보완.
+async function markOwnListings(comps: MarketComp[]) {
+  if (!comps.length) return comps;
+
+  const legacyIds = comps
+    .map((comp) => comp.legacyItemId)
+    .filter((id): id is string => Boolean(id));
+
+  const [ownListings, accounts] = await Promise.all([
+    legacyIds.length
+      ? prisma.ebayActiveListing.findMany({
+          where: { itemId: { in: legacyIds } },
+          select: { itemId: true },
+        })
+      : Promise.resolve([]),
+    prisma.ebayAccount.findMany({ select: { username: true } }),
+  ]);
+
+  const ownItemIds = new Set(ownListings.map((listing) => listing.itemId));
+  const ownUsernames = new Set(
+    accounts
+      .map((account) => account.username?.trim().toLowerCase())
+      .filter((name): name is string => Boolean(name)),
+  );
+
+  return comps.map((comp) => ({
+    ...comp,
+    isOwnListing:
+      (comp.legacyItemId !== null && ownItemIds.has(comp.legacyItemId)) ||
+      (comp.sellerUsername !== null &&
+        ownUsernames.has(comp.sellerUsername.trim().toLowerCase())),
+  }));
 }
 
 // 상품에 붙은 이미지 중 카드 앞면에 가장 가까운 것을 고른다.
@@ -155,9 +214,15 @@ export async function findMarketComps(
 
   if (imageUrl) {
     try {
-      const comps = toComps(await searchByImage(imageUrl));
+      const comps = await markOwnListings(toComps(await searchByImage(imageUrl)));
       if (comps.length) {
-        return { source: "image", fallbackReason: null, query: null, comps };
+        return {
+          source: "image",
+          fallbackReason: null,
+          query: null,
+          comps,
+          ownListingItemIds: ownIds(comps),
+        };
       }
       fallbackReason = "이미지 검색 결과가 없어 제목으로 다시 찾았습니다.";
     } catch (error) {
@@ -178,13 +243,27 @@ export async function findMarketComps(
     .slice(0, 80)
     .trim();
   if (!query) {
-    return { source: "keyword", fallbackReason, query: null, comps: [] };
+    return {
+      source: "keyword",
+      fallbackReason,
+      query: null,
+      comps: [],
+      ownListingItemIds: [],
+    };
   }
 
+  const comps = await markOwnListings(toComps(await searchByKeyword(query)));
   return {
     source: "keyword",
     fallbackReason,
     query,
-    comps: toComps(await searchByKeyword(query)),
+    comps,
+    ownListingItemIds: ownIds(comps),
   };
+}
+
+function ownIds(comps: MarketComp[]) {
+  return comps
+    .filter((comp) => comp.isOwnListing)
+    .map((comp) => comp.legacyItemId ?? comp.itemId);
 }

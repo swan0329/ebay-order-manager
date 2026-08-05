@@ -19,6 +19,7 @@ type Item = {
 
 type MarketComp = {
   itemId: string;
+  legacyItemId: string | null;
   title: string;
   priceUsd: number;
   shippingUsd: number | null;
@@ -26,6 +27,8 @@ type MarketComp = {
   condition: string | null;
   imageUrl: string | null;
   itemWebUrl: string | null;
+  sellerUsername: string | null;
+  isOwnListing: boolean;
 };
 
 type CompsState = {
@@ -388,6 +391,15 @@ export function PriceMissingClient({
                     </p>
                   ) : (
                     <>
+                      {comps.comps.some((comp) => comp.isOwnListing) ? (
+                        <p className="mb-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+                          <strong>이 카드는 이미 eBay에 올라가 있습니다.</strong> 아래 후보 중
+                          &quot;내 리스팅&quot;으로 표시된 것이 사장님 상품입니다. 프로그램을 거치지
+                          않고 수동으로 올린 리스팅이라 시스템이 이 상품과 연결하지 못한 상태입니다.
+                          가격만 넣고 신규등록 파일에 올리면 <strong>같은 카드가 두 번 등록됩니다.</strong>
+                          {" "}상품 목록의 &quot;연결 검토&quot; 파일로 이 상품번호를 먼저 연결해 주세요.
+                        </p>
+                      ) : null}
                       <p className="mb-2 text-xs text-zinc-500">
                         {comps.source === "image" ? "이미지로 찾은" : "제목으로 찾은"} eBay 판매중
                         상품 {comps.comps.length}건 · 배송비 포함 낮은 순 · 클릭하면 판매가 칸에
@@ -405,7 +417,13 @@ export function PriceMissingClient({
                       <ul className="grid gap-2 sm:grid-cols-2">
                         {comps.comps.map((comp) => (
                           <li key={comp.itemId}>
-                            <div className="flex items-center gap-2 rounded-md border border-zinc-200 p-2">
+                            <div
+                              className={`flex items-center gap-2 rounded-md border p-2 ${
+                                comp.isOwnListing
+                                  ? "border-rose-300 bg-rose-50"
+                                  : "border-zinc-200"
+                              }`}
+                            >
                               <button
                                 type="button"
                                 onClick={() =>
@@ -434,8 +452,18 @@ export function PriceMissingClient({
                                     ) : null}
                                   </span>
                                   <span className="block truncate text-xs text-zinc-500">
+                                    {comp.isOwnListing ? (
+                                      <span className="mr-1 rounded bg-rose-600 px-1 py-0.5 text-[10px] font-semibold text-white">
+                                        내 리스팅
+                                      </span>
+                                    ) : null}
                                     {comp.title}
                                   </span>
+                                  {comp.isOwnListing && comp.legacyItemId ? (
+                                    <span className="block text-[11px] text-rose-700">
+                                      상품번호 {comp.legacyItemId}
+                                    </span>
+                                  ) : null}
                                 </span>
                               </button>
                               {comp.itemWebUrl ? (
