@@ -36,18 +36,29 @@ export function productMemberNames(product: {
   return [option];
 }
 
+// 멤버 이름이 제목에 단어로 들어 있는지 본다. 단순 포함으로 보면 "changbin"
+// 안의 "han"처럼 다른 멤버 이름이 우연히 걸려 엉뚱한 후보가 통과한다.
+// "LEE KNOW"나 "I.N"처럼 여러 단어인 이름은 그 순서대로 이어져야 인정한다.
+export function titleContainsMemberName(listingTitle: string, memberName: string) {
+  const words = normalizeMatchText(listingTitle).split(" ").filter(Boolean);
+  const target = normalizeMatchText(memberName).split(" ").filter(Boolean);
+  if (!words.length || !target.length) return false;
+
+  for (let start = 0; start + target.length <= words.length; start += 1) {
+    if (target.every((part, offset) => words[start + offset] === part)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // 멤버 이름이 리스팅 제목에 하나라도 들어 있는지. 판단할 수 없으면(멤버 정보가
 // 없으면) 걸러내지 않고 그대로 둔다.
 export function memberMatches(listingTitle: string, memberNames: string[]) {
   if (!memberNames.length) return null;
+  if (!normalizeMatchText(listingTitle)) return null;
 
-  const title = normalizeMatchText(listingTitle);
-  if (!title) return null;
-
-  return memberNames.some((name) => {
-    const normalized = normalizeMatchText(name);
-    return normalized.length > 1 && title.includes(normalized);
-  });
+  return memberNames.some((name) => titleContainsMemberName(listingTitle, name));
 }
 
 export type LinkCandidate = {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getEbayListingImageUrl } from "@/lib/ebay";
+import { titleContainsMemberName } from "@/lib/ebay-listing-link-suggestions";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import {
@@ -19,6 +20,29 @@ const schema = z.object({
   listingId: z.string().min(1),
 });
 
+// 등록된 상품의 멤버 이름 중 리스팅 제목에 단어로 들어 있는 것을 고른다.
+// 멤버 목록을 코드에 박지 않고 실제 데이터에서 가져오므로 그룹이 늘어도 동작한다.
+async function memberFromTitle(title: string | null) {
+  if (!title?.trim()) return null;
+
+  const rows = await prisma.product.findMany({
+    where: { optionName: { not: null } },
+    distinct: ["optionName"],
+    select: { optionName: true },
+  });
+
+  const names = rows
+    .map((row) => row.optionName?.trim() ?? "")
+    .filter((name) => name.length > 0 && name.toLowerCase() !== "unit");
+
+  // 여러 이름이 걸리면 가장 긴 것을 쓴다("I.N"보다 "LEE KNOW"처럼 구체적인 쪽).
+  return (
+    names
+      .filter((name) => titleContainsMemberName(title, name))
+      .sort((left, right) => right.length - left.length)[0] ?? null
+  );
+}
+
 export async function POST(request: Request) {
   try {
     const user = await requireApiUser();
@@ -26,7 +50,7 @@ export async function POST(request: Request) {
 
     const listing = await prisma.ebayActiveListing.findFirst({
       where: { id: listingId, reportImport: { userId: user.id } },
-      select: { id: true, itemId: true, imageUrl: true },
+      select: { id: true, itemId: true, title: true, imageUrl: true },
     });
     if (!listing) {
       return jsonError("리스팅을 찾을 수 없습니다.", 404);
@@ -57,8 +81,19 @@ export async function POST(request: Request) {
       return jsonError("사진이 너무 커서 비교할 수 없습니다.", 422);
     }
 
+    // 같은 앨범 카드는 배경·구도가 거의 같아서 사진 지문만으로는 멤버를 가르지
+    // 못한다(멤버 얼굴만 다르다). 제목에 멤버 이름이 있으면 그 멤버로 먼저 좁힌 뒤
+    // 사진으로 순위를 매긴다.
+    const member = await memberFromTitle(listing.title);
     const fingerprint = await computeImageFingerprintFromBuffer(buffer);
-    const candidates = await findProductImageCandidates(fingerprint, { limit: 8 });
+    let candidates = await findProductImageCandidates(fingerprint, {
+      limit: 8,
+      member,
+    });
+    // 좁힌 결과가 비면 멤버 표기가 우리 데이터와 다른 경우다. 전체로 다시 찾는다.
+    if (member && !candidates.length) {
+      candidates = await findProductImageCandidates(fingerprint, { limit: 8 });
+    }
 
     // 이미 다른 상품번호가 붙은 상품은 연결할 수 없으므로 함께 알려준다.
     const linkedById = new Map(
@@ -72,6 +107,8 @@ export async function POST(request: Request) {
 
     return Response.json({
       listingImageUrl: imageUrl,
+      // 어떤 멤버로 좁혔는지 알려줘, 좁히기가 틀렸을 때 사람이 알아챌 수 있게 한다.
+      memberFilter: member,
       candidates: candidates.map((candidate) => ({
         productId: candidate.id,
         sku: candidate.sku,
