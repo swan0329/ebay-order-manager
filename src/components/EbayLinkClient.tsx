@@ -264,7 +264,12 @@ export function EbayLinkClient({
         body: JSON.stringify({ listingId: listing.listingId }),
       });
       const body = (await response.json().catch(() => null)) as
-        | { candidates?: LinkCandidate[]; listingImageUrl?: string; error?: string }
+        | {
+            candidates?: LinkCandidate[];
+            listingImageUrl?: string;
+            memberFilter?: string | null;
+            error?: string;
+          }
         | null;
       if (!response.ok) {
         throw new Error(body?.error ?? "사진으로 찾지 못했습니다.");
@@ -275,6 +280,11 @@ export function EbayLinkClient({
       }
       const found = body?.candidates ?? [];
       setSearchResults((prev) => ({ ...prev, [listing.listingId]: found }));
+      if (found.length && body?.memberFilter) {
+        setMessage(
+          `${body.memberFilter} 카드로 좁혀서 찾았습니다. 앨범·특전처는 상품명을 보고 골라 주세요.`,
+        );
+      }
       if (!found.length) {
         setRowErrors((prev) => ({
           ...prev,
@@ -421,6 +431,11 @@ export function EbayLinkClient({
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold text-zinc-900">
                               {candidate.sku}
+                            </p>
+                            {/* 같은 멤버 카드가 여럿일 때 앨범·특전처는 상품명에만
+                                들어 있으므로, 이게 있어야 버전을 고를 수 있다. */}
+                            <p className="text-xs text-zinc-700">
+                              {candidate.productName}
                             </p>
                             <p className="truncate text-xs text-zinc-500">
                               {candidateSubtitle(candidate)}
