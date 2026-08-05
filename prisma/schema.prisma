@@ -250,6 +250,8 @@ model EbayActiveListing {
   currency    String?
   status      String   @default("ACTIVE")
   matchStatus String   @default("UNMATCHED") @map("match_status")
+  // 사람이 이 리스팅을 상품에 연결한 시각. 방금 한 연결을 되짚어 풀 수 있게 남긴다.
+  linkedAt    DateTime? @map("linked_at")
   rawJson     Json?    @map("raw_json")
   createdAt   DateTime @default(now()) @map("created_at")
 

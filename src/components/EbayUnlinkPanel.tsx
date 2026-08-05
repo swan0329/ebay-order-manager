@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Unlink } from "lucide-react";
 
@@ -10,6 +10,7 @@ type LinkedPair = {
   listingTitle: string | null;
   listingImageUrl: string | null;
   matchStatus: string;
+  linkedAt: string | null;
   product: {
     id: string;
     sku: string;
@@ -31,18 +32,14 @@ export function EbayUnlinkPanel() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function lookup() {
-    const q = term.trim();
-    if (!q) {
-      setMessage("SKU 또는 eBay 상품번호를 입력해 주세요.");
-      return;
-    }
-
+  // 검색어를 비우고 부르면 최근에 연결한 것부터 돌아온다.
+  const lookup = useCallback(async (q?: string) => {
+    const term = q?.trim() ?? "";
     setBusy(true);
     setMessage("");
     try {
       const response = await fetch(
-        `/api/ebay/active-report/linked?q=${encodeURIComponent(q)}`,
+        `/api/ebay/active-report/linked${term ? `?q=${encodeURIComponent(term)}` : ""}`,
         { cache: "no-store" },
       );
       const body = (await response.json().catch(() => null)) as
@@ -54,13 +51,20 @@ export function EbayUnlinkPanel() {
 
       setLinks(body?.links ?? []);
       if (!body?.links?.length) {
-        setMessage(`"${q}"로 연결된 항목이 없습니다.`);
+        setMessage(term ? `"${term}"로 연결된 항목이 없습니다.` : "연결된 항목이 없습니다.");
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "찾지 못했습니다.");
     } finally {
       setBusy(false);
     }
+  }, []);
+
+  // 상자를 열면서 최근 연결 목록을 바로 불러온다. 무엇을 연결했는지 기억나지
+  // 않아도 눈으로 훑어 고를 수 있어야 한다.
+  function openPanel() {
+    setOpen(true);
+    if (links === null) void lookup();
   }
 
   async function unlink(pair: LinkedPair) {
@@ -93,11 +97,11 @@ export function EbayUnlinkPanel() {
     return (
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={openPanel}
         className="mb-3 inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
       >
         <Unlink className="h-3.5 w-3.5" />
-        잘못 연결했어요 · 연결 풀기
+        방금 연결한 것 확인 · 잘못된 건 풀기
       </button>
     );
   }
@@ -105,7 +109,7 @@ export function EbayUnlinkPanel() {
   return (
     <section className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-amber-900">잘못된 연결 풀기</h2>
+        <h2 className="text-sm font-semibold text-amber-900">최근 연결한 항목</h2>
         <button
           type="button"
           onClick={() => setOpen(false)}
@@ -115,9 +119,8 @@ export function EbayUnlinkPanel() {
         </button>
       </div>
       <p className="mt-1 text-xs text-amber-800">
-        잘못 연결한 상품의 SKU나 eBay 상품번호로 찾으세요. 풀면 그 상품은 다시
-        &quot;미등록&quot;이 되고, 리스팅은 연결 대기 목록으로 돌아옵니다. eBay에는 아무런
-        영향이 없습니다.
+        최근에 연결한 것부터 보여줍니다. 풀면 그 상품은 다시 &quot;미등록&quot;이 되고,
+        리스팅은 연결 대기 목록으로 돌아옵니다. eBay에는 아무런 영향이 없습니다.
       </p>
 
       <div className="mt-2 flex gap-1.5">
@@ -128,14 +131,14 @@ export function EbayUnlinkPanel() {
             setTerm(value);
           }}
           onKeyDown={(event) => {
-            if (event.key === "Enter") void lookup();
+            if (event.key === "Enter") void lookup(term);
           }}
-          placeholder="SKU 또는 eBay 상품번호"
+          placeholder="특정 SKU·상품번호로 좁히기 (비우면 최근 연결 전체)"
           className="h-9 flex-1 rounded-md border border-amber-300 bg-white px-2 text-sm text-zinc-900"
         />
         <button
           type="button"
-          onClick={() => void lookup()}
+          onClick={() => void lookup(term)}
           disabled={busy}
           className="inline-flex h-9 items-center rounded-md bg-amber-600 px-3 text-xs font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
         >
@@ -170,6 +173,11 @@ export function EbayUnlinkPanel() {
                   상품: {pair.product?.productName ?? "-"}
                   {pair.product?.optionName ? ` · ${pair.product.optionName}` : ""}
                 </p>
+                {pair.linkedAt ? (
+                  <p className="text-[11px] text-zinc-400">
+                    연결 {new Date(pair.linkedAt).toLocaleString("ko-KR")}
+                  </p>
+                ) : null}
               </div>
               <button
                 type="button"

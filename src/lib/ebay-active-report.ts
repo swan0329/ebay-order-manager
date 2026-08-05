@@ -469,7 +469,7 @@ export async function linkEbayActiveListing(
   await prisma.$transaction(async (tx) => {
     await tx.ebayActiveListing.update({
       where: { id: listing.id },
-      data: { productId: product.id, matchStatus: "MATCHED" },
+      data: { productId: product.id, matchStatus: "MATCHED", linkedAt: new Date() },
     });
     await tx.product.update({
       where: { id: product.id },
@@ -498,7 +498,7 @@ export async function unlinkEbayActiveListing(userId: string, listingId: string)
     }
     await tx.ebayActiveListing.update({
       where: { id: listing.id },
-      data: { productId: null, matchStatus: "UNMATCHED" },
+      data: { productId: null, matchStatus: "UNMATCHED", linkedAt: null },
     });
   });
 
