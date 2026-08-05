@@ -34,6 +34,7 @@ type CompsState = {
   source: "image" | "keyword" | null;
   fallbackReason: string | null;
   comps: MarketComp[];
+  collapsed?: boolean;
 };
 
 function isValidPrice(value: string | undefined) {
@@ -79,6 +80,20 @@ export function PriceMissingClient({
   // eBay에 올라와 있는 같은 카드를 찾아 후보로 보여준다. 상품 이미지를 eBay
   // 이미지 검색에 보내므로 구글 렌즈로 찾던 것과 같은 결과를 eBay 안에서 얻는다.
   // 고른 값을 판매가 칸에 넣을 뿐 저장은 따로 눌러야 한다.
+  // eBay 호출 한도를 아끼려고, 이미 찾아둔 결과가 있으면 다시 부르지 않고
+  // 접었다 폈다만 한다. 값이 바뀌었을 때는 "다시 찾기"로 명시적으로 부른다.
+  function toggleComps(item: Item) {
+    const existing = compsById[item.id];
+    if (existing && !existing.loading && !existing.error) {
+      setCompsById((prev) => ({
+        ...prev,
+        [item.id]: { ...existing, collapsed: !existing.collapsed },
+      }));
+      return;
+    }
+    void lookupComps(item);
+  }
+
   async function lookupComps(item: Item) {
     setCompsById((prev) => ({
       ...prev,
@@ -290,9 +305,12 @@ export function PriceMissingClient({
                   <div className="flex gap-1">
                     <input
                       value={costs[item.id] ?? ""}
-                      onChange={(event) =>
-                        setCosts((prev) => ({ ...prev, [item.id]: event.currentTarget.value }))
-                      }
+                      // 값을 먼저 꺼낸다. 함수형 업데이트가 나중에 실행되면 그때는
+                      // React가 event.currentTarget을 비운 뒤라 .value를 읽을 수 없다.
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setCosts((prev) => ({ ...prev, [item.id]: value }));
+                      }}
                       type="number"
                       min="0"
                       step="10"
@@ -318,9 +336,10 @@ export function PriceMissingClient({
                     <DollarSign className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
                     <input
                       value={prices[item.id] ?? ""}
-                      onChange={(event) =>
-                        setPrices((prev) => ({ ...prev, [item.id]: event.currentTarget.value }))
-                      }
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setPrices((prev) => ({ ...prev, [item.id]: value }));
+                      }}
                       type="number"
                       min="0"
                       step="0.01"
@@ -332,13 +351,19 @@ export function PriceMissingClient({
 
                 <button
                   type="button"
-                  onClick={() => void lookupComps(item)}
+                  onClick={() => toggleComps(item)}
                   disabled={comps?.loading}
                   title="eBay에 올라와 있는 같은 카드를 이미지로 찾아 판매가를 보여줍니다"
                   className="inline-flex h-9 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-300"
                 >
                   <Search className="h-4 w-4" />
-                  {comps?.loading ? "찾는 중..." : "eBay 시세"}
+                  {comps?.loading
+                    ? "찾는 중..."
+                    : comps && !comps.error
+                      ? comps.collapsed
+                        ? "시세 보기"
+                        : "시세 접기"
+                      : "eBay 시세"}
                 </button>
 
                 <button
@@ -353,7 +378,7 @@ export function PriceMissingClient({
               </div>
               </div>
 
-              {comps && !comps.loading ? (
+              {comps && !comps.loading && !comps.collapsed ? (
                 <div className="border-t border-zinc-100 pt-3">
                   {comps.error ? (
                     <p className="text-xs text-rose-700">{comps.error}</p>
@@ -368,6 +393,14 @@ export function PriceMissingClient({
                         상품 {comps.comps.length}건 · 배송비 포함 낮은 순 · 클릭하면 판매가 칸에
                         들어갑니다
                         {comps.fallbackReason ? ` · ${comps.fallbackReason}` : ""}
+                        {" · "}
+                        <button
+                          type="button"
+                          onClick={() => void lookupComps(item)}
+                          className="underline hover:text-zinc-700"
+                        >
+                          다시 찾기
+                        </button>
                       </p>
                       <ul className="grid gap-2 sm:grid-cols-2">
                         {comps.comps.map((comp) => (
