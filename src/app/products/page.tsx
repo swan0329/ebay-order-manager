@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma";
 import type { ProductQuickEditValue } from "@/components/ProductQuickEdit";
 import { ProductStatsCards } from "@/components/ProductStatsCards";
+import { EbayActiveReportPanel } from "@/components/EbayActiveReportPanel";
 import { ProductsPager } from "@/components/ProductsPager";
 import {
   ProductsControls,
@@ -8,12 +9,13 @@ import {
 } from "@/components/ProductsControls";
 import { ResizableProductsTable } from "@/components/ResizableProductsTable";
 import { TopNav } from "@/components/TopNav";
-import {
-  resolveInventoryListingUploadStatus,
-  listingUploadStatusLabel,
-} from "@/lib/listing-upload-status";
 import { getProductStats } from "@/lib/product-stats";
-import { productWhere } from "@/lib/products";
+import { productImageExtrasById } from "@/lib/product-export-image-extras";
+import {
+  getOperationalProductIds,
+  type ProductOperationalView,
+} from "@/lib/product-operations";
+import { productOrderBy, productWhere } from "@/lib/products";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 
@@ -22,6 +24,16 @@ type ProductPhotoStatus = {
   userImageRegistered: boolean;
   hasBackImage: boolean;
   sourceImageUrl: string | null;
+  imageSource: string | null;
+  imageWorkReady: boolean;
+};
+type PocamarketChange = {
+  productId: string;
+  status: string;
+  previousPrice: Prisma.Decimal | null;
+  observedPrice: Prisma.Decimal | null;
+  previousAvailableCount: number | null;
+  observedAvailableCount: number | null;
 };
 
 async function fetchPhotoStatusByIds(ids: string[]): Promise<Map<string, ProductPhotoStatus>> {
@@ -33,7 +45,17 @@ async function fetchPhotoStatusByIds(ids: string[]): Promise<Map<string, Product
         "id",
         ("user_front_image_url" IS NOT NULL AND "user_front_image_url" <> '') AS "userImageRegistered",
         COALESCE("has_back_image", false) AS "hasBackImage",
-        "source_image_url" AS "sourceImageUrl"
+        "source_image_url" AS "sourceImageUrl",
+        CASE
+          WHEN "image_source" = 'lens_workbench'
+            OR COALESCE("ebay_image_urls"::text, '') LIKE '%/products/%/lens-card-%'
+          THEN 'lens_workbench'
+          ELSE "image_source"
+        END AS "imageSource"
+        ,(
+          ("user_front_image_url" IS NOT NULL AND "user_front_image_url" <> '')
+          OR "image_source" IN ('r2_user_uploaded','lens_workbench')
+        ) AS "imageWorkReady"
       FROM "products"
       WHERE "id" IN (${Prisma.join(ids)})
     `;
@@ -41,6 +63,21 @@ async function fetchPhotoStatusByIds(ids: string[]): Promise<Map<string, Product
   } catch {
     return new Map();
   }
+}
+
+async function fetchPocamarketChanges(ids: string[]) {
+  if (!ids.length) return new Map<string, PocamarketChange>();
+  const rows = await prisma.$queryRaw<PocamarketChange[]>`
+    SELECT DISTINCT ON ("product_id")
+      "product_id" AS "productId", "status", "previous_price" AS "previousPrice",
+      "observed_price" AS "observedPrice",
+      "previous_available_count" AS "previousAvailableCount",
+      "observed_available_count" AS "observedAvailableCount"
+    FROM "pocamarket_sync_items"
+    WHERE "product_id" IN (${Prisma.join(ids)}) AND "applied_at" IS NOT NULL
+    ORDER BY "product_id", "observed_at" DESC NULLS LAST
+  `;
+  return new Map(rows.map((row) => [row.productId, row]));
 }
 
 export const dynamic = "force-dynamic";
@@ -55,6 +92,10 @@ type ProductsSearchParams = Promise<{
   version?: string;
   page?: string;
   pageSize?: string;
+  sort?: string;
+  freshness?: string;
+  upload?: string;
+  operation?: string;
 }>;
 
 const pageSizeOptions = [25, 50, 100, 200, 500, 1000, 2000];
@@ -102,6 +143,34 @@ export default async function ProductsPage({
   const pageSize = parsePageSize(params.pageSize);
   const requestedPage = Math.max(1, Number(params.page) || 1);
   const where = productWhere(params);
+  const operationalViews = new Set<ProductOperationalView>([
+    "sellable",
+    "selling",
+    "listable",
+    "own_photo_listable",
+    "unit_no_members",
+    "price_missing",
+    "image_pending",
+    "in_stock",
+    "procurement_ready",
+    "stop_required",
+    "sold_out",
+    "review",
+  ]);
+  if (
+    params.operation &&
+    operationalViews.has(params.operation as ProductOperationalView)
+  ) {
+    const operationIds = await getOperationalProductIds(
+      params.operation as ProductOperationalView,
+    );
+    const existingAnd = Array.isArray(where.AND)
+      ? where.AND
+      : where.AND
+        ? [where.AND]
+        : [];
+    where.AND = [...existingAnd, { id: { in: operationIds } }];
+  }
   const currentPage = requestedPage;
   const skip = (currentPage - 1) * pageSize;
   const [fetchedProducts, productStats] = await Promise.all([
@@ -117,19 +186,25 @@ export default async function ProductsPage({
         brand: true,
         costPrice: true,
         salePrice: true,
+        isSoldOut: true,
+        pocamarketAvailableCount: true,
+        pocamarketSyncedAt: true,
+        ebayPrice: true,
         stockQuantity: true,
         safetyStock: true,
         location: true,
         memo: true,
         imageUrl: true,
+        ebayImageUrls: true,
         status: true,
-        listingStatus: true,
-        ebayItemId: true,
-        uploadError: true,
-        lastUploadedAt: true,
         updatedAt: true,
+        shopifyProductId: true,
+        shopifyLastUploadedAt: true,
+        ebayItemId: true,
+        listingStatus: true,
+        lastUploadedAt: true,
       },
-      orderBy: { sku: "asc" },
+      orderBy: productOrderBy(params.sort),
       skip,
       take: pageSize + 1,
     }),
@@ -140,10 +215,15 @@ export default async function ProductsPage({
   const initialFacets = facetsFromProducts(products);
   const totalFiltered = skip + products.length + (hasNextPage ? 1 : 0);
   const totalPages = Math.max(1, hasNextPage ? currentPage + 1 : currentPage);
-  const photoStatusById = await fetchPhotoStatusByIds(products.map((p) => p.id));
+  const productIds = products.map((p) => p.id);
+  const [photoStatusById, extrasById, changeById] = await Promise.all([
+    fetchPhotoStatusByIds(productIds),
+    productImageExtrasById(productIds),
+    fetchPocamarketChanges(productIds),
+  ]);
   const productRows: ProductQuickEditValue[] = products.map((product) => {
-    const listingUploadStatus = resolveInventoryListingUploadStatus(product);
     const photo = photoStatusById.get(product.id);
+    const change = changeById.get(product.id);
 
     return {
       id: product.id,
@@ -155,24 +235,42 @@ export default async function ProductsPage({
       brand: product.brand,
       costPrice: product.costPrice?.toString() ?? null,
       salePrice: product.salePrice?.toString() ?? null,
+      isSoldOut: product.isSoldOut,
+      pocamarketAvailableCount: product.pocamarketAvailableCount,
+      pocamarketSyncedAt: product.pocamarketSyncedAt?.toISOString() ?? null,
+      pocamarketChangeStatus: change?.status ?? null,
+      pocamarketPreviousPrice: change?.previousPrice?.toString() ?? null,
+      pocamarketPreviousAvailableCount: change?.previousAvailableCount ?? null,
+      ebayPrice: product.ebayPrice?.toString() ?? null,
       stockQuantity: product.stockQuantity,
       safetyStock: product.safetyStock,
       location: product.location,
       memo: product.memo,
-      imageUrl: product.imageUrl,
+      imageUrl:
+        photo?.imageSource === "lens_workbench"
+          ? product.ebayImageUrls[0] ?? product.imageUrl
+          : product.imageUrl,
       sourceImageUrl: photo?.sourceImageUrl ?? null,
+      imageSource: photo?.imageSource ?? null,
       userImageRegistered: photo?.userImageRegistered ?? false,
       hasBackImage: photo?.hasBackImage ?? false,
+      imageWorkReady: photo?.imageWorkReady ?? false,
+      procurementSellable:
+        product.stockQuantity <= 0 &&
+        (product.pocamarketAvailableCount ?? 0) > 0 &&
+        (photo?.imageWorkReady ?? false),
       imageUpdatedAt: product.updatedAt.toISOString(),
       status: product.status,
-      listingStatus: product.listingStatus,
-      listingUploadStatus,
-      listingUploadStatusLabel: listingUploadStatusLabel(listingUploadStatus),
+      featuredMembers: extrasById.get(product.id)?.featuredMembers ?? null,
+      shopifyProductId: product.shopifyProductId,
+      shopifyLastUploadedAt: product.shopifyLastUploadedAt?.toISOString() ?? null,
       ebayItemId: product.ebayItemId,
-      uploadError: product.uploadError,
+      listingStatus: product.listingStatus,
       lastUploadedAt: product.lastUploadedAt?.toISOString() ?? null,
     };
   });
+  const shopifyStoreHandle =
+    process.env.SHOPIFY_STORE_DOMAIN?.split(".")[0] ?? null;
   const start = totalFiltered ? (currentPage - 1) * pageSize + 1 : 0;
   const end = totalFiltered ? start + products.length - 1 : 0;
 
@@ -182,8 +280,12 @@ export default async function ProductsPage({
       <ProductsControls initialFacets={initialFacets} />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <ProductStatsCards pageSize={pageSize} stats={productStats} />
+        <EbayActiveReportPanel />
 
-        <ResizableProductsTable products={productRows} />
+        <ResizableProductsTable
+          products={productRows}
+          shopifyStoreHandle={shopifyStoreHandle}
+        />
 
         <ProductsPager
           currentPage={currentPage}

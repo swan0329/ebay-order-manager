@@ -29,6 +29,16 @@
 
 `GET /api/export/products`, `/api/export/orders`, `/api/export/inventory-movements`, `/api/export/ebay-listings`는 현재 필터를 받아 파일을 반환한다. 내보내기 실패 시 부분 파일을 성공 응답으로 보내지 않는다.
 
+`POST /api/ebay/active-report`는 관리자가 내려받은 eBay 활성상품 CSV/XLSX를 받아 SKU와 Item ID를 연결한다. `completeSnapshot=true`는 전체 활성상품 보고서임을 사람이 확인한 경우에만 사용하며, 이때 보고서에 없는 기존 활성 Item ID를 종료 상태로 바꾼다. `GET /api/ebay/active-report`는 최근 가져오기 결과와 미연결·중복·충돌 항목을 반환한다.
+
+`GET /api/export/ebay-operations?type=revise|end|review`는 각각 가격·수량 변경, 판매중단, SKU·Item ID 연결 검토용 XLSX를 반환한다. 외부 eBay 변경은 수행하지 않는다.
+
+신규등록용 `/api/export/ebay-listings`와 `/api/listing-upload/inventory/export`는 최근 전체 활성상품 보고서가 있어야 한다. 대상은 공급 가능, 이미지 완료, 판매가 확정 가능, eBay 비활성·미연결 조건을 모두 만족해야 하며 포카마켓 조달판매 수량은 1로 제한한다. Lens CSV는 같은 조건 중 Lens 승인 이미지를 쓰는 상품만 포함한다.
+
+판매가는 두 파일 모두 `src/lib/listing-price.ts`가 정한다. 포카마켓 가격(`sale_price`, KRW)이 있으면 언제나 마진 계산가를 쓰고, 포카마켓에 없는 상품만 사람이 입력한 eBay 판매가(`ebay_price`, USD)를 그대로 쓴다. 두 값이 모두 없는 상품은 파일에서 제외하며, 남는 대상이 없으면 파일 대신 `422`와 안내 문구를 반환한다.
+
+`POST /api/products/ebay-price`는 관리자 세션으로 상품별 수동 eBay 판매가(USD)를 최대 500건까지 한 번에 저장한다. 값이 비어 있으면 가격을 지우고, 0 이하·상한 초과는 `422`로 거부하며, 없는 상품이 섞이면 `404`로 아무것도 저장하지 않는다. 이 요청은 저장만 하고 eBay에 게시하지 않는다. `POST /api/pricing/recommend`는 원화 금액과 저장된 가격 설정으로 권장 판매가(USD)를 계산해 보여줄 뿐 아무것도 저장하지 않는다.
+
 ## eBay 연결과 등록
 
 | 호출군 | 입력 | 정상 결과 | 주요 실패 |
@@ -60,6 +70,12 @@
 | `POST /api/ai-image-work` | 관리자 세션 또는 허용된 로컬 작업자 토큰, 작업 명령·상태·미리보기 | 생성·배정·처리된 AI 작업 상태 | 인증 실패·작업 없음·잘못된 상태 전이 |
 
 AI 결과는 승인 전 상품 이미지 URL을 바꾸지 않는다. 이미지 프록시와 R2 응답에는 인증정보를 포함하지 않는다.
+
+AI 이미지 자동 처리는 서버 전용 `DEWATERMARK_API_KEY`를 사용해
+`https://platform.dewatermark.ai`의 이미지 워터마크 제거 API를 호출한다. API 키와
+외부 원본 응답은 브라우저·일반 로그·작업 오류에 포함하지 않는다. 외부 처리 결과는
+검수용 R2 이미지로만 저장하며 관리자가 통과 및 최종 업로드를 명시적으로 확인하기
+전에는 상품 이미지를 변경하지 않는다.
 
 ## 포카마켓
 
