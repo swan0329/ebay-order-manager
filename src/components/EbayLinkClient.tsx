@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, ImageOff, Link2, Search } from "lucide-react";
+import { ExternalLink, ImageOff, Link2, PackagePlus, Search } from "lucide-react";
 
 type LinkCandidate = {
   productId: string;
@@ -67,6 +67,7 @@ export function EbayLinkClient({
   // 실패 사유는 해당 줄에도 같이 띄운다. 목록이 길면 화면 맨 위 알림이 보이지
   // 않아 아무 일도 일어나지 않은 것처럼 보인다.
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  const [newSkus, setNewSkus] = useState<Record<string, string>>({});
   const [searchTerms, setSearchTerms] = useState<Record<string, string>>({});
   const [searchResults, setSearchResults] = useState<Record<string, LinkCandidate[]>>({});
   const [searchingId, setSearchingId] = useState<string | null>(null);
@@ -138,6 +139,46 @@ export function EbayLinkClient({
     } catch (error) {
       const text = error instanceof Error ? error.message : "연결하지 못했습니다.";
       setMessage(text);
+      setRowErrors((prev) => ({ ...prev, [listing.listingId]: text }));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // 프로그램에 아예 없는 카드일 때. 리스팅 정보로 상품을 만들고 곧바로 연결한다.
+  async function createProduct(listing: UnlinkedListing) {
+    const sku = (newSkus[listing.listingId] ?? "").trim();
+    if (!sku) {
+      setRowErrors((prev) => ({ ...prev, [listing.listingId]: "새 SKU를 입력해 주세요." }));
+      return;
+    }
+
+    setBusyId(listing.listingId);
+    setRowErrors((prev) => {
+      const next = { ...prev };
+      delete next[listing.listingId];
+      return next;
+    });
+    try {
+      const response = await fetch("/api/ebay/active-report/create-product", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ listingId: listing.listingId, sku }),
+      });
+      const body = (await response.json().catch(() => null)) as
+        | { sku?: string; error?: string }
+        | null;
+      if (!response.ok) {
+        throw new Error(body?.error ?? "상품을 만들지 못했습니다.");
+      }
+
+      setListings((prev) => prev.filter((row) => row.listingId !== listing.listingId));
+      setMessage(
+        `${body?.sku ?? sku} 상품을 만들어 상품번호 ${listing.itemId}와 연결했습니다. 그룹·멤버·앨범은 상품 목록에서 채워 주세요.`,
+      );
+      router.refresh();
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "상품을 만들지 못했습니다.";
       setRowErrors((prev) => ({ ...prev, [listing.listingId]: text }));
     } finally {
       setBusyId(null);
@@ -375,6 +416,33 @@ export function EbayLinkClient({
                   <Search className="h-3.5 w-3.5" />
                   {searchingId === listing.listingId ? "찾는 중..." : "찾기"}
                 </button>
+              </div>
+
+              <div className="mt-3 rounded-md border border-dashed border-zinc-300 p-2.5">
+                <p className="mb-1.5 text-xs text-zinc-500">
+                  프로그램에 이 카드가 아예 없나요? 리스팅 정보(제목·사진·가격·수량)로
+                  상품을 만들어 바로 연결합니다. 그룹·멤버·앨범은 만든 뒤 채우시면 됩니다.
+                </p>
+                <div className="flex gap-1.5">
+                  <input
+                    value={newSkus[listing.listingId] ?? ""}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setNewSkus((prev) => ({ ...prev, [listing.listingId]: value }));
+                    }}
+                    placeholder="새 상품에 쓸 SKU"
+                    className="h-9 flex-1 rounded-md border border-zinc-300 px-2 text-sm text-zinc-900"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void createProduct(listing)}
+                    disabled={busy || !(newSkus[listing.listingId] ?? "").trim()}
+                    className="inline-flex h-9 shrink-0 items-center gap-1 rounded-md bg-zinc-900 px-3 text-xs font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+                  >
+                    <PackagePlus className="h-3.5 w-3.5" />
+                    {busy ? "처리 중..." : "상품 만들어 연결"}
+                  </button>
+                </div>
               </div>
             </div>
           </article>
