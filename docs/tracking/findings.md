@@ -1,5 +1,9 @@
 # 해결되지 않은 문제
 
+## 고정 토큰으로 열려 있던 관리자 진단 엔드포인트 (조치함, 후속 확인 필요)
+
+`/api/admin/migrate-shopify`가 세션 검사 없이 소스에 하드코딩된 고정 문자열 하나만으로 열려 있었다. 2026-08-05 운영에서 재현을 확인했다(토큰 없이 `403`, 토큰 포함 시 `404` = 인증을 통과해 데이터베이스 조회까지 도달). 이 경로는 `?check=shopify`로 Shopify 관리자 토큰의 앞 6자와 길이, `?sku=`·`?preview=`로 내부 상품 데이터와 Shopify 관리자 URL을 로그인 없이 반환했다. 라우트를 삭제했고, 이 파일은 git에 커밋된 적이 없어 공개 저장소에는 노출되지 않았다(`git log -S`로 확인). 남은 확인: 이 엔드포인트가 열려 있던 기간의 접근 기록을 Vercel 로그에서 조회하고, 노출 정도를 감안해 Shopify 관리자 토큰 교체 여부를 결정한다. 나머지 15개 `/api/admin/*` 라우트는 모두 `requireApiUser()`를 쓴다.
+
 ## Supabase Data API로 전체 테이블 노출
 
 2026-08-03 Supabase 보안 점검이 `public` 스키마 전체 테이블에 RLS가 꺼져 있고 민감정보 열이 API로 접근 가능하다고 통보했다. 노출 대상에는 `users.password`(비밀번호 해시), `ebay_accounts`의 암호화된 OAuth 토큰, `orders`의 구매자 이름·계정·국가가 포함된다. 확인한 사실: 이 앱은 Supabase를 순수 PostgreSQL로만 쓰고(`src/lib/database-url.ts`) `supabase-js`·Auth·Storage·REST를 전혀 호출하지 않으며, 빌드된 클라이언트 번들(`.next/static`)에 Supabase 키가 들어 있지 않다. 따라서 공격에는 프로젝트의 anon 키가 필요하고 이 앱이 그 키를 공개한 적은 없지만, anon 키는 원래 공개를 전제로 발급되는 값이므로 유출 시 전체 데이터 읽기·수정·삭제가 가능하다. 조치 SQL은 `prisma/migrations/20260805000000_lock_down_data_api/migration.sql`에 있고 아직 운영에 적용하지 않았다. 근본 차단은 Supabase 프로젝트 설정에서 Data API의 노출 스키마에서 `public`을 제거하는 것이다. 적용 전에 `public` 테이블 소유자가 앱 연결 역할과 같은지 확인해야 한다(다르면 RLS 적용 후 앱이 모든 행을 읽지 못한다).
