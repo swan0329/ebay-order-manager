@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Calculator, DollarSign, Save } from "lucide-react";
+import { Calculator, DollarSign, ExternalLink, Save, Search } from "lucide-react";
 
 type Item = {
   id: string;
@@ -15,6 +15,25 @@ type Item = {
   costPriceKrw: string | null;
   stockQuantity: number;
   pocamarketAvailableCount: number | null;
+};
+
+type MarketComp = {
+  itemId: string;
+  title: string;
+  priceUsd: number;
+  shippingUsd: number | null;
+  totalUsd: number;
+  condition: string | null;
+  imageUrl: string | null;
+  itemWebUrl: string | null;
+};
+
+type CompsState = {
+  loading: boolean;
+  error: string | null;
+  source: "image" | "keyword" | null;
+  fallbackReason: string | null;
+  comps: MarketComp[];
 };
 
 function isValidPrice(value: string | undefined) {
@@ -50,11 +69,69 @@ export function PriceMissingClient({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [savingAll, setSavingAll] = useState(false);
   const [message, setMessage] = useState("");
+  const [compsById, setCompsById] = useState<Record<string, CompsState>>({});
 
   const readyIds = useMemo(
     () => items.filter((item) => isValidPrice(prices[item.id])).map((item) => item.id),
     [items, prices],
   );
+
+  // eBay에 올라와 있는 같은 카드를 찾아 후보로 보여준다. 상품 이미지를 eBay
+  // 이미지 검색에 보내므로 구글 렌즈로 찾던 것과 같은 결과를 eBay 안에서 얻는다.
+  // 고른 값을 판매가 칸에 넣을 뿐 저장은 따로 눌러야 한다.
+  async function lookupComps(item: Item) {
+    setCompsById((prev) => ({
+      ...prev,
+      [item.id]: {
+        loading: true,
+        error: null,
+        source: null,
+        fallbackReason: null,
+        comps: prev[item.id]?.comps ?? [],
+      },
+    }));
+
+    try {
+      const response = await fetch("/api/pricing/ebay-comps", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ productId: item.id }),
+      });
+      const body = (await response.json().catch(() => null)) as
+        | {
+            source?: "image" | "keyword";
+            fallbackReason?: string | null;
+            comps?: MarketComp[];
+            error?: string;
+          }
+        | null;
+      if (!response.ok) {
+        throw new Error(body?.error ?? "eBay 시세를 불러오지 못했습니다.");
+      }
+
+      setCompsById((prev) => ({
+        ...prev,
+        [item.id]: {
+          loading: false,
+          error: null,
+          source: body?.source ?? null,
+          fallbackReason: body?.fallbackReason ?? null,
+          comps: body?.comps ?? [],
+        },
+      }));
+    } catch (error) {
+      setCompsById((prev) => ({
+        ...prev,
+        [item.id]: {
+          loading: false,
+          error: error instanceof Error ? error.message : "조회에 실패했습니다.",
+          source: null,
+          fallbackReason: null,
+          comps: [],
+        },
+      }));
+    }
+  }
 
   // 원화 원가를 넣으면 저장된 가격 설정으로 권장가를 계산해 판매가 칸을 채운다.
   // 계산 결과는 제안일 뿐이고, 저장은 사람이 따로 눌러야 반영된다.
@@ -179,11 +256,13 @@ export function PriceMissingClient({
       <div className="space-y-3">
         {items.map((item) => {
           const busy = busyId === item.id;
+          const comps = compsById[item.id];
           return (
             <article
               key={item.id}
-              className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 sm:flex-row sm:items-center"
+              className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4"
             >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="flex min-w-0 flex-1 gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -253,6 +332,17 @@ export function PriceMissingClient({
 
                 <button
                   type="button"
+                  onClick={() => void lookupComps(item)}
+                  disabled={comps?.loading}
+                  title="eBay에 올라와 있는 같은 카드를 이미지로 찾아 판매가를 보여줍니다"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-300"
+                >
+                  <Search className="h-4 w-4" />
+                  {comps?.loading ? "찾는 중..." : "eBay 시세"}
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => void saveOne(item)}
                   disabled={busy || !isValidPrice(prices[item.id])}
                   className="inline-flex h-9 items-center gap-1.5 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
@@ -261,6 +351,79 @@ export function PriceMissingClient({
                   {busy ? "처리 중..." : "저장"}
                 </button>
               </div>
+              </div>
+
+              {comps && !comps.loading ? (
+                <div className="border-t border-zinc-100 pt-3">
+                  {comps.error ? (
+                    <p className="text-xs text-rose-700">{comps.error}</p>
+                  ) : comps.comps.length === 0 ? (
+                    <p className="text-xs text-amber-700">
+                      eBay에서 같은 카드를 찾지 못했습니다. 직접 입력해 주세요.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="mb-2 text-xs text-zinc-500">
+                        {comps.source === "image" ? "이미지로 찾은" : "제목으로 찾은"} eBay 판매중
+                        상품 {comps.comps.length}건 · 배송비 포함 낮은 순 · 클릭하면 판매가 칸에
+                        들어갑니다
+                        {comps.fallbackReason ? ` · ${comps.fallbackReason}` : ""}
+                      </p>
+                      <ul className="grid gap-2 sm:grid-cols-2">
+                        {comps.comps.map((comp) => (
+                          <li key={comp.itemId}>
+                            <div className="flex items-center gap-2 rounded-md border border-zinc-200 p-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPrices((prev) => ({
+                                    ...prev,
+                                    [item.id]: comp.totalUsd.toFixed(2),
+                                  }))
+                                }
+                                className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-80"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={comp.imageUrl ?? ""}
+                                  alt=""
+                                  loading="lazy"
+                                  className="h-10 w-10 shrink-0 rounded border border-zinc-200 object-cover"
+                                />
+                                <span className="min-w-0">
+                                  <span className="block text-sm font-semibold text-zinc-900">
+                                    ${comp.totalUsd.toFixed(2)}
+                                    {comp.shippingUsd ? (
+                                      <span className="ml-1 text-xs font-normal text-zinc-500">
+                                        (${comp.priceUsd.toFixed(2)} + 배송 $
+                                        {comp.shippingUsd.toFixed(2)})
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                  <span className="block truncate text-xs text-zinc-500">
+                                    {comp.title}
+                                  </span>
+                                </span>
+                              </button>
+                              {comp.itemWebUrl ? (
+                                <a
+                                  href={comp.itemWebUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title="eBay에서 열기"
+                                  className="shrink-0 rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </a>
+                              ) : null}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              ) : null}
             </article>
           );
         })}
