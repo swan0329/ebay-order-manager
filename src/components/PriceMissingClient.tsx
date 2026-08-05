@@ -2,7 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Calculator, DollarSign, ExternalLink, Save, Search } from "lucide-react";
+import {
+  Calculator,
+  DollarSign,
+  ExternalLink,
+  Link2,
+  Save,
+  Search,
+} from "lucide-react";
 
 type Item = {
   id: string;
@@ -79,6 +86,39 @@ export function PriceMissingClient({
     () => items.filter((item) => isValidPrice(prices[item.id])).map((item) => item.id),
     [items, prices],
   );
+
+  // 이미 올라가 있는 내 리스팅을 이 상품에 연결한다. 연결되면 이 상품은
+  // "판매중"이 되므로 가격 미입력 목록에서 빠지고, 중복 등록도 막힌다.
+  async function linkListing(item: Item, comp: MarketComp) {
+    if (!comp.legacyItemId) {
+      setMessage(`${item.sku}: 이 후보에는 상품번호가 없어 연결할 수 없습니다.`);
+      return;
+    }
+
+    setBusyId(item.id);
+    setMessage("");
+    try {
+      const response = await fetch("/api/ebay/active-report/link", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ productId: item.id, itemId: comp.legacyItemId }),
+      });
+      const body = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+      if (!response.ok) {
+        throw new Error(body?.error ?? "연결하지 못했습니다.");
+      }
+
+      setItems((prev) => prev.filter((row) => row.id !== item.id));
+      setMessage(`${item.sku} · 상품번호 ${comp.legacyItemId}와 연결했습니다. 판매중으로 바뀝니다.`);
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "연결하지 못했습니다.");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   // eBay에 올라와 있는 같은 카드를 찾아 후보로 보여준다. 상품 이미지를 eBay
   // 이미지 검색에 보내므로 구글 렌즈로 찾던 것과 같은 결과를 eBay 안에서 얻는다.
@@ -397,7 +437,7 @@ export function PriceMissingClient({
                           &quot;내 리스팅&quot;으로 표시된 것이 사장님 상품입니다. 프로그램을 거치지
                           않고 수동으로 올린 리스팅이라 시스템이 이 상품과 연결하지 못한 상태입니다.
                           가격만 넣고 신규등록 파일에 올리면 <strong>같은 카드가 두 번 등록됩니다.</strong>
-                          {" "}상품 목록의 &quot;연결 검토&quot; 파일로 이 상품번호를 먼저 연결해 주세요.
+                          {" "}아래 &quot;이 리스팅과 연결&quot;을 눌러 먼저 연결해 주세요.
                         </p>
                       ) : null}
                       <p className="mb-2 text-xs text-zinc-500">
@@ -466,6 +506,18 @@ export function PriceMissingClient({
                                   ) : null}
                                 </span>
                               </button>
+                              {comp.isOwnListing ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void linkListing(item, comp)}
+                                  disabled={busy}
+                                  title="이 리스팅을 이 상품에 연결합니다 (eBay에는 아무것도 올리지 않습니다)"
+                                  className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md bg-rose-600 px-2.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+                                >
+                                  <Link2 className="h-3.5 w-3.5" />
+                                  {busy ? "처리 중..." : "이 리스팅과 연결"}
+                                </button>
+                              ) : null}
                               {comp.itemWebUrl ? (
                                 <a
                                   href={comp.itemWebUrl}
