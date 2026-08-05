@@ -26,7 +26,8 @@ export default async function EbayLinkPage() {
         </p>
         <p className="mb-5 text-xs text-zinc-500">
           연결은 프로그램 안의 짝만 맞추는 작업이며 eBay에는 아무것도 올리거나 바꾸지 않습니다.
-          후보는 제목 유사도로 고른 추천일 뿐이니 사진과 이름을 확인하고 눌러 주세요.
+          제목으로 고른 후보는 확실한 것만 보여주므로, 비어 있거나 맞는 게 없으면{" "}
+          <strong>사진으로 찾기</strong>를 쓰세요. 사진 비교가 제목보다 정확합니다.
         </p>
         <EbayUnlinkPanel />
         <EbayLinkClient

@@ -17,9 +17,12 @@ const LINK_PENDING_STATUSES = ["UNMATCHED", "TITLE_MATCHED", "DUPLICATE", "CONFL
 const NON_MEMBER_OPTION_NAMES = new Set(["unit", "group", "all", "ot8", "ot9"]);
 
 // 포토카드는 그룹·앨범 단어가 여러 장에 공통으로 들어가서, 글자 겹침만 보면
-// 멤버가 달라도 점수가 높게 나온다. 멤버 이름이 리스팅 제목에 없으면 다른 카드로
-// 보고 순위를 크게 낮춘다.
-const MEMBER_MISMATCH_PENALTY = 0.25;
+// 멤버가 달라도 점수가 높게 나온다. 순위만 낮추면 여전히 목록에 남아 잘못
+// 연결하게 되므로, 멤버가 어긋나는 후보는 아예 제외한다.
+//
+// 사진 비교(사진으로 찾기)가 훨씬 정확하다는 것이 확인됐으므로, 제목 추천은
+// 확신이 있는 것만 남기고 나머지는 사진 비교에 맡긴다.
+const MIN_TITLE_SCORE = 0.45;
 
 export function productMemberNames(product: {
   optionName?: string | null;
@@ -167,33 +170,30 @@ export async function getEbayLinkSuggestions(
     const title = row.title;
     const candidates = title
       ? rankFuzzyTitleMatches(title, products, 20)
-          .map(({ product, score }) => {
+          // 멤버가 어긋나는 후보는 버린다. 남겨두면 사진을 대충 보고 눌러
+          // 다른 멤버 카드에 연결되는 사고가 난다.
+          .filter(({ product }) => {
             const members = productMemberNames({
               optionName: product.optionName,
               featuredMembers: featuredById.get(product.id) ?? null,
             });
-            const matched = memberMatches(title, members);
-            const memberMismatch = matched === false;
-
-            return {
-              productId: product.id,
-              sku: product.sku,
-              productName: product.productName,
-              brand: product.brand,
-              optionName: product.optionName,
-              category: product.category,
-              imageUrl: product.ebayImageUrls[0] ?? product.imageUrl ?? null,
-              // 멤버가 어긋나면 점수를 크게 깎아 뒤로 보낸다.
-              score: Number(
-                (memberMismatch ? score * MEMBER_MISMATCH_PENALTY : score).toFixed(3),
-              ),
-              alreadyLinkedItemId: product.ebayItemId,
-              memberMismatch,
-            };
+            return memberMatches(title, members) !== false;
           })
-          // 점수를 다시 매겼으므로 정렬도 다시 한다.
-          .sort((left, right) => right.score - left.score)
+          // 확신이 낮은 것도 버린다. 빈 목록이 틀린 추천보다 낫다.
+          .filter(({ score }) => score >= MIN_TITLE_SCORE)
           .slice(0, 5)
+          .map(({ product, score }) => ({
+            productId: product.id,
+            sku: product.sku,
+            productName: product.productName,
+            brand: product.brand,
+            optionName: product.optionName,
+            category: product.category,
+            imageUrl: product.ebayImageUrls[0] ?? product.imageUrl ?? null,
+            score: Number(score.toFixed(3)),
+            alreadyLinkedItemId: product.ebayItemId,
+            memberMismatch: false,
+          }))
       : [];
 
     return {

@@ -367,12 +367,24 @@ export function EbayLinkClient({
                   {rowErrors[listing.listingId]}
                 </p>
               ) : null}
-              <p className="mb-2 text-xs text-zinc-500">
-                이 리스팅과 짝지을 상품을 고르세요
-              </p>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-zinc-500">이 리스팅과 짝지을 상품을 고르세요</p>
+                <button
+                  type="button"
+                  onClick={() => void searchByImage(listing)}
+                  disabled={searchingId === listing.listingId}
+                  title="eBay 사진과 상품 사진을 비교해 찾습니다. 제목이 달라도 찾습니다."
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md bg-violet-600 px-3 text-xs font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+                >
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  {searchingId === listing.listingId ? "비교 중..." : "사진으로 찾기"}
+                </button>
+              </div>
               {(manual ?? listing.candidates).length === 0 ? (
-                <p className="text-xs text-amber-700">
-                  추천 후보를 찾지 못했습니다. 아래에서 직접 찾아 주세요.
+                <p className="rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-800">
+                  제목만으로는 확실한 후보를 찾지 못했습니다.{" "}
+                  <strong>사진으로 찾기</strong>를 눌러 주세요 — 사진 비교가 제목보다
+                  정확합니다.
                 </p>
               ) : (
                 <ul className="grid gap-2 sm:grid-cols-2">
@@ -433,16 +445,6 @@ export function EbayLinkClient({
               )}
 
               <div className="mt-3 flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => void searchByImage(listing)}
-                  disabled={searchingId === listing.listingId}
-                  title="eBay 사진과 상품 사진을 비교해 찾습니다. 제목이 달라도 찾을 수 있습니다."
-                  className="inline-flex h-9 items-center gap-1.5 rounded-md bg-violet-600 px-3 text-xs font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
-                >
-                  <ImageIcon className="h-3.5 w-3.5" />
-                  {searchingId === listing.listingId ? "비교 중..." : "사진으로 찾기"}
-                </button>
                 <input
                   value={searchTerms[listing.listingId] ?? ""}
                   onChange={(event) => {
