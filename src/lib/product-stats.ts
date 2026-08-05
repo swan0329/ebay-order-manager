@@ -15,6 +15,8 @@ export type ProductStats = {
   imagePendingCount: number;
   inStockCount: number;
   procurementReadyCount: number;
+  procurementListableCount: number;
+  inStockListableCount: number;
   stopRequiredCount: number;
   soldOutCount: number;
   reviewCount: number;
@@ -60,6 +62,15 @@ export async function getProductStats() {
           AND COALESCE("pocamarket_available_count", 0) > 0
           AND ${imageReady}
       )::int AS "procurementReadyCount",
+      -- "판매 가능"을 공급처별로 나눈 두 조각. 둘을 더하면 listableCount가 된다.
+      COUNT(*) FILTER (
+        WHERE "stock_quantity" <= 0
+          AND COALESCE("pocamarket_available_count", 0) > 0
+          AND ${imageReady} AND NOT ${registered}
+      )::int AS "procurementListableCount",
+      COUNT(*) FILTER (
+        WHERE "stock_quantity" > 0 AND ${imageReady} AND NOT ${registered}
+      )::int AS "inStockListableCount",
       COUNT(*) FILTER (
         WHERE "stock_quantity" <= 0
           AND "pocamarket_synced_at" IS NOT NULL
@@ -95,6 +106,8 @@ export async function getProductStats() {
       imagePendingCount: 0,
       inStockCount: 0,
       procurementReadyCount: 0,
+      procurementListableCount: 0,
+      inStockListableCount: 0,
       stopRequiredCount: 0,
       soldOutCount: 0,
       reviewCount: 0,

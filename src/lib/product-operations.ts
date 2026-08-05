@@ -13,6 +13,7 @@ export type ProductOperationalView =
   | "image_pending"
   | "in_stock"
   | "procurement_ready"
+  | "procurement_listable"
   | "stop_required"
   | "sold_out"
   | "review";
@@ -108,6 +109,15 @@ function condition(view: ProductOperationalView) {
         "stock_quantity" <= 0
         AND COALESCE("pocamarket_available_count", 0) > 0
         AND ${imageReady}
+      `;
+    case "procurement_listable":
+      // 포카 조달판매 중 아직 eBay에 안 올린 것. "판매 가능"에서 내 재고분을 뺀
+      // 나머지이며, 실제로 지금 올릴 수 있는 조달 대상이다.
+      return Prisma.sql`
+        "stock_quantity" <= 0
+        AND COALESCE("pocamarket_available_count", 0) > 0
+        AND ${imageReady}
+        AND NOT ${isRegistered}
       `;
     case "stop_required":
       return Prisma.sql`

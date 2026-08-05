@@ -153,6 +153,7 @@ export default async function ProductsPage({
     "image_pending",
     "in_stock",
     "procurement_ready",
+    "procurement_listable",
     "stop_required",
     "sold_out",
     "review",
