@@ -1,4 +1,5 @@
 import { EbayLinkClient } from "@/components/EbayLinkClient";
+import { EbayUnlinkPanel } from "@/components/EbayUnlinkPanel";
 import { TopNav } from "@/components/TopNav";
 import { getEbayLinkSuggestions } from "@/lib/ebay-listing-link-suggestions";
 import { requireUser } from "@/lib/session";
@@ -27,6 +28,7 @@ export default async function EbayLinkPage() {
           연결은 프로그램 안의 짝만 맞추는 작업이며 eBay에는 아무것도 올리거나 바꾸지 않습니다.
           후보는 제목 유사도로 고른 추천일 뿐이니 사진과 이름을 확인하고 눌러 주세요.
         </p>
+        <EbayUnlinkPanel />
         <EbayLinkClient
           initial={suggestions.listings}
           totalPending={suggestions.totalPending}
