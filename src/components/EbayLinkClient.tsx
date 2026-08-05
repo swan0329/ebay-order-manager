@@ -121,7 +121,11 @@ export function EbayLinkClient({
     void loadImages(initial);
   }, [initial, loadImages]);
 
-  async function link(listing: UnlinkedListing, candidate: LinkCandidate) {
+  async function link(
+    listing: UnlinkedListing,
+    candidate: LinkCandidate,
+    replaceExisting = false,
+  ) {
     setBusyId(listing.listingId);
     setMessage("");
     setRowErrors((prev) => {
@@ -133,15 +137,26 @@ export function EbayLinkClient({
       const response = await fetch("/api/ebay/active-report/link", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ productId: candidate.productId, itemId: listing.itemId }),
+        body: JSON.stringify({
+          productId: candidate.productId,
+          itemId: listing.itemId,
+          replaceExisting,
+        }),
       });
-      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      const body = (await response.json().catch(() => null)) as
+        | { error?: string; replacedItemId?: string | null }
+        | null;
       if (!response.ok) {
         throw new Error(body?.error ?? "연결하지 못했습니다.");
       }
 
       setListings((prev) => prev.filter((row) => row.listingId !== listing.listingId));
-      setMessage(`${candidate.sku} ↔ 상품번호 ${listing.itemId} 연결 완료. 판매중으로 바뀝니다.`);
+      setMessage(
+        `${candidate.sku} ↔ 상품번호 ${listing.itemId} 연결 완료.` +
+          (body?.replacedItemId
+            ? ` 예전 연결(${body.replacedItemId})은 풀렸고 그 리스팅은 대기 목록으로 돌아갑니다.`
+            : " 판매중으로 바뀝니다."),
+      );
       router.refresh();
     } catch (error) {
       const text = error instanceof Error ? error.message : "연결하지 못했습니다.";
@@ -424,19 +439,33 @@ export function EbayLinkClient({
                             ) : null}
                             {blocked ? (
                               <p className="mt-0.5 text-[11px] text-rose-700">
-                                이미 상품번호 {candidate.alreadyLinkedItemId} 연결됨
+                                이미 상품번호 {candidate.alreadyLinkedItemId} 연결됨 · 이
+                                카드가 맞으면 바꾸기
                               </p>
                             ) : null}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => void link(listing, candidate)}
-                            disabled={busy || blocked}
-                            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md bg-emerald-600 px-2.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
-                          >
-                            <Link2 className="h-3.5 w-3.5" />
-                            {busy ? "처리 중..." : "연결"}
-                          </button>
+                          {blocked ? (
+                            <button
+                              type="button"
+                              onClick={() => void link(listing, candidate, true)}
+                              disabled={busy}
+                              title={`예전 연결(${candidate.alreadyLinkedItemId})을 풀고 이 리스팅으로 바꿉니다`}
+                              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md bg-amber-600 px-2.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+                            >
+                              <Link2 className="h-3.5 w-3.5" />
+                              {busy ? "처리 중..." : "바꿔서 연결"}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => void link(listing, candidate)}
+                              disabled={busy}
+                              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md bg-emerald-600 px-2.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+                            >
+                              <Link2 className="h-3.5 w-3.5" />
+                              {busy ? "처리 중..." : "연결"}
+                            </button>
+                          )}
                         </div>
                       </li>
                     );

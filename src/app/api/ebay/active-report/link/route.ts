@@ -12,12 +12,16 @@ const schema = z.object({
   productId: z.string().min(1),
   // eBay 화면·보고서의 숫자 상품번호.
   itemId: z.string().regex(/^\d+$/, "상품번호는 숫자여야 합니다."),
+  // 상품에 붙어 있던 예전 상품번호를 풀고 이것으로 바꾼다. 화면에서 기존 연결을
+  // 보여주고 사람이 확인했을 때만 켜진다.
+  replaceExisting: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
   try {
     const user = await requireApiUser();
     const input = schema.parse(await request.json());
+    // replacedItemId도 함께 돌아가므로 화면이 무엇이 풀렸는지 알릴 수 있다.
     const result = await linkEbayActiveListing(user.id, input);
     return Response.json({ ok: true, ...result });
   } catch (error) {

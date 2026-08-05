@@ -426,7 +426,14 @@ export class EbayListingLinkError extends Error {
 // (docs/business-rules.md: 사람이 확정한 연결이 자동 결과보다 우선한다).
 export async function linkEbayActiveListing(
   userId: string,
-  input: { productId: string; itemId: string },
+  input: {
+    productId: string;
+    itemId: string;
+    // 상품에 이미 다른 상품번호가 붙어 있을 때, 그 연결을 풀고 이것으로 바꾼다.
+    // 같은 카드를 eBay에 두 번 올렸거나 예전 연결이 낡았을 때 쓴다.
+    // 사람이 기존 연결을 확인하고 명시적으로 요청했을 때만 true가 된다.
+    replaceExisting?: boolean;
+  },
 ) {
   const listing = await prisma.ebayActiveListing.findFirst({
     where: { itemId: input.itemId, reportImport: { userId } },
@@ -455,9 +462,11 @@ export async function linkEbayActiveListing(
   if (!product) {
     throw new EbayListingLinkError("상품을 찾을 수 없습니다.");
   }
-  if (product.ebayItemId && product.ebayItemId !== input.itemId) {
+  const replacedItemId =
+    product.ebayItemId && product.ebayItemId !== input.itemId ? product.ebayItemId : null;
+  if (replacedItemId && !input.replaceExisting) {
     throw new EbayListingLinkError(
-      `이 상품에는 이미 다른 상품번호(${product.ebayItemId})가 연결되어 있습니다.`,
+      `이 상품에는 이미 다른 상품번호(${replacedItemId})가 연결되어 있습니다.`,
     );
   }
   if (otherClaim) {
@@ -467,6 +476,15 @@ export async function linkEbayActiveListing(
   }
 
   await prisma.$transaction(async (tx) => {
+    // 바꾸는 경우, 이 상품을 가리키던 예전 리스팅을 먼저 놓아준다. 그러지 않으면
+    // 리스팅 두 건이 같은 상품을 가리킨 채 남는다.
+    if (replacedItemId) {
+      await tx.ebayActiveListing.updateMany({
+        where: { itemId: replacedItemId, productId: product.id },
+        data: { productId: null, matchStatus: "UNMATCHED", linkedAt: null },
+      });
+    }
+
     await tx.ebayActiveListing.update({
       where: { id: listing.id },
       data: { productId: product.id, matchStatus: "MATCHED", linkedAt: new Date() },
@@ -477,7 +495,7 @@ export async function linkEbayActiveListing(
     });
   });
 
-  return { productId: product.id, itemId: listing.itemId };
+  return { productId: product.id, itemId: listing.itemId, replacedItemId };
 }
 
 // 잘못 연결된 활성상품 항목을 연결 해제한다. 제목 매칭으로 상품에 써넣은

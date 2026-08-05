@@ -6,6 +6,7 @@ const listingFindFirst = vi.fn();
 const productFindUnique = vi.fn();
 const productFindFirst = vi.fn();
 const listingUpdate = vi.fn();
+const listingUpdateMany = vi.fn();
 const productUpdate = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
@@ -21,7 +22,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     $transaction: async (run: (tx: unknown) => Promise<unknown>) =>
       run({
-        ebayActiveListing: { update: listingUpdate },
+        ebayActiveListing: { update: listingUpdate, updateMany: listingUpdateMany },
         product: { update: productUpdate },
       }),
   },
@@ -49,6 +50,7 @@ describe("수동 리스팅 연결", () => {
     await expect(linkEbayActiveListing("user-1", input)).resolves.toEqual({
       productId: "prod-1",
       itemId: input.itemId,
+      replacedItemId: null,
     });
 
     // 연결 검토 파일이 matchStatus != MATCHED로 거르므로 MATCHED여야 목록에서 빠진다.
@@ -107,6 +109,46 @@ describe("수동 리스팅 연결", () => {
     expect(productUpdate).not.toHaveBeenCalled();
   });
 
+  it("바꾸기를 요청하면 예전 연결을 풀고 새 상품번호로 바꾼다", async () => {
+    productFindUnique.mockResolvedValue({ id: "prod-1", ebayItemId: "999999999999" });
+
+    await expect(
+      linkEbayActiveListing("user-1", { ...input, replaceExisting: true }),
+    ).resolves.toEqual({
+      productId: "prod-1",
+      itemId: input.itemId,
+      replacedItemId: "999999999999",
+    });
+
+    // 예전 리스팅이 같은 상품을 계속 가리키면 두 건이 한 상품을 물게 된다.
+    expect(listingUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { itemId: "999999999999", productId: "prod-1" },
+        data: { productId: null, matchStatus: "UNMATCHED", linkedAt: null },
+      }),
+    );
+  });
+
+  it("바꾸기를 요청하지 않으면 기존 연결을 건드리지 않는다", async () => {
+    productFindUnique.mockResolvedValue({ id: "prod-1", ebayItemId: "999999999999" });
+
+    await expect(linkEbayActiveListing("user-1", input)).rejects.toThrow(
+      "이미 다른 상품번호",
+    );
+    expect(listingUpdateMany).not.toHaveBeenCalled();
+    expect(productUpdate).not.toHaveBeenCalled();
+  });
+
+  it("바꾸기라도 다른 상품이 쓰는 상품번호는 거부한다", async () => {
+    productFindUnique.mockResolvedValue({ id: "prod-1", ebayItemId: "999999999999" });
+    productFindFirst.mockResolvedValue({ id: "prod-other", sku: "SKU-OTHER" });
+
+    await expect(
+      linkEbayActiveListing("user-1", { ...input, replaceExisting: true }),
+    ).rejects.toThrow("SKU-OTHER");
+    expect(productUpdate).not.toHaveBeenCalled();
+  });
+
   it("같은 연결을 다시 요청해도 안전하다", async () => {
     listingFindFirst.mockResolvedValue({
       id: "listing-1",
@@ -118,6 +160,7 @@ describe("수동 리스팅 연결", () => {
     await expect(linkEbayActiveListing("user-1", input)).resolves.toEqual({
       productId: "prod-1",
       itemId: input.itemId,
+      replacedItemId: null,
     });
   });
 });
