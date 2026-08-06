@@ -171,6 +171,7 @@ export function EbayActiveReportPanel() {
               onChange={(event) => setCompleteSnapshot(event.currentTarget.checked)}
             />
             전체 활성상품 보고서
+            <span className="text-xs text-zinc-500">(신규등록 CSV에 필요)</span>
           </label>
           {latest ? (
             <button
@@ -206,6 +207,16 @@ export function EbayActiveReportPanel() {
         </p>
       ) : null}
       {message ? <p className="mt-3 text-sm font-medium text-zinc-800">{message}</p> : null}
+      {/* 신규등록 CSV는 전체 보고서가 있어야만 만들어진다. 부분 보고서만 가져온
+          상태면 버튼을 눌러도 거부되므로, 그 이유를 여기서 미리 알린다. */}
+      {latest && !latest.completeSnapshot ? (
+        <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          최근 보고서가 <strong>부분 보고서</strong>로 저장돼 있어 신규등록 CSV를 내려받을
+          수 없습니다. eBay에서 <strong>활성 상품 전체</strong>를 내려받은 파일을 준비하고,
+          위 <strong>&quot;전체 활성상품 보고서&quot;</strong>에 체크한 뒤 다시 가져와
+          주세요. (중복 등록을 막기 위한 조건입니다)
+        </p>
+      ) : null}
       {latest ? (
         <div className="mt-3">
           <p className="text-xs text-zinc-500">
@@ -233,6 +244,15 @@ export function EbayActiveReportPanel() {
             </span>
             <span className="rounded bg-zinc-100 px-2 py-1 text-zinc-700">
               종료 확인 {latest.endedCount.toLocaleString()}
+            </span>
+            <span
+              className={`rounded px-2 py-1 font-medium ${
+                latest.completeSnapshot
+                  ? "bg-emerald-50 text-emerald-800"
+                  : "bg-amber-100 text-amber-900"
+              }`}
+            >
+              {latest.completeSnapshot ? "전체 보고서" : "부분 보고서"}
             </span>
             <Link
               href="/products/ebay-link"
