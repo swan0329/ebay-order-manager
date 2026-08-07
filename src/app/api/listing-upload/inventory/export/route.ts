@@ -513,8 +513,12 @@ export async function POST(request: Request) {
         (a, b) => (productOrder.get(a.id) ?? 0) - (productOrder.get(b.id) ?? 0),
       );
     if (!sortedProducts.length) {
+      // 가격만 없어서 전부 빠진 경우가 흔하다. 그때는 무엇을 해야 하는지 알려준다.
+      const missingPrice = products.filter((product) => !hasListingPrice(product)).length;
       return jsonError(
-        "이미지가 완료됐고 가격(포카마켓 또는 수동 eBay 판매가)이 있으며 eBay에 활성 등록되지 않은 상품이 없습니다.",
+        missingPrice > 0
+          ? `대상 ${products.length}개 중 ${missingPrice}개가 가격이 없어 모두 빠졌습니다. 상품 목록의 "가격 미입력"에서 판매가를 먼저 넣어 주세요.`
+          : "이미지가 완료됐고 가격(포카마켓 또는 수동 eBay 판매가)이 있으며 eBay에 활성 등록되지 않은 상품이 없습니다.",
         422,
       );
     }

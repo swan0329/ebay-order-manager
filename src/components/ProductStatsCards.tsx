@@ -53,7 +53,12 @@ export function ProductStatsCards({
     {
       label: "판매 가능",
       count: stats.listableCount,
-      description: `미등록 전체 · 내 재고 ${stats.inStockListableCount} + 포카조달 ${stats.procurementListableCount}`,
+      // 가격이 없으면 신규등록 CSV에서 빠진다. 그 수를 여기서 알려주지 않으면
+      // "판매 가능인데 다운로드하면 0개"로 보여 원인을 찾기 어렵다.
+      description:
+        stats.priceMissingCount > 0
+          ? `내 재고 ${stats.inStockListableCount} + 포카조달 ${stats.procurementListableCount} · 가격 없어 CSV 제외 ${stats.priceMissingCount}`
+          : `미등록 전체 · 내 재고 ${stats.inStockListableCount} + 포카조달 ${stats.procurementListableCount}`,
       href: statsHref(pageSize, "listable"),
       icon: ShoppingBag,
       className: "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100",
