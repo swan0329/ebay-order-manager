@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -12,8 +12,8 @@ import {
   Settings,
   Trash2,
   Upload,
-  UploadCloud,
 } from "lucide-react";
+import { normalizeProductStatus, productStatusOptions } from "@/lib/product-status";
 
 export type ProductFacetOptions = {
   groups: string[];
@@ -39,6 +39,10 @@ type SavedProductView = {
 const savedViewsStorageKey = "products-saved-filter-views";
 const maxSavedViews = 12;
 
+function statusFilterValue(value: string | null) {
+  return value && value !== "all" ? normalizeProductStatus(value) : "all";
+}
+
 export function ProductsControls({
   initialFacets = emptyFacets,
 }: {
@@ -52,8 +56,15 @@ export function ProductsControls({
   const [member, setMember] = useState(searchParams.get("member") ?? "");
   const [album, setAlbum] = useState(searchParams.get("album") ?? "");
   const [version, setVersion] = useState(searchParams.get("version") ?? "");
-  const [status, setStatus] = useState(searchParams.get("status") ?? "all");
+  const [status, setStatus] = useState(statusFilterValue(searchParams.get("status")));
   const [stock, setStock] = useState(searchParams.get("stock") ?? "all");
+  const [sort, setSort] = useState(searchParams.get("sort") ?? "pocamarket_latest");
+  const [freshness, setFreshness] = useState(searchParams.get("freshness") ?? "all");
+  const [upload, setUpload] = useState(searchParams.get("upload") ?? "all");
+  const [operation, setOperation] = useState(
+    searchParams.get("operation") ?? "all",
+  );
+  const [liveRefresh, setLiveRefresh] = useState(true);
   const [message, setMessage] = useState("");
   const [savedViews, setSavedViews] = useState<SavedProductView[]>([]);
   const [viewName, setViewName] = useState("");
@@ -63,25 +74,10 @@ export function ProductsControls({
   const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
   const [normalizing, setNormalizing] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const inventorySyncVersionRef = useRef<string | null>(null);
   const [templateColumnCount, setTemplateColumnCount] = useState<number | null>(null);
   const [templateUploading, setTemplateUploading] = useState(false);
   const paramsText = useMemo(() => searchParams.toString(), [searchParams]);
-  const filteredGroupOptions = useMemo(
-    () => filterFacetOptions(facets.groups, group),
-    [facets.groups, group],
-  );
-  const filteredMemberOptions = useMemo(
-    () => filterFacetOptions(facets.members, member),
-    [facets.members, member],
-  );
-  const filteredAlbumOptions = useMemo(
-    () => filterFacetOptions(facets.albums, album),
-    [facets.albums, album],
-  );
-  const filteredVersionOptions = useMemo(
-    () => filterFacetOptions(facets.versions, version),
-    [facets.versions, version],
-  );
   const resetHref = useMemo(() => {
     const pageSize = searchParams.get("pageSize");
 
@@ -103,8 +99,12 @@ export function ProductsControls({
       setMember(searchParams.get("member") ?? "");
       setAlbum(searchParams.get("album") ?? "");
       setVersion(searchParams.get("version") ?? "");
-      setStatus(searchParams.get("status") ?? "all");
+      setStatus(statusFilterValue(searchParams.get("status")));
       setStock(searchParams.get("stock") ?? "all");
+      setSort(searchParams.get("sort") ?? "pocamarket_latest");
+      setFreshness(searchParams.get("freshness") ?? "all");
+      setUpload(searchParams.get("upload") ?? "all");
+      setOperation(searchParams.get("operation") ?? "all");
     }, 0);
 
     return () => window.clearTimeout(timer);
@@ -152,6 +152,38 @@ export function ProductsControls({
     return () => window.clearInterval(timer);
   }, [uploadStartedAt]);
 
+  useEffect(() => {
+    let active = true;
+    async function refreshWhenPocamarketChanges() {
+      const response = await fetch("/api/pocamarket-sync/progress", {
+        cache: "no-store",
+      }).catch(() => null);
+      if (!active || !response?.ok) return;
+      const body = (await response.json()) as {
+        batch?: { status: string; updatedAt: string } | null;
+      };
+      const version = body.batch?.updatedAt ?? null;
+      if (
+        liveRefresh &&
+        version &&
+        inventorySyncVersionRef.current &&
+        version !== inventorySyncVersionRef.current
+      ) {
+        router.refresh();
+      }
+      inventorySyncVersionRef.current = version;
+    }
+    void refreshWhenPocamarketChanges();
+    const timer = window.setInterval(
+      () => void refreshWhenPocamarketChanges(),
+      5_000,
+    );
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [router, liveRefresh]);
+
   function currentFilterParams() {
     const params = new URLSearchParams();
 
@@ -163,6 +195,10 @@ export function ProductsControls({
       version,
       status,
       stock,
+      sort,
+      freshness,
+      upload,
+      operation,
     })) {
       const text = value.trim();
 
@@ -330,12 +366,12 @@ export function ProductsControls({
     try {
       const response = await fetch("/api/admin/normalize-product-status", { method: "POST" });
       const data = (await response.json().catch(() => null)) as
-        | { updated?: number; soldOut?: number; reactivated?: number; error?: string }
+        | { updated?: number; stockedSoldOut?: number; unlisted?: number; error?: string }
         | null;
 
       setMessage(
         response.ok
-          ? `상태 정규화 완료: 품절처리 ${data?.soldOut ?? 0}건, 활성화 ${data?.reactivated ?? 0}건`
+          ? `상태 정규화 완료: 미등록 전환 ${data?.unlisted ?? 0}건 (재고 있음 품절 ${data?.stockedSoldOut ?? 0}건)`
           : data?.error ?? "상태 정규화 실패",
       );
       router.refresh();
@@ -360,6 +396,12 @@ export function ProductsControls({
                 name="q"
                 value={q}
                 onChange={(event) => setQ(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    router.push(productsHref(currentFilterParams()));
+                  }
+                }}
                 placeholder="키워드 / SKU / 상품명 검색"
                 className="h-12 w-full rounded-md border border-zinc-300 pl-10 pr-4 text-base outline-none focus:border-zinc-900"
               />
@@ -369,28 +411,28 @@ export function ProductsControls({
               label="그룹"
               value={group}
               onChange={setGroup}
-              options={filteredGroupOptions}
+              options={facets.groups}
             />
             <FilterInput
               name="member"
               label="멤버"
               value={member}
               onChange={setMember}
-              options={filteredMemberOptions}
+              options={facets.members}
             />
             <FilterInput
               name="album"
               label="앨범"
               value={album}
               onChange={setAlbum}
-              options={filteredAlbumOptions}
+              options={facets.albums}
             />
             <FilterInput
               name="version"
               label="버전/특전처"
               value={version}
               onChange={setVersion}
-              options={filteredVersionOptions}
+              options={facets.versions}
             />
             <select
               name="status"
@@ -399,9 +441,27 @@ export function ProductsControls({
               className="h-10 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
             >
               <option value="all">전체 상태</option>
-              <option value="active">활성</option>
-              <option value="inactive">비활성</option>
+              {productStatusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              name="operation"
+              value={operation}
+              onChange={(event) => setOperation(event.currentTarget.value)}
+              className="h-10 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
+              aria-label="업무 분류"
+            >
+              <option value="all">전체 업무 분류</option>
+              <option value="sellable">판매 가능</option>
+              <option value="image_pending">이미지 작업 필요</option>
+              <option value="in_stock">재고보유 판매</option>
+              <option value="procurement_ready">포카 조달판매</option>
+              <option value="stop_required">판매중단 필요</option>
               <option value="sold_out">품절</option>
+              <option value="review">최신화 필요</option>
             </select>
             <select
               name="stock"
@@ -411,8 +471,53 @@ export function ProductsControls({
             >
               <option value="all">전체 재고</option>
               <option value="in_stock">재고보유</option>
-              <option value="sold_out">품절</option>
+              <option value="sold_out">내 재고 없음</option>
             </select>
+            <select
+              name="sort"
+              value={sort}
+              onChange={(event) => setSort(event.currentTarget.value)}
+              className="h-10 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
+              aria-label="재고 정렬"
+            >
+              <option value="pocamarket_latest">포카 최신화 최신순</option>
+              <option value="pocamarket_oldest">포카 최신화 오래된순</option>
+              <option value="sku">상품번호순</option>
+            </select>
+            <select
+              name="upload"
+              value={upload}
+              onChange={(event) => setUpload(event.currentTarget.value)}
+              className="h-10 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
+              aria-label="eBay 업로드 상태"
+            >
+              <option value="all">전체 업로드 상태</option>
+              <option value="uploaded">eBay 등록정보 연결됨</option>
+              <option value="not_uploaded">eBay 등록정보 미연결</option>
+            </select>
+            <select
+              name="freshness"
+              value={freshness}
+              onChange={(event) => setFreshness(event.currentTarget.value)}
+              className="h-10 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
+              aria-label="최신화 기간"
+            >
+              <option value="all">전체 최신화 상태</option>
+              <option value="older_24h">24시간 이상 미최신화</option>
+              <option value="older_7d">7일 이상 미최신화</option>
+              <option value="never">한 번도 미최신화</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => setLiveRefresh((value) => !value)}
+              className={`h-10 whitespace-nowrap rounded-md border px-3 text-sm font-semibold ${
+                liveRefresh
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                  : "border-amber-300 bg-amber-50 text-amber-800"
+              }`}
+            >
+              실시간 정렬 {liveRefresh ? "켜짐" : "잠금"}
+            </button>
             <button
               type="submit"
               className="h-10 whitespace-nowrap rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
@@ -492,7 +597,7 @@ export function ProductsControls({
             <p className="text-sm text-zinc-600">{viewMessage}</p>
           ) : null}
 
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
             <Link
               href="/products/new"
               className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
@@ -507,19 +612,50 @@ export function ProductsControls({
               <ImageIcon className="h-4 w-4" />
               촬영본 연결
             </Link>
-            <Link
-              href="/listing-upload"
+            <a
+              href="/api/export/ebay-operations?type=revise&format=csv"
+              className={secondaryActionClass}
+              title="eBay에 그대로 올리는 CSV입니다 (Seller Hub → Reports → Upload)"
+            >
+              <Download className="h-4 w-4" />
+              eBay 가격·수량 변경 (업로드용)
+            </a>
+            <a
+              href="/api/export/ebay-operations?type=revise&format=csv&limit=3"
+              className={secondaryActionClass}
+              title="같은 CSV를 3줄만 뽑습니다. 처음 올릴 때 형식 확인용으로 쓰세요"
+            >
+              <Download className="h-4 w-4" />
+              변경 CSV 시험 3줄
+            </a>
+            <a
+              href="/api/export/ebay-operations?type=revise"
+              className={secondaryActionClass}
+              title="사람이 눈으로 확인하는 파일입니다. eBay 업로드용이 아닙니다"
+            >
+              <Download className="h-4 w-4" />
+              가격·수량 변경 검토용
+            </a>
+            <a
+              href="/api/export/ebay-operations?type=end"
               className={secondaryActionClass}
             >
-              <UploadCloud className="h-4 w-4" />
-              eBay 업로드
-            </Link>
+              <Download className="h-4 w-4" />
+              eBay 판매중단
+            </a>
+            <a
+              href="/api/export/ebay-operations?type=review"
+              className={secondaryActionClass}
+            >
+              <Download className="h-4 w-4" />
+              eBay 연결검토
+            </a>
             <Link
               href="/listing-upload/templates"
               className={secondaryActionClass}
             >
               <Settings className="h-4 w-4" />
-              Templates
+              Excel 템플릿
             </Link>
             <label
               className={`${secondaryActionClass} cursor-pointer`}
@@ -542,11 +678,11 @@ export function ProductsControls({
               CSV
             </a>
             <a
-              href={`/api/export/ebay-listings${paramsText ? `?${paramsText}` : ""}`}
+              href="/api/export/pocamarket-daily-changes"
               className={secondaryActionClass}
             >
               <Download className="h-4 w-4" />
-              eBay 파일
+              일일 가격·매물 변경 Excel
             </a>
           </div>
 
@@ -634,24 +770,60 @@ function FilterInput({
   onChange: (value: string) => void;
   options: string[];
 }) {
-  const listId = `products-${name}-options`;
+  const [open, setOpen] = useState(false);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const filtered = useMemo(() => {
+    const keyword = value.trim().toLowerCase();
+    if (!keyword) return options.slice(0, 100);
+    const includes = options.filter((opt) => opt.toLowerCase().includes(keyword));
+    const startsWith = includes.filter((opt) => opt.toLowerCase().startsWith(keyword));
+    const others = includes.filter((opt) => !opt.toLowerCase().startsWith(keyword));
+    return [...startsWith, ...others].slice(0, 100);
+  }, [options, value]);
+
+  function handleBlur() {
+    blurTimer.current = setTimeout(() => setOpen(false), 150);
+  }
+
+  function handleOptionClick(option: string) {
+    if (blurTimer.current) clearTimeout(blurTimer.current);
+    onChange(option);
+    setOpen(false);
+  }
 
   return (
-    <label className="block">
+    <div className="relative">
       <input
         name={name}
         value={value}
-        onChange={(event) => onChange(event.currentTarget.value)}
-        list={listId}
+        autoComplete="off"
+        onChange={(event) => { onChange(event.currentTarget.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={handleBlur}
         placeholder={label}
         className="h-10 w-full rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
       />
-      <datalist id={listId}>
-        {options.map((option) => (
-          <option key={option} value={option} />
-        ))}
-      </datalist>
-    </label>
+      {open && filtered.length > 0 ? (
+        <ul className="absolute left-0 right-0 z-50 mt-1 max-h-96 min-w-[240px] overflow-y-auto rounded-md border border-zinc-300 bg-white shadow-xl">
+          {filtered.map((option) => (
+            <li key={option}>
+              <button
+                type="button"
+                className="block w-full truncate px-3 py-2.5 text-left text-sm text-zinc-900 hover:bg-zinc-100"
+                title={option}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleOptionClick(option);
+                }}
+              >
+                {option}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -697,14 +869,4 @@ function readSavedViews(): SavedProductView[] {
   } catch {
     return [];
   }
-}
-
-function filterFacetOptions(options: string[], query: string) {
-  const keyword = query.trim().toLowerCase();
-
-  if (!keyword) {
-    return options;
-  }
-
-  return options.filter((option) => option.toLowerCase().includes(keyword));
 }
