@@ -2,7 +2,7 @@ import * as XLSX from "xlsx";
 import { jsonError } from "@/lib/http";
 import { getOperationalProductIds } from "@/lib/product-operations";
 import { prisma } from "@/lib/prisma";
-import { calculateRecommendedPrice } from "@/lib/pricing";
+import { resolveListingPriceUsd } from "@/lib/listing-price";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
 function workbookResponse(rows: Record<string, string | number>[], name: string) {
@@ -124,7 +124,9 @@ export async function GET(request: Request) {
         id: { in: ids },
         ebayItemId: { not: null },
         listingStatus: { in: ["ACTIVE", "PUBLISHED", "LISTED"] },
-        salePrice: { not: null },
+        // 가격 판정은 신규등록과 같은 규칙(@/lib/listing-price)에 맡긴다.
+        // 여기서 포카마켓가 있는 상품만 거르면 수동 판매가로 파는 카드는
+        // 가격을 바꿔도 eBay에 영영 반영되지 않는다.
       },
       orderBy: { sku: "asc" },
     });
@@ -143,17 +145,10 @@ export async function GET(request: Request) {
     const rows = products.flatMap((product) => {
       const current = snapshotByProduct.get(product.id);
       if (!current) return [];
-      const targetPrice = calculateRecommendedPrice({
-        pocaPriceKrw: product.salePrice!,
-        domesticShippingKrw: settings.domesticShippingKrw,
-        buyingAgencyFeeKrw: settings.buyingAgencyFeeKrw,
-        exchangeRateKrwPerUsd: settings.exchangeRateKrwPerUsd,
-        targetMarginRate: settings.targetMarginRate,
-        ebayFeeRate: settings.ebayFeeRate,
-        advertisingRate: settings.advertisingRate,
-        minimumSalePriceUsd: settings.minimumSalePriceUsd,
-        roundingIncrementUsd: settings.roundingIncrementUsd,
-      }).recommendedPriceUsd;
+      // 포카마켓 가격이 있으면 마진 계산가, 없으면 사람이 넣은 판매가.
+      const resolved = resolveListingPriceUsd(product, settings);
+      if (!resolved) return [];
+      const targetPrice = resolved.priceUsd;
       const targetQuantity =
         product.stockQuantity > 0 ? product.stockQuantity : 1;
       const priceChanged =
@@ -179,6 +174,8 @@ export async function GET(request: Request) {
             .join("·"),
           "현재 가격": current.price?.toString() ?? "",
           "현재 수량": current.quantity ?? "",
+          // 이 가격이 어디서 나왔는지 검토용 파일에서 바로 보이게 한다.
+          "가격 기준": resolved.source === "pocamarket" ? "포카마켓 계산가" : "수동 입력가",
         },
       ];
     });
