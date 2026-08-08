@@ -553,11 +553,16 @@ export async function POST(request: Request) {
       // The template's quantity is an explicit listing quantity, so it wins over
       // the product's stock count. Procurement listings are always capped at 1
       // because the external Pocamarket supply can disappear before the next sync.
+      // 실제 보유 수량이 언제나 우선한다. 템플릿의 기본 수량이 이걸 덮으면
+      // 1장 가진 카드가 여러 장 있는 것으로 올라가 초과 판매가 난다.
+      // 포카마켓 조달분은 매물이 먼저 사라질 수 있어 1로 묶고, 템플릿 기본값은
+      // 어느 쪽 재고 신호도 없을 때만 쓴다.
       const quantity =
-        product.stockQuantity <= 0 &&
-        (product.pocamarketAvailableCount ?? 0) > 0
-          ? 1
-          : templateResult.template?.defaultQuantity ?? merged.quantity;
+        product.stockQuantity > 0
+          ? product.stockQuantity
+          : (product.pocamarketAvailableCount ?? 0) > 0
+            ? 1
+            : templateResult.template?.defaultQuantity ?? merged.quantity;
 
       return [listingRow({
         draft: { ...merged, title, descriptionHtml, conditionDescription, quantity },
