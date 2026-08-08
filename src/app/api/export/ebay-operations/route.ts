@@ -3,6 +3,7 @@ import { jsonError } from "@/lib/http";
 import { getOperationalProductIds } from "@/lib/product-operations";
 import { prisma } from "@/lib/prisma";
 import { resolveListingPriceUsd } from "@/lib/listing-price";
+import { listingQuantity } from "@/lib/listing-quantity";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
 function workbookResponse(rows: Record<string, string | number>[], name: string) {
@@ -149,8 +150,9 @@ export async function GET(request: Request) {
       const resolved = resolveListingPriceUsd(product, settings);
       if (!resolved) return [];
       const targetPrice = resolved.priceUsd;
-      const targetQuantity =
-        product.stockQuantity > 0 ? product.stockQuantity : 1;
+      // 등록할 때와 같은 규칙을 쓴다. 여기서 달리 계산하면 올린 수량과
+      // 다음 날 바꾸는 수량이 어긋난다.
+      const targetQuantity = listingQuantity(product);
       const priceChanged =
         current.price === null ||
         Math.abs(Number(current.price) - Number(targetPrice)) >= 0.01;

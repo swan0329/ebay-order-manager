@@ -9,6 +9,7 @@ import {
   buildEbayListingTitle,
 } from "@/lib/ebay-listing-fields";
 import { resolveListingPriceUsd } from "@/lib/listing-price";
+import { listingQuantity } from "@/lib/listing-quantity";
 import {
   productImageExtrasById,
   withProductImageExtras,
@@ -207,12 +208,7 @@ export async function GET(request: Request) {
         return [
           {
             ...product,
-            stockQuantity:
-              product.stockQuantity > 0
-                ? product.stockQuantity
-                : (product.pocamarketAvailableCount ?? 0) > 0
-                  ? 1
-                  : 0,
+            stockQuantity: listingQuantity(product),
             ebayPrice: price.priceUsd,
           },
         ];

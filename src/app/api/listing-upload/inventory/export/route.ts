@@ -15,6 +15,7 @@ import {
 } from "@/lib/ebay-listing-fields";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { hasListingPrice, resolveListingPriceUsd } from "@/lib/listing-price";
+import { listingQuantity } from "@/lib/listing-quantity";
 import {
   productImageExtrasById,
   withProductImageExtras,
@@ -149,12 +150,7 @@ function productDraft(
     title: buildEbayListingTitle(product),
     descriptionHtml: buildEbayListingDescription(product),
     price: recommendedPrice,
-    quantity:
-      product.stockQuantity > 0
-        ? product.stockQuantity
-        : (product.pocamarketAvailableCount ?? 0) > 0
-          ? 1
-          : 0,
+    quantity: listingQuantity(product),
     imageUrls: buildEbayListingImageUrls(product, baseUrl),
     categoryId: buildEbayListingCategoryId(product),
     condition: product.ebayCondition,
@@ -553,16 +549,12 @@ export async function POST(request: Request) {
       // The template's quantity is an explicit listing quantity, so it wins over
       // the product's stock count. Procurement listings are always capped at 1
       // because the external Pocamarket supply can disappear before the next sync.
-      // 실제 보유 수량이 언제나 우선한다. 템플릿의 기본 수량이 이걸 덮으면
-      // 1장 가진 카드가 여러 장 있는 것으로 올라가 초과 판매가 난다.
-      // 포카마켓 조달분은 매물이 먼저 사라질 수 있어 1로 묶고, 템플릿 기본값은
-      // 어느 쪽 재고 신호도 없을 때만 쓴다.
-      const quantity =
-        product.stockQuantity > 0
-          ? product.stockQuantity
-          : (product.pocamarketAvailableCount ?? 0) > 0
-            ? 1
-            : templateResult.template?.defaultQuantity ?? merged.quantity;
+      // 내 재고 + 포카마켓 조달 가능 수량. 템플릿 기본값이 실제 재고를 덮으면
+      // 1장 가진 카드가 여러 장으로 올라가 초과 판매가 나므로 뒤로 밀어둔다.
+      const quantity = listingQuantity(
+        product,
+        templateResult.template?.defaultQuantity ?? Number(merged.quantity ?? 0),
+      );
 
       return [listingRow({
         draft: { ...merged, title, descriptionHtml, conditionDescription, quantity },
