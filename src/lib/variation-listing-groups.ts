@@ -53,6 +53,13 @@ function titleFor(groupName: string, albumName: string, versionName: string) {
   return [...new Set(parts.map(clean).filter(Boolean))].join(" ").slice(0, 80);
 }
 
+export function variationEbayTitle(title: string) {
+  const base = clean(title);
+  if (/\b(?:photocard|photo card)\b/iu.test(base)) return base.slice(0, 80).trim();
+  const suffix = " Photocard";
+  return `${base.slice(0, 80 - suffix.length).trim()}${suffix}`;
+}
+
 function uniqueVariationNames<T extends VariationProduct>(products: T[]) {
   const used = new Map<string, number>();
   return products.map((product) => {

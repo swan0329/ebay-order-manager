@@ -12,6 +12,7 @@ import {
 import {
   buildVariationListingGroups,
   relationshipDetails,
+  variationEbayTitle,
   variationParentSku,
 } from "@/lib/variation-listing-groups";
 import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
         [headers[1]]: state?.ebayItemId ?? "",
         [headers[2]]: variationParentSku(group.key),
         [headers[3]]: buildEbayListingCategoryId(first),
-        [headers[4]]: group.title,
+        [headers[4]]: variationEbayTitle(group.title),
         [headers[6]]: relationshipDetails(group),
         [headers[10]]: state.thumbnailUrl,
         [headers[11]]: buildEbayListingConditionId({ ebayCondition: first.ebayCondition }),
