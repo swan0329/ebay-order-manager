@@ -18,6 +18,7 @@ import {
 import { productOrderBy, productWhere } from "@/lib/products";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+import { getActiveVariationProductListings } from "@/lib/variation-selling-state";
 
 type ProductPhotoStatus = {
   id: string;
@@ -155,6 +156,7 @@ export default async function ProductsPage({
     "procurement_ready",
     "procurement_listable",
     "stop_required",
+    "variation_stop_required",
     "sold_out",
     "review",
   ]);
@@ -164,6 +166,7 @@ export default async function ProductsPage({
   ) {
     const operationIds = await getOperationalProductIds(
       params.operation as ProductOperationalView,
+      user.id,
     );
     const existingAnd = Array.isArray(where.AND)
       ? where.AND
@@ -209,7 +212,7 @@ export default async function ProductsPage({
       skip,
       take: pageSize + 1,
     }),
-    getProductStats(),
+    getProductStats(user.id),
   ]);
   const hasNextPage = fetchedProducts.length > pageSize;
   const products = fetchedProducts.slice(0, pageSize);
@@ -217,10 +220,11 @@ export default async function ProductsPage({
   const totalFiltered = skip + products.length + (hasNextPage ? 1 : 0);
   const totalPages = Math.max(1, hasNextPage ? currentPage + 1 : currentPage);
   const productIds = products.map((p) => p.id);
-  const [photoStatusById, extrasById, changeById] = await Promise.all([
+  const [photoStatusById, extrasById, changeById, variationByProductId] = await Promise.all([
     fetchPhotoStatusByIds(productIds),
     productImageExtrasById(productIds),
     fetchPocamarketChanges(productIds),
+    getActiveVariationProductListings(user.id),
   ]);
   const productRows: ProductQuickEditValue[] = products.map((product) => {
     const photo = photoStatusById.get(product.id);
@@ -268,6 +272,8 @@ export default async function ProductsPage({
       ebayItemId: product.ebayItemId,
       listingStatus: product.listingStatus,
       lastUploadedAt: product.lastUploadedAt?.toISOString() ?? null,
+      variationItemId: variationByProductId.get(product.id)?.itemId ?? null,
+      variationTitle: variationByProductId.get(product.id)?.title ?? null,
     };
   });
   const shopifyStoreHandle =

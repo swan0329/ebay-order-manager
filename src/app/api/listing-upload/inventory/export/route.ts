@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import * as XLSX from "xlsx";
 import { z } from "zod";
+import { Prisma } from "@/generated/prisma";
 import {
   buildEbayListingCategoryId,
   buildEbayListingCategoryName,
@@ -144,8 +145,8 @@ function productDraft(
   } satisfies ListingUploadDraft;
 }
 
-async function getProducts(ids: string[]) {
-  const sellableIds = await getOperationalProductIds("sellable");
+async function getProducts(ids: string[], userId: string) {
+  const sellableIds = await getOperationalProductIds("listable", userId);
   const sellableIdSet = new Set(sellableIds);
   return prisma.product.findMany({
     where: {
@@ -158,8 +159,8 @@ async function getProducts(ids: string[]) {
   });
 }
 
-async function getAllUnlistedProducts() {
-  const sellableIds = await getOperationalProductIds("sellable");
+async function getAllUnlistedProducts(userId: string) {
+  const sellableIds = await getOperationalProductIds("listable", userId);
   return prisma.product.findMany({
     where: {
       id: { in: sellableIds },
@@ -173,11 +174,14 @@ async function getAllUnlistedProducts() {
   });
 }
 
-async function getLensWorkbenchProducts() {
+async function getLensWorkbenchProducts(userId: string) {
+  const listableIds = await getOperationalProductIds("listable", userId);
+  if (!listableIds.length) return [];
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT "id"
     FROM "products"
-    WHERE (
+    WHERE "id" IN (${Prisma.join(listableIds)})
+      AND (
         "stock_quantity" > 0
         OR COALESCE("pocamarket_available_count", 0) > 0
       )
@@ -207,18 +211,18 @@ async function getLensWorkbenchProducts() {
 }
 
 // 직접촬영(촬영본 연결) + 내 재고 보유 + 미등록 상품만 내려받는다.
-async function getOwnPhotoListableProducts() {
-  const ids = await getOperationalProductIds("own_photo_listable");
+async function getOwnPhotoListableProducts(userId: string) {
+  const ids = await getOperationalProductIds("own_photo_listable", userId);
   if (!ids.length) return [];
   const products = await prisma.product.findMany({ where: { id: { in: ids } } });
   return products.sort((left, right) => left.sku.localeCompare(right.sku));
 }
 
 // 신규등록 가능(일반) + Lens 승인·미등록을 한 파일로 합쳐 내려받는다.
-async function getCombinedListableProducts() {
+async function getCombinedListableProducts(userId: string) {
   const [general, lens] = await Promise.all([
-    getAllUnlistedProducts(),
-    getLensWorkbenchProducts(),
+    getAllUnlistedProducts(userId),
+    getLensWorkbenchProducts(userId),
   ]);
   const byId = new Map<string, (typeof general)[number]>();
   for (const product of [...general, ...lens]) byId.set(product.id, product);
@@ -452,14 +456,14 @@ export async function POST(request: Request) {
 
     const [products, templateResult, policies, pricingSettings] = await Promise.all([
       input.ownPhotoOnly
-        ? getOwnPhotoListableProducts()
+        ? getOwnPhotoListableProducts(user.id)
         : input.combined
-          ? getCombinedListableProducts()
+          ? getCombinedListableProducts(user.id)
           : input.lensOnly
-            ? getLensWorkbenchProducts()
+            ? getLensWorkbenchProducts(user.id)
             : input.allUnlisted
-              ? getAllUnlistedProducts()
-              : getProducts(requestedIds),
+              ? getAllUnlistedProducts(user.id)
+              : getProducts(requestedIds, user.id),
       resolveListingTemplateDefaults(user.id, input.templateId),
       policyLookup(user.id),
       prisma.pricingSettings.findUnique({ where: { id: "default" } }),

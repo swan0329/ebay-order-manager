@@ -23,7 +23,7 @@ export default async function Page() {
   const user = await requireUser();
   await ensureAiImageJobs();
   await reconcileAiImageJobsForSupply();
-  const stats = await getProductStats();
+  const stats = await getProductStats(user.id);
   const items = await prisma.$queryRaw<
     Item[]
   >`SELECT j."id",j."product_id" AS "productId",p."sku",p."product_name" AS "productName",j."source_url" AS "sourceUrl",j."preview_url" AS "previewUrl",j."status",j."error",COALESCE(to_char(j."processed_at",'YYYYMMDDHH24MISSMS'),'') AS "previewVersion" FROM "ai_image_jobs" j JOIN "products" p ON p."id"=j."product_id" WHERE j."status" IN ('queued','processing','review','held','pass_ready','rework','failed') ORDER BY CASE WHEN j."status"='review' THEN 0 WHEN j."status"='held' THEN 1 WHEN j."status"='pass_ready' THEN 2 WHEN j."status"='rework' THEN 3 ELSE 4 END,j."created_at" LIMIT 500`;

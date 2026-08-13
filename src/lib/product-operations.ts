@@ -2,6 +2,7 @@ import "server-only";
 
 import { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
+import { getActiveVariationSellingState } from "@/lib/variation-selling-state";
 
 export type ProductOperationalView =
   | "sellable"
@@ -15,6 +16,7 @@ export type ProductOperationalView =
   | "procurement_ready"
   | "procurement_listable"
   | "stop_required"
+  | "variation_stop_required"
   | "sold_out"
   | "review";
 
@@ -58,10 +60,13 @@ export const priceMissingSql = `(
 
 const imageReadyGeneral = Prisma.raw(imageReadyGeneralSql);
 const imageReady = Prisma.raw(imageReadySql);
-const isRegistered = Prisma.raw(registeredSql);
 const priceMissing = Prisma.raw(priceMissingSql);
 
-function condition(view: ProductOperationalView) {
+function condition(view: ProductOperationalView, variationProductIds: string[]) {
+  const directlyRegistered = Prisma.raw(registeredSql);
+  const isRegistered = variationProductIds.length
+    ? Prisma.sql`(${directlyRegistered} OR "products"."id" IN (${Prisma.join(variationProductIds)}))`
+    : directlyRegistered;
   switch (view) {
     case "sellable":
       // 신규등록 엑셀 대상과 동일하게 유지: 좁은 판정(Lens 승인 제외).
@@ -69,10 +74,9 @@ function condition(view: ProductOperationalView) {
         "stock_quantity" > 0 OR COALESCE("pocamarket_available_count", 0) > 0
       ) AND ${imageReadyGeneral}`;
     case "selling":
-      // 판매중: 판매가능 조건 + eBay 등록됨
-      return Prisma.sql`(
-        "stock_quantity" > 0 OR COALESCE("pocamarket_available_count", 0) > 0
-      ) AND ${imageReady} AND ${isRegistered}`;
+      // eBay에서 현재 판매 중인 카드는 공급 가능 여부와 관계없이 모두 보여준다.
+      // 공급이 끊긴 카드는 stop_required 계열에도 함께 나타나야 숨지 않는다.
+      return Prisma.sql`${isRegistered}`;
     case "listable":
       // 판매 가능(올릴 수 있음): 판매가능 조건 + 아직 미등록
       return Prisma.sql`(
@@ -127,6 +131,13 @@ function condition(view: ProductOperationalView) {
         AND COALESCE("ebay_item_id", '') <> ''
         AND UPPER(COALESCE("listing_status", 'ACTIVE')) IN ('ACTIVE','PUBLISHED','LISTED')
       `;
+    case "variation_stop_required":
+      return Prisma.sql`
+        "stock_quantity" <= 0
+        AND "pocamarket_synced_at" IS NOT NULL
+        AND COALESCE("pocamarket_available_count", 0) = 0
+        AND "products"."id" IN (${variationProductIds.length ? Prisma.join(variationProductIds) : Prisma.sql`NULL`})
+      `;
     case "sold_out":
       // 품절: 내 재고 없음 + 포카 조달 불가. 단 eBay에 아직 활성 등록된 것은
       // "판매중단 필요"가 담당하므로 여기서는 제외해 두 숫자가 겹치지 않게 한다.
@@ -134,19 +145,17 @@ function condition(view: ProductOperationalView) {
         "stock_quantity" <= 0
         AND "pocamarket_synced_at" IS NOT NULL
         AND "pocamarket_available_count" = 0
-        AND NOT (
-          COALESCE("ebay_item_id", '') <> ''
-          AND UPPER(COALESCE("listing_status", 'ACTIVE')) IN ('ACTIVE','PUBLISHED','LISTED')
-        )
+        AND NOT ${isRegistered}
       `;
     case "review":
       return Prisma.sql`"pocamarket_synced_at" IS NULL`;
   }
 }
 
-export async function getOperationalProductIds(view: ProductOperationalView) {
+export async function getOperationalProductIds(view: ProductOperationalView, userId: string) {
+  const { productIds } = await getActiveVariationSellingState(userId);
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
-    SELECT "id" FROM "products" WHERE ${condition(view)}
+    SELECT "id" FROM "products" WHERE ${condition(view, productIds)}
   `;
   return rows.map((row) => row.id);
 }

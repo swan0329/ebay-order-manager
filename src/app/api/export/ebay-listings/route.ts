@@ -158,7 +158,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const sellableIds = await getOperationalProductIds("sellable");
+    const sellableIds = await getOperationalProductIds("listable", user.id);
     const baseWhere = productWhere({
       q: url.searchParams.get("q"),
       stock: url.searchParams.get("stock"),

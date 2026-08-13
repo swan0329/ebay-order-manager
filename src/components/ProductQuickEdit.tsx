@@ -46,6 +46,8 @@ export type ProductQuickEditValue = {
   ebayItemId?: string | null;
   listingStatus?: string | null;
   lastUploadedAt?: string | null;
+  variationItemId?: string | null;
+  variationTitle?: string | null;
 };
 
 function parseMembers(value: string | null | undefined) {
@@ -550,7 +552,18 @@ export function ProductQuickEditRow({
       ) : null}
       {visibleColumns.has("uploadStatus") ? (
         <td className="px-2 py-3 text-xs">
-          {product.ebayItemId ? (
+          {product.variationItemId ? (
+            <>
+              <span className="inline-flex rounded-full bg-violet-100 px-2 py-1 font-semibold text-violet-800">
+                {product.ebayItemId && ["ACTIVE", "PUBLISHED", "LISTED"].includes((product.listingStatus ?? "").toUpperCase())
+                  ? "단품+묶음 중복 판매"
+                  : "묶음 옵션 판매중"}
+              </span>
+              <span className="mt-1 block text-zinc-500">
+                {product.variationTitle} · {product.variationItemId}
+              </span>
+            </>
+          ) : product.ebayItemId ? (
             <>
               <span className="inline-flex rounded-full bg-blue-100 px-2 py-1 font-semibold text-blue-800">
                 eBay 등록정보 연결됨
