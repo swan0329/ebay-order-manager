@@ -613,28 +613,28 @@ export function ProductsControls({
               촬영본 연결
             </Link>
             <a
-              href="/api/export/ebay-operations?type=revise&format=csv"
+              href="/api/export/ebay-operations?type=revise"
               className={secondaryActionClass}
-              title="eBay에 그대로 올리는 CSV입니다 (Seller Hub → Reports → Upload)"
+              title="변경 전·후 가격과 수량을 확인하는 파일입니다. eBay에는 올리지 마세요"
             >
               <Download className="h-4 w-4" />
-              eBay 가격·수량 변경 (업로드용)
+              1. 가격·수량 변경 검토
+            </a>
+            <a
+              href="/api/export/ebay-operations?type=revise&format=csv"
+              className={secondaryActionClass}
+              title="검토 후 eBay Seller Hub → Reports → Upload에 올리는 CSV입니다"
+            >
+              <Download className="h-4 w-4" />
+              2. eBay 변경 CSV 다운로드
             </a>
             <a
               href="/api/export/ebay-operations?type=revise&format=csv&limit=3"
               className={secondaryActionClass}
-              title="같은 CSV를 3줄만 뽑습니다. 처음 올릴 때 형식 확인용으로 쓰세요"
+              title="처음 사용하거나 오류 확인이 필요할 때만 3줄을 시험합니다"
             >
               <Download className="h-4 w-4" />
-              변경 CSV 시험 3줄
-            </a>
-            <a
-              href="/api/export/ebay-operations?type=revise"
-              className={secondaryActionClass}
-              title="사람이 눈으로 확인하는 파일입니다. eBay 업로드용이 아닙니다"
-            >
-              <Download className="h-4 w-4" />
-              가격·수량 변경 검토용
+              시험용 변경 CSV 3줄
             </a>
             <a
               href="/api/export/ebay-operations?type=end"
@@ -676,13 +676,6 @@ export function ProductsControls({
             >
               <Download className="h-4 w-4" />
               CSV
-            </a>
-            <a
-              href="/api/export/pocamarket-daily-changes"
-              className={secondaryActionClass}
-            >
-              <Download className="h-4 w-4" />
-              일일 가격·매물 변경 Excel
             </a>
           </div>
 

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ImageOff } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { PocamarketPurchaseButton } from "@/components/PocamarketPurchaseButton";
 
 type Column = {
   id: string;
@@ -27,6 +28,7 @@ export type OrderListRow = {
   paidAt: string | null;
   orderDate: string;
   fulfillmentStatus: string;
+  ebayCategory: string;
   totalAmount: string;
   currency: string;
   trackingNumbers: string[];
@@ -66,7 +68,7 @@ const columns: Column[] = [
   { id: "matchStatus", label: "상품매칭", width: 260, minWidth: 170 },
   { id: "quantity", label: "수량", width: 70, minWidth: 60 },
   { id: "paidAt", label: "결제일", width: 150, minWidth: 120 },
-  { id: "fulfillmentStatus", label: "배송상태", width: 120, minWidth: 100 },
+  { id: "fulfillmentStatus", label: "주문상태", width: 120, minWidth: 100 },
   { id: "country", label: "국가", width: 80, minWidth: 64 },
   { id: "total", label: "총액", width: 110, minWidth: 90 },
   { id: "tracking", label: "송장번호", width: 170, minWidth: 120 },
@@ -378,7 +380,7 @@ export function ResizableOrdersTable({
       case "paidAt":
         return formatDate(order.paidAt ?? order.orderDate);
       case "fulfillmentStatus":
-        return <StatusBadge status={order.fulfillmentStatus} />;
+        return <StatusBadge status={order.ebayCategory} />;
       case "country":
         return order.buyerCountry ?? "-";
       case "total":
@@ -392,6 +394,7 @@ export function ResizableOrdersTable({
               {inventory.label}
             </span>
             <DetailLines lines={inventory.details} />
+            {order.ebayCategory === "AWAITING_SHIPMENT" && order.shortageItems.length ? <PocamarketPurchaseButton orderId={order.id} /> : null}
           </div>
         );
       case "warnings":
@@ -424,6 +427,7 @@ export function ResizableOrdersTable({
         return (
           <Link
             href={`/orders/${order.id}`}
+            prefetch={false}
             className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
             title="상세"
           >
@@ -539,6 +543,7 @@ export function ResizableOrdersTable({
             <Link
               key={order.id}
               href={`/orders/${order.id}`}
+              prefetch={false}
               className="block rounded-lg border border-zinc-200 bg-white p-4"
             >
               <div className="mb-3 flex items-start gap-3">
@@ -553,7 +558,7 @@ export function ResizableOrdersTable({
                         {order.buyerName ?? order.buyerUsername ?? "-"}
                       </p>
                     </div>
-                    <StatusBadge status={order.fulfillmentStatus} />
+                    <StatusBadge status={order.ebayCategory} />
                   </div>
                   <p className="mt-2 line-clamp-2 text-sm text-zinc-600">
                     {order.itemTitles.join(" | ")}

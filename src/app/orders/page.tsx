@@ -1,5 +1,5 @@
+import Link from "next/link";
 import { Prisma } from "@/generated/prisma";
-import { AlertTriangle, PackageCheck, PackageOpen, Truck } from "lucide-react";
 import { OrdersControls } from "@/components/OrdersControls";
 import { OrdersPager } from "@/components/OrdersPager";
 import {
@@ -7,8 +7,28 @@ import {
   type OrderListRow,
 } from "@/components/ResizableOrdersTable";
 import { TopNav } from "@/components/TopNav";
+import {
+  ebayOrderCategories,
+  ebayOrderCategoryLabel,
+  normalizeOrderStatusParam,
+  type EbayOrderCategory,
+} from "@/lib/ebay-order-status";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+
+// eBay 셀러허브와 동일한 주문 분류 SQL 식.
+// 배송상태 + 결제상태(orderPaymentStatus) + 취소상태(cancelStatus.cancelState)를 조합한다.
+const ebayCategorySql = Prisma.sql`
+  CASE
+    WHEN upper(coalesce(o."raw_json"->'cancelStatus'->>'cancelState', '')) = 'CANCELED'
+      OR upper(coalesce(o."raw_json"->>'orderPaymentStatus', '')) = 'FULLY_REFUNDED'
+      THEN 'CANCELLED'
+    WHEN o."fulfillment_status" = 'FULFILLED' THEN 'SHIPPED'
+    WHEN upper(coalesce(o."raw_json"->>'orderPaymentStatus', '')) IN ('PENDING', 'FAILED')
+      THEN 'AWAITING_PAYMENT'
+    ELSE 'AWAITING_SHIPMENT'
+  END
+`;
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +58,7 @@ type OrderWithInventory = {
   paidAt: Date | null;
   orderDate: Date;
   fulfillmentStatus: string;
+  ebayCategory: string;
   totalAmount: { toString(): string };
   currency: string;
   tags: string[];
@@ -65,13 +86,11 @@ type OrderWithInventory = {
 function orderSqlConditions({
   userId,
   q,
-  status,
   from,
   to,
 }: {
   userId: string;
   q?: string;
-  status?: string;
   from?: string;
   to?: string;
 }) {
@@ -83,17 +102,6 @@ function orderSqlConditions({
 
   if (to) {
     conditions.push(Prisma.sql`o."order_date" <= ${new Date(`${to}T23:59:59.999`)}`);
-  }
-
-  if (status === "OPEN" || !status) {
-    conditions.push(
-      Prisma.sql`o."fulfillment_status" IN (${Prisma.join([
-        "NOT_STARTED",
-        "IN_PROGRESS",
-      ])})`,
-    );
-  } else if (status !== "ALL") {
-    conditions.push(Prisma.sql`o."fulfillment_status" = ${status}`);
   }
 
   if (q) {
@@ -122,6 +130,37 @@ function orderSqlConditions({
 
 function orderWhereSql(conditions: Prisma.Sql[]) {
   return Prisma.sql`WHERE ${Prisma.join(conditions, " AND ")}`;
+}
+
+function categoryCondition(category: EbayOrderCategory) {
+  return Prisma.sql`(${ebayCategorySql}) = ${category}`;
+}
+
+async function categoryCounts(
+  baseConditions: Prisma.Sql[],
+  inventory: string | undefined,
+) {
+  const inventoryCondition = inventorySqlCondition(inventory);
+  const whereConditions = inventoryCondition
+    ? [...baseConditions, inventoryCondition]
+    : baseConditions;
+
+  const rows = await prisma.$queryRaw<{ category: string; count: bigint }[]>`
+    SELECT (${ebayCategorySql}) AS "category", count(*)::bigint AS "count"
+    FROM "orders" o
+    ${orderWhereSql(whereConditions)}
+    GROUP BY 1
+  `;
+
+  const counts: Record<string, number> = {};
+  let total = 0;
+  for (const row of rows) {
+    const value = Number(row.count);
+    counts[row.category] = value;
+    total += value;
+  }
+
+  return { counts, total };
 }
 
 function shortageSqlCondition() {
@@ -191,7 +230,8 @@ async function orderListRows(
         o."currency",
         o."tags",
         o."warning_level",
-        o."warning_message"
+        o."warning_message",
+        (${ebayCategorySql}) AS "ebay_category"
       FROM "orders" o
       ${orderWhereSql(whereConditions)}
       ORDER BY o."order_date" DESC, o."id" DESC
@@ -207,6 +247,7 @@ async function orderListRows(
       po."paid_at" AS "paidAt",
       po."order_date" AS "orderDate",
       po."fulfillment_status" AS "fulfillmentStatus",
+      po."ebay_category" AS "ebayCategory",
       po."total_amount" AS "totalAmount",
       po."currency",
       po."tags",
@@ -305,6 +346,7 @@ function toOrderListRow(order: OrderWithInventory): OrderListRow {
     paidAt: order.paidAt?.toISOString() ?? null,
     orderDate: order.orderDate.toISOString(),
     fulfillmentStatus: order.fulfillmentStatus,
+    ebayCategory: order.ebayCategory,
     totalAmount: order.totalAmount.toString(),
     currency: order.currency,
     trackingNumbers: order.shipments.map((shipment) => shipment.trackingNumber),
@@ -333,36 +375,54 @@ export default async function OrdersPage({
   const user = await requireUser();
   const params = await searchParams;
   const q = params.q?.trim();
-  const status = params.status ?? "OPEN";
+  const statusFilter = normalizeOrderStatusParam(params.status);
   const pageSize = parsePageSize(params.pageSize);
   const requestedPage = Math.max(1, Number(params.page) || 1);
-  const sqlConditions = orderSqlConditions({
+  const baseConditions = orderSqlConditions({
     userId: user.id,
     q,
-    status,
     from: params.from,
     to: params.to,
   });
-  const openCount = null;
-  const failedShipments = null;
+  const listConditions =
+    statusFilter === "ALL"
+      ? baseConditions
+      : [...baseConditions, categoryCondition(statusFilter)];
   const currentPage = requestedPage;
   const skip = (currentPage - 1) * pageSize;
-  const fetchedOrders = await orderListRows(
-    sqlConditions,
-    params.inventory,
-    skip,
-    pageSize + 1,
-  );
+  const [fetchedOrders, { counts, total }] = await Promise.all([
+    orderListRows(listConditions, params.inventory, skip, pageSize + 1),
+    categoryCounts(baseConditions, params.inventory),
+  ]);
   const hasNextPage = fetchedOrders.length > pageSize;
   const rawOrders = fetchedOrders.slice(0, pageSize);
   const totalFiltered = skip + rawOrders.length + (hasNextPage ? 1 : 0);
   const totalPages = Math.max(1, hasNextPage ? currentPage + 1 : currentPage);
-  const fulfilledCount = status === "FULFILLED" ? totalFiltered : null;
-  const shortageCount = params.inventory === "shortage" ? totalFiltered : null;
-  const warningCount = params.inventory === "warning" ? totalFiltered : null;
   const orderRows = rawOrders.map(toOrderListRow);
   const start = totalFiltered ? skip + 1 : 0;
   const end = totalFiltered ? start + rawOrders.length - 1 : 0;
+
+  const statusCards: { key: EbayOrderCategory | "ALL"; label: string; count: number }[] = [
+    { key: "ALL", label: "전체", count: total },
+    ...ebayOrderCategories.map((category) => ({
+      key: category,
+      label: ebayOrderCategoryLabel[category],
+      count: counts[category] ?? 0,
+    })),
+  ];
+
+  const statusCardHref = (target: EbayOrderCategory | "ALL") => {
+    const next = new URLSearchParams();
+    if (q) next.set("q", q);
+    if (params.from) next.set("from", params.from);
+    if (params.to) next.set("to", params.to);
+    if (params.inventory && params.inventory !== "all") {
+      next.set("inventory", params.inventory);
+    }
+    if (params.pageSize) next.set("pageSize", params.pageSize);
+    next.set("status", target);
+    return `/orders?${next.toString()}`;
+  };
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -370,51 +430,36 @@ export default async function OrdersPage({
       <OrdersControls />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="rounded-lg border border-zinc-200 bg-white p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-zinc-500">배송대기</p>
-              <PackageOpen className="h-5 w-5 text-amber-600" />
-            </div>
-            <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              {openCount ?? "-"}
-            </p>
-          </div>
-          <div className="rounded-lg border border-zinc-200 bg-white p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-zinc-500">배송완료</p>
-              <PackageCheck className="h-5 w-5 text-emerald-600" />
-            </div>
-            <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              {fulfilledCount ?? "-"}
-            </p>
-          </div>
-          <div className="rounded-lg border border-zinc-200 bg-white p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-zinc-500">처리 실패</p>
-              <Truck className="h-5 w-5 text-rose-600" />
-            </div>
-            <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              {failedShipments ?? "-"}
-            </p>
-          </div>
-          <div className="rounded-lg border border-zinc-200 bg-white p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-zinc-500">재고부족</p>
-              <AlertTriangle className="h-5 w-5 text-rose-600" />
-            </div>
-            <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              {shortageCount ?? "-"}
-            </p>
-          </div>
-          <div className="rounded-lg border border-zinc-200 bg-white p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-zinc-500">자동 경고</p>
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
-            </div>
-            <p className="mt-3 text-2xl font-semibold text-zinc-950">
-              {warningCount ?? "-"}
-            </p>
-          </div>
+          {statusCards.map((card) => {
+            const active = card.key === statusFilter;
+            return (
+              <Link
+                key={card.key}
+                href={statusCardHref(card.key)}
+                scroll={false}
+                className={`rounded-lg border p-4 transition ${
+                  active
+                    ? "border-zinc-900 bg-zinc-900 shadow-sm"
+                    : "border-zinc-200 bg-white hover:border-zinc-400"
+                }`}
+              >
+                <p
+                  className={`text-sm font-medium ${
+                    active ? "text-zinc-200" : "text-zinc-500"
+                  }`}
+                >
+                  {card.label}
+                </p>
+                <p
+                  className={`mt-3 text-2xl font-semibold ${
+                    active ? "text-white" : "text-zinc-950"
+                  }`}
+                >
+                  {card.count}
+                </p>
+              </Link>
+            );
+          })}
         </section>
 
         <ResizableOrdersTable orders={orderRows} />

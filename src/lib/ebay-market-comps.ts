@@ -3,6 +3,7 @@ import "server-only";
 import { buildEbayListingTitle } from "@/lib/ebay-listing-fields";
 import { ebayApplicationFetch } from "@/lib/ebay";
 import { getEbayConfig } from "@/lib/env";
+import { normalizeMatchText } from "@/lib/product-matching";
 import { prisma } from "@/lib/prisma";
 import { safeLog } from "@/lib/safe-log";
 
@@ -54,7 +55,10 @@ export type MarketCompsProduct = {
 };
 
 const MARKETPLACE_ID = process.env.EBAY_MARKETPLACE_ID ?? "EBAY_US";
-const RESULT_LIMIT = 10;
+const RESULT_LIMIT = 50;
+const DISPLAY_LIMIT = 10;
+const NON_MEMBER_OPTION_NAMES = new Set(["unit", "group", "all", "ot8", "ot9"]);
+const GROUP_ALIASES = new Map<string, string[]>([["stray kids", ["skz"]]]);
 // 이미지를 통째로 base64로 올리므로 큰 파일은 요청 시간과 메모리를 함께 늘린다.
 const MAX_IMAGE_BYTES = 3_000_000;
 
@@ -119,6 +123,52 @@ function toComps(items: BrowseItemSummary[] | undefined) {
     .map(toComp)
     .filter((comp): comp is MarketComp => comp !== null)
     .sort((left, right) => left.totalUsd - right.totalUsd);
+}
+
+function containsExactPhrase(title: string, expected: string) {
+  const words = normalizeMatchText(title).split(" ").filter(Boolean);
+  const target = normalizeMatchText(expected).split(" ").filter(Boolean);
+  if (!words.length || !target.length) return false;
+
+  return words.some(
+    (_, start) =>
+      start + target.length <= words.length &&
+      target.every((part, offset) => words[start + offset] === part),
+  );
+}
+
+function expectedMemberNames(product: MarketCompsProduct) {
+  const featured = String(product.featuredMembers ?? "")
+    .split(/[,/|+]/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (featured.length) return featured;
+
+  const optionName = product.optionName?.trim() ?? "";
+  if (!optionName || NON_MEMBER_OPTION_NAMES.has(optionName.toLowerCase())) return [];
+  return [optionName];
+}
+
+export function isCompatibleMarketCompTitle(
+  product: MarketCompsProduct,
+  listingTitle: string,
+) {
+  const brand = product.brand?.trim() ?? "";
+  if (brand) {
+    const aliases = GROUP_ALIASES.get(normalizeMatchText(brand)) ?? [];
+    if (![brand, ...aliases].some((name) => containsExactPhrase(listingTitle, name))) {
+      return false;
+    }
+  }
+
+  const members = expectedMemberNames(product);
+  return !members.length || members.some((name) => containsExactPhrase(listingTitle, name));
+}
+
+function compatibleComps(product: MarketCompsProduct, items: BrowseItemSummary[] | undefined) {
+  return toComps(items)
+    .filter((comp) => isCompatibleMarketCompTitle(product, comp.title))
+    .slice(0, DISPLAY_LIMIT);
 }
 
 // 후보 중 내가 이미 올려둔 리스팅을 표시한다. 판단 근거는 두 가지다.
@@ -214,7 +264,9 @@ export async function findMarketComps(
 
   if (imageUrl) {
     try {
-      const comps = await markOwnListings(toComps(await searchByImage(imageUrl)));
+      const comps = await markOwnListings(
+        compatibleComps(product, await searchByImage(imageUrl)),
+      );
       if (comps.length) {
         return {
           source: "image",
@@ -224,7 +276,8 @@ export async function findMarketComps(
           ownListingItemIds: ownIds(comps),
         };
       }
-      fallbackReason = "이미지 검색 결과가 없어 제목으로 다시 찾았습니다.";
+      fallbackReason =
+        "이미지 검색 결과에서 같은 그룹·멤버를 찾지 못해 제목으로 다시 찾았습니다.";
     } catch (error) {
       // 이미지 검색 실패로 조회 자체를 포기하지 않는다. 제목 검색이 남아 있다.
       fallbackReason = "이미지 검색에 실패해 제목으로 찾았습니다.";
@@ -252,7 +305,9 @@ export async function findMarketComps(
     };
   }
 
-  const comps = await markOwnListings(toComps(await searchByKeyword(query)));
+  const comps = await markOwnListings(
+    compatibleComps(product, await searchByKeyword(query)),
+  );
   return {
     source: "keyword",
     fallbackReason,

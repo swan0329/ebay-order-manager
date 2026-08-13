@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { ebayReviseCsvRow } from "@/lib/ebay-operations-csv";
 import { jsonError } from "@/lib/http";
 import { getOperationalProductIds } from "@/lib/product-operations";
 import { prisma } from "@/lib/prisma";
@@ -183,16 +184,18 @@ export async function GET(request: Request) {
     });
     const limited = rowLimit ? rows.slice(0, rowLimit) : rows;
     if (asCsv) {
-      // eBay가 아는 열만 남긴다. 신규등록 CSV와 같은 Action 헤더를 쓰고,
-      // 리스팅은 상품번호로 지목한다(SKU는 대조용으로 함께 넣는다).
+      // 기존 리스팅은 Item number로 지목한다. Action 헤더에 Country=US를
+      // 넣으면 상품 소재지가 미국이라는 뜻이 되어 한국 판매자의 해외 창고
+      // 정책 차단을 유발하므로 가격·수량 수정 파일에는 소재지를 선언하지 않는다.
       return csvResponse(
-        limited.map((row) => ({
-          "*Action(SiteID=US|Country=US|Currency=USD|Version=1193)": "Revise",
-          "Item number": row.ItemID,
-          "Custom label (SKU)": row.SKU,
-          "Start price": row["*BuyItNowPrice"],
-          Quantity: row["*Quantity"],
-        })),
+        limited.map((row) =>
+          ebayReviseCsvRow({
+            itemId: row.ItemID,
+            sku: String(row.SKU),
+            price: row["*BuyItNowPrice"],
+            quantity: row["*Quantity"],
+          }),
+        ),
         `ebay-revise-${date}.csv`,
       );
     }

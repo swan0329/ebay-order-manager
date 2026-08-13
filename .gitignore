@@ -47,6 +47,8 @@ next-env.d.ts
 
 # generated
 /src/generated/prisma/
+# Local Android bridge runtime
+/tools/
 
 # Local project-work metadata and documentation backups
 /.dryforge/

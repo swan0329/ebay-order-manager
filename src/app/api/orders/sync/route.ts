@@ -4,6 +4,10 @@ import { syncOrdersForUser } from "@/lib/orders";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
+// 전체 주문을 한 번에 가져올 때 페이지네이션 + 이미지 보강으로 시간이 걸릴 수 있어
+// 함수 실행 시간을 넉넉히 잡는다. (플랜 한도에 맞춰 Vercel이 자동으로 클램프함)
+export const maxDuration = 300;
+
 const syncSchema = z.object({
   creationDateFrom: z.string().datetime().optional(),
   creationDateTo: z.string().datetime().optional(),

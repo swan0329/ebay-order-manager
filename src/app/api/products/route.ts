@@ -60,7 +60,7 @@ export async function POST(request: Request) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return jsonError("이미 등록된 SKU입니다.", 409);
+      return jsonError("이미 등록된 SKU 또는 포카마켓 상품번호입니다.", 409);
     }
 
     return jsonError(asErrorMessage(error), 500);

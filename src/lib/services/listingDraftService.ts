@@ -1,4 +1,13 @@
 import { Prisma, type ListingDraft, type Product } from "@/generated/prisma";
+import {
+  buildEbayListingCategoryId,
+  buildEbayListingDescription,
+  buildEbayListingImageUrls,
+  buildEbayListingItemSpecificArrays,
+  buildEbayListingItemSpecifics,
+  buildEbayListingPrice,
+  buildEbayListingTitle,
+} from "@/lib/ebay-listing-fields";
 import { prisma } from "@/lib/prisma";
 import type { ListingUploadInput } from "@/lib/services/inventoryService";
 import {
@@ -255,19 +264,16 @@ function renderTitle(template: string | null | undefined, draft: ListingUploadDr
 }
 
 function productDraft(product: Product): ListingUploadDraft {
+  const itemSpecifics = buildEbayListingItemSpecifics(product);
+
   return {
     sku: product.sku,
-    title: product.ebayTitle ?? product.productName,
-    descriptionHtml:
-      product.descriptionHtml ?? product.memo ?? `<p>${product.productName}</p>`,
-    price: product.ebayPrice?.toString() ?? product.salePrice?.toString() ?? null,
+    title: buildEbayListingTitle(product),
+    descriptionHtml: buildEbayListingDescription(product),
+    price: buildEbayListingPrice(product) || null,
     quantity: product.stockQuantity,
-    imageUrls: product.ebayImageUrls.length
-      ? product.ebayImageUrls
-      : product.imageUrl
-        ? [product.imageUrl]
-        : [],
-    categoryId: product.ebayCategoryId,
+    imageUrls: buildEbayListingImageUrls(product),
+    categoryId: buildEbayListingCategoryId(product, "") || null,
     condition: product.ebayCondition,
     paymentProfile: product.ebayPaymentProfile,
     shippingProfile: product.ebayShippingProfile,
@@ -276,7 +282,10 @@ function productDraft(product: Product): ListingUploadDraft {
     marketplaceId: product.ebayMarketplaceId,
     currency: product.ebayCurrency,
     brand: product.brand,
+    type: itemSpecifics.Type,
+    countryOfOrigin: itemSpecifics["Country/Region of Manufacture"],
     customLabel: product.internalCode,
+    itemSpecifics: buildEbayListingItemSpecificArrays(product),
   };
 }
 
@@ -379,7 +388,10 @@ export async function createDraftsFromInventory(input: {
   templateId?: string | null;
 }) {
   const products = await prisma.product.findMany({
-    where: { id: { in: input.productIds } },
+    where: {
+      id: { in: input.productIds },
+      OR: [{ status: "unlisted" }, { status: "inactive" }],
+    },
     orderBy: { updatedAt: "desc" },
   });
   const template = input.templateId

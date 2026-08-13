@@ -12,6 +12,7 @@ export async function GET(request: Request) {
         q: url.searchParams.get("q"),
         status: url.searchParams.get("status"),
         stock,
+        upload: url.searchParams.get("upload"),
       }),
       stock,
     );

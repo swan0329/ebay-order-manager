@@ -1,4 +1,11 @@
+import {
+  ebayOrderCategoryLabel,
+  ebayOrderCategoryStyle,
+} from "@/lib/ebay-order-status";
+
 const statusStyle: Record<string, string> = {
+  ...ebayOrderCategoryStyle,
+  // 과거 eBay 원본값 호환
   NOT_STARTED: "border-amber-200 bg-amber-50 text-amber-800",
   IN_PROGRESS: "border-blue-200 bg-blue-50 text-blue-800",
   FULFILLED: "border-emerald-200 bg-emerald-50 text-emerald-800",
@@ -8,6 +15,8 @@ const statusStyle: Record<string, string> = {
 };
 
 const statusLabel: Record<string, string> = {
+  ...ebayOrderCategoryLabel,
+  // 과거 eBay 원본값 호환
   NOT_STARTED: "배송대기",
   IN_PROGRESS: "부분배송",
   FULFILLED: "배송완료",

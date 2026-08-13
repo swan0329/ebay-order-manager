@@ -1,13 +1,16 @@
 import { z } from "zod";
+import { after } from "next/server";
 import {
   approveAiJob,
   claimNextAiJob,
   completeAiJob,
+  completeAiJobWithDewatermark,
   completeAiJobWithSafeFallback,
+  createAiImageApiBatch,
   createAiJobs,
-  ensureAiImageJobs,
 } from "@/lib/ai-image-work";
 import { jsonError } from "@/lib/http";
+import { getDewatermarkCreditBalance } from "@/lib/dewatermark-api";
 import { getImageWorkbenchSettings } from "@/lib/image-workbench-settings";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
@@ -25,7 +28,19 @@ const schema = z.discriminatedUnion("action", [
     action: z.literal("startWorkerBatch"),
     limit: z.number().int().min(1).max(200),
   }),
+  z.object({
+    action: z.literal("startApiBatch"),
+    limit: z.number().int().min(1).max(10_000),
+    mode: z.enum(["STANDARD", "PRO"]).default("STANDARD"),
+  }),
+  z.object({ action: z.literal("apiBatchStatus") }),
+  z.object({ action: z.literal("dewatermarkCreditBalance") }),
   z.object({ action: z.literal("claimRework"), id: z.string().min(1) }),
+  z.object({
+    action: z.literal("dewatermark"),
+    id: z.string().min(1),
+    mode: z.enum(["STANDARD", "PRO"]).default("STANDARD"),
+  }),
   z.object({
     action: z.literal("complete"),
     id: z.string().min(1),
@@ -52,7 +67,6 @@ const schema = z.discriminatedUnion("action", [
 ]);
 export async function POST(request: Request) {
   try {
-    await ensureAiImageJobs();
     const input = schema.parse(await request.json());
     const authorization = request.headers.get("authorization") ?? "";
     const workerToken = process.env.LOCAL_AI_WORKER_TOKEN ?? "";
@@ -68,6 +82,79 @@ export async function POST(request: Request) {
       await prisma.$executeRaw`UPDATE "local_ai_worker_state"
         SET "last_heartbeat"=NOW(),"updated_at"=NOW() WHERE "id"=1`;
       return Response.json({ ok: true });
+    }
+    if (input.action === "startApiBatch") {
+      const batch = await createAiImageApiBatch(user!.id, input.limit, input.mode);
+      const workerUrl = new URL("/api/cron/ai-image-work", request.url);
+      workerUrl.searchParams.set("batchId", batch.id);
+      const secret = process.env.CRON_SECRET;
+      after(() =>
+        fetch(workerUrl, {
+          headers: secret ? { authorization: `Bearer ${secret}` } : {},
+        }).catch(console.error),
+      );
+      return Response.json({ ok: true, batch }, { status: 201 });
+    }
+    if (input.action === "apiBatchStatus") {
+      const batches = await prisma.$queryRaw<
+        Array<{
+          id: string;
+          status: string;
+          mode: "STANDARD" | "PRO";
+          requestedCount: number;
+          claimedCount: number;
+          completedCount: number;
+          failedCount: number;
+          errorMessage: string | null;
+          createdAt: Date;
+          updatedAt: Date;
+          completedAt: Date | null;
+        }>
+      >`
+        SELECT "id","status","mode",
+          "requested_count" AS "requestedCount",
+          "claimed_count" AS "claimedCount",
+          "completed_count" AS "completedCount",
+          "failed_count" AS "failedCount",
+          "error_message" AS "errorMessage",
+          "created_at" AS "createdAt",
+          "updated_at" AS "updatedAt",
+          "completed_at" AS "completedAt"
+        FROM "ai_image_api_batches"
+        WHERE "user_id"=${user!.id}
+          AND ("status" IN ('queued','running') OR "created_at">NOW()-INTERVAL '24 hours')
+        ORDER BY CASE WHEN "status" IN ('queued','running') THEN 0 ELSE 1 END,
+          "created_at" DESC
+        LIMIT 1`;
+      const batch = batches[0] ?? null;
+      if (batch && ["queued", "running"].includes(batch.status)) {
+        const recoveryLease = await prisma.$queryRaw<Array<{ id: string }>>`
+          UPDATE "ai_image_api_batches"
+          SET "updated_at"=NOW()
+          WHERE "id"=${batch.id}
+            AND "status" IN ('queued','running')
+            AND "updated_at"<NOW()-INTERVAL '75 seconds'
+          RETURNING "id"`;
+        if (recoveryLease[0]) {
+          const workerUrl = new URL("/api/cron/ai-image-work", request.url);
+          workerUrl.searchParams.set("batchId", batch.id);
+          const secret = process.env.CRON_SECRET;
+          after(() =>
+            fetch(workerUrl, {
+              headers: secret ? { authorization: `Bearer ${secret}` } : {},
+            }).catch((error) =>
+              console.error("AI image batch automatic recovery failed.", error),
+            ),
+          );
+        }
+      }
+      return Response.json({ ok: true, batch });
+    }
+    if (input.action === "dewatermarkCreditBalance") {
+      return Response.json({
+        ok: true,
+        availableCredits: await getDewatermarkCreditBalance(),
+      });
     }
     if (input.action === "workerStatus") {
       const rows = await prisma.$queryRaw<
@@ -137,6 +224,12 @@ export async function POST(request: Request) {
         WHERE "id"=${input.id} AND "status"='rework'
         RETURNING "id","product_id" AS "productId","source_url" AS "sourceUrl"`;
       return Response.json({ ok: true, job: jobs[0] ?? null });
+    }
+    if (input.action === "dewatermark") {
+      return Response.json({
+        ok: true,
+        url: `${await completeAiJobWithDewatermark(input.id, input.mode)}?v=${Date.now()}`,
+      });
     }
     if (
       input.action === "complete" &&

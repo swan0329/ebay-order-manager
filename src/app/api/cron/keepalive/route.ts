@@ -16,21 +16,25 @@ export async function GET(request: Request) {
     return jsonError("CRON_SECRET is required.", 500);
   }
 
-  const [, soldOutResult, reactivatedResult] = await prisma.$transaction([
+  const [, legacyResult, stockedSoldOutResult] = await prisma.$transaction([
     prisma.$queryRaw`select 1`,
     prisma.product.updateMany({
-      where: { stockQuantity: { lte: 0 }, status: { not: "sold_out" } },
-      data: { status: "sold_out" },
+      where: { status: "inactive" },
+      data: { status: "unlisted" },
     }),
     prisma.product.updateMany({
-      where: { stockQuantity: { gt: 0 }, status: { not: "active" } },
-      data: { status: "active" },
+      where: { status: "sold_out", stockQuantity: { gt: 0 } },
+      data: { status: "unlisted" },
     }),
   ]);
 
   return Response.json({
     ok: true,
     checkedAt: new Date().toISOString(),
-    normalized: { soldOut: soldOutResult.count, reactivated: reactivatedResult.count },
+    normalized: {
+      unlisted: legacyResult.count + stockedSoldOutResult.count,
+      legacyInactive: legacyResult.count,
+      stockedSoldOut: stockedSoldOutResult.count,
+    },
   });
 }

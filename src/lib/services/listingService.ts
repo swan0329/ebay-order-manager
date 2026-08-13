@@ -1,5 +1,12 @@
 import type { EbayAccount, Product } from "@/generated/prisma";
 import { EbayApiError } from "@/lib/ebay";
+import {
+  buildEbayListingDescription,
+  buildEbayListingImageUrls,
+  buildEbayListingItemSpecificArrays,
+  buildEbayListingItemSpecifics,
+  buildEbayListingTitle,
+} from "@/lib/ebay-listing-fields";
 import { ebayApiRequest } from "@/lib/services/ebayApiService";
 import type { ListingUploadInput } from "@/lib/services/inventoryService";
 
@@ -63,16 +70,10 @@ function cleanObject<T extends Record<string, unknown>>(value: T) {
 }
 
 export function productToListingInput(product: Product): ListingUploadInput {
-  const imageUrls = product.ebayImageUrls.length
-    ? product.ebayImageUrls
-    : product.imageUrl
-      ? [product.imageUrl]
-      : [];
-  const title = product.ebayTitle ?? product.productName;
-  const descriptionHtml =
-    product.descriptionHtml ??
-    product.memo ??
-    `<p>${title.replace(/[<>&]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[char] ?? char)}</p>`;
+  const imageUrls = buildEbayListingImageUrls(product);
+  const title = buildEbayListingTitle(product);
+  const descriptionHtml = buildEbayListingDescription(product);
+  const itemSpecifics = buildEbayListingItemSpecifics(product);
 
   return {
     sku: product.sku,
@@ -103,6 +104,10 @@ export function productToListingInput(product: Product): ListingUploadInput {
       product.ebayMarketplaceId ?? envValue("EBAY_MARKETPLACE_ID") ?? "EBAY_US",
     currency: product.ebayCurrency ?? envValue("EBAY_CURRENCY") ?? "USD",
     listingFormat: "FIXED_PRICE",
+    brand: itemSpecifics.Brand || product.brand,
+    type: itemSpecifics.Type,
+    countryOfOrigin: itemSpecifics["Country/Region of Manufacture"],
+    itemSpecifics: buildEbayListingItemSpecificArrays(product),
   };
 }
 
@@ -303,41 +308,10 @@ export async function publishProductListing(
   product: Product,
   inputOverride?: ListingUploadInput,
 ): Promise<ListingUploadResult> {
-  const input = inputOverride ?? productToListingInput(product);
-  const marketplaceId = input.marketplaceId ?? "EBAY_US";
-
-  await createOrReplaceInventoryItem(account, input);
-
-  const existingOffer = await getExistingOffer(account, input.sku, marketplaceId);
-  const existingOfferId = existingOffer?.offerId ?? product.ebayOfferId;
-  const action = existingOfferId ? "revise" : "create";
-  let offerId = existingOfferId ?? null;
-  let listingId = existingOffer?.listing?.listingId ?? product.ebayItemId ?? null;
-  let listingStatus = existingOffer?.listing?.listingStatus ?? "UNPUBLISHED";
-
-  if (offerId) {
-    const updated = await updateOffer(account, offerId, input);
-
-    if (!updated) {
-      offerId = await createOffer(account, input);
-      listingId = null;
-      listingStatus = "UNPUBLISHED";
-    }
-  } else {
-    offerId = await createOffer(account, input);
-  }
-
-  if (!listingId && offerId) {
-    listingId = await publishOffer(account, offerId);
-    listingStatus = "ACTIVE";
-  } else if (listingId) {
-    listingStatus = listingStatus === "UNPUBLISHED" ? "ACTIVE" : listingStatus;
-  }
-
-  return {
-    action,
-    offerId,
-    listingId,
-    listingStatus,
-  };
+  void account;
+  void product;
+  void inputOverride;
+  throw new Error(
+    "보안 정책에 따라 eBay API 상품 등록·수정 기능은 영구 비활성화되었습니다. eBay Excel 파일을 사용하세요.",
+  );
 }

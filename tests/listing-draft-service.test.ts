@@ -93,11 +93,11 @@ describe("listing draft service", () => {
           sourceInventoryId: "product-1",
           sku: "SKU-1",
           title: "IVE Rei Photocard",
-          price: "12.50",
+          price: null,
           quantity: 2,
           fieldSourceJson: expect.objectContaining({
             sku: "inventory",
-            price: "inventory",
+            price: "default",
           }),
         }),
       ],

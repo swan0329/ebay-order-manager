@@ -1,8 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LocalAiStatusBadge } from "@/components/LocalAiStatusBadge";
-import { fetchWithTimeout } from "@/lib/client-fetch-timeout";
 type Item = {
   id: string;
   productId: string;
@@ -15,298 +13,20 @@ type Item = {
   previewVersion: string;
 };
 type Claimed = { id: string; productId: string; sourceUrl: string };
-type WorkSettings = {
-  watermarkStrength?: number;
-  localAiEnabled?: boolean;
-  brightness?: number;
-  contrast?: number;
-  saturation?: number;
-  sharpness?: number;
+type DewatermarkMode = "STANDARD" | "PRO";
+type ApiBatch = {
+  id: string;
+  status: string;
+  mode: DewatermarkMode;
+  requestedCount: number;
+  claimedCount: number;
+  completedCount: number;
+  failedCount: number;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
 };
-const AI_OUTPUT_WIDTH = 540;
-const AI_OUTPUT_HEIGHT = 860;
-
-function canvasToJpegDataUrl(canvas: HTMLCanvasElement, quality: number) {
-  return new Promise<string>((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          reject(new Error("JPEG 이미지를 만들지 못했습니다."));
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error("JPEG 이미지를 읽지 못했습니다."));
-        reader.readAsDataURL(blob);
-      },
-      "image/jpeg",
-      quality,
-    );
-  });
-}
-
-function blendWatermarkRegion(
-  source: HTMLCanvasElement,
-  restored: HTMLImageElement,
-  mask: HTMLImageElement,
-) {
-  const result = document.createElement("canvas");
-  result.width = AI_OUTPUT_WIDTH;
-  result.height = AI_OUTPUT_HEIGHT;
-  const context = result.getContext("2d", { willReadFrequently: true });
-  if (!context) throw new Error("AI 합성 화면을 만들지 못했습니다.");
-  context.drawImage(source, 0, 0);
-  const sourcePixels = context.getImageData(0, 0, AI_OUTPUT_WIDTH, AI_OUTPUT_HEIGHT);
-
-  const restoredCanvas = document.createElement("canvas");
-  restoredCanvas.width = AI_OUTPUT_WIDTH;
-  restoredCanvas.height = AI_OUTPUT_HEIGHT;
-  const restoredContext = restoredCanvas.getContext("2d", { willReadFrequently: true });
-  if (!restoredContext) throw new Error("AI 복원 결과를 읽지 못했습니다.");
-  restoredContext.drawImage(restored, 0, 0, AI_OUTPUT_WIDTH, AI_OUTPUT_HEIGHT);
-  const restoredPixels = restoredContext.getImageData(0, 0, AI_OUTPUT_WIDTH, AI_OUTPUT_HEIGHT);
-
-  const maskCanvas = document.createElement("canvas");
-  maskCanvas.width = AI_OUTPUT_WIDTH;
-  maskCanvas.height = AI_OUTPUT_HEIGHT;
-  const maskContext = maskCanvas.getContext("2d", { willReadFrequently: true });
-  if (!maskContext) throw new Error("워터마크 영역을 읽지 못했습니다.");
-  maskContext.filter = "blur(1.5px)";
-  maskContext.drawImage(mask, 0, 0, AI_OUTPUT_WIDTH, AI_OUTPUT_HEIGHT);
-  const maskPixels = maskContext.getImageData(0, 0, AI_OUTPUT_WIDTH, AI_OUTPUT_HEIGHT);
-
-  for (let offset = 0; offset < sourcePixels.data.length; offset += 4) {
-    const maskValue = maskPixels.data[offset];
-    if (maskValue < 2) continue;
-    const alpha = Math.min(1, maskValue / 42);
-    for (let channel = 0; channel < 3; channel += 1) {
-      sourcePixels.data[offset + channel] = Math.round(
-        sourcePixels.data[offset + channel] * (1 - alpha) +
-          restoredPixels.data[offset + channel] * alpha,
-      );
-    }
-  }
-  context.putImageData(sourcePixels, 0, 0);
-  return result;
-}
-
-async function inferenceConcurrency() {
-  try {
-    const response = await fetchWithTimeout(
-      "http://127.0.0.1:5177/__watermark-ai/status",
-      {},
-      2_000,
-    );
-    const body = (await response.json()) as {
-      pipeline?: { environment?: { device?: string } };
-    };
-    const device = body.pipeline?.environment?.device?.toLowerCase() ?? "";
-    return device.includes("cuda") || device.includes("gpu") ? 3 : 1;
-  } catch {
-    return 1;
-  }
-}
-function loadImage(src: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("이미지를 불러오지 못했습니다."));
-    image.src = src;
-  });
-}
-function sharpen(canvas: HTMLCanvasElement, value: number) {
-  if (value <= 0) return;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) return;
-  const blurred = document.createElement("canvas");
-  blurred.width = canvas.width;
-  blurred.height = canvas.height;
-  const bc = blurred.getContext("2d", { willReadFrequently: true });
-  if (!bc) return;
-  bc.filter = "blur(1px)";
-  bc.drawImage(canvas, 0, 0);
-  const original = context.getImageData(0, 0, canvas.width, canvas.height),
-    soft = bc.getImageData(0, 0, canvas.width, canvas.height),
-    amount = Math.min(0.9, value / 34);
-  for (let o = 0; o < original.data.length; o += 4)
-    for (let c = 0; c < 3; c++)
-      original.data[o + c] = Math.max(
-        0,
-        Math.min(
-          255,
-          Math.round(
-            original.data[o + c] +
-              amount * (original.data[o + c] - soft.data[o + c]),
-          ),
-        ),
-      );
-  context.putImageData(original, 0, 0);
-}
-async function removeWithManualEngine(job: Claimed, settings: WorkSettings) {
-  const [source, mask] = await Promise.all([
-    loadImage(
-      `/api/products/${job.productId}/image-workbench?url=${encodeURIComponent(job.sourceUrl)}&t=${Date.now()}`,
-    ),
-    loadImage("/pocamarket-watermark-mask-v4.png"),
-  ]);
-  const sourceCanvas = document.createElement("canvas");
-  sourceCanvas.width = source.naturalWidth;
-  sourceCanvas.height = source.naturalHeight;
-  const sourceContext = sourceCanvas.getContext("2d", {
-    willReadFrequently: true,
-  });
-  const maskCanvas = document.createElement("canvas");
-  maskCanvas.width = mask.naturalWidth;
-  maskCanvas.height = mask.naturalHeight;
-  const maskContext = maskCanvas.getContext("2d", { willReadFrequently: true });
-  if (!sourceContext || !maskContext)
-    throw new Error("이미지 처리 화면을 준비하지 못했습니다.");
-  sourceContext.drawImage(source, 0, 0);
-  maskContext.drawImage(mask, 0, 0);
-  const result = await new Promise<ImageData>((resolve, reject) => {
-      const worker = new Worker("/opencv-card-worker.js?v=20260728-17-rollback");
-    const timer = window.setTimeout(() => {
-      worker.terminate();
-      reject(new Error("워터마크 제거 시간이 초과되었습니다."));
-    }, 35000);
-    worker.onmessage = (
-      event: MessageEvent<{
-        ok: boolean;
-        imageData?: ImageData;
-        error?: string;
-      }>,
-    ) => {
-      window.clearTimeout(timer);
-      worker.terminate();
-      if (event.data.ok && event.data.imageData) resolve(event.data.imageData);
-      else reject(new Error(event.data.error || "워터마크 제거 실패"));
-    };
-    worker.onerror = () => {
-      window.clearTimeout(timer);
-      worker.terminate();
-      reject(new Error("워터마크 제거 엔진 오류"));
-    };
-    const imageData = sourceContext.getImageData(
-      0,
-      0,
-      sourceCanvas.width,
-      sourceCanvas.height,
-    );
-    const maskData = maskContext.getImageData(
-      0,
-      0,
-      maskCanvas.width,
-      maskCanvas.height,
-    );
-    worker.postMessage(
-      {
-        task: "removeWatermark",
-        imageData,
-        maskData,
-        // Use the exact same saved strength as the manual image workbench.
-        strength: Math.min(settings.watermarkStrength ?? 110, 110),
-      },
-      [imageData.data.buffer, maskData.data.buffer],
-    );
-  });
-  const restored = document.createElement("canvas");
-  restored.width = result.width;
-  restored.height = result.height;
-  restored.getContext("2d")?.putImageData(result, 0, 0);
-  // Keep the adjustment canvas opaque. Sharpening after a rounded clip pulls
-  // transparent black pixels into the edge and leaves a dark line at the top.
-  const enhanced = document.createElement("canvas");
-  enhanced.width = 540;
-  enhanced.height = 860;
-  const ec = enhanced.getContext("2d");
-  if (!ec) throw new Error("카드 결과 화면을 만들지 못했습니다.");
-  ec.filter = `brightness(${1 + (settings.brightness ?? 8) / 100}) contrast(${1 + (settings.contrast ?? 3) / 100}) saturate(${1 + (settings.saturation ?? 5) / 100})`;
-  // Exclude the repeatable scan/resampling seam present in the outermost
-  // source pixels before scaling it into the finished card.
-  const edgeCrop = Math.max(
-    2,
-    Math.round(Math.min(restored.width, restored.height) * 0.008),
-  );
-  ec.drawImage(
-    restored,
-    edgeCrop,
-    edgeCrop,
-    Math.max(1, restored.width - edgeCrop * 2),
-    Math.max(1, restored.height - edgeCrop * 2),
-    0,
-    0,
-    540,
-    860,
-  );
-  sharpen(enhanced, settings.sharpness ?? 12);
-  const finalCanvas = document.createElement("canvas");
-  finalCanvas.width = 540;
-  finalCanvas.height = 860;
-  const fc = finalCanvas.getContext("2d");
-  if (!fc) throw new Error("JPG 결과 화면을 만들지 못했습니다.");
-  fc.fillStyle = "#fff";
-  fc.fillRect(0, 0, 540, 860);
-  fc.save();
-  fc.beginPath();
-  fc.roundRect(0, 0, 540, 860, 25);
-  fc.clip();
-  fc.drawImage(enhanced, 0, 0);
-  fc.restore();
-  return finalCanvas.toDataURL("image/jpeg", 0.88);
-}
-
-async function removeWithLearnedEngine(job: Claimed, settings: WorkSettings) {
-  const source = await loadImage(
-    `/api/products/${job.productId}/image-workbench?url=${encodeURIComponent(job.sourceUrl)}&t=${Date.now()}`,
-  );
-  const input = document.createElement("canvas");
-  input.width = AI_OUTPUT_WIDTH;
-  input.height = AI_OUTPUT_HEIGHT;
-  input
-    .getContext("2d")
-    ?.drawImage(source, 0, 0, AI_OUTPUT_WIDTH, AI_OUTPUT_HEIGHT);
-  const response = await fetchWithTimeout("http://127.0.0.1:5177/__watermark-ai/infer", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ image: await canvasToJpegDataUrl(input, 0.92) }),
-  }, 45_000);
-  const body = (await response.json().catch(() => ({}))) as {
-    image?: string;
-    error?: string;
-    quality?: {
-      darkArtifactFraction?: number;
-    };
-  };
-  if (!response.ok || !body.image)
-    throw new Error(body.error || "학습된 로컬 AI 모델을 사용할 수 없습니다.");
-  if ((body.quality?.darkArtifactFraction ?? 0) > 0.002)
-    throw new Error("AI 결과에서 비정상적으로 어두운 영역이 감지됐습니다.");
-  const restored = await loadImage(body.image);
-  const adjusted = document.createElement("canvas");
-  adjusted.width = AI_OUTPUT_WIDTH;
-  adjusted.height = AI_OUTPUT_HEIGHT;
-  const context = adjusted.getContext("2d");
-  if (!context) throw new Error("AI 결과 화면을 만들 수 없습니다.");
-  context.filter = `brightness(${1 + (settings.brightness ?? 8) / 100}) contrast(${1 + (settings.contrast ?? 3) / 100}) saturate(${1 + (settings.saturation ?? 5) / 100})`;
-  // The local model already changes only the expanded watermark region.
-  // Re-blending with the source here would restore faint watermark pixels.
-  context.drawImage(restored, 0, 0, AI_OUTPUT_WIDTH, AI_OUTPUT_HEIGHT);
-  sharpen(adjusted, settings.sharpness ?? 12);
-  const output = document.createElement("canvas");
-  output.width = 540;
-  output.height = 860;
-  const outputContext = output.getContext("2d");
-  if (!outputContext) throw new Error("JPG 결과 화면을 만들 수 없습니다.");
-  outputContext.fillStyle = "#fff";
-  outputContext.fillRect(0, 0, 540, 860);
-  outputContext.save();
-  outputContext.beginPath();
-  outputContext.roundRect(0, 0, 540, 860, 25);
-  outputContext.clip();
-  outputContext.drawImage(adjusted, 0, 0);
-  outputContext.restore();
-  return canvasToJpegDataUrl(output, 0.9);
-}
 function duration(seconds: number) {
   if (!Number.isFinite(seconds) || seconds < 0) return "계산 중";
   const value = Math.ceil(seconds);
@@ -321,6 +41,12 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
   const [flash, setFlash] = useState("");
   const [localItems, setLocalItems] = useState(items);
   const [autoCount, setAutoCount] = useState(25);
+  const [dewatermarkMode, setDewatermarkMode] =
+    useState<DewatermarkMode>("STANDARD");
+  const [apiBatch, setApiBatch] = useState<ApiBatch | null>(null);
+  const [clock, setClock] = useState(() => Date.now());
+  const [availableCredits, setAvailableCredits] = useState<number | null>(null);
+  const [creditError, setCreditError] = useState("");
   const [reworkCount, setReworkCount] = useState(5);
   const [upload, setUpload] = useState<{
     done: number;
@@ -338,6 +64,52 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
     if (!r.ok) throw new Error(b.error || "처리에 실패했습니다.");
     return b;
   }
+  useEffect(() => {
+    let cancelled = false;
+    const refreshBatch = async () => {
+      try {
+        const response = await call({ action: "apiBatchStatus" });
+        if (!cancelled) setApiBatch(response.batch as ApiBatch | null);
+      } catch {
+        // A temporary status failure must not interrupt the server-side batch.
+      }
+    };
+    void refreshBatch();
+    const timer = window.setInterval(() => {
+      setClock(Date.now());
+      void refreshBatch();
+    }, 2_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    const refreshCredits = async () => {
+      try {
+        const response = await call({
+          action: "dewatermarkCreditBalance",
+        });
+        if (!cancelled) {
+          setAvailableCredits(Number(response.availableCredits));
+          setCreditError("");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setCreditError(
+            error instanceof Error ? error.message : "크레딧 조회 실패",
+          );
+        }
+      }
+    };
+    void refreshCredits();
+    const timer = window.setInterval(refreshCredits, 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
   async function enqueue() {
     setBusy(true);
     setMsg("");
@@ -351,25 +123,12 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
       setBusy(false);
     }
   }
-  async function processClaimed(job: Claimed, settings: WorkSettings) {
+  async function processClaimed(job: Claimed) {
     try {
-      let image: string;
-      let engineVersion = "alpha-v4-20260722-14";
-      try {
-        if (settings.localAiEnabled === false)
-          throw new Error("Local AI disabled");
-        image = await removeWithLearnedEngine(job, settings);
-        engineVersion = "local-ai-v5";
-      } catch {
-        // Until a validated local model is promoted, preserve the current
-        // production behavior instead of failing queued image work.
-        image = await removeWithManualEngine(job, settings);
-      }
       const completed = await call({
-        action: "complete",
+        action: "dewatermark",
         id: job.id,
-        image,
-        engineVersion,
+        mode: dewatermarkMode,
       });
       return { ok: true as const, url: completed.url as string };
     } catch (e) {
@@ -382,80 +141,32 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
       return { ok: false as const, error };
     }
   }
-  async function runOne(settings: WorkSettings) {
-    const claimed = await call({ action: "claim" });
-    const job = claimed.job as Claimed | null;
-    if (!job) return false;
-    await processClaimed(job, settings);
-    return true;
-  }
   async function run() {
-    const target = Math.max(1, Math.min(200, autoCount));
+    const target = Math.max(1, Math.min(10_000, autoCount));
     setBusy(true);
-    setMsg(`처리 엔진 설정을 확인하는 중…`);
+    setMsg(`Dewatermark 서버 작업 ${target}개를 등록하는 중…`);
     try {
-      const settings = (await fetch(
-        "/api/products/image-workbench/settings",
-        { cache: "no-store" },
-      ).then((response) => response.json())) as WorkSettings;
-      if (settings.localAiEnabled === false) {
-        setMsg(`OpenCV 엔진으로 ${target}개 작업을 처리하는 중…`);
-        let count = 0;
-        let done = false;
-        while (count < target && !done) {
-          const batch = Math.min(2, target - count);
-          const results = await Promise.all(
-            Array.from({ length: batch }, () => runOne(settings)),
-          );
-          const made = results.filter(Boolean).length;
-          count += made;
-          done = made < batch;
-          setMsg(`${count}/${target}개 OpenCV 처리 완료…`);
-        }
-        setMsg(`${count}개 OpenCV 자동 처리를 마쳤습니다.`);
-        router.refresh();
-        return;
-      }
-      const before = (await call({ action: "workerStatus" })) as {
-        connected?: boolean;
-        completedTotal?: number;
-        failedTotal?: number;
-      };
-      if (!before.connected)
-        throw new Error("로컬 AI 작업기가 운영 서버에 연결되어 있지 않습니다.");
-      const started = (await call({
-        action: "startWorkerBatch",
+      const response = await call({
+        action: "startApiBatch",
         limit: target,
-      })) as { accepted?: number };
-      const accepted = started.accepted ?? 0;
-      if (!accepted) {
-        setMsg("처리 대기 중인 이미지가 없습니다.");
-        return;
-      }
-      const initialTotal =
-        (before.completedTotal ?? 0) + (before.failedTotal ?? 0);
-      const deadline = Date.now() + Math.max(180_000, accepted * 120_000);
-      let processed = 0;
-      while (processed < accepted && Date.now() < deadline) {
-        await new Promise((resolve) => window.setTimeout(resolve, 2_000));
-        const status = (await call({ action: "workerStatus" })) as {
-          connected?: boolean;
-          completedTotal?: number;
-          failedTotal?: number;
-        };
-        if (!status.connected)
-          throw new Error("처리 중 로컬 AI 작업기 연결이 끊겼습니다.");
-        processed = Math.min(
-          accepted,
-          (status.completedTotal ?? 0) +
-            (status.failedTotal ?? 0) -
-            initialTotal,
-        );
-        setMsg(`${processed}/${accepted}개 로컬 AI 처리 완료…`);
-      }
-      if (processed < accepted)
-        throw new Error("로컬 AI 처리 제한 시간을 초과했습니다.");
-      setMsg(`${processed}개 로컬 AI 자동 처리를 마쳤습니다.`);
+        mode: dewatermarkMode,
+      });
+      setApiBatch({
+        id: response.batch.id,
+        status: "queued",
+        mode: response.batch.mode,
+        requestedCount: response.batch.accepted,
+        claimedCount: 0,
+        completedCount: 0,
+        failedCount: 0,
+        errorMessage: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        completedAt: null,
+      });
+      setMsg(
+        `${response.batch.accepted}개 서버 자동 처리를 시작했습니다. PC나 브라우저를 꺼도 계속 진행됩니다.`,
+      );
       router.refresh();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
@@ -556,10 +267,7 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
           target.id === item.id ? { ...target, status: "processing" } : target,
         ),
       );
-      const settings = (await fetch(
-        "/api/products/image-workbench/settings",
-      ).then((response) => response.json())) as WorkSettings;
-      const result = await processClaimed(job, settings);
+      const result = await processClaimed(job);
       setLocalItems((current) =>
         current.map((target) =>
           target.id === item.id
@@ -597,10 +305,7 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
     setBusy(true);
     let done = 0;
     try {
-      const settings = (await fetch(
-        "/api/products/image-workbench/settings",
-      ).then((response) => response.json())) as WorkSettings;
-      const concurrency = await inferenceConcurrency();
+      const concurrency = 1;
       for (let index = 0; index < targets.length; index += concurrency) {
         const batch = targets.slice(index, index + concurrency);
         await Promise.all(
@@ -615,7 +320,7 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
                   : target,
               ),
             );
-            const result = await processClaimed(job, settings);
+            const result = await processClaimed(job);
             setLocalItems((current) =>
               current.map((target) =>
                 target.id === item.id
@@ -692,30 +397,75 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
     upload && upload.done > 0
       ? (elapsed / upload.done) * (upload.total - upload.done)
       : NaN;
+  const apiProcessed = apiBatch
+    ? apiBatch.completedCount + apiBatch.failedCount
+    : 0;
+  const apiProgress =
+    apiBatch && apiBatch.requestedCount
+      ? Math.min(100, (apiProcessed / apiBatch.requestedCount) * 100)
+      : 0;
+  const apiElapsed = apiBatch
+    ? Math.max(
+        0,
+        ((apiBatch.completedAt
+          ? new Date(apiBatch.completedAt).getTime()
+          : clock) -
+          new Date(apiBatch.createdAt).getTime()) /
+          1000,
+      )
+    : 0;
+  const apiEta =
+    apiBatch && apiProcessed > 0
+      ? (apiElapsed / apiProcessed) * (apiBatch.requestedCount - apiProcessed)
+      : NaN;
+  const apiRunning =
+    apiBatch?.status === "queued" || apiBatch?.status === "running";
+  const apiStalled =
+    apiRunning &&
+    clock - new Date(apiBatch.updatedAt).getTime() > 75_000;
+  const plannedCredits = autoCount * (dewatermarkMode === "PRO" ? 3 : 1);
+  const creditShortage =
+    availableCredits === null
+      ? null
+      : Math.max(0, plannedCredits - availableCredits);
+  const creditsAfter =
+    availableCredits === null
+      ? null
+      : Math.max(0, availableCredits - plannedCredits);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!current || busy || upload) return;
-      const tag = (document.activeElement as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (event.key === "1" || event.key === "Enter") {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const passKey =
+        event.key === "1" ||
+        event.code === "Digit1" ||
+        event.code === "Numpad1" ||
+        event.key === "Enter";
+      const holdKey =
+        event.key === "2" ||
+        event.code === "Digit2" ||
+        event.code === "Numpad2" ||
+        event.key.toLowerCase() === "h";
+      const reworkKey =
+        event.key === "3" ||
+        event.code === "Digit3" ||
+        event.code === "Numpad3";
+      if (passKey) {
         event.preventDefault();
         void choose("pass", current.id);
-      } else if (event.key === "2" || event.key.toLowerCase() === "h") {
+      } else if (holdKey) {
         event.preventDefault();
         void choose("hold", current.id);
-      } else if (event.key === "3") {
+      } else if (reworkKey) {
         event.preventDefault();
         void choose("rework", current.id);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [current, busy, upload, localItems]);
   return (
     <div>
-      <div className="mb-3 flex justify-end">
-        <LocalAiStatusBadge />
-      </div>
       {upload && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
@@ -756,23 +506,36 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
           <input
             type="number"
             min="1"
-            max="200"
+            max="10000"
             value={autoCount}
             onChange={(e) =>
               setAutoCount(
-                Math.max(1, Math.min(200, Number(e.target.value) || 1)),
+                Math.max(1, Math.min(10_000, Number(e.target.value) || 1)),
               )
             }
             className="w-20 rounded border px-2 py-1 text-right"
           />
           개
         </label>
+        <label className="flex items-center gap-2 rounded border bg-white px-3 py-2 text-sm font-semibold">
+          처리 방식
+          <select
+            value={dewatermarkMode}
+            onChange={(event) =>
+              setDewatermarkMode(event.target.value as DewatermarkMode)
+            }
+            className="rounded border px-2 py-1"
+          >
+            <option value="STANDARD">일반 API · 1크레딧 (기본)</option>
+            <option value="PRO">PRO 고품질 · 3크레딧</option>
+          </select>
+        </label>
         <button
-          disabled={busy || !queued.length}
+          disabled={busy || apiRunning}
           onClick={run}
           className="cursor-pointer rounded bg-zinc-900 px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
-          설정 수량 자동 처리
+          {apiRunning ? "서버에서 처리 중" : "설정 수량 자동 처리"}
         </button>
         <button
           disabled={busy || !ready.length}
@@ -801,6 +564,101 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
           {failed.length}
         </span>
       </div>
+      <section className="mb-4 rounded-xl border bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <strong>Dewatermark 크레딧</strong>
+          <span className="text-xs text-zinc-500">30초마다 자동 갱신</span>
+        </div>
+        {availableCredits !== null ? (
+          <div className="mt-2 grid gap-2 text-sm sm:grid-cols-4">
+            <div className="rounded bg-zinc-50 p-3">
+              <span className="block text-xs text-zinc-500">현재 보유</span>
+              <strong>{availableCredits.toLocaleString()} 크레딧</strong>
+            </div>
+            <div className="rounded bg-zinc-50 p-3">
+              <span className="block text-xs text-zinc-500">설정 수량 최대 필요</span>
+              <strong>{plannedCredits.toLocaleString()} 크레딧</strong>
+            </div>
+            <div className="rounded bg-zinc-50 p-3">
+              <span className="block text-xs text-zinc-500">작업 후 예상</span>
+              <strong>{creditsAfter?.toLocaleString()} 크레딧</strong>
+            </div>
+            <div
+              className={`rounded p-3 ${
+                creditShortage ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"
+              }`}
+            >
+              <span className="block text-xs">
+                {creditShortage ? "부족 수량" : "작업 가능"}
+              </span>
+              <strong>
+                {creditShortage
+                  ? `${creditShortage.toLocaleString()} 크레딧 부족`
+                  : "크레딧 충분"}
+              </strong>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-zinc-500">
+            {creditError || "크레딧 잔액을 확인하는 중입니다…"}
+          </p>
+        )}
+        <p className="mt-2 text-xs text-zinc-500">
+          일반 API는 장당 1크레딧, PRO는 장당 3크레딧으로 계산됩니다.
+        </p>
+      </section>
+      {apiBatch && (
+        <section className="mb-4 rounded-xl border border-violet-200 bg-violet-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <strong className="text-violet-950">
+              AI 이미지 서버 자동 처리
+            </strong>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-violet-800">
+              {apiStalled ? "자동 복구 중" : apiRunning ? "진행 중" : "완료"}
+            </span>
+          </div>
+          <div className="mt-3 h-3 overflow-hidden rounded-full bg-violet-100">
+            <div
+              className="h-full bg-violet-600 transition-all duration-500"
+              style={{ width: `${apiProgress}%` }}
+            />
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-zinc-700">
+            <span>
+              {apiProcessed}/{apiBatch.requestedCount}장 ({Math.round(apiProgress)}%)
+            </span>
+            <span>성공 {apiBatch.completedCount}장</span>
+            <span>실패 {apiBatch.failedCount}장</span>
+            <span>경과 {duration(apiElapsed)}</span>
+            {apiProcessed > 0 && apiElapsed > 0 && (
+              <span>
+                처리 속도 약{" "}
+                {Math.max(0.1, (apiProcessed / apiElapsed) * 60).toFixed(1)}
+                장/분
+              </span>
+            )}
+            {apiRunning && (
+              <span>
+                {apiStalled
+                  ? "멈춤 감지 · 서버가 자동으로 재연결하고 있습니다"
+                  : `예상 남은 시간 ${duration(apiEta)}`}
+              </span>
+            )}
+            <span>
+              예상 사용 {apiBatch.requestedCount * (apiBatch.mode === "PRO" ? 3 : 1)}
+              크레딧
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-zinc-500">
+            이 화면을 닫거나 다른 메뉴로 이동하고 컴퓨터를 꺼도 서버에서 계속 처리됩니다.
+          </p>
+          {apiBatch.errorMessage && apiBatch.failedCount > 0 && (
+            <p className="mt-2 rounded bg-red-50 p-2 text-xs text-red-700">
+              최근 오류: {apiBatch.errorMessage}
+            </p>
+          )}
+        </section>
+      )}
       {msg && <p className="mb-4 rounded border bg-white p-3 text-sm">{msg}</p>}
       {ready.length > 0 && (
         <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">

@@ -5,27 +5,23 @@ import { requireApiUser, UnauthorizedError } from "@/lib/session";
 export async function POST() {
   try {
     await requireApiUser();
-    const [soldOutResult, reactivatedResult] = await prisma.$transaction([
+    const [legacyResult, stockedSoldOutResult] = await prisma.$transaction([
       prisma.product.updateMany({
-        where: {
-          stockQuantity: { lte: 0 },
-          status: { not: "sold_out" },
-        },
-        data: { status: "sold_out" },
+        where: { status: "inactive" },
+        data: { status: "unlisted" },
       }),
       prisma.product.updateMany({
-        where: {
-          stockQuantity: { gt: 0 },
-          status: { not: "active" },
-        },
-        data: { status: "active" },
+        where: { status: "sold_out", stockQuantity: { gt: 0 } },
+        data: { status: "unlisted" },
       }),
     ]);
 
     return Response.json({
-      updated: soldOutResult.count + reactivatedResult.count,
-      soldOut: soldOutResult.count,
-      reactivated: reactivatedResult.count,
+      updated: legacyResult.count + stockedSoldOutResult.count,
+      soldOut: 0,
+      reactivated: 0,
+      unlisted: legacyResult.count + stockedSoldOutResult.count,
+      stockedSoldOut: stockedSoldOutResult.count,
     });
   } catch (error) {
     if (error instanceof UnauthorizedError) {

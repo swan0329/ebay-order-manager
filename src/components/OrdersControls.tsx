@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Download, RefreshCw, Search } from "lucide-react";
+import { normalizeOrderStatusParam } from "@/lib/ebay-order-status";
 
 function toIsoDate(value: string, endOfDay = false) {
   if (!value) {
@@ -18,8 +19,11 @@ export function OrdersControls() {
   const searchParams = useSearchParams();
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
+  const [status_, setStatus_] = useState<"idle" | "ok" | "error" | "reconnect">(
+    "idle",
+  );
   const autoSyncStarted = useRef(false);
-  const status = searchParams.get("status") ?? "OPEN";
+  const status = normalizeOrderStatusParam(searchParams.get("status"));
   const query = searchParams.get("q") ?? "";
   const from = searchParams.get("from") ?? "";
   const to = searchParams.get("to") ?? "";
@@ -35,11 +39,7 @@ export function OrdersControls() {
 
     for (const key of ["q", "status", "inventory", "from", "to"]) {
       const value = String(form.get(key) ?? "").trim();
-      if (
-        value &&
-        !(key === "status" && value === "ALL") &&
-        !(key === "inventory" && value === "all")
-      ) {
+      if (value && !(key === "inventory" && value === "all")) {
         params.set(key, value);
       }
     }
@@ -55,15 +55,17 @@ export function OrdersControls() {
   }
 
   const syncOrders = useCallback(
-    async ({ clearAutoSyncParams = false }: { clearAutoSyncParams?: boolean } = {}) => {
+    async () => {
       setSyncing(true);
+      setStatus_("idle");
       setMessage("eBay 주문을 불러오는 중입니다.");
 
+      // 주문 불러오기는 화면 상태 필터(배송대기 등)와 무관하게 eBay의 모든 주문을
+      // 가져온다. 상태 필터는 가져온 주문을 화면에서 거를 때만 쓴다.
       const response = await fetch("/api/orders/sync", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          fulfillmentStatus: status === "ALL" ? undefined : status,
           creationDateFrom: toIsoDate(from),
           creationDateTo: toIsoDate(to, true),
         }),
@@ -73,23 +75,38 @@ export function OrdersControls() {
         | null;
 
       setSyncing(false);
-      setMessage(
-        response.ok
-          ? `eBay 주문 ${data?.imported ?? 0}건을 불러왔습니다.`
-          : data?.error ?? "eBay 주문을 불러오지 못했습니다.",
-      );
 
-      if (clearAutoSyncParams) {
-        const nextParams = new URLSearchParams(searchParams.toString());
-        nextParams.delete("connected");
-        nextParams.delete("sync");
-        const nextQuery = nextParams.toString();
-        router.replace(`/orders${nextQuery ? `?${nextQuery}` : ""}`, { scroll: false });
+      const errorText = data?.error ?? "";
+      const needsReconnect =
+        !response.ok &&
+        /invalid_grant|\(401\)|\(403\)|연결되지|재연결/.test(errorText);
+
+      if (response.ok) {
+        setStatus_("ok");
+        setMessage(`eBay 주문 ${data?.imported ?? 0}건을 불러왔습니다.`);
+      } else if (needsReconnect) {
+        setStatus_("reconnect");
+        setMessage(
+          "eBay 연결이 만료되어 주문을 불러올 수 없습니다. eBay 계정을 다시 연결해 주세요.",
+        );
+      } else {
+        setStatus_("error");
+        setMessage(errorText || "eBay 주문을 불러오지 못했습니다.");
       }
+
+      // 방금 불러온 주문(모든 상태)이 바로 보이도록 화면 필터를 "전체"로 전환한다.
+      const nextParams = new URLSearchParams(searchParams.toString());
+      nextParams.delete("connected");
+      nextParams.delete("sync");
+      if (response.ok) {
+        nextParams.set("status", "ALL");
+      }
+      const nextQuery = nextParams.toString();
+      router.replace(`/orders${nextQuery ? `?${nextQuery}` : ""}`, { scroll: false });
 
       router.refresh();
     },
-    [from, router, searchParams, status, to],
+    [from, router, searchParams, to],
   );
 
   useEffect(() => {
@@ -98,7 +115,7 @@ export function OrdersControls() {
     }
 
     autoSyncStarted.current = true;
-    void syncOrders({ clearAutoSyncParams: true });
+    void syncOrders();
   }, [shouldAutoSync, syncOrders]);
 
   return (
@@ -128,11 +145,11 @@ export function OrdersControls() {
             defaultValue={status}
             className="h-10 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
           >
-            <option value="OPEN">배송대기</option>
-            <option value="NOT_STARTED">미시작</option>
-            <option value="IN_PROGRESS">부분배송</option>
-            <option value="FULFILLED">배송완료</option>
             <option value="ALL">전체</option>
+            <option value="AWAITING_PAYMENT">입금대기</option>
+            <option value="AWAITING_SHIPMENT">배송대기</option>
+            <option value="SHIPPED">배송완료</option>
+            <option value="CANCELLED">취소·환불</option>
           </select>
           <select
             name="inventory"
@@ -183,11 +200,31 @@ export function OrdersControls() {
               CSV
             </a>
           </div>
-          <div className="text-sm text-zinc-600">
-            {message ? (
-              <p>{message}</p>
+          <div className="text-sm">
+            {status_ === "reconnect" ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 font-medium text-rose-800">
+                <span>{message}</span>
+                <a
+                  href="/connect"
+                  className="inline-flex h-7 items-center rounded-md bg-rose-600 px-3 text-xs font-semibold text-white hover:bg-rose-700"
+                >
+                  eBay 재연결
+                </a>
+              </div>
+            ) : status_ === "error" ? (
+              <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 font-medium text-rose-800">
+                {message}
+              </p>
+            ) : status_ === "ok" ? (
+              <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 font-medium text-emerald-800">
+                {message}
+              </p>
+            ) : message ? (
+              <p className="text-zinc-600">{message}</p>
             ) : (
-              <p>조회는 저장된 주문 필터링이고, 최신 eBay 주문은 주문 불러오기로 가져옵니다.</p>
+              <p className="text-zinc-600">
+                조회는 저장된 주문 필터링이고, 최신 eBay 주문은 주문 불러오기로 가져옵니다.
+              </p>
             )}
           </div>
         </div>

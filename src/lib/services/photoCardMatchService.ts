@@ -1,12 +1,16 @@
 import sharp from "sharp";
 import { Prisma } from "@/generated/prisma";
+import { createInventoryMovementTx } from "@/lib/inventory";
 import { deleteObjectFromR2, r2KeyFromPublicUrl, uploadBufferToR2 } from "@/lib/r2";
 import { prisma } from "@/lib/prisma";
-import { ensureProductImageMatchColumns } from "@/lib/services/productImageMatchService";
+import {
+  computeQuickHashFingerprintFromBuffer,
+  ensureProductImageMatchColumns,
+} from "@/lib/services/productImageMatchService";
 
 const defaultLimit = 50;
 const maxLimit = 50;
-const facetCacheTtlMs = 60_000;
+const facetCacheTtlMs = 300_000;
 const defaultR2BulkBatchSize = 20;
 const maxR2BulkBatchSize = 50;
 const maxSourceImageBytes = 12 * 1024 * 1024;
@@ -49,6 +53,9 @@ export type PhotoCardCandidate = {
   userFrontR2Key: string | null;
   userBackR2Key: string | null;
   stockQuantity: number;
+  salePrice: number | null;
+  ebayPrice: number | null;
+  featuredMembers: string | null;
   userImageRegistered: boolean;
   hasBackImage: boolean;
 };
@@ -77,6 +84,9 @@ type PhotoCardCandidateRow = {
   userFrontR2Key: string | null;
   userBackR2Key: string | null;
   stockQuantity: number;
+  salePrice: number | null;
+  ebayPrice: number | null;
+  featuredMembers: string | null;
   userImageRegistered: boolean;
   hasBackImage: boolean;
 };
@@ -93,6 +103,7 @@ type ProductPhotoCardRow = {
   userBackImageUrl: string | null;
   userFrontR2Key: string | null;
   userBackR2Key: string | null;
+  stockQuantity: number | null;
 };
 
 type DistinctValueRow = {
@@ -104,6 +115,7 @@ export type ConfirmPhotoCardImageInput = {
   userFrontImageUrl: string;
   userBackImageUrl?: string | null;
   publicBaseUrl?: string | null;
+  createdBy?: string | null;
 };
 
 export type PhotoCardR2UploadFilters = {
@@ -148,6 +160,8 @@ export type PhotoCardImageUpdateResult = {
   userBackR2Key: string | null;
   hasBackImage: boolean;
   ebayImageUrls: string[];
+  stockQuantity: number;
+  stockIncremented: boolean;
 };
 
 export async function listPhotoCardCandidates(filters: PhotoCardCandidateFilters) {
@@ -159,7 +173,7 @@ export async function listPhotoCardCandidates(filters: PhotoCardCandidateFilters
     ? Prisma.sql`WHERE ${Prisma.join(clauses, " AND ")}`
     : Prisma.empty;
   const orderSql = Prisma.join(candidateOrderClauses(normalized), ", ");
-  const rows = await prisma.$queryRaw<PhotoCardCandidateRow[]>`
+  const candidatesQuery = prisma.$queryRaw<PhotoCardCandidateRow[]>`
     SELECT
       "id" AS "cardId",
       "sku",
@@ -177,6 +191,9 @@ export async function listPhotoCardCandidates(filters: PhotoCardCandidateFilters
       "user_front_r2_key" AS "userFrontR2Key",
       "user_back_r2_key" AS "userBackR2Key",
       "stock_quantity" AS "stockQuantity",
+      "sale_price"::float8 AS "salePrice",
+      "ebay_price"::float8 AS "ebayPrice",
+      "featured_members" AS "featuredMembers",
       ("user_front_image_url" IS NOT NULL AND "user_front_image_url" <> '') AS "userImageRegistered",
       "has_back_image" AS "hasBackImage"
     FROM "products"
@@ -185,7 +202,12 @@ export async function listPhotoCardCandidates(filters: PhotoCardCandidateFilters
     LIMIT ${normalized.limit}
     OFFSET ${normalized.offset}
   `;
-  const facets = await loadPhotoCardFacets(normalized);
+  // Run the candidate query and the facet (dropdown) queries in parallel so the
+  // response time is the slower of the two, not their sum.
+  const [rows, facets] = await Promise.all([
+    candidatesQuery,
+    loadPhotoCardFacets(normalized),
+  ]);
 
   return {
     candidates: rows.map(toPhotoCardCandidate),
@@ -196,6 +218,48 @@ export async function listPhotoCardCandidates(filters: PhotoCardCandidateFilters
       hasMore: rows.length === normalized.limit,
     },
   };
+}
+
+// Distinct real member names for a group — used to populate the member picker
+// when assigning members to "unit" cards.
+export async function listGroupMembers(group: string): Promise<string[]> {
+  const trimmed = group.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  await ensurePhotoCardSearchSupport();
+
+  const rows = await prisma.$queryRaw<DistinctValueRow[]>`
+    SELECT DISTINCT "option_name" AS "value"
+    FROM "products"
+    WHERE LOWER(COALESCE("brand", '')) = LOWER(${trimmed})
+      AND "option_name" IS NOT NULL
+      AND "option_name" <> ''
+      AND LOWER("option_name") <> 'unit'
+    ORDER BY "value"
+    LIMIT 100
+  `;
+
+  return rows
+    .map((row) => row.value?.trim())
+    .filter((value): value is string => Boolean(value));
+}
+
+export async function setProductFeaturedMembers(
+  productId: string,
+  members: string[],
+): Promise<string | null> {
+  await ensureProductImageMatchColumns();
+
+  const value = members.map((name) => name.trim()).filter(Boolean).join(", ");
+  const stored = value ? value : null;
+
+  await prisma.$executeRaw`
+    UPDATE "products" SET "featured_members" = ${stored} WHERE "id" = ${productId}
+  `;
+
+  return stored;
 }
 
 export async function countPendingPhotoCardR2Uploads(
@@ -284,10 +348,13 @@ export async function confirmPhotoCardImage(
     throw new Error("Product not found.");
   }
 
-  const frontBuffer = await optimizedJpegBufferFromDataUrl(input.userFrontImageUrl);
-  const backBuffer = input.userBackImageUrl
-    ? await optimizedJpegBufferFromDataUrl(input.userBackImageUrl)
-    : null;
+  // Optimize front and back in parallel instead of one after the other.
+  const [frontBuffer, backBuffer] = await Promise.all([
+    optimizedJpegBufferFromDataUrl(input.userFrontImageUrl),
+    input.userBackImageUrl
+      ? optimizedJpegBufferFromDataUrl(input.userBackImageUrl)
+      : Promise.resolve(null),
+  ]);
   const objectKeys = photoCardR2ObjectKeys({
     groupName: product.groupName,
     productCode: photoCardProductCode({
@@ -297,30 +364,40 @@ export async function confirmPhotoCardImage(
     }),
   });
 
-  const uploadedKeys: string[] = [];
+  // Compute the (cheap, hashes-only) fingerprint concurrently with the network
+  // uploads so the CPU work overlaps the upload latency. ORB/color are filled in
+  // later by the offline fingerprint batch.
+  const fingerprintPromise = computeQuickHashFingerprintFromBuffer(frontBuffer).catch(
+    () => null,
+  );
+
   let frontUpload: { key: string; url: string } | null = null;
   let backUpload: { key: string; url: string } | null = null;
 
   try {
-    frontUpload = await uploadBufferToR2({
-      buffer: frontBuffer,
-      key: objectKeys.frontKey,
-      contentType: "image/jpeg",
-      cacheControl: "no-cache",
-    });
-    uploadedKeys.push(frontUpload.key);
-
-    if (backBuffer) {
-      backUpload = await uploadBufferToR2({
-        buffer: backBuffer,
-        key: objectKeys.backKey,
+    // Upload front and back at the same time.
+    [frontUpload, backUpload] = await Promise.all([
+      uploadBufferToR2({
+        buffer: frontBuffer,
+        key: objectKeys.frontKey,
         contentType: "image/jpeg",
         cacheControl: "no-cache",
-      });
-      uploadedKeys.push(backUpload.key);
-    }
+      }),
+      backBuffer
+        ? uploadBufferToR2({
+            buffer: backBuffer,
+            key: objectKeys.backKey,
+            contentType: "image/jpeg",
+            cacheControl: "no-cache",
+          })
+        : Promise.resolve(null),
+    ]);
   } catch (error) {
-    await cleanupUploadedR2Objects(uploadedKeys);
+    await cleanupUploadedR2Objects(
+      [frontUpload?.key, backUpload?.key].filter(
+        (key): key is string => Boolean(key),
+      ),
+    );
     throw error;
   }
 
@@ -346,30 +423,77 @@ export async function confirmPhotoCardImage(
     imageUrl: frontUpload.url,
   }).imageUrls;
 
-  await prisma.$executeRaw`
-    UPDATE "products"
-    SET
-      "image_url" = ${frontUpload.url},
-      "ebay_image_urls" = ${textArraySql(imageUrls)},
-      "source_image_url" = ${sourceImageUrl},
-      "user_front_image_url" = ${frontUpload.url},
-      "user_back_image_url" = ${nextBackImageUrl},
-      "user_front_r2_key" = ${frontUpload.key},
-      "user_back_r2_key" = ${nextBackR2Key},
-      "image_source" = 'r2_user_uploaded',
-      "has_back_image" = ${Boolean(nextBackImageUrl)},
-      "matched_by" = 'manual',
-      "match_confidence" = NULL,
-      "verified_at" = CURRENT_TIMESTAMP,
-      "image_signature" = NULL,
-      "image_phash" = NULL,
-      "image_dhash" = NULL,
-      "image_ahash" = NULL,
-      "orb_descriptor_path" = NULL,
-      "image_fingerprint_updated_at" = NULL,
-      "updated_at" = CURRENT_TIMESTAMP
-    WHERE "id" = ${input.cardId}
-  `;
+  // Await the fingerprint that's been computing in parallel with the uploads.
+  const frontFingerprint = await fingerprintPromise;
+
+  const stockResult = await prisma.$transaction(async (tx) => {
+    // Serialize connections for the same product. This makes the first-connect
+    // stock movement idempotent even if the request is retried concurrently.
+    const lockedRows = await tx.$queryRaw<
+      Array<{
+        userFrontImageUrl: string | null;
+        userFrontR2Key: string | null;
+        stockQuantity: number;
+      }>
+    >`
+      SELECT
+        "user_front_image_url" AS "userFrontImageUrl",
+        "user_front_r2_key" AS "userFrontR2Key",
+        "stock_quantity" AS "stockQuantity"
+      FROM "products"
+      WHERE "id" = ${input.cardId}
+      FOR UPDATE
+    `;
+    const lockedProduct = lockedRows[0];
+    if (!lockedProduct) {
+      throw new Error("Product not found.");
+    }
+
+    const lockedPreviousFrontKey =
+      normalizeText(lockedProduct.userFrontR2Key) ??
+      r2KeyFromPublicUrl(lockedProduct.userFrontImageUrl);
+    const isNewMatch = !lockedPreviousFrontKey;
+
+    await tx.$executeRaw`
+      UPDATE "products"
+      SET
+        "image_url" = ${frontUpload.url},
+        "ebay_image_urls" = ${textArraySql(imageUrls)},
+        "source_image_url" = ${sourceImageUrl},
+        "user_front_image_url" = ${frontUpload.url},
+        "user_back_image_url" = ${nextBackImageUrl},
+        "user_front_r2_key" = ${frontUpload.key},
+        "user_back_r2_key" = ${nextBackR2Key},
+        "image_source" = 'r2_user_uploaded',
+        "has_back_image" = ${Boolean(nextBackImageUrl)},
+        "matched_by" = 'manual',
+        "match_confidence" = NULL,
+        "verified_at" = CURRENT_TIMESTAMP,
+        "image_signature" = ${frontFingerprint ? JSON.stringify(frontFingerprint) : null}::jsonb,
+        "image_phash" = ${frontFingerprint?.phash ?? null},
+        "image_dhash" = ${frontFingerprint?.dhash ?? null},
+        "image_ahash" = ${frontFingerprint?.ahash ?? null},
+        "orb_descriptor_path" = ${frontFingerprint ? "db:image_signature.descriptors" : null},
+        "image_width" = ${frontFingerprint?.width ?? null},
+        "image_height" = ${frontFingerprint?.height ?? null},
+        "image_fingerprint_updated_at" = ${frontFingerprint ? new Date() : null},
+        "updated_at" = CURRENT_TIMESTAMP
+      WHERE "id" = ${input.cardId}
+    `;
+
+    if (!isNewMatch) {
+      return { stockQuantity: lockedProduct.stockQuantity, stockIncremented: false };
+    }
+
+    const movement = await createInventoryMovementTx(tx, {
+      productId: input.cardId,
+      type: "IN",
+      quantity: 1,
+      reason: "촬영본 최초 연결",
+      createdBy: input.createdBy,
+    });
+    return { stockQuantity: movement.afterQuantity, stockIncremented: true };
+  });
 
   await cleanupStaleUploadedKeys({
     previousFrontKey,
@@ -379,15 +503,11 @@ export async function confirmPhotoCardImage(
     backReplaced: Boolean(backUpload),
   });
 
-  const updated = await loadProductForPhotoCard(input.cardId);
-
-  if (!updated) {
-    throw new Error("Product not found after update.");
-  }
-
+  // Use the value RETURNING gave us instead of a second SELECT round-trip; all
+  // other fields are already known from the product we loaded and just wrote.
   return {
-    id: updated.id,
-    sku: updated.sku,
+    id: product.id,
+    sku: product.sku,
     imageUrl: frontUpload.url,
     sourceImageUrl,
     imageSource: "r2_user_uploaded",
@@ -397,6 +517,8 @@ export async function confirmPhotoCardImage(
     userBackR2Key: nextBackR2Key,
     hasBackImage: Boolean(nextBackImageUrl),
     ebayImageUrls: imageUrls,
+    stockQuantity: stockResult.stockQuantity,
+    stockIncremented: stockResult.stockIncremented,
   };
 }
 
@@ -499,6 +621,8 @@ export async function deleteR2PhotoCardImage(
     userBackR2Key: nextBackR2Key,
     hasBackImage: nextHasBackImage,
     ebayImageUrls: imageUrls,
+    stockQuantity: updated.stockQuantity ?? 0,
+    stockIncremented: false,
   };
 }
 
@@ -668,6 +792,22 @@ async function createPhotoCardSearchSupport() {
     CREATE INDEX IF NOT EXISTS "products_photo_title_lower_idx"
       ON "products" (LOWER("product_name"))
   `;
+
+  // Plain btree indexes on the raw columns so the facet "SELECT DISTINCT col
+  // ... ORDER BY col" (dropdown options) runs as a fast ordered index scan
+  // instead of a full table sort.
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "products_photo_brand_idx" ON "products" ("brand")
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "products_photo_member_idx" ON "products" ("option_name")
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "products_photo_album_idx" ON "products" ("category")
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "products_photo_pname_idx" ON "products" ("product_name")
+  `;
 }
 
 async function loadProductForPhotoCard(cardId: string) {
@@ -683,7 +823,8 @@ async function loadProductForPhotoCard(cardId: string) {
       "user_front_image_url" AS "userFrontImageUrl",
       "user_back_image_url" AS "userBackImageUrl",
       "user_front_r2_key" AS "userFrontR2Key",
-      "user_back_r2_key" AS "userBackR2Key"
+      "user_back_r2_key" AS "userBackR2Key",
+      "stock_quantity" AS "stockQuantity"
     FROM "products"
     WHERE "id" = ${cardId}
     LIMIT 1
@@ -1070,10 +1211,9 @@ function photoCardR2PendingWhereClauses(
 function candidateOrderClauses(
   filters: ReturnType<typeof normalizePhotoCardCandidateFilters>,
 ) {
-  const clauses = [
-    Prisma.sql`CASE WHEN "user_front_image_url" IS NOT NULL AND "user_front_image_url" <> '' THEN 1 ELSE 0 END`,
-    Prisma.sql`CASE WHEN "stock_quantity" > 0 THEN 0 ELSE 1 END`,
-  ];
+  // No stock- or connection-based priority: cards are surfaced purely by how
+  // well they match the active filters, then a stable alphabetical/SKU order.
+  const clauses: Prisma.Sql[] = [];
 
   if (filters.member) {
     clauses.push(
@@ -1143,6 +1283,9 @@ function toPhotoCardCandidate(row: PhotoCardCandidateRow): PhotoCardCandidate {
     userFrontR2Key: row.userFrontR2Key,
     userBackR2Key: row.userBackR2Key,
     stockQuantity: row.stockQuantity,
+    salePrice: row.salePrice,
+    ebayPrice: row.ebayPrice,
+    featuredMembers: row.featuredMembers,
     userImageRegistered: row.userImageRegistered,
     hasBackImage: row.hasBackImage,
   };

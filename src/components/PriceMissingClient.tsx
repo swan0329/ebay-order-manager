@@ -60,6 +60,18 @@ function supplyText(item: Item) {
   return "공급 확인 필요";
 }
 
+export function googleImageSearchUrl(item: Pick<Item, "imageUrl" | "brand" | "optionName" | "productName">) {
+  if (item.imageUrl?.trim()) {
+    return `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(item.imageUrl.trim())}`;
+  }
+
+  const query = [item.brand, item.optionName, item.productName, "photocard"]
+    .map((value) => value?.trim())
+    .filter(Boolean)
+    .join(" ");
+  return `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`;
+}
+
 export function PriceMissingClient({
   items: initial,
   pricingReady,
@@ -409,6 +421,21 @@ export function PriceMissingClient({
                       : "eBay 시세"}
                 </button>
 
+                <a
+                  href={googleImageSearchUrl(item)}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={
+                    item.imageUrl
+                      ? "현재 카드 이미지를 Google Lens로 검색합니다"
+                      : "상품 정보로 Google 이미지 검색을 엽니다"
+                  }
+                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Google 이미지
+                </a>
+
                 <button
                   type="button"
                   onClick={() => void saveOne(item)}
@@ -426,9 +453,20 @@ export function PriceMissingClient({
                   {comps.error ? (
                     <p className="text-xs text-rose-700">{comps.error}</p>
                   ) : comps.comps.length === 0 ? (
-                    <p className="text-xs text-amber-700">
-                      eBay에서 같은 카드를 찾지 못했습니다. 직접 입력해 주세요.
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-amber-700">
+                      <span>
+                        eBay에서 신뢰할 수 있는 동일 카드 후보를 찾지 못했습니다.
+                      </span>
+                      <a
+                        href={googleImageSearchUrl(item)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 font-semibold text-white hover:bg-blue-700"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Google 이미지로 찾기
+                      </a>
+                    </div>
                   ) : (
                     <>
                       {comps.comps.some((comp) => comp.isOwnListing) ? (
