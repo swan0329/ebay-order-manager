@@ -17,6 +17,10 @@ import {
 } from "@/lib/variation-listing-groups";
 import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
 import { thumbnailIsCurrent, variationThumbnailHash } from "@/lib/variation-thumbnail-state";
+import {
+  renderListingDescriptionTemplate,
+  resolveListingTemplateDefaults,
+} from "@/lib/services/listingTemplateService";
 
 const schema = z.object({
   groupKeys: z.array(z.string().min(1)).min(1).max(20),
@@ -49,9 +53,10 @@ export async function POST(request: Request) {
     });
     if (!latestReport) return jsonError("먼저 eBay 전체 활성상품 보고서를 가져와 주세요.", 409);
 
-    const [readyImages, pricingSettings] = await Promise.all([
+    const [readyImages, pricingSettings, templateResult] = await Promise.all([
       getVariationListingReadyImages(),
       prisma.pricingSettings.findUnique({ where: { id: "default" } }),
+      resolveListingTemplateDefaults(user.id),
     ]);
     if (!pricingSettings) return jsonError("가격 설정을 먼저 저장해 주세요.", 422);
     const storedProducts = await prisma.product.findMany({ where: { id: { in: readyImages.map((row) => row.id) } } });
@@ -84,16 +89,30 @@ export async function POST(request: Request) {
       }));
       if (priced.some((item) => !item.price)) return jsonError(`${group.title}: 가격이 없는 카드가 있습니다.`, 422);
       const first = group.products[0];
+      const listingTitle = variationEbayTitle(group.title);
+      const parentSku = variationParentSku(group.key);
+      const description = renderListingDescriptionTemplate(
+        templateResult.template?.descriptionTemplateHtml,
+        {
+          descriptionHtml: buildEbayListingDescription(first),
+          sku: parentSku,
+          price: priced[0]?.price ?? null,
+          quantity: 1,
+          brand: group.groupName,
+          condition: first.ebayCondition,
+        },
+        listingTitle,
+      );
       rows.push({
         [headers[0]]: state?.ebayItemId ? "Revise" : "Add",
         [headers[1]]: state?.ebayItemId ?? "",
-        [headers[2]]: variationParentSku(group.key),
+        [headers[2]]: parentSku,
         [headers[3]]: buildEbayListingCategoryId(first),
-        [headers[4]]: variationEbayTitle(group.title),
+        [headers[4]]: listingTitle,
         [headers[6]]: relationshipDetails(group),
         [headers[10]]: state.thumbnailUrl,
         [headers[11]]: buildEbayListingConditionId({ ebayCondition: first.ebayCondition }),
-        [headers[12]]: buildEbayListingDescription(first),
+        [headers[12]]: description,
         [headers[13]]: "FixedPrice", [headers[14]]: "GTC", [headers[15]]: "1",
         [headers[16]]: "1", [headers[17]]: "South Korea", [headers[18]]: "KR",
         [headers[19]]: "Kpop PC New", [headers[20]]: "No Return Accepted (411199464022)",

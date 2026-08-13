@@ -42,6 +42,32 @@ function nullableText(value: unknown) {
   return text ? text : null;
 }
 
+export function renderListingDescriptionTemplate(
+  template: string | null | undefined,
+  draft: Pick<
+    ListingUploadDraft,
+    "descriptionHtml" | "sku" | "price" | "quantity" | "brand" | "condition"
+  >,
+  title: string,
+) {
+  const source = template?.trim() || String(draft.descriptionHtml ?? "").trim();
+  if (!source) return "";
+
+  const replacements: Record<string, string> = {
+    title: String(title ?? "").trim(),
+    sku: String(draft.sku ?? "").trim(),
+    price: String(draft.price ?? "").trim(),
+    quantity: String(draft.quantity ?? "").trim(),
+    brand: String(draft.brand ?? "").trim(),
+    condition: String(draft.condition ?? "").trim(),
+  };
+
+  return source.replace(
+    /\{\{?\s*([a-zA-Z0-9_]+)\s*\}?\}/g,
+    (_, key: string) => replacements[key] ?? "",
+  );
+}
+
 function nullableNumberText(value: unknown) {
   const text = String(value ?? "").trim();
   return text ? text : null;

@@ -30,6 +30,7 @@ import {
 } from "@/lib/services/listingUploadInput";
 import {
   listingTemplateToDefaults,
+  renderListingDescriptionTemplate,
   resolveListingTemplateDefaults,
 } from "@/lib/services/listingTemplateService";
 
@@ -101,31 +102,6 @@ function renderTitle(template: string | null | undefined, draft: ListingUploadDr
 // Renders the template's description HTML per product, substituting {title} etc.
 // so each listing shows its own product name on top with a shared body below.
 // Falls back to the product's own description when no template body is set.
-function renderDescription(
-  template: string | null | undefined,
-  draft: ListingUploadDraft,
-  title: string,
-) {
-  const source = template && template.trim() ? template : text(draft.descriptionHtml);
-  if (!source) {
-    return "";
-  }
-
-  const replacements: Record<string, string> = {
-    title: text(title),
-    sku: text(draft.sku),
-    price: text(draft.price),
-    quantity: text(draft.quantity),
-    brand: text(draft.brand),
-    condition: text(draft.condition),
-  };
-
-  return source.replace(
-    /\{\{?\s*([a-zA-Z0-9_]+)\s*\}?\}/g,
-    (_, key: string) => replacements[key] ?? "",
-  );
-}
-
 function listingFormat(value: unknown) {
   const normalized = text(value).toUpperCase().replace(/[-_\s]/g, "");
 
@@ -536,7 +512,7 @@ export async function POST(request: Request) {
       if (!text(merged.price)) return [];
       const title =
         renderTitle(templateResult.template?.titleTemplate, merged) || text(merged.title);
-      const descriptionHtml = renderDescription(
+      const descriptionHtml = renderListingDescriptionTemplate(
         templateResult.template?.descriptionTemplateHtml,
         merged,
         title,
@@ -544,7 +520,7 @@ export async function POST(request: Request) {
       // eBay's separate Condition Description field (the one shown in the
       // individual listing flow) — kept distinct from the item description.
       const conditionDescription = templateResult.template?.conditionDescription
-        ? renderDescription(templateResult.template.conditionDescription, merged, title)
+        ? renderListingDescriptionTemplate(templateResult.template.conditionDescription, merged, title)
         : text(merged.conditionDescription);
       // The template's quantity is an explicit listing quantity, so it wins over
       // the product's stock count. Procurement listings are always capped at 1
