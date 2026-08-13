@@ -41,6 +41,12 @@ type BatchResult = {
   failed: number;
   finishedAt: number;
 };
+type ListingTemplate = {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  descriptionTemplateHtml: string | null;
+};
 export function VariationListingGroupsClient() {
   const [data, setData] = useState<Payload | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -61,12 +67,24 @@ export function VariationListingGroupsClient() {
   } | null>(null);
   const [batchResult, setBatchResult] = useState<BatchResult | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [templates, setTemplates] = useState<ListingTemplate[]>([]);
+  const [templateId, setTemplateId] = useState("");
   useEffect(() => {
-    void fetch("/api/listing-upload/variation-groups", { cache: "no-store" })
-      .then(async (r) => {
-        const b = await r.json();
-        if (!r.ok) throw new Error(b.error);
-        setData(b);
+    void Promise.all([
+      fetch("/api/listing-upload/variation-groups", { cache: "no-store" }),
+      fetch("/api/listings/templates", { cache: "no-store" }),
+    ])
+      .then(async ([groupsResponse, templatesResponse]) => {
+        const groupsBody = await groupsResponse.json();
+        const templatesBody = await templatesResponse.json();
+        if (!groupsResponse.ok) throw new Error(groupsBody.error);
+        if (!templatesResponse.ok) throw new Error(templatesBody.error);
+        const availableTemplates = (templatesBody.templates ?? []) as ListingTemplate[];
+        setData(groupsBody);
+        setTemplates(availableTemplates);
+        setTemplateId(
+          availableTemplates.find((template) => template.isDefault)?.id ?? "",
+        );
       })
       .catch((e) => setError(String(e)));
   }, []);
@@ -98,6 +116,10 @@ export function VariationListingGroupsClient() {
   const selectedReady =
     selectedGroups.length > 0 &&
     selectedGroups.every((group) => group.thumbnailStatus === "READY");
+  const selectedTemplate = templates.find((template) => template.id === templateId);
+  const descriptionTemplateReady = Boolean(
+    selectedTemplate?.descriptionTemplateHtml?.trim(),
+  );
   const toggle = (key: string) =>
     setSelected((v) =>
       v.includes(key) ? v.filter((x) => x !== key) : [...v, key],
@@ -123,7 +145,7 @@ export function VariationListingGroupsClient() {
         method: "POST",
         headers: { "content-type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({ groupKeys, confirmed: true }),
+        body: JSON.stringify({ groupKeys, templateId, confirmed: true }),
       });
       if (!r.ok) {
         const contentType = r.headers.get("content-type") ?? "";
@@ -549,6 +571,36 @@ export function VariationListingGroupsClient() {
         </div>
       </section>
       <div className="sticky bottom-4 space-y-3 rounded-xl border bg-white/95 p-4 shadow-lg backdrop-blur">
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+          <label className="block text-sm font-bold text-blue-950">
+            상세페이지 템플릿
+            <select
+              value={templateId}
+              onChange={(event) => setTemplateId(event.target.value)}
+              className="mt-2 block h-11 w-full rounded-md border border-blue-300 bg-white px-3 text-sm font-medium text-zinc-900"
+            >
+              <option value="">템플릿을 선택해 주세요</option>
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                  {template.isDefault ? " · 기본" : ""}
+                  {!template.descriptionTemplateHtml?.trim()
+                    ? " · 상세 HTML 없음"
+                    : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="mt-2 text-xs text-blue-900">
+            선택한 템플릿의 상세 HTML과 제목·SKU 치환값을 옵션상품 CSV에도
+            그대로 적용합니다.
+          </p>
+          <p className="mt-1 text-xs text-blue-900">
+            옵션상품의 {"{title}"} 줄에는 개별 카드명이 아니라 묶음 대표
+            상품명이 들어갑니다. eBay 옵션상품은 모든 카드가 상세페이지 하나를
+            공유합니다.
+          </p>
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <b>{selected.length}개 묶음 선택</b>
@@ -600,7 +652,8 @@ export function VariationListingGroupsClient() {
                 !selectedReady ||
                 busy ||
                 !data.latestCompleteReportAt ||
-                !data.pricingReady
+                !data.pricingReady ||
+                !descriptionTemplateReady
               }
               onClick={downloadVariationCsv}
               className="h-11 rounded bg-violet-600 px-5 text-sm font-semibold text-white disabled:bg-zinc-300"
@@ -609,6 +662,12 @@ export function VariationListingGroupsClient() {
             </button>
           </div>
         </div>
+        {!descriptionTemplateReady && (
+          <p className="rounded bg-red-50 p-2 text-xs font-semibold text-red-800">
+            상세페이지 HTML이 저장된 템플릿을 선택해야 CSV를 받을 수 있습니다.
+            템플릿이 없다면 먼저 신규등록 → 등록 템플릿에서 만들어 주세요.
+          </p>
+        )}
         {batchResult && (
           <div
             className={`rounded-lg border p-3 text-sm ${batchResult.failed ? "border-amber-300 bg-amber-50 text-amber-900" : "border-emerald-300 bg-emerald-50 text-emerald-900"}`}
