@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildVariationListingGroups, relationshipDetails } from "./variation-listing-groups";
+import { buildVariationListingGroups, relationshipDetails, variationEbayTitle } from "./variation-listing-groups";
 
 const base = { brand: "Stray Kids", category: "HOP", productName: "JYP Shop", imageUrl: "https://example.com/card.jpg" };
 
@@ -43,5 +43,12 @@ describe("buildVariationListingGroups", () => {
     expect(result.groups).toHaveLength(1);
     expect(result.groups[0].versionName).toBe("");
     expect(result.groups[0].title).toBe("Stray Kids HOP");
+  });
+
+  it("keeps the Photocard keyword within eBay's 80 character title limit", () => {
+    const title = variationEbayTitle("Very Long Kpop Group Name With Many Characters Extremely Long Album Name With Extra Words");
+    expect(title).toMatch(/ Photocard$/);
+    expect(title.length).toBeLessThanOrEqual(80);
+    expect(variationEbayTitle("IVE Album Photocard")).toBe("IVE Album Photocard");
   });
 });
