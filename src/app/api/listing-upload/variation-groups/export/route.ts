@@ -15,7 +15,7 @@ import {
   variationEbayTitle,
   variationParentSku,
 } from "@/lib/variation-listing-groups";
-import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
+import { getVariationListingReadyImages, isPublicListingImageUrl } from "@/lib/variation-listing-products";
 import { thumbnailIsCurrent, variationThumbnailHash } from "@/lib/variation-thumbnail-state";
 import {
   renderListingDescriptionTemplate,
@@ -92,6 +92,11 @@ export async function POST(request: Request) {
       const includedIds = Array.isArray(state?.includedProductIds) ? state.includedProductIds.filter((id): id is string => typeof id === "string") : [];
       const exportProducts = state?.ebayItemId ? group.products.filter((product) => !includedIds.includes(product.id)) : group.products;
       if (!exportProducts.length) continue;
+      const invalidImages = exportProducts.filter((product) => !isPublicListingImageUrl(product.imageUrl));
+      if (invalidImages.length) {
+        const cards = invalidImages.slice(0, 5).map((product) => `${product.variationName} (SKU ${product.sku})`).join(", ");
+        return jsonError(`${group.title}: eBay에 사용할 공개 이미지가 없는 카드가 있습니다: ${cards}. '선택 묶음 썸네일 만들기'를 다시 눌러 R2 저장을 완료해 주세요.`, 422);
+      }
       if (group.products.length > 40) return jsonError(`${group.title}: 옵션은 최대 40장까지 지원합니다.`, 422);
       const priced = group.products.map((product) => ({
         product,

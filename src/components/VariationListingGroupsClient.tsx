@@ -21,6 +21,7 @@ type Group = {
   ebayItemId: string | null;
   includedCount: number;
   newOptionCount: number;
+  invalidImageCount: number;
   thumbnailStatus: "READY" | "FAILED" | "MISSING";
   thumbnailUrl: string | null;
   thumbnailError: string | null;
@@ -115,7 +116,9 @@ export function VariationListingGroupsClient() {
   );
   const selectedReady =
     selectedGroups.length > 0 &&
-    selectedGroups.every((group) => group.thumbnailStatus === "READY");
+    selectedGroups.every(
+      (group) => group.thumbnailStatus === "READY" && group.invalidImageCount === 0,
+    );
   const selectedTemplate = templates.find((template) => template.id === templateId);
   const descriptionTemplateReady = Boolean(
     selectedTemplate?.descriptionTemplateHtml?.trim(),
@@ -508,6 +511,11 @@ export function VariationListingGroupsClient() {
                             ? `썸네일 실패 · ${g.thumbnailError ?? "다시 생성해 주세요."}`
                             : "썸네일 생성 필요"}
                       </span>
+                      {g.invalidImageCount > 0 && (
+                        <span className="block text-xs font-semibold text-red-700">
+                          개별 카드 이미지 R2 저장 필요 {g.invalidImageCount}개 · 이 묶음의 썸네일 만들기를 다시 눌러 주세요
+                        </span>
+                      )}
                       {g.thumbnailStatus === "READY" && g.thumbnailUrl && (
                         <a
                           href={g.thumbnailUrl}
@@ -691,7 +699,7 @@ export function VariationListingGroupsClient() {
         )}
         {!selectedReady && selected.length > 0 && !busy && (
           <p className="rounded bg-amber-50 p-2 text-xs text-amber-800">
-            현재 구성의 썸네일을 모두 R2에 저장해야 CSV를 받을 수 있습니다.
+            대표 썸네일과 모든 개별 카드 이미지를 R2에 저장해야 CSV를 받을 수 있습니다. ‘선택 묶음 썸네일 만들기’를 누르면 Base64 이미지도 R2로 옮깁니다.
           </p>
         )}
         {progress && (
