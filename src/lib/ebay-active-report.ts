@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
 import { resolveOrderItemProductMatch } from "@/lib/product-matching";
+import { variationEbayTitle } from "@/lib/variation-listing-groups";
 
 type Cell = string | number | boolean | Date | null | undefined;
 
@@ -208,6 +209,55 @@ async function applyMatchedProductUpdates(
   }
 }
 
+async function reconcileVariationListingStates(
+  tx: Prisma.TransactionClient,
+  input: {
+    userId: string;
+    reportCreatedAt: Date;
+    completeSnapshot: boolean;
+    rows: Array<{ itemId: string; sku: string | null; title: string | null }>;
+  },
+) {
+  const states = await tx.variationListingState.findMany({
+    where: { userId: input.userId, lastExportedAt: { not: null } },
+  });
+  for (const state of states) {
+    if (!state.lastExportedAt || state.lastExportedAt > input.reportCreatedAt) continue;
+    const listing = input.rows.find((row) =>
+      row.sku === state.parentSku ||
+      (!row.sku && row.title?.trim() === variationEbayTitle(state.title)),
+    );
+    if (!listing) {
+      if (!input.completeSnapshot || !state.ebayItemId) continue;
+      await tx.variationListingState.update({
+        where: { id: state.id },
+        data: {
+          ebayItemId: null,
+          includedProductIds: [],
+          pendingProductIds: [],
+          lastConfirmedAt: input.reportCreatedAt,
+        },
+      });
+      continue;
+    }
+    const included = Array.isArray(state.includedProductIds)
+      ? state.includedProductIds.filter((id): id is string => typeof id === "string")
+      : [];
+    const pending = Array.isArray(state.pendingProductIds)
+      ? state.pendingProductIds.filter((id): id is string => typeof id === "string")
+      : [];
+    await tx.variationListingState.update({
+      where: { id: state.id },
+      data: {
+        ebayItemId: listing.itemId,
+        includedProductIds: [...new Set([...included, ...pending])],
+        pendingProductIds: [],
+        lastConfirmedAt: input.reportCreatedAt,
+      },
+    });
+  }
+}
+
 export async function importEbayActiveReport(input: {
   userId: string;
   fileName: string;
@@ -274,27 +324,12 @@ export async function importEbayActiveReport(input: {
       })),
     );
 
-    const variationStates = await tx.variationListingState.findMany({
-      where: { userId: input.userId, lastExportedAt: { not: null } },
+    await reconcileVariationListingStates(tx, {
+      userId: input.userId,
+      reportCreatedAt: report.createdAt,
+      completeSnapshot: input.completeSnapshot,
+      rows: input.rows,
     });
-    for (const state of variationStates) {
-      const listing = input.rows.find((row) =>
-        row.sku === state.parentSku ||
-        (!row.sku && row.title?.trim() === state.title.trim()),
-      );
-      if (!listing || !state.lastExportedAt || state.lastExportedAt > report.createdAt) continue;
-      const included = Array.isArray(state.includedProductIds) ? state.includedProductIds.filter((id): id is string => typeof id === "string") : [];
-      const pending = Array.isArray(state.pendingProductIds) ? state.pendingProductIds.filter((id): id is string => typeof id === "string") : [];
-      await tx.variationListingState.update({
-        where: { id: state.id },
-        data: {
-          ebayItemId: listing.itemId,
-          includedProductIds: [...new Set([...included, ...pending])],
-          pendingProductIds: [],
-          lastConfirmedAt: report.createdAt,
-        },
-      });
-    }
 
     return {
       id: report.id,
@@ -419,6 +454,12 @@ export async function rematchLatestEbayReport(userId: string) {
           itemId: row.itemId,
         })),
       );
+      await reconcileVariationListingStates(tx, {
+        userId,
+        reportCreatedAt: report.createdAt,
+        completeSnapshot: report.completeSnapshot,
+        rows: report.listings,
+      });
     },
     { maxWait: 10_000, timeout: 120_000 },
   );

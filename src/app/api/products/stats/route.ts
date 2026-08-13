@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    await requireApiUser();
-    return Response.json(await getProductStats());
+    const user = await requireApiUser();
+    return Response.json(await getProductStats(user.id));
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return jsonError("Unauthorized", 401);

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function UnitMembersPage() {
   const user = await requireUser();
-  const ids = await getOperationalProductIds("unit_no_members");
+  const ids = await getOperationalProductIds("unit_no_members", user.id);
   const products = ids.length
     ? await prisma.product.findMany({
         where: { id: { in: ids } },

@@ -92,7 +92,7 @@ export async function GET(request: Request) {
     }
 
     if (type === "end") {
-      const ids = await getOperationalProductIds("stop_required");
+      const ids = await getOperationalProductIds("stop_required", user.id);
       const products = await prisma.product.findMany({
         where: { id: { in: ids }, ebayItemId: { not: null } },
         orderBy: { sku: "asc" },
@@ -113,7 +113,7 @@ export async function GET(request: Request) {
     if (type !== "revise") return jsonError("지원하지 않는 Excel 유형입니다.", 422);
 
     const [ids, settings, latest] = await Promise.all([
-      getOperationalProductIds("sellable"),
+      getOperationalProductIds("sellable", user.id),
       prisma.pricingSettings.findUnique({ where: { id: "default" } }),
       prisma.ebayReportImport.findFirst({
         where: { userId: user.id },

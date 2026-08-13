@@ -13,7 +13,7 @@ const pageLimit = 300;
 
 export default async function PriceMissingPage() {
   const user = await requireUser();
-  const ids = await getOperationalProductIds("price_missing");
+  const ids = await getOperationalProductIds("price_missing", user.id);
   const [products, pricingSettings] = await Promise.all([
     ids.length
       ? prisma.product.findMany({
