@@ -24,7 +24,9 @@ import {
 
 const schema = z.object({
   groupKeys: z.array(z.string().min(1)).min(1).max(20),
-  templateId: z.string().min(1),
+  // Optional for browser tabs that still have the previous JavaScript bundle.
+  // When omitted, resolveListingTemplateDefaults safely uses the saved default.
+  templateId: z.string().min(1).optional().nullable(),
   confirmed: z.literal(true),
 });
 
@@ -178,7 +180,19 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof UnauthorizedError) return jsonError("Unauthorized", 401);
-    if (error instanceof z.ZodError) return jsonError(error.issues[0]?.message ?? "선택을 확인해 주세요.", 422);
+    if (error instanceof z.ZodError) {
+      const issue = error.issues[0];
+      const field = String(issue?.path?.[0] ?? "");
+      const message =
+        field === "groupKeys"
+          ? "CSV로 받을 옵션상품 묶음을 선택해 주세요. 한 번에 최대 20개까지 가능합니다."
+          : field === "confirmed"
+            ? "CSV 생성 확인값이 없습니다. 화면을 새로고침한 뒤 다시 시도해 주세요."
+            : field === "templateId"
+              ? "상세페이지 템플릿을 선택해 주세요."
+              : "CSV 입력값을 확인할 수 없습니다. 화면을 새로고침한 뒤 다시 시도해 주세요.";
+      return jsonError(message, 422);
+    }
     return jsonError(asErrorMessage(error), 500);
   }
 }
