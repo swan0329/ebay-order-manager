@@ -24,6 +24,7 @@ import {
 
 const schema = z.object({
   groupKeys: z.array(z.string().min(1)).min(1).max(20),
+  templateId: z.string().min(1),
   confirmed: z.literal(true),
 });
 
@@ -32,10 +33,11 @@ const headers = [
   "Item number",
   "Custom label (SKU)", "Category ID", "Title", "Relationship",
   "Relationship details", "P:UPC", "Start price", "Quantity", "Item photo URL",
-  "Condition ID", "Description", "Format", "Duration", "Best Offer Enabled",
-  "Immediate pay required", "Location", "Country", "Shipping profile name",
+  "Condition ID", "ConditionDescription", "Description", "Format", "Duration", "Best Offer Enabled",
+  "Best Offer Auto Accept Price", "Minimum Best Offer Price", "Immediate pay required", "Location", "Country", "Shipping profile name",
   "Return profile name", "Payment profile name", "C:Original/Reproduction",
-  "C:Brand", "C:Type", "C:Set", "C:Genre",
+  "C:Brand", "C:Type", "C:Artist", "C:Franchise", "C:Set", "C:Genre",
+  "C:Country/Region of Manufacture",
 ] as const;
 
 function csvCell(value: unknown) {
@@ -56,9 +58,15 @@ export async function POST(request: Request) {
     const [readyImages, pricingSettings, templateResult] = await Promise.all([
       getVariationListingReadyImages(),
       prisma.pricingSettings.findUnique({ where: { id: "default" } }),
-      resolveListingTemplateDefaults(user.id),
+      resolveListingTemplateDefaults(user.id, input.templateId),
     ]);
     if (!pricingSettings) return jsonError("가격 설정을 먼저 저장해 주세요.", 422);
+    if (!templateResult.template?.descriptionTemplateHtml?.trim()) {
+      return jsonError(
+        "상세페이지 HTML이 저장된 등록 템플릿을 선택해 주세요.",
+        422,
+      );
+    }
     const storedProducts = await prisma.product.findMany({ where: { id: { in: readyImages.map((row) => row.id) } } });
     const readyImageById = new Map(readyImages.map((row) => [row.id, row.listingImageUrl]));
     const products = storedProducts.filter(hasListingPrice).map((product) => ({
@@ -103,6 +111,20 @@ export async function POST(request: Request) {
         },
         listingTitle,
       );
+      const conditionDescription = templateResult.template.conditionDescription
+        ? renderListingDescriptionTemplate(
+            templateResult.template.conditionDescription,
+            {
+              descriptionHtml: "",
+              sku: parentSku,
+              price: priced[0]?.price ?? null,
+              quantity: 1,
+              brand: group.groupName,
+              condition: first.ebayCondition,
+            },
+            listingTitle,
+          )
+        : "";
       rows.push({
         [headers[0]]: state?.ebayItemId ? "Revise" : "Add",
         [headers[1]]: state?.ebayItemId ?? "",
@@ -112,12 +134,18 @@ export async function POST(request: Request) {
         [headers[6]]: relationshipDetails(group),
         [headers[10]]: state.thumbnailUrl,
         [headers[11]]: buildEbayListingConditionId({ ebayCondition: first.ebayCondition }),
-        [headers[12]]: description,
-        [headers[13]]: "FixedPrice", [headers[14]]: "GTC", [headers[15]]: "1",
-        [headers[16]]: "1", [headers[17]]: "South Korea", [headers[18]]: "KR",
-        [headers[19]]: "Kpop PC New", [headers[20]]: "No Return Accepted (411199464022)",
-        [headers[22]]: "Original", [headers[23]]: group.groupName,
-        [headers[24]]: "Photocard", [headers[25]]: group.albumName, [headers[26]]: "K-Pop",
+        [headers[12]]: conditionDescription,
+        [headers[13]]: description,
+        [headers[14]]: "FixedPrice", [headers[15]]: "GTC", [headers[16]]: "1",
+        [headers[17]]: templateResult.template.autoAcceptPrice?.toString() ?? "",
+        [headers[18]]: templateResult.template.minimumOfferPrice?.toString() ?? "",
+        [headers[19]]: templateResult.template.immediatePayRequired ? "1" : "",
+        [headers[20]]: "South Korea", [headers[21]]: "KR",
+        [headers[22]]: "Kpop PC New", [headers[23]]: "No Return Accepted (411199464022)",
+        [headers[25]]: "Original", [headers[26]]: group.groupName,
+        [headers[27]]: "Photocard", [headers[28]]: group.groupName,
+        [headers[29]]: group.groupName, [headers[30]]: group.albumName,
+        [headers[31]]: "K-Pop", [headers[32]]: "South Korea",
       });
       for (const item of priced.filter(({product})=>exportProducts.some((candidate)=>candidate.id===product.id))) {
         rows.push({
