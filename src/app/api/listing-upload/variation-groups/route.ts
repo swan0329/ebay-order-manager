@@ -3,7 +3,7 @@ import { requireApiUser, UnauthorizedError } from "@/lib/session";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { hasListingPrice, resolveListingPriceUsd } from "@/lib/listing-price";
 import { buildVariationListingGroups, variationEbayTitle } from "@/lib/variation-listing-groups";
-import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
+import { getVariationListingReadyImages, isPublicListingImageUrl } from "@/lib/variation-listing-products";
 import { thumbnailIsCurrent, variationThumbnailHash } from "@/lib/variation-thumbnail-state";
 
 function jsonIds(value: unknown) {
@@ -48,6 +48,7 @@ export async function GET() {
           const ids = jsonIds(stateByKey.get(group.key)?.includedProductIds);
           return !ids.includes(product.id);
         }).length,
+        invalidImageCount: group.products.filter((product) => !isPublicListingImageUrl(product.imageUrl)).length,
         products: group.products.slice(0, 40).map((product) => ({
           id: product.id,
           sku: product.sku,

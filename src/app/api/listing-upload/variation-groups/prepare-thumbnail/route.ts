@@ -2,7 +2,10 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 import { asErrorMessage, jsonError } from "@/lib/http";
-import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
+import {
+  getVariationListingReadyImages,
+  promoteVariationListingImagesToR2,
+} from "@/lib/variation-listing-products";
 import { buildVariationListingGroups, variationParentSku } from "@/lib/variation-listing-groups";
 import { variationThumbnailHash } from "@/lib/variation-thumbnail-state";
 import { createVariationThumbnail } from "@/lib/variation-thumbnail";
@@ -16,12 +19,22 @@ export async function POST(request: Request) {
   try {
     const user = await requireApiUser();
     const { groupKey } = schema.parse(await request.json());
-    const readyImages = await getVariationListingReadyImages();
-    const stored = await prisma.product.findMany({ where: { id: { in: readyImages.map((row) => row.id) } } });
-    const imageById = new Map(readyImages.map((row) => [row.id, row.listingImageUrl]));
-    const products = stored.filter(hasListingPrice).map((product) => ({ ...product, imageUrl: imageById.get(product.id) ?? null, ebayImageUrls: [] }));
-    const group = buildVariationListingGroups(products).groups.find((item) => item.key === groupKey);
+    let readyImages = await getVariationListingReadyImages();
+    let stored = await prisma.product.findMany({ where: { id: { in: readyImages.map((row) => row.id) } } });
+    let imageById = new Map(readyImages.map((row) => [row.id, row.listingImageUrl]));
+    let products = stored.filter(hasListingPrice).map((product) => ({ ...product, imageUrl: imageById.get(product.id) ?? null, ebayImageUrls: [] }));
+    let group = buildVariationListingGroups(products).groups.find((item) => item.key === groupKey);
     if (!group) return jsonError("묶음 후보가 변경되었습니다. 화면을 새로고침해 주세요.", 409);
+    const groupProductIds = new Set(group.products.map((product) => product.id));
+    const groupImages = readyImages.filter((image) => groupProductIds.has(image.id));
+    if (await promoteVariationListingImagesToR2(groupImages)) {
+      readyImages = await getVariationListingReadyImages();
+      stored = await prisma.product.findMany({ where: { id: { in: readyImages.map((row) => row.id) } } });
+      imageById = new Map(readyImages.map((row) => [row.id, row.listingImageUrl]));
+      products = stored.filter(hasListingPrice).map((product) => ({ ...product, imageUrl: imageById.get(product.id) ?? null, ebayImageUrls: [] }));
+      group = buildVariationListingGroups(products).groups.find((item) => item.key === groupKey);
+      if (!group) return jsonError("이미지를 R2에 저장한 뒤 묶음 구성이 변경되었습니다. 화면을 새로고침해 주세요.", 409);
+    }
     if (group.products.length > 40) return jsonError("옵션은 최대 40장까지 지원합니다.", 422);
     const hash = variationThumbnailHash(group);
     const existing = await prisma.variationListingState.findUnique({ where: { userId_groupKey: { userId: user.id, groupKey } } });
