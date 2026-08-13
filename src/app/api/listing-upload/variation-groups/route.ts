@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { hasListingPrice, resolveListingPriceUsd } from "@/lib/listing-price";
-import { buildVariationListingGroups } from "@/lib/variation-listing-groups";
+import { buildVariationListingGroups, variationEbayTitle } from "@/lib/variation-listing-groups";
 import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
 import { thumbnailIsCurrent, variationThumbnailHash } from "@/lib/variation-thumbnail-state";
 
@@ -41,6 +41,7 @@ export async function GET() {
         const thumbnailReady = thumbnailIsCurrent(state, thumbnailHash);
         return ({
         ...group,
+        ebayTitle: variationEbayTitle(group.title),
         ebayItemId: state?.ebayItemId ?? null,
         includedCount: jsonIds(stateByKey.get(group.key)?.includedProductIds).length,
         newOptionCount: group.products.filter((product) => {
