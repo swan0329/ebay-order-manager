@@ -367,12 +367,26 @@ export function VariationListingGroupsClient() {
             className="h-10 flex-1 rounded-md border px-3 text-sm"
           />
           <button
-            onClick={() =>
-              setSelected(shown.filter((g) => !g.truncated).map((g) => g.key))
-            }
-            className="text-sm font-semibold text-violet-700"
+            onClick={() => {
+              const selectableKeys = shown
+                .filter((g) => !g.truncated)
+                .map((g) => g.key);
+              const allSelected = selectableKeys.every((key) =>
+                selected.includes(key),
+              );
+              setSelected(
+                allSelected
+                  ? selected.filter((key) => !selectableKeys.includes(key))
+                  : [...new Set([...selected, ...selectableKeys])],
+              );
+            }}
+            className="h-10 rounded-md border border-violet-300 px-3 text-sm font-semibold text-violet-700"
           >
-            전체 선택
+            {shown
+              .filter((g) => !g.truncated)
+              .every((g) => selected.includes(g.key))
+              ? "현재 목록 전체 해제"
+              : "현재 목록 전체 선택"}
           </button>
         </div>
         <div className="mt-4 space-y-3">
@@ -445,6 +459,7 @@ export function VariationListingGroupsClient() {
                       checked={selected.includes(g.key)}
                       onChange={() => toggle(g.key)}
                       disabled={g.truncated}
+                      className="mt-1 h-5 w-5 accent-violet-600"
                     />
                     <span>
                       <b>{g.ebayTitle}</b>
@@ -489,6 +504,22 @@ export function VariationListingGroupsClient() {
                       )}
                     </span>
                   </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelected((current) =>
+                        current.includes(g.key) ? [] : [g.key],
+                      )
+                    }
+                    disabled={g.truncated}
+                    className={`shrink-0 rounded-lg border px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400 ${selected.includes(g.key) ? "border-violet-600 bg-violet-600 text-white" : "border-violet-300 bg-white text-violet-700 hover:bg-violet-50"}`}
+                  >
+                    {g.truncated
+                      ? "선택 불가"
+                      : selected.includes(g.key)
+                        ? "✓ 이 묶음 선택됨"
+                        : "이 묶음만 선택"}
+                  </button>
                 </div>
                 <div className="mt-3 flex gap-2 overflow-x-auto">
                   {g.products.map((p) => (
