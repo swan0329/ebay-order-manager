@@ -393,7 +393,7 @@ export function VariationListingGroupsClient() {
           {shown.map((g) => (
             <article
               key={g.key}
-              className={`grid gap-4 rounded-xl border-2 p-4 md:grid-cols-[180px_1fr] ${selected.includes(g.key) ? "border-violet-500 bg-violet-50" : g.thumbnailStatus === "READY" ? "border-emerald-300 bg-emerald-50/40" : g.thumbnailStatus === "FAILED" ? "border-red-300 bg-red-50/40" : "border-amber-200 bg-white"}`}
+              className={`grid min-w-0 overflow-hidden gap-4 rounded-xl border-2 p-4 md:grid-cols-[180px_minmax(0,1fr)] ${selected.includes(g.key) ? "border-violet-500 bg-violet-50" : g.thumbnailStatus === "READY" ? "border-emerald-300 bg-emerald-50/40" : g.thumbnailStatus === "FAILED" ? "border-red-300 bg-red-50/40" : "border-amber-200 bg-white"}`}
             >
               <button
                 type="button"
@@ -451,9 +451,9 @@ export function VariationListingGroupsClient() {
                       : "눌러서 1000×1000 미리보기"}
                 </span>
               </button>
-              <div>
-                <div className="flex items-start justify-between gap-3">
-                  <label className="flex gap-3">
+              <div className="min-w-0 overflow-hidden">
+                <div className="flex flex-wrap items-start justify-between gap-3 lg:flex-nowrap">
+                  <label className="flex min-w-0 flex-1 gap-3">
                     <input
                       type="checkbox"
                       checked={selected.includes(g.key)}
@@ -461,8 +461,8 @@ export function VariationListingGroupsClient() {
                       disabled={g.truncated}
                       className="mt-1 h-5 w-5 accent-violet-600"
                     />
-                    <span>
-                      <b>{g.ebayTitle}</b>
+                    <span className="min-w-0">
+                      <b className="break-words">{g.ebayTitle}</b>
                       <span className="mt-0.5 block text-[11px] font-medium text-zinc-500">
                         CSV에 들어가는 실제 eBay 상품명
                       </span>
@@ -521,7 +521,10 @@ export function VariationListingGroupsClient() {
                         : "이 묶음만 선택"}
                   </button>
                 </div>
-                <div className="mt-3 flex gap-2 overflow-x-auto">
+                <p className="mt-3 text-[11px] font-medium text-zinc-500">
+                  카드 사진 {g.products.length}장 · 좌우로 밀어서 전체 보기
+                </p>
+                <div className="mt-1 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-3 [scrollbar-color:rgb(139_92_246)_rgb(228_228_231)] [scrollbar-width:thin]">
                   {g.products.map((p) => (
                     <div key={p.id} className="w-20 shrink-0">
                       <div className="aspect-[2/3] overflow-hidden rounded bg-zinc-100">
