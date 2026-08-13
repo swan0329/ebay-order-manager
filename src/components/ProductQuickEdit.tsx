@@ -2,9 +2,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, PackageOpen, Save } from "lucide-react";
+import {
+  normalizeProductStatus,
+  productStatusOptions,
+} from "@/lib/product-status";
 
 export type ProductQuickEditValue = {
   id: string;
@@ -16,22 +20,126 @@ export type ProductQuickEditValue = {
   brand: string | null;
   costPrice: string | null;
   salePrice: string | null;
+  isSoldOut?: boolean;
+  pocamarketAvailableCount?: number | null;
+  pocamarketSyncedAt?: string | null;
+  pocamarketChangeStatus?: string | null;
+  pocamarketPreviousPrice?: string | null;
+  pocamarketPreviousAvailableCount?: number | null;
+  ebayPrice: string | null;
   stockQuantity: number;
   safetyStock: number;
   location: string | null;
   memo: string | null;
   imageUrl: string | null;
   sourceImageUrl: string | null;
+  imageSource: string | null;
   userImageRegistered: boolean;
   hasBackImage: boolean;
+  imageWorkReady?: boolean;
+  procurementSellable?: boolean;
+  imageUpdatedAt?: string | null;
   status: string;
-  listingStatus?: string | null;
-  listingUploadStatus?: string | null;
-  listingUploadStatusLabel?: string | null;
+  featuredMembers: string | null;
+  shopifyProductId: string | null;
+  shopifyLastUploadedAt: string | null;
   ebayItemId?: string | null;
-  uploadError?: string | null;
+  listingStatus?: string | null;
   lastUploadedAt?: string | null;
 };
+
+function parseMembers(value: string | null | undefined) {
+  return String(value ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
+}
+
+// Member picker for "unit" cards — pick the real members from the group's roster.
+// Non-unit rows just show the value (or "-"). Saves immediately via its own POST.
+function MemberPicker({
+  productId,
+  isUnit,
+  value,
+  options,
+}: {
+  productId: string;
+  isUnit: boolean;
+  value: string | null;
+  options: string[];
+}) {
+  const [members, setMembers] = useState(() => parseMembers(value));
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setMembers(parseMembers(value)), 0);
+    return () => window.clearTimeout(timer);
+  }, [value]);
+
+  async function commit(next: string[]) {
+    setMembers(next);
+    setSaving(true);
+    try {
+      await fetch("/api/inventory/featured-members", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ productId, members: next }),
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!isUnit) {
+    return <span className="text-xs text-zinc-400">{members.join(", ") || "-"}</span>;
+  }
+
+  return (
+    <div className="space-y-1">
+      {members.length ? (
+        <div className="flex flex-wrap gap-1">
+          {members.map((member) => (
+            <span
+              key={member}
+              className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-zinc-800 ring-1 ring-amber-200"
+            >
+              {member}
+              <button
+                type="button"
+                onClick={() => void commit(members.filter((name) => name !== member))}
+                disabled={saving}
+                aria-label={`${member} 제거`}
+                className="text-zinc-400 hover:text-rose-600 disabled:opacity-50"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <select
+        value=""
+        onChange={(event) => {
+          const picked = event.currentTarget.value;
+          if (picked && !members.includes(picked)) {
+            void commit([...members, picked]);
+          }
+          event.currentTarget.value = "";
+        }}
+        disabled={saving || options.length === 0}
+        className="h-8 w-full rounded-md border border-amber-300 bg-white px-2 text-xs outline-none focus:border-amber-500 disabled:opacity-50"
+      >
+        <option value="">{options.length ? "+ 멤버 추가" : "멤버 불러오는 중…"}</option>
+        {options
+          .filter((member) => !members.includes(member))
+          .map((member) => (
+            <option key={member} value={member}>
+              {member}
+            </option>
+          ))}
+      </select>
+    </div>
+  );
+}
 
 type EditableState = {
   productName: string;
@@ -40,6 +148,7 @@ type EditableState = {
   optionName: string;
   stockQuantity: string;
   salePrice: string;
+  ebayPrice: string;
   memo: string;
   status: string;
 };
@@ -52,8 +161,9 @@ function toState(product: ProductQuickEditValue): EditableState {
     optionName: product.optionName ?? "",
     stockQuantity: String(product.stockQuantity),
     salePrice: product.salePrice ?? "",
+    ebayPrice: product.ebayPrice ?? "",
     memo: product.memo ?? "",
-    status: product.status,
+    status: normalizeProductStatus(product.status),
   };
 }
 
@@ -65,6 +175,7 @@ function editableStateKey(value: EditableState) {
     value.optionName,
     value.stockQuantity,
     value.salePrice,
+    value.ebayPrice,
     value.memo,
     value.status,
   ].join("\x1f");
@@ -85,37 +196,115 @@ const defaultVisibleColumnIds = [
   "brand",
   "category",
   "optionName",
+  "featuredMembers",
   "imageUrl",
+  "ebayPrice",
   "salePrice",
+  "pocamarketStock",
+  "pocamarketSyncedAt",
   "memo",
   "productName",
   "status",
-  "listingStatus",
+  "shopify",
   "save",
 ];
 
-function listingStatusClass(status?: string | null) {
-  if (status === "uploaded" || status === "ACTIVE") {
-    return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+// Shopify admin product URL — the official unified-admin deep link. (The
+// legacy <store>.myshopify.com/admin path can redirect-loop on stores with a
+// custom primary domain, so we link admin.shopify.com directly.)
+function shopifyAdminUrl(storeHandle: string | null, productId: string) {
+  if (!storeHandle) return null;
+  return `https://admin.shopify.com/store/${storeHandle}/products/${productId}`;
+}
+
+function ShopifyStatusCell({
+  product,
+  storeHandle,
+}: {
+  product: ProductQuickEditValue;
+  storeHandle: string | null;
+}) {
+  if (!product.shopifyProductId) {
+    return (
+      <span className="inline-flex w-fit items-center rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-500">
+        미업로드
+      </span>
+    );
   }
 
-  if (status === "failed" || status === "FAILED") {
-    return "bg-rose-50 text-rose-700 ring-rose-200";
-  }
+  const adminUrl = shopifyAdminUrl(storeHandle, product.shopifyProductId);
 
-  if (status === "draft") {
-    return "bg-blue-50 text-blue-700 ring-blue-200";
-  }
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="inline-flex w-fit items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+        업로드됨
+      </span>
+      {product.shopifyLastUploadedAt ? (
+        <span className="text-[10px] text-zinc-400">
+          {new Date(product.shopifyLastUploadedAt).toLocaleDateString("ko-KR")}
+        </span>
+      ) : null}
+      {adminUrl ? (
+        <a
+          href={adminUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-fit text-[11px] text-emerald-700 underline-offset-2 hover:underline"
+        >
+          쇼피파이에서 보기 ↗
+        </a>
+      ) : null}
+    </div>
+  );
+}
 
-  if (status === "needs_update") {
-    return "bg-amber-50 text-amber-700 ring-amber-200";
-  }
-
-  if (status) {
-    return "bg-amber-50 text-amber-700 ring-amber-200";
-  }
-
-  return "bg-zinc-100 text-zinc-600 ring-zinc-200";
+function PhotoThumb({
+  src,
+  label,
+  registered,
+  showCamera,
+  sizeClass,
+  onClick,
+}: {
+  src: string | null;
+  label: string;
+  registered: boolean;
+  showCamera: boolean;
+  sizeClass: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group relative flex ${sizeClass} shrink-0 items-center justify-center overflow-hidden rounded-md bg-zinc-100 ring-1 ring-zinc-200 transition hover:ring-zinc-900`}
+      title="촬영본 등록"
+    >
+      {src ? (
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <PackageOpen className="h-5 w-5 text-zinc-400" />
+      )}
+      <span
+        className={`absolute bottom-1 left-1 rounded px-1.5 py-0.5 text-[10px] font-semibold shadow-sm ${
+          registered ? "bg-emerald-600 text-white" : "bg-zinc-950 text-white"
+        }`}
+      >
+        {label}
+      </span>
+      {showCamera ? (
+        <span className="absolute right-1 top-1 rounded bg-white/90 p-1 text-zinc-700 opacity-0 shadow-sm transition group-hover:opacity-100">
+          <Camera className="h-3 w-3" />
+        </span>
+      ) : null}
+    </button>
+  );
 }
 
 function ProductImageButton({
@@ -127,38 +316,46 @@ function ProductImageButton({
   sizeClass: string;
   onClick: () => void;
 }) {
-  const displayImageUrl = product.sourceImageUrl ?? product.imageUrl;
-  const badge = product.userImageRegistered
-    ? product.hasBackImage
-      ? "앞/뒤"
-      : "앞면"
-    : "촬영";
+  const t = product.imageUpdatedAt ? new Date(product.imageUpdatedAt).getTime() : null;
+  const frontUrl = product.userImageRegistered && t
+    ? `/api/products/image-match/assets/${product.id}/front?t=${t}`
+    : (product.sourceImageUrl ?? product.imageUrl);
+  const backUrl = product.hasBackImage && t
+    ? `/api/products/image-match/assets/${product.id}/back?t=${t}`
+    : null;
+
+  if (backUrl) {
+    return (
+      <div className="flex gap-1">
+        <PhotoThumb
+          src={frontUrl}
+          label="앞"
+          registered
+          showCamera={false}
+          sizeClass={sizeClass}
+          onClick={onClick}
+        />
+        <PhotoThumb
+          src={backUrl}
+          label="뒤"
+          registered
+          showCamera
+          sizeClass={sizeClass}
+          onClick={onClick}
+        />
+      </div>
+    );
+  }
 
   return (
-    <button
-      type="button"
+    <PhotoThumb
+      src={frontUrl}
+      label={product.userImageRegistered ? "앞면" : "촬영"}
+      registered={product.userImageRegistered}
+      showCamera
+      sizeClass={sizeClass}
       onClick={onClick}
-      className={`group relative flex ${sizeClass} items-center justify-center overflow-hidden rounded-md bg-zinc-100 ring-1 ring-zinc-200 transition hover:ring-zinc-900`}
-      title="촬영본 등록"
-    >
-      {displayImageUrl ? (
-        <img src={displayImageUrl} alt="" className="h-full w-full object-cover" />
-      ) : (
-        <PackageOpen className="h-5 w-5 text-zinc-400" />
-      )}
-      <span
-        className={`absolute bottom-1 left-1 rounded px-1.5 py-0.5 text-[10px] font-semibold shadow-sm ${
-          product.userImageRegistered
-            ? "bg-emerald-600 text-white"
-            : "bg-zinc-950 text-white"
-        }`}
-      >
-        {badge}
-      </span>
-      <span className="absolute right-1 top-1 rounded bg-white/90 p-1 text-zinc-700 opacity-0 shadow-sm transition group-hover:opacity-100">
-        <Camera className="h-3 w-3" />
-      </span>
-    </button>
+    />
   );
 }
 
@@ -166,12 +363,16 @@ export function ProductQuickEditRow({
   product,
   visibleColumnIds = defaultVisibleColumnIds,
   selected = false,
+  memberOptions = [],
+  shopifyStoreHandle = null,
   onSelectedChange,
   onPhotoUploadClick,
 }: {
   product: ProductQuickEditValue;
   visibleColumnIds?: string[];
   selected?: boolean;
+  memberOptions?: string[];
+  shopifyStoreHandle?: string | null;
   onSelectedChange?: (checked: boolean) => void;
   onPhotoUploadClick?: (product: ProductQuickEditValue) => void;
 }) {
@@ -218,6 +419,7 @@ export function ProductQuickEditRow({
         brand: submittedValue.brand,
         costPrice: product.costPrice,
         salePrice: submittedValue.salePrice,
+        ebayPrice: submittedValue.ebayPrice,
         stockQuantity: submittedValue.stockQuantity,
         safetyStock: product.safetyStock,
         location: product.location,
@@ -255,10 +457,22 @@ export function ProductQuickEditRow({
           />
         </td>
       ) : null}
+      {visibleColumns.has("imageSource") ? (
+        <td className="px-2 py-3">
+          {product.userImageRegistered ? (
+            <span className="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">직접 촬영</span>
+          ) : product.imageSource === "lens_workbench" ? (
+            <span className="inline-flex rounded-full bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-800">Lens 작업</span>
+          ) : (
+            <span className="inline-flex rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-600">포카마켓</span>
+          )}
+        </td>
+      ) : null}
       {visibleColumns.has("sku") ? (
         <td className="px-2 py-3 font-medium text-zinc-900">
           <Link
             href={`/products/${product.id}`}
+            prefetch={false}
             className="block truncate hover:underline"
             title={product.sku}
           >
@@ -301,6 +515,57 @@ export function ProductQuickEditRow({
           ) : null}
         </td>
       ) : null}
+      {visibleColumns.has("sellability") ? (
+        <td className="px-2 py-3 text-xs">
+          {product.stockQuantity > 0 && product.imageWorkReady ? (
+            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 font-semibold text-emerald-800">
+              보유재고 판매
+            </span>
+          ) : product.procurementSellable ? (
+            <span className="inline-flex rounded-full bg-violet-100 px-2 py-1 font-semibold text-violet-800">
+              포카 조달판매
+            </span>
+          ) : product.stockQuantity > 0 ||
+            (product.pocamarketAvailableCount ?? 0) > 0 ? (
+            <span className="inline-flex rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-800">
+              이미지 작업 필요
+            </span>
+          ) : !product.pocamarketSyncedAt ? (
+            <span className="inline-flex rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-800">
+              최신화 필요
+            </span>
+          ) : product.ebayItemId &&
+            ["ACTIVE", "PUBLISHED", "LISTED"].includes(
+              (product.listingStatus ?? "ACTIVE").toUpperCase(),
+            ) ? (
+            <span className="inline-flex rounded-full bg-rose-100 px-2 py-1 font-semibold text-rose-800">
+              판매중단 필요
+            </span>
+          ) : (
+            <span className="inline-flex rounded-full bg-zinc-200 px-2 py-1 font-semibold text-zinc-700">
+              품절
+            </span>
+          )}
+        </td>
+      ) : null}
+      {visibleColumns.has("uploadStatus") ? (
+        <td className="px-2 py-3 text-xs">
+          {product.ebayItemId ? (
+            <>
+              <span className="inline-flex rounded-full bg-blue-100 px-2 py-1 font-semibold text-blue-800">
+                eBay 등록정보 연결됨
+              </span>
+              <span className="mt-1 block text-zinc-500">
+                {product.listingStatus || "등록됨"}
+              </span>
+            </>
+          ) : (
+            <span className="inline-flex rounded-full bg-zinc-100 px-2 py-1 font-semibold text-zinc-700">
+              eBay 등록정보 미연결
+            </span>
+          )}
+        </td>
+      ) : null}
       {visibleColumns.has("brand") ? (
         <td className="px-2 py-3">
           <input
@@ -331,6 +596,16 @@ export function ProductQuickEditRow({
           />
         </td>
       ) : null}
+      {visibleColumns.has("featuredMembers") ? (
+        <td className="px-2 py-3 align-top">
+          <MemberPicker
+            productId={product.id}
+            isUnit={value.optionName.trim().toLowerCase() === "unit"}
+            value={product.featuredMembers}
+            options={memberOptions}
+          />
+        </td>
+      ) : null}
       {visibleColumns.has("imageUrl") ? (
         <td className="px-2 py-3">
           <ProductImageButton
@@ -340,8 +615,34 @@ export function ProductQuickEditRow({
           />
         </td>
       ) : null}
+      {visibleColumns.has("ebayPrice") ? (
+        <td className="px-2 py-3">
+          <input
+            value={value.ebayPrice}
+            onChange={(event) => setField("ebayPrice", event.currentTarget.value)}
+            onKeyDown={saveOnEnter}
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="$"
+            className={fieldClass()}
+          />
+        </td>
+      ) : null}
       {visibleColumns.has("salePrice") ? (
         <td className="px-2 py-3">
+          {product.pocamarketPreviousPrice &&
+          Number(product.pocamarketPreviousPrice) !== Number(product.salePrice) ? (
+            <span className={`mb-1 block text-[11px] font-semibold ${
+              Number(product.salePrice) > Number(product.pocamarketPreviousPrice)
+                ? "text-rose-600"
+                : "text-blue-600"
+            }`}>
+              {Number(product.salePrice) > Number(product.pocamarketPreviousPrice)
+                ? "가격 상승"
+                : "가격 하락"}
+            </span>
+          ) : null}
           <input
             value={value.salePrice}
             onChange={(event) => setField("salePrice", event.currentTarget.value)}
@@ -351,6 +652,44 @@ export function ProductQuickEditRow({
             step="0.01"
             className={fieldClass()}
           />
+        </td>
+      ) : null}
+      {visibleColumns.has("pocamarketStock") ? (
+        <td className="px-2 py-3 text-xs">
+          {product.pocamarketAvailableCount === null ||
+          product.pocamarketAvailableCount === undefined ? (
+            <span className="text-zinc-400">미확인</span>
+          ) : product.isSoldOut || product.pocamarketAvailableCount === 0 ? (
+            <span className="font-semibold text-rose-600">품절 (0)</span>
+          ) : (
+            <>
+              <span className="font-semibold text-emerald-700">
+                {product.pocamarketAvailableCount.toLocaleString()}개 매물
+              </span>
+              {product.pocamarketPreviousAvailableCount !== null &&
+              product.pocamarketPreviousAvailableCount !== undefined &&
+              product.pocamarketPreviousAvailableCount !==
+                product.pocamarketAvailableCount ? (
+                <span className="mt-1 block text-[11px] text-amber-700">
+                  이전 {product.pocamarketPreviousAvailableCount.toLocaleString()}개
+                </span>
+              ) : null}
+            </>
+          )}
+        </td>
+      ) : null}
+      {visibleColumns.has("pocamarketSyncedAt") ? (
+        <td className="px-2 py-3 text-xs text-zinc-600">
+          {product.pocamarketSyncedAt
+            ? new Intl.DateTimeFormat("ko-KR", {
+                timeZone: "Asia/Seoul",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              }).format(new Date(product.pocamarketSyncedAt))
+            : "미확인"}
         </td>
       ) : null}
       {visibleColumns.has("memo") ? (
@@ -381,25 +720,17 @@ export function ProductQuickEditRow({
             onKeyDown={saveOnEnter}
             className={fieldClass("text-sm")}
           >
-            <option value="active">활성</option>
-            <option value="inactive">비활성</option>
-            <option value="sold_out">품절</option>
+            {productStatusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </td>
       ) : null}
-      {visibleColumns.has("listingStatus") ? (
+      {visibleColumns.has("shopify") ? (
         <td className="px-2 py-3">
-          <span
-            className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${listingStatusClass(
-              product.listingUploadStatus ?? product.listingStatus,
-            )}`}
-            title={product.uploadError ?? product.ebayItemId ?? ""}
-          >
-            {product.listingUploadStatusLabel ?? product.listingStatus ?? "미등록"}
-          </span>
-          {product.ebayItemId ? (
-            <p className="mt-1 truncate text-xs text-zinc-500">{product.ebayItemId}</p>
-          ) : null}
+          <ShopifyStatusCell product={product} storeHandle={shopifyStoreHandle} />
         </td>
       ) : null}
       {visibleColumns.has("save") ? (
@@ -423,11 +754,15 @@ export function ProductQuickEditRow({
 export function ProductQuickEditCard({
   product,
   selected = false,
+  memberOptions = [],
+  shopifyStoreHandle = null,
   onSelectedChange,
   onPhotoUploadClick,
 }: {
   product: ProductQuickEditValue;
   selected?: boolean;
+  memberOptions?: string[];
+  shopifyStoreHandle?: string | null;
   onSelectedChange?: (checked: boolean) => void;
   onPhotoUploadClick?: (product: ProductQuickEditValue) => void;
 }) {
@@ -473,6 +808,7 @@ export function ProductQuickEditCard({
         brand: submittedValue.brand,
         costPrice: product.costPrice,
         salePrice: submittedValue.salePrice,
+        ebayPrice: submittedValue.ebayPrice,
         stockQuantity: submittedValue.stockQuantity,
         safetyStock: product.safetyStock,
         location: product.location,
@@ -517,6 +853,7 @@ export function ProductQuickEditCard({
         <div className="min-w-0 flex-1">
           <Link
             href={`/products/${product.id}`}
+            prefetch={false}
             className="text-sm font-semibold text-zinc-950 underline-offset-4 hover:underline"
           >
             {product.sku}
@@ -538,6 +875,9 @@ export function ProductQuickEditCard({
               변경 저장
             </button>
           ) : null}
+          <div className="mt-2">
+            <ShopifyStatusCell product={product} storeHandle={shopifyStoreHandle} />
+          </div>
         </div>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
@@ -557,9 +897,11 @@ export function ProductQuickEditCard({
           className={fieldClass()}
           aria-label="상태"
         >
-          <option value="active">활성</option>
-          <option value="inactive">비활성</option>
-          <option value="sold_out">품절</option>
+          {productStatusOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
         <input
           value={value.brand}
@@ -583,6 +925,17 @@ export function ProductQuickEditCard({
           aria-label="앨범명"
         />
         <input
+          value={value.ebayPrice}
+          onChange={(event) => setField("ebayPrice", event.currentTarget.value)}
+          onKeyDown={saveOnEnter}
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="$"
+          className={fieldClass()}
+          aria-label="달러 가격 (USD)"
+        />
+        <input
           value={value.salePrice}
           onChange={(event) => setField("salePrice", event.currentTarget.value)}
           onKeyDown={saveOnEnter}
@@ -600,14 +953,18 @@ export function ProductQuickEditCard({
           aria-label="원본 앨범명"
         />
       </div>
+      {value.optionName.trim().toLowerCase() === "unit" ? (
+        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2">
+          <p className="mb-1 text-xs font-semibold text-amber-800">유닛 — 포함 멤버 지정</p>
+          <MemberPicker
+            productId={product.id}
+            isUnit
+            value={product.featuredMembers}
+            options={memberOptions}
+          />
+        </div>
+      ) : null}
       <div className="mt-3 flex items-center justify-end gap-2">
-        <span
-          className={`mr-auto rounded-full px-2 py-1 text-xs font-semibold ring-1 ${listingStatusClass(
-            product.listingUploadStatus ?? product.listingStatus,
-          )}`}
-        >
-          {product.listingUploadStatusLabel ?? product.listingStatus ?? "미등록"}
-        </span>
         {message ? <p className="text-xs text-zinc-500">{message}</p> : null}
         <button
           type="button"

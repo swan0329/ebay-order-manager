@@ -16,13 +16,15 @@
     "admin:password": "powershell -ExecutionPolicy Bypass -File scripts/set-admin-password.ps1",
     "products:import": "tsx scripts/import-products.ts",
     "products:image-signatures": "tsx scripts/build-product-image-signatures.ts",
-    "products:image-fingerprints": "tsx scripts/build_image_fingerprints.ts"
+    "products:image-fingerprints": "tsx scripts/build_image_fingerprints.ts",
+    "pocamarket:sync": "tsx scripts/sync-pocamarket-api.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1045.0",
+    "@huggingface/transformers": "^4.2.0",
     "@prisma/client": "^6.19.0",
     "bcryptjs": "^3.0.3",
     "jose": "^6.2.3",

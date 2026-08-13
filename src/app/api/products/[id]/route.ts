@@ -59,7 +59,51 @@ export async function PUT(request: Request, context: RouteContext) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return jsonError("이미 등록된 SKU입니다.", 409);
+      return jsonError("이미 등록된 SKU 또는 포카마켓 상품번호입니다.", 409);
+    }
+
+    return jsonError(asErrorMessage(error), 500);
+  }
+}
+
+// Partial update — currently just the eBay USD price (used by the photo-card
+// match flow's candidate cards, so a price can be set without the full form).
+export async function PATCH(request: Request, context: RouteContext) {
+  try {
+    await requireApiUser();
+    const { id } = await context.params;
+    const body = (await request.json()) as { ebayPrice?: string | number | null };
+
+    let ebayPrice: number | null = null;
+    const raw = body.ebayPrice;
+    if (raw !== null && raw !== undefined && raw !== "") {
+      const numeric = Number(raw);
+      if (!Number.isFinite(numeric) || numeric < 0) {
+        return jsonError("0 이상의 숫자를 입력해 주세요.", 422);
+      }
+      ebayPrice = numeric;
+    }
+
+    const product = await prisma.product.update({
+      where: { id },
+      data: { ebayPrice },
+      select: { id: true, ebayPrice: true },
+    });
+
+    return Response.json({
+      ok: true,
+      ebayPrice: product.ebayPrice != null ? Number(product.ebayPrice) : null,
+    });
+  } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return jsonError("Unauthorized", 401);
+    }
+
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      return jsonError("상품을 찾을 수 없습니다.", 404);
     }
 
     return jsonError(asErrorMessage(error), 500);

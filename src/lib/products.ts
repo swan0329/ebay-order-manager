@@ -3,9 +3,37 @@ import { Prisma } from "@/generated/prisma";
 import * as XLSX from "xlsx";
 import { z } from "zod";
 import { parseCsvObjects, toCsv } from "@/lib/csv";
+import {
+  normalizeProductStatus,
+  productStatuses,
+  type ProductStatus,
+} from "@/lib/product-status";
 import { prisma } from "@/lib/prisma";
 
-export const productStatuses = ["active", "inactive", "sold_out"] as const;
+export { normalizeProductStatus, productStatusLabel, productStatuses } from "@/lib/product-status";
+
+export function productOrderBy(
+  sort?: string | null,
+): Prisma.ProductOrderByWithRelationInput[] {
+  if (sort === "pocamarket_oldest") {
+    return [
+      { pocamarketSyncedAt: { sort: "asc", nulls: "last" } },
+      { sku: "asc" },
+    ];
+  }
+  if (sort === "sku") {
+    return [{ sku: "asc" }];
+  }
+  return [
+    { pocamarketSyncedAt: { sort: "desc", nulls: "last" } },
+    { sku: "asc" },
+  ];
+}
+
+const productStatusSchema = z.preprocess(
+  (value) => normalizeProductStatus(value),
+  z.enum(productStatuses),
+);
 
 const nullableText = z
   .union([z.string(), z.number(), z.null(), z.undefined()])
@@ -30,6 +58,18 @@ const nullableDecimal = z
     return Number.isFinite(number) ? number : Number.NaN;
   })
   .refine((value) => value === null || !Number.isNaN(value), "숫자 값을 입력해 주세요.");
+
+const preservablePocamarketId = z
+  .union([z.string(), z.number(), z.null()])
+  .transform((value) => {
+    if (value === null || value === "") return null;
+    return String(value).trim();
+  })
+  .refine(
+    (value) => value === null || /^\d+$/.test(value),
+    "포카마켓 상품번호는 숫자만 입력해 주세요.",
+  )
+  .optional();
 
 const intValue = z
   .union([z.string(), z.number(), z.null(), z.undefined()])
@@ -73,8 +113,24 @@ const optionalNonNegativeDecimal = z
     "0 이상의 숫자를 입력해 주세요.",
   );
 
+// Like nullableDecimal, but an ABSENT key leaves the field unchanged (undefined)
+// instead of nulling it — so callers that don't send ebayPrice (full edit form,
+// CSV import) never wipe a USD price the user typed in the quick-edit table.
+const preservableDecimal = z
+  .union([z.string(), z.number(), z.null()])
+  .transform((value) => {
+    if (value === null || value === "") {
+      return null;
+    }
+    const number = Number(value);
+    return Number.isFinite(number) ? number : Number.NaN;
+  })
+  .refine((value) => value === null || !Number.isNaN(value), "숫자 값을 입력해 주세요.")
+  .optional();
+
 export const productInputSchema = z.object({
   sku: z.string().trim().min(1, "SKU는 필수입니다.").max(120),
+  pocamarketId: preservablePocamarketId,
   internalCode: nullableText,
   productName: z.string().trim().min(1, "상품명은 필수입니다.").max(240),
   optionName: nullableText,
@@ -82,12 +138,13 @@ export const productInputSchema = z.object({
   brand: nullableText,
   costPrice: nullableDecimal,
   salePrice: nullableDecimal,
+  ebayPrice: preservableDecimal,
   stockQuantity: intValue.refine((value) => value >= 0, "재고는 음수가 될 수 없습니다."),
   safetyStock: intValue.refine((value) => value >= 0, "안전재고는 음수가 될 수 없습니다."),
   location: nullableText,
   memo: nullableText,
   imageUrl: nullableText,
-  status: z.enum(productStatuses).default("active"),
+  status: productStatusSchema.default("unlisted"),
 });
 
 export type ProductInput = z.infer<typeof productInputSchema>;
@@ -95,7 +152,7 @@ export type ProductInput = z.infer<typeof productInputSchema>;
 export const bulkProductUpdateSchema = z
   .object({
     ids: z.array(z.string().min(1)).min(1, "상품을 하나 이상 선택해 주세요.").max(5000),
-    status: z.enum(productStatuses).optional(),
+    status: productStatusSchema.optional(),
     stockQuantity: optionalNonNegativeInt,
     salePrice: optionalNonNegativeDecimal,
   })
@@ -115,13 +172,22 @@ export const bulkProductDeleteSchema = z.object({
 
 export type BulkProductDeleteInput = z.infer<typeof bulkProductDeleteSchema>;
 
-function statusForStock(_status: (typeof productStatuses)[number], stockQuantity: number) {
-  return stockQuantity <= 0 ? "sold_out" : "active";
+function statusForStock(status: ProductStatus, stockQuantity: number) {
+  if (stockQuantity <= 0) {
+    return "sold_out";
+  }
+
+  if (status === "active") {
+    return "active";
+  }
+
+  return "unlisted";
 }
 
 export function productData(input: ProductInput) {
   return {
     sku: input.sku,
+    pocamarketId: input.pocamarketId,
     internalCode: input.internalCode,
     productName: input.productName,
     optionName: input.optionName,
@@ -129,6 +195,7 @@ export function productData(input: ProductInput) {
     brand: input.brand,
     costPrice: input.costPrice,
     salePrice: input.salePrice,
+    ebayPrice: input.ebayPrice,
     stockQuantity: input.stockQuantity,
     safetyStock: input.safetyStock,
     location: input.location,
@@ -146,6 +213,8 @@ export function productWhere(params: {
   member?: string | null;
   album?: string | null;
   version?: string | null;
+  freshness?: string | null;
+  upload?: string | null;
 }): Prisma.ProductWhereInput {
   const q = params.q?.trim();
   const group = params.group?.trim();
@@ -156,7 +225,12 @@ export function productWhere(params: {
   const and: Prisma.ProductWhereInput[] = [];
 
   if (params.status && params.status !== "all") {
-    where.status = params.status;
+    const status = normalizeProductStatus(params.status);
+    if (status === "unlisted") {
+      and.push({ OR: [{ status: "unlisted" }, { status: "inactive" }] });
+    } else {
+      where.status = status;
+    }
   }
 
   if (params.stock === "sold_out") {
@@ -168,8 +242,31 @@ export function productWhere(params: {
   if (params.stock === "in_stock" || params.stock === "low") {
     and.push({
       stockQuantity: { gt: 0 },
-      status: { not: "inactive" },
     });
+  }
+
+  if (params.freshness === "never") {
+    and.push({ pocamarketSyncedAt: null });
+  } else if (params.freshness === "older_24h") {
+    and.push({
+      OR: [
+        { pocamarketSyncedAt: null },
+        { pocamarketSyncedAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+      ],
+    });
+  } else if (params.freshness === "older_7d") {
+    and.push({
+      OR: [
+        { pocamarketSyncedAt: null },
+        { pocamarketSyncedAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+      ],
+    });
+  }
+
+  if (params.upload === "uploaded") {
+    and.push({ ebayItemId: { not: null } });
+  } else if (params.upload === "not_uploaded") {
+    and.push({ ebayItemId: null });
   }
 
   if (group) {
@@ -219,8 +316,14 @@ export function productStockLabel(product: {
   safetyStock: number;
   status: string;
 }) {
-  if (product.status === "inactive") {
-    return "비활성";
+  const status = normalizeProductStatus(product.status);
+
+  if (status === "unlisted") {
+    return "미등록";
+  }
+
+  if (status === "sold_out") {
+    return "품절";
   }
 
   if (product.stockQuantity <= 0) {
@@ -235,7 +338,13 @@ export function productStockLabel(product: {
 }
 
 export function matchesProductStockFilter(
-  product: { stockQuantity: number; safetyStock: number; status?: string | null },
+  product: {
+    stockQuantity: number;
+    safetyStock: number;
+    status?: string | null;
+    pocamarketAvailableCount?: number | null;
+    pocamarketSyncedAt?: Date | string | null;
+  },
   stock?: string | null,
 ) {
   if (!stock || stock === "all") {
@@ -247,7 +356,7 @@ export function matchesProductStockFilter(
   }
 
   if (stock === "in_stock" || stock === "low") {
-    return product.stockQuantity > 0 && product.status !== "inactive";
+    return product.stockQuantity > 0;
   }
 
   return true;
@@ -336,22 +445,23 @@ export async function bulkUpdateProducts(
     stockData.status = statusForStock(input.status, stockQuantity);
   }
 
-  if (input.status === undefined && stockQuantity > 0) {
-    await prisma.product.updateMany({
-      where: { id: { in: productIds } },
-      data: { ...stockData, status: "active" },
-    });
-  } else {
-    await prisma.product.updateMany({
-      where: { id: { in: productIds } },
-      data: {
-        ...stockData,
-        status:
-          input.status === undefined
-            ? "sold_out"
-            : statusForStock(input.status, stockQuantity),
-      },
-    });
+  await prisma.product.updateMany({
+    where: { id: { in: productIds } },
+    data: stockData,
+  });
+
+  if (input.status === undefined) {
+    if (stockQuantity <= 0) {
+      await prisma.product.updateMany({
+        where: { id: { in: productIds } },
+        data: { status: "sold_out" },
+      });
+    } else {
+      await prisma.product.updateMany({
+        where: { id: { in: productIds }, status: { not: "active" } },
+        data: { status: "unlisted" },
+      });
+    }
   }
 
   const changedStockProducts = products.filter(
@@ -418,6 +528,13 @@ function rowText(row: ProductImportRow, keys: string[]) {
 
 export function normalizeProductImportRow(row: ProductImportRow) {
   const sku = rowText(row, ["sku", "SKU", "상품번호", "상품 번호"]);
+  const pocamarketId =
+    rowText(row, [
+      "pocamarket_id",
+      "pocamarketId",
+      "포카마켓 상품번호",
+      "포카마켓 카드 ID",
+    ]) || (/^\d+$/.test(sku) ? sku : undefined);
   const groupName = rowText(row, ["그룹명", "brand", "브랜드"]);
   const albumName = rowText(row, ["앨범명", "category", "카테고리"]);
   const originalAlbumName = rowText(row, ["원본 앨범명"]);
@@ -431,12 +548,16 @@ export function normalizeProductImportRow(row: ProductImportRow) {
   const status = rowText(row, ["status", "상태"]);
   const stockNumber = Number(stockQuantity || 0);
   const normalizedStatus =
-    Number.isFinite(stockNumber) && stockNumber <= 0
-      ? "sold_out"
-      : status || "active";
+    status
+      ? normalizeProductStatus(status)
+      : Number.isFinite(stockNumber) && stockNumber <= 0
+        ? "sold_out"
+        : "unlisted";
+  const normalizedStockQuantity = Number.isFinite(stockNumber) ? stockNumber : 0;
 
   return {
     sku,
+    pocamarketId,
     internalCode: rowValue(row, ["internal_code", "내부코드", "상품번호"]),
     productName,
     optionName: rowValue(row, ["option_name", "옵션명", "멤버"]),
@@ -449,7 +570,7 @@ export function normalizeProductImportRow(row: ProductImportRow) {
     location: rowValue(row, ["location", "위치"]),
     memo: rowValue(row, ["memo", "메모", "원본 앨범명"]),
     imageUrl: rowValue(row, ["image_url", "이미지", "이미지 URL", "포카마켓 이미지"]),
-    status: normalizedStatus,
+    status: statusForStock(normalizedStatus, normalizedStockQuantity),
   };
 }
 
@@ -561,7 +682,7 @@ async function importProductsRowsFastWithMovements(
 
     products.set(parsed.data.sku, {
       ...parsed.data,
-      status: statusForStock(parsed.data.status, parsed.data.stockQuantity),
+      status: parsed.data.status,
     });
   }
 

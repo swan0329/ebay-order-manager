@@ -9,6 +9,7 @@ const prismaMock = vi.hoisted(() => ({
   },
   listingDraft: {
     create: vi.fn(),
+    createMany: vi.fn(),
     findMany: vi.fn(),
     update: vi.fn(),
   },
@@ -34,6 +35,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   prismaMock.listingDraft.create.mockImplementation(({ data }) =>
     Promise.resolve({ id: "draft-1", ...data }),
+  );
+  prismaMock.listingDraft.createMany.mockImplementation(({ data }) =>
+    Promise.resolve({ count: Array.isArray(data) ? data.length : 0 }),
   );
   prismaMock.listingDraft.update.mockImplementation(({ data }) =>
     Promise.resolve({ id: "draft-1", ...data }),
@@ -71,28 +75,32 @@ describe("listing draft service", () => {
     ]);
     prismaMock.listingTemplate.findFirst.mockResolvedValue(null);
 
-    const drafts = await createDraftsFromInventory({
+    const created = await createDraftsFromInventory({
       userId: "user-1",
       productIds: ["product-1"],
     });
 
-    expect(drafts).toHaveLength(1);
+    expect(created).toBe(1);
     expect(prismaMock.product.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: { in: ["product-1"] } } }),
-    );
-    expect(prismaMock.listingDraft.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        userId: "user-1",
-        sourceInventoryId: "product-1",
-        sku: "SKU-1",
-        title: "IVE Rei Photocard",
-        price: "12.50",
-        quantity: 2,
-        fieldSourceJson: expect.objectContaining({
-          sku: "inventory",
-          price: "inventory",
-        }),
+      expect.objectContaining({
+        where: expect.objectContaining({ id: { in: ["product-1"] } }),
       }),
+    );
+    expect(prismaMock.listingDraft.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          userId: "user-1",
+          sourceInventoryId: "product-1",
+          sku: "SKU-1",
+          title: "IVE Rei Photocard",
+          price: null,
+          quantity: 2,
+          fieldSourceJson: expect.objectContaining({
+            sku: "inventory",
+            price: "default",
+          }),
+        }),
+      ],
     });
   });
 

@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadBucketCommand,
   PutObjectCommand,
   S3Client,
@@ -78,6 +79,52 @@ export async function uploadBufferToR2(
     key,
     url: buildPublicR2Url(key, config.publicBaseUrl),
   };
+}
+
+export async function getObjectFromR2(
+  key: string | null | undefined,
+): Promise<{ buffer: Uint8Array; contentType: string } | null> {
+  const normalizedKey = normalizeR2Key(key);
+
+  if (!normalizedKey) {
+    return null;
+  }
+
+  const config = assertR2Configured();
+
+  try {
+    const response = await clientFor(config).send(
+      new GetObjectCommand({
+        Bucket: config.bucketName,
+        Key: normalizedKey,
+      }),
+    );
+
+    const stream = response.Body as AsyncIterable<Uint8Array> | null;
+
+    if (!stream) {
+      return null;
+    }
+
+    const chunks: Uint8Array[] = [];
+
+    for await (const chunk of stream) {
+      chunks.push(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk as Buffer));
+    }
+
+    const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const buffer = new Uint8Array(totalLength);
+    let offset = 0;
+
+    for (const chunk of chunks) {
+      buffer.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    return { buffer, contentType: response.ContentType ?? "image/jpeg" };
+  } catch {
+    return null;
+  }
 }
 
 export async function deleteObjectFromR2(

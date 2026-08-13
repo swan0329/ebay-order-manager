@@ -329,7 +329,7 @@ async function ebayFetch(
   return { response, body };
 }
 
-async function ebayApplicationFetch(
+export async function ebayApplicationFetch(
   url: URL,
   init?: RequestInit,
   forceRefresh = false,

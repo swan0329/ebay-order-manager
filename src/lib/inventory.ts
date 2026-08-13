@@ -2,6 +2,7 @@ import { Prisma } from "@/generated/prisma";
 import { z } from "zod";
 import { toCsv } from "@/lib/csv";
 import { matchOrderItemsForOrder } from "@/lib/services/matchingService";
+import { normalizeProductStatus } from "@/lib/product-status";
 import { prisma } from "@/lib/prisma";
 
 export const inventoryMovementTypes = [
@@ -20,11 +21,31 @@ export const inventoryMovementSchema = z.object({
 });
 
 function isDeductibleOrder(order: { orderStatus: string; fulfillmentStatus: string }) {
+  // 취소 주문만 차감 대상에서 제외한다. 배송완료(FULFILLED) 주문은 이미 출고되어
+  // 재고가 실제로 소진된 건이므로 반드시 차감되어야 한다. 항목별 stockDeducted
+  // 플래그가 중복 차감을 막아주므로 미차감 상태의 배송완료 주문도 안전하게 처리된다.
   const canceledStatuses = ["CANCELLED", "CANCELED", "CANCELLED_BY_SELLER"];
   return (
     !canceledStatuses.includes(order.orderStatus) &&
-    ["NOT_STARTED", "IN_PROGRESS"].includes(order.fulfillmentStatus)
+    !canceledStatuses.includes(order.fulfillmentStatus)
   );
+}
+
+export function statusAfterStockChange(
+  currentStatus: string | null | undefined,
+  afterQuantity: number,
+) {
+  const status = normalizeProductStatus(currentStatus);
+
+  if (afterQuantity <= 0) {
+    return "sold_out";
+  }
+
+  if (status === "active") {
+    return "active";
+  }
+
+  return "unlisted";
 }
 
 export async function createInventoryMovement(input: {
@@ -62,7 +83,7 @@ export async function createInventoryMovement(input: {
     where: { id: input.productId },
     data: {
       stockQuantity: afterQuantity,
-      status: afterQuantity <= 0 ? "sold_out" : "active",
+      status: statusAfterStockChange(product.status, afterQuantity),
     },
   });
 
@@ -118,7 +139,7 @@ export async function createInventoryMovementTx(
     where: { id: input.productId },
     data: {
       stockQuantity: afterQuantity,
-      status: afterQuantity <= 0 ? "sold_out" : "active",
+      status: statusAfterStockChange(product.status, afterQuantity),
     },
   });
 

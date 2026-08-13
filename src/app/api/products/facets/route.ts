@@ -18,7 +18,7 @@ type FacetRow = {
 };
 
 const cacheTtlMs = 5 * 60_000;
-const facetLimit = 300;
+const facetLimit = 5000;
 let facetsCache: { expiresAt: number; value: ProductFacetOptions } | null = null;
 
 async function loadFacets(): Promise<ProductFacetOptions> {
@@ -29,7 +29,6 @@ async function loadFacets(): Promise<ProductFacetOptions> {
       FROM "products"
       WHERE "brand" IS NOT NULL
         AND "brand" <> ''
-        AND "status" <> 'inactive'
       ORDER BY "brand" ASC
       LIMIT ${facetLimit}
     ) groups
@@ -40,7 +39,6 @@ async function loadFacets(): Promise<ProductFacetOptions> {
       FROM "products"
       WHERE "option_name" IS NOT NULL
         AND "option_name" <> ''
-        AND "status" <> 'inactive'
       ORDER BY "option_name" ASC
       LIMIT ${facetLimit}
     ) members
@@ -51,7 +49,6 @@ async function loadFacets(): Promise<ProductFacetOptions> {
       FROM "products"
       WHERE "category" IS NOT NULL
         AND "category" <> ''
-        AND "status" <> 'inactive'
       ORDER BY "category" ASC
       LIMIT ${facetLimit}
     ) albums
@@ -62,7 +59,6 @@ async function loadFacets(): Promise<ProductFacetOptions> {
       FROM "products"
       WHERE "product_name" IS NOT NULL
         AND "product_name" <> ''
-        AND "status" <> 'inactive'
       ORDER BY "product_name" ASC
       LIMIT ${facetLimit}
     ) versions

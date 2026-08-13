@@ -71,80 +71,12 @@ describe("publishProductListing", () => {
     ]);
   });
 
-  it("creates inventory item, offer, and publishes when no offer exists", async () => {
-    ebayApiRequestMock
-      .mockResolvedValueOnce({ body: null, status: 204, headers: new Headers() })
-      .mockResolvedValueOnce({ body: { offers: [] }, status: 200, headers: new Headers() })
-      .mockResolvedValueOnce({ body: { offerId: "offer-1" }, status: 200, headers: new Headers() })
-      .mockResolvedValueOnce({ body: { listingId: "item-1" }, status: 200, headers: new Headers() });
-
+  it("permanently blocks direct eBay listing writes and requires Excel", async () => {
     await expect(
       publishProductListing(account as never, product as never, input),
-    ).resolves.toMatchObject({
-      action: "create",
-      offerId: "offer-1",
-      listingId: "item-1",
-      listingStatus: "ACTIVE",
-    });
-    expect(ebayApiRequestMock).toHaveBeenNthCalledWith(
-      1,
-      account,
-      expect.objectContaining({
-        method: "PUT",
-        path: "/sell/inventory/v1/inventory_item/SKU-1",
-      }),
+    ).rejects.toThrow(
+      "eBay API 상품 등록·수정 기능은 영구 비활성화되었습니다",
     );
-    expect(ebayApiRequestMock).toHaveBeenNthCalledWith(
-      3,
-      account,
-      expect.objectContaining({
-        method: "POST",
-        path: "/sell/inventory/v1/offer",
-      }),
-    );
-    expect(ebayApiRequestMock).toHaveBeenNthCalledWith(
-      4,
-      account,
-      expect.objectContaining({
-        method: "POST",
-        path: "/sell/inventory/v1/offer/offer-1/publish",
-      }),
-    );
-  });
-
-  it("updates an existing offer without publishing a second listing", async () => {
-    ebayApiRequestMock
-      .mockResolvedValueOnce({ body: null, status: 204, headers: new Headers() })
-      .mockResolvedValueOnce({
-        body: {
-          offers: [
-            {
-              offerId: "offer-1",
-              listing: { listingId: "item-1", listingStatus: "ACTIVE" },
-            },
-          ],
-        },
-        status: 200,
-        headers: new Headers(),
-      })
-      .mockResolvedValueOnce({ body: null, status: 204, headers: new Headers() });
-
-    await expect(
-      publishProductListing(account as never, product as never, input),
-    ).resolves.toMatchObject({
-      action: "revise",
-      offerId: "offer-1",
-      listingId: "item-1",
-      listingStatus: "ACTIVE",
-    });
-    expect(ebayApiRequestMock).toHaveBeenCalledTimes(3);
-    expect(ebayApiRequestMock).toHaveBeenNthCalledWith(
-      3,
-      account,
-      expect.objectContaining({
-        method: "PUT",
-        path: "/sell/inventory/v1/offer/offer-1",
-      }),
-    );
+    expect(ebayApiRequestMock).not.toHaveBeenCalled();
   });
 });

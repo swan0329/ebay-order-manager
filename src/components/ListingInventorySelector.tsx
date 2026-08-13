@@ -4,10 +4,6 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckSquare, Download, Search, Square, UploadCloud } from "lucide-react";
-import {
-  listingUploadStatusLabel,
-  type ListingUploadStatus,
-} from "@/lib/listing-upload-status";
 
 type ProductRow = {
   id: string;
@@ -18,30 +14,7 @@ type ProductRow = {
   salePrice: string | number | null;
   stockQuantity: number;
   imageUrl: string | null;
-  ebayItemId: string | null;
-  listingStatus: string | null;
-  listingUploadStatus: ListingUploadStatus;
 };
-
-function listingStatusClass(status: ListingUploadStatus) {
-  if (status === "uploaded") {
-    return "bg-emerald-50 text-emerald-700 ring-emerald-200";
-  }
-
-  if (status === "failed") {
-    return "bg-rose-50 text-rose-700 ring-rose-200";
-  }
-
-  if (status === "needs_update") {
-    return "bg-amber-50 text-amber-700 ring-amber-200";
-  }
-
-  if (status === "draft") {
-    return "bg-blue-50 text-blue-700 ring-blue-200";
-  }
-
-  return "bg-zinc-50 text-zinc-600 ring-zinc-200";
-}
 
 type TemplateOption = {
   id: string;
@@ -85,7 +58,7 @@ export function ListingInventorySelector({
     const form = new FormData(event.currentTarget);
     const params = new URLSearchParams();
 
-    for (const key of ["q", "listing"]) {
+    for (const key of ["q"]) {
       const value = String(form.get(key) ?? "").trim();
       if (value && value !== "all") {
         params.set(key, value);
@@ -127,9 +100,14 @@ export function ListingInventorySelector({
     router.refresh();
   }
 
-  async function downloadSelectedXlsx() {
-    if (!selectedIds.length) {
-      setMessage("XLSX로 받을 상품을 하나 이상 선택해 주세요.");
+  async function downloadSelectedExcel() {
+    // This page only lists unlisted products — if none are checked, export them all.
+    const exportIds = selectedIds.length
+      ? selectedIds
+      : products.map((product) => product.id);
+
+    if (!exportIds.length) {
+      setMessage("내려받을 미등록 상품이 없습니다.");
       return;
     }
 
@@ -139,7 +117,7 @@ export function ListingInventorySelector({
     const response = await fetch("/api/listing-upload/inventory/export", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ productIds: selectedIds, templateId: templateId || null }),
+      body: JSON.stringify({ productIds: exportIds, templateId: templateId || null }),
     });
 
     if (!response.ok) {
@@ -147,27 +125,40 @@ export function ListingInventorySelector({
         | { error?: string }
         | null;
       setExporting(false);
-      setMessage(data?.error ?? "XLSX 다운로드에 실패했습니다.");
+      setMessage(data?.error ?? "엑셀 다운로드에 실패했습니다.");
       return;
     }
 
+    const date = new Date().toISOString().slice(0, 10);
+    const exported = Number(response.headers.get("x-exported-count") ?? 0);
+    const excluded = Number(response.headers.get("x-excluded-count") ?? 0);
+    const reportImportedAt = response.headers.get("x-ebay-report-imported-at");
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "ebay-category-listing-upload.xlsx";
+    link.download = `ebay-new-listings-ready-${date}.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
     setExporting(false);
+    setMessage(
+      `신규등록 CSV ${exported.toLocaleString()}개 생성${
+        excluded > 0 ? ` · 조건 미충족 ${excluded.toLocaleString()}개 제외` : ""
+      }${
+        reportImportedAt
+          ? ` · eBay 보고서 ${new Date(reportImportedAt).toLocaleString("ko-KR")} 기준`
+          : ""
+      }`,
+    );
   }
 
   return (
     <div className="space-y-4">
       <form
         onSubmit={applyFilters}
-        className="grid gap-2 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-[1fr_150px_auto_auto]"
+        className="grid gap-2 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-[1fr_auto_auto]"
       >
         <label className="relative block">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
@@ -178,15 +169,6 @@ export function ListingInventorySelector({
             className="h-10 w-full rounded-md border border-zinc-300 pl-9 pr-3 text-sm outline-none focus:border-zinc-900"
           />
         </label>
-        <select
-          name="listing"
-          defaultValue={searchParams.get("listing") ?? "all"}
-          className="h-10 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
-        >
-          <option value="all">전체</option>
-          <option value="unlisted">미등록</option>
-          <option value="listed">등록됨</option>
-        </select>
         <label className="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-300 px-3 text-sm text-zinc-800">
           <input
             name="inStock"
@@ -242,12 +224,16 @@ export function ListingInventorySelector({
             </button>
             <button
               type="button"
-              onClick={() => void downloadSelectedXlsx()}
-              disabled={exporting || !selectedIds.length}
+              onClick={() => void downloadSelectedExcel()}
+              disabled={exporting || !products.length}
               className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-600 disabled:bg-zinc-400"
             >
               <Download className="h-4 w-4" />
-              {exporting ? "XLSX 준비 중" : "선택상품 eBay XLSX"}
+              {exporting
+                ? "CSV 준비 중"
+                : selectedIds.length
+                  ? `선택 ${selectedIds.length}개 신규등록 CSV`
+                  : "신규등록 가능 전체 CSV"}
             </button>
           </div>
           <div className="text-sm text-zinc-600">
@@ -265,7 +251,6 @@ export function ListingInventorySelector({
                 <th className="px-3 py-2">SKU</th>
                 <th className="px-3 py-2">재고</th>
                 <th className="px-3 py-2">가격</th>
-                <th className="px-3 py-2">eBay</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
@@ -317,23 +302,11 @@ export function ListingInventorySelector({
                   <td className="whitespace-nowrap px-3 py-2">
                     {product.salePrice?.toString() ?? "-"}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-zinc-600">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${listingStatusClass(
-                        product.listingUploadStatus,
-                      )}`}
-                    >
-                      {listingUploadStatusLabel(product.listingUploadStatus)}
-                    </span>
-                    {product.ebayItemId ? (
-                      <p className="mt-1 text-xs text-zinc-500">{product.ebayItemId}</p>
-                    ) : null}
-                  </td>
                 </tr>
               ))}
               {!products.length ? (
                 <tr>
-                  <td colSpan={6} className="px-3 py-10 text-center text-zinc-500">
+                  <td colSpan={5} className="px-3 py-10 text-center text-zinc-500">
                     표시할 상품이 없습니다.
                   </td>
                 </tr>

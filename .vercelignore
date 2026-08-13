@@ -3,3 +3,7 @@
 node_modules
 .next
 *.log
+*.xlsx
+*.csv
+tools
+.policy-cache-index.patch

@@ -2,12 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Image as ImageIcon, Loader2, Upload, X } from "lucide-react";
+import {
+  Download,
+  Image as ImageIcon,
+  Loader2,
+  ShoppingBag,
+  Upload,
+  X,
+} from "lucide-react";
 import {
   ProductQuickEditCard,
   ProductQuickEditRow,
   type ProductQuickEditValue,
 } from "@/components/ProductQuickEdit";
+import { productStatusLabel, productStatusOptions } from "@/lib/product-status";
 
 type Column = {
   id: string;
@@ -19,17 +27,24 @@ type Column = {
 
 const columns: Column[] = [
   { id: "select", label: "", width: 52, minWidth: 48, locked: true },
+  { id: "imageSource", label: "이미지 출처", width: 110, minWidth: 96 },
   { id: "sku", label: "상품번호", width: 120, minWidth: 90 },
   { id: "stockQuantity", label: "재고", width: 90, minWidth: 74 },
+  { id: "sellability", label: "판매 가능 경로", width: 150, minWidth: 130 },
+  { id: "uploadStatus", label: "eBay 업로드", width: 145, minWidth: 125 },
   { id: "brand", label: "그룹명", width: 140, minWidth: 100 },
   { id: "category", label: "앨범명", width: 240, minWidth: 140 },
   { id: "optionName", label: "멤버", width: 130, minWidth: 100 },
+  { id: "featuredMembers", label: "유닛 멤버", width: 200, minWidth: 140 },
   { id: "imageUrl", label: "포카마켓 이미지", width: 130, minWidth: 104 },
+  { id: "ebayPrice", label: "달러 가격($)", width: 120, minWidth: 104 },
   { id: "salePrice", label: "포카마켓 가격", width: 130, minWidth: 116 },
+  { id: "pocamarketStock", label: "포카마켓 매물 수", width: 140, minWidth: 120 },
+  { id: "pocamarketSyncedAt", label: "포카 최신화", width: 140, minWidth: 120 },
   { id: "memo", label: "원본 앨범명", width: 190, minWidth: 130 },
   { id: "productName", label: "상품명", width: 320, minWidth: 180 },
   { id: "status", label: "상태", width: 140, minWidth: 120 },
-  { id: "listingStatus", label: "eBay 등록", width: 150, minWidth: 120 },
+  { id: "shopify", label: "쇼피파이", width: 150, minWidth: 110 },
   { id: "save", label: "저장", width: 90, minWidth: 74, locked: true },
 ];
 
@@ -92,37 +107,78 @@ function bulkUpdateChanges(payload: BulkUpdatePayload) {
 }
 
 function statusLabel(status: string) {
-  if (status === "active") {
-    return "활성";
-  }
-
-  if (status === "inactive") {
-    return "비활성";
-  }
-
-  if (status === "sold_out") {
-    return "품절";
-  }
-
-  return status;
+  return productStatusLabel(status);
 }
 
 export function ResizableProductsTable({
   products,
+  shopifyStoreHandle = null,
 }: {
   products: ProductQuickEditValue[];
+  shopifyStoreHandle?: string | null;
 }) {
   const router = useRouter();
   const [widths, setWidths] = useState<Record<string, number>>(defaultWidths);
+  const [groupMembers, setGroupMembers] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    const unitBrands = [
+      ...new Set(
+        products
+          .filter((p) => (p.optionName ?? "").trim().toLowerCase() === "unit")
+          .map((p) => (p.brand ?? "").trim())
+          .filter(Boolean),
+      ),
+    ];
+    const missing = unitBrands.filter((brand) => !(brand in groupMembers));
+    if (!missing.length) {
+      return;
+    }
+
+    let active = true;
+    void (async () => {
+      for (const brand of missing) {
+        try {
+          const response = await fetch(
+            `/api/inventory/group-members?group=${encodeURIComponent(brand)}`,
+          );
+          const data = (await response.json().catch(() => null)) as
+            | { members?: string[] }
+            | null;
+          if (!active) return;
+          setGroupMembers((current) => ({ ...current, [brand]: data?.members ?? [] }));
+        } catch {
+          if (active) {
+            setGroupMembers((current) => ({ ...current, [brand]: [] }));
+          }
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [products, groupMembers]);
   const [visibility, setVisibility] =
     useState<Record<string, boolean>>(defaultVisibility);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkStatus, setBulkStatus] = useState("active");
+  const [bulkStatus, setBulkStatus] = useState("unlisted");
   const [bulkStock, setBulkStock] = useState("");
   const [bulkPrice, setBulkPrice] = useState("");
   const [bulkLoading, setBulkLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
+  const [lensExportLoading, setLensExportLoading] = useState(false);
+  const [combinedExportLoading, setCombinedExportLoading] = useState(false);
+  const [ownPhotoExportLoading, setOwnPhotoExportLoading] = useState(false);
+  const [shopifyLoading, setShopifyLoading] = useState(false);
+  const [shopifyProgress, setShopifyProgress] = useState<{
+    total: number;
+    done: number;
+    success: number;
+    failed: number;
+    running: boolean;
+  } | null>(null);
   const [bulkMessage, setBulkMessage] = useState("");
   const [pendingBulkUpdate, setPendingBulkUpdate] =
     useState<PendingBulkUpdate | null>(null);
@@ -363,40 +419,258 @@ export function ResizableProductsTable({
     router.refresh();
   }
 
-  async function downloadSelectedListingXlsx() {
-    if (!selectedCount) {
-      setBulkMessage("XLSX로 받을 상품을 하나 이상 선택해 주세요.");
-      return;
-    }
+  async function downloadSelectedListingExcel() {
+    // Checked items export just those; with nothing checked, export every product
+    // that is sellable, image-ready, and not active on eBay.
+    const body =
+      selectedCount > 0
+        ? { productIds: selectedProductIds }
+        : { allUnlisted: true };
 
     setExportLoading(true);
     setBulkMessage("");
 
-    const response = await fetch("/api/listing-upload/inventory/export", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ productIds: selectedProductIds }),
-    });
+    try {
+      const response = await fetch("/api/listing-upload/inventory/export", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
-    if (!response.ok) {
-      const data = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null;
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        setBulkMessage(data?.error ?? "이베이 CSV 다운로드에 실패했습니다.");
+        return;
+      }
+
+      const date = new Date().toISOString().slice(0, 10);
+      const exported = Number(response.headers.get("x-exported-count") ?? 0);
+      const excluded = Number(response.headers.get("x-excluded-count") ?? 0);
+      const reportImportedAt = response.headers.get("x-ebay-report-imported-at");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `ebay-new-listings-ready-${date}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setBulkMessage(
+        `신규등록 CSV ${exported.toLocaleString()}개 생성${
+          excluded > 0
+            ? ` · 등록됨/공급불가/이미지·가격 미완료 ${excluded.toLocaleString()}개 제외`
+            : ""
+        }${
+          reportImportedAt
+            ? ` · eBay 보고서 ${new Date(reportImportedAt).toLocaleString("ko-KR")} 기준`
+            : ""
+        }`,
+      );
+    } catch {
+      setBulkMessage("이베이 CSV 다운로드 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
       setExportLoading(false);
-      setBulkMessage(data?.error ?? "이베이 업로드 XLSX 다운로드에 실패했습니다.");
+    }
+  }
+
+  async function downloadLensListingCsv() {
+    setLensExportLoading(true);
+    setBulkMessage("");
+
+    try {
+      const response = await fetch("/api/listing-upload/inventory/export", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ lensOnly: true }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        setBulkMessage(data?.error ?? "Lens 작업 상품 CSV 다운로드에 실패했습니다.");
+        return;
+      }
+
+      const date = new Date().toISOString().slice(0, 10);
+      const exported = Number(response.headers.get("x-exported-count") ?? 0);
+      const reportImportedAt = response.headers.get("x-ebay-report-imported-at");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `ebay-new-listings-lens-ready-${date}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setBulkMessage(
+        `Lens 승인·신규등록 가능 CSV ${exported.toLocaleString()}개 생성${
+          reportImportedAt
+            ? ` · eBay 보고서 ${new Date(reportImportedAt).toLocaleString("ko-KR")} 기준`
+            : ""
+        }`,
+      );
+    } catch {
+      setBulkMessage("Lens 작업 상품 CSV 다운로드 중 오류가 발생했습니다.");
+    } finally {
+      setLensExportLoading(false);
+    }
+  }
+
+  async function downloadCombinedListingCsv() {
+    setCombinedExportLoading(true);
+    setBulkMessage("");
+
+    try {
+      const response = await fetch("/api/listing-upload/inventory/export", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ combined: true }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        setBulkMessage(data?.error ?? "판매가능 전체 CSV 다운로드에 실패했습니다.");
+        return;
+      }
+
+      const date = new Date().toISOString().slice(0, 10);
+      const exported = Number(response.headers.get("x-exported-count") ?? 0);
+      const reportImportedAt = response.headers.get("x-ebay-report-imported-at");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `ebay-new-listings-all-${date}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setBulkMessage(
+        `판매가능 전체 CSV ${exported.toLocaleString()}개 생성(신규등록+Lens 승인 포함)${
+          reportImportedAt
+            ? ` · eBay 보고서 ${new Date(reportImportedAt).toLocaleString("ko-KR")} 기준`
+            : ""
+        }`,
+      );
+    } catch {
+      setBulkMessage("판매가능 전체 CSV 다운로드 중 오류가 발생했습니다.");
+    } finally {
+      setCombinedExportLoading(false);
+    }
+  }
+
+  async function downloadOwnPhotoListingCsv() {
+    setOwnPhotoExportLoading(true);
+    setBulkMessage("");
+
+    try {
+      const response = await fetch("/api/listing-upload/inventory/export", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ownPhotoOnly: true }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        setBulkMessage(data?.error ?? "직접촬영 판매가능 CSV 다운로드에 실패했습니다.");
+        return;
+      }
+
+      const date = new Date().toISOString().slice(0, 10);
+      const exported = Number(response.headers.get("x-exported-count") ?? 0);
+      const reportImportedAt = response.headers.get("x-ebay-report-imported-at");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `ebay-new-listings-own-photo-${date}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setBulkMessage(
+        `직접촬영 판매가능 CSV ${exported.toLocaleString()}개 생성(촬영본·내 재고·미등록)${
+          reportImportedAt
+            ? ` · eBay 보고서 ${new Date(reportImportedAt).toLocaleString("ko-KR")} 기준`
+            : ""
+        }`,
+      );
+    } catch {
+      setBulkMessage("직접촬영 판매가능 CSV 다운로드 중 오류가 발생했습니다.");
+    } finally {
+      setOwnPhotoExportLoading(false);
+    }
+  }
+
+  async function runBulkShopifyUpload() {
+    // Kept separate from the regular selection export so operators cannot
+    // accidentally mix Pokamarket/direct-photo items into a Lens upload batch.
+    if (!selectedCount) {
+      setBulkMessage("쇼피파이에 업로드할 상품을 선택해 주세요.");
       return;
     }
 
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "ebay-category-listing-upload.xlsx";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
-    setExportLoading(false);
+    if (
+      !window.confirm(
+        `선택한 상품 ${selectedCount}개를 쇼피파이에 업로드할까요?\n\n순서대로 하나씩 업로드되며, 개수가 많으면 시간이 걸립니다.`,
+      )
+    ) {
+      return;
+    }
+
+    setShopifyLoading(true);
+    setBulkMessage("");
+
+    const ids = selectedProductIds;
+    let success = 0;
+    let failed = 0;
+    setShopifyProgress({
+      total: ids.length,
+      done: 0,
+      success: 0,
+      failed: 0,
+      running: true,
+    });
+
+    for (let index = 0; index < ids.length; index += 1) {
+      try {
+        const response = await fetch(`/api/products/${ids[index]}/shopify-upload`, {
+          method: "POST",
+        });
+        if (response.ok) {
+          success += 1;
+        } else {
+          failed += 1;
+        }
+      } catch {
+        failed += 1;
+      }
+
+      setShopifyProgress({
+        total: ids.length,
+        done: index + 1,
+        success,
+        failed,
+        running: index + 1 < ids.length,
+      });
+    }
+
+    setShopifyLoading(false);
+    setBulkMessage(
+      failed > 0
+        ? `쇼피파이 업로드 완료: 성공 ${success}개, 실패 ${failed}개.`
+        : `쇼피파이 업로드 완료: ${success}개 모두 성공했습니다.`,
+    );
+    router.refresh();
   }
 
   return (
@@ -426,14 +700,65 @@ export function ResizableProductsTable({
             >
               컬럼 초기화
             </button>
+            {selectedCount === 0 ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void downloadCombinedListingCsv()}
+                  disabled={combinedExportLoading}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-emerald-800 bg-emerald-800 px-3 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  {combinedExportLoading
+                    ? "전체 CSV 준비 중"
+                    : "판매가능 전체 eBay CSV"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void downloadLensListingCsv()}
+                  disabled={lensExportLoading}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-violet-700 bg-violet-700 px-3 text-xs font-semibold text-white hover:bg-violet-600 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  {lensExportLoading
+                    ? "Lens CSV 준비 중"
+                    : "Lens 승인·미등록 eBay CSV"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void downloadOwnPhotoListingCsv()}
+                  disabled={ownPhotoExportLoading}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-cyan-700 bg-cyan-700 px-3 text-xs font-semibold text-white hover:bg-cyan-600 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  {ownPhotoExportLoading
+                    ? "직접촬영 CSV 준비 중"
+                    : "직접촬영 판매가능 CSV"}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void downloadSelectedListingExcel()}
+                disabled={exportLoading || products.length === 0}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-emerald-700 bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
+              >
+                <Download className="h-3.5 w-3.5" />
+                {exportLoading
+                  ? "CSV 준비 중"
+                  : `선택 신규등록 CSV (${selectedCount}개)`}
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => void downloadSelectedListingXlsx()}
-              disabled={exportLoading || !selectedCount}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-emerald-700 bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
+              onClick={() => void runBulkShopifyUpload()}
+              disabled={shopifyLoading || !selectedCount}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-emerald-600 bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
             >
-              <Download className="h-3.5 w-3.5" />
-              {exportLoading ? "XLSX 준비 중" : "이베이 XLSX"}
+              <ShoppingBag className="h-3.5 w-3.5" />
+              {shopifyLoading
+                ? "쇼피파이 업로드 중"
+                : `쇼피파이 업로드${selectedCount > 0 ? ` (${selectedCount}개)` : ""}`}
             </button>
             <button
               type="button"
@@ -452,9 +777,11 @@ export function ResizableProductsTable({
             onChange={(event) => setBulkStatus(event.currentTarget.value)}
             className="h-10 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
           >
-            <option value="active">활성</option>
-            <option value="inactive">비활성</option>
-            <option value="sold_out">품절</option>
+            {productStatusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
           <button
             type="button"
@@ -579,6 +906,8 @@ export function ResizableProductsTable({
                   product={product}
                   visibleColumnIds={visibleColumnIds}
                   selected={selectedIds.has(product.id)}
+                  memberOptions={groupMembers[(product.brand ?? "").trim()] ?? []}
+                  shopifyStoreHandle={shopifyStoreHandle}
                   onSelectedChange={(checked) => toggleProduct(product.id, checked)}
                   onPhotoUploadClick={setPhotoTarget}
                 />
@@ -595,12 +924,71 @@ export function ResizableProductsTable({
                 key={productEditKey(product)}
                 product={product}
                 selected={selectedIds.has(product.id)}
+                memberOptions={groupMembers[(product.brand ?? "").trim()] ?? []}
+                shopifyStoreHandle={shopifyStoreHandle}
                 onSelectedChange={(checked) => toggleProduct(product.id, checked)}
                 onPhotoUploadClick={setPhotoTarget}
               />
             ))
           : null}
       </section>
+
+      {shopifyProgress ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+            <div className="border-b border-zinc-200 p-4">
+              <h2 className="flex items-center gap-2 text-base font-semibold text-zinc-950">
+                {shopifyProgress.running ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                ) : (
+                  <ShoppingBag className="h-4 w-4 text-emerald-600" />
+                )}
+                {shopifyProgress.running ? "쇼피파이 업로드 중…" : "쇼피파이 업로드 완료"}
+              </h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                {shopifyProgress.done} / {shopifyProgress.total}개 처리됨
+              </p>
+            </div>
+            <div className="space-y-3 p-4">
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-zinc-100">
+                <div
+                  className="h-full rounded-full bg-emerald-600 transition-all duration-300"
+                  style={{
+                    width: `${
+                      shopifyProgress.total
+                        ? Math.round((shopifyProgress.done / shopifyProgress.total) * 100)
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
+              <div className="flex gap-4 text-sm font-medium">
+                <span className="text-emerald-700">성공 {shopifyProgress.success}개</span>
+                <span className={shopifyProgress.failed ? "text-rose-600" : "text-zinc-400"}>
+                  실패 {shopifyProgress.failed}개
+                </span>
+              </div>
+              <p className="text-xs text-zinc-500">
+                {shopifyProgress.running
+                  ? "완료될 때까지 이 창을 닫지 마세요."
+                  : shopifyProgress.failed > 0
+                    ? "실패한 상품은 상세페이지에서 오류를 확인하세요."
+                    : "모든 상품이 쇼피파이에 업로드됐습니다."}
+              </p>
+            </div>
+            <div className="flex justify-end border-t border-zinc-200 p-4">
+              <button
+                type="button"
+                onClick={() => setShopifyProgress(null)}
+                disabled={shopifyProgress.running}
+                className="h-9 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
+              >
+                {shopifyProgress.running ? "진행 중…" : "닫기"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {pendingBulkUpdate ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -681,9 +1069,14 @@ function InventoryPhotoUploadModal({
   const [message, setMessage] = useState("");
   const sourceImageUrl =
     product.sourceImageUrl ?? (product.userImageRegistered ? null : product.imageUrl);
-  const currentFrontUrl = product.userImageRegistered ? product.imageUrl : null;
+  // Cache-bust with a stable timestamp so the browser never serves a stale proxy response.
+  // Using module-load time keeps it constant within a session but changes on hard-refresh.
+  const [cacheBust] = useState(() => Date.now());
+  const currentFrontUrl = product.userImageRegistered
+    ? `/api/products/image-match/assets/${product.id}/front?t=${cacheBust}`
+    : null;
   const currentBackUrl = product.hasBackImage
-    ? `/api/products/image-match/assets/${product.id}/back`
+    ? `/api/products/image-match/assets/${product.id}/back?t=${cacheBust}`
     : null;
 
   useEffect(() => {
@@ -752,8 +1145,8 @@ function InventoryPhotoUploadModal({
     try {
       const preservedFrontImageUrl =
         frontImageUrl ??
-        (product.userImageRegistered && product.imageUrl
-          ? await imageUrlToDataUrl(product.imageUrl)
+        (product.userImageRegistered
+          ? await imageUrlToDataUrl(`/api/products/image-match/assets/${product.id}/front`)
           : null);
 
       if (!preservedFrontImageUrl) {
@@ -1052,4 +1445,3 @@ function loadImage(src: string) {
     image.src = src;
   });
 }
-
