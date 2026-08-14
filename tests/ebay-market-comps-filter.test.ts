@@ -49,6 +49,19 @@ const {
     expect(query).toContain("HAN");
   });
 
+  it("shows a same-album variation parent even when its title omits the member", () => {
+    expect(
+      isLikelyMarketCompTitle(
+        {
+          brand: "Stray Kids",
+          category: "ATE PLATFORM ALBUM NEMO Ver. JYP SHOP",
+          optionName: "BANG CHAN",
+        },
+        "Stray Kids ATE Platform Album NEMO Ver Official Photocard",
+      ),
+    ).toBe(true);
+  });
+
 describe("eBay 시세 후보 그룹·멤버 필터", () => {
   it("같은 그룹과 멤버가 제목에 있는 후보만 허용한다", () => {
     const product = { brand: "IVE", optionName: "REI" };

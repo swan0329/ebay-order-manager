@@ -36,6 +36,7 @@ type MarketComp = {
   itemWebUrl: string | null;
   sellerUsername: string | null;
   isOwnListing: boolean;
+  canUsePrice: boolean;
   canLinkToProduct: boolean;
 };
 
@@ -519,7 +520,13 @@ export function PriceMissingClient({
                                     [item.id]: comp.totalUsd.toFixed(2),
                                   }))
                                 }
-                                className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-80"
+                                disabled={!comp.canUsePrice}
+                                title={
+                                  comp.canUsePrice
+                                    ? "이 가격을 판매가 칸에 넣습니다"
+                                    : "옵션 묶음은 표시 가격이 다른 옵션 가격일 수 있어 자동 입력하지 않습니다"
+                                }
+                                className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-80 disabled:cursor-default disabled:hover:opacity-100"
                               >
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
@@ -552,6 +559,11 @@ export function PriceMissingClient({
                                       {!comp.canLinkToProduct
                                         ? " · 앨범이 달라 연결할 수 없음"
                                         : ""}
+                                    </span>
+                                  ) : null}
+                                  {!comp.canUsePrice ? (
+                                    <span className="block text-[11px] font-medium text-amber-700">
+                                      옵션 묶음 가능성 · eBay에서 해당 멤버 옵션과 가격을 직접 확인
                                     </span>
                                   ) : null}
                                 </span>
