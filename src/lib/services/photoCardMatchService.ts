@@ -31,6 +31,7 @@ export type PhotoCardCandidateFilters = {
   version?: string | null;
   keyword?: string | null;
   includeRegistered?: boolean | null;
+  registrationStatus?: "pending" | "registered" | "all" | null;
   limit?: number | null;
   offset?: number | null;
 };
@@ -629,13 +630,22 @@ export async function deleteR2PhotoCardImage(
 export function normalizePhotoCardCandidateFilters(
   filters: PhotoCardCandidateFilters,
 ) {
+  const registrationStatus = ["pending", "registered", "all"].includes(
+    filters.registrationStatus ?? "",
+  )
+    ? filters.registrationStatus!
+    : filters.includeRegistered === true
+      ? "all"
+      : "pending";
+
   return {
     group: normalizeText(filters.group),
     member: normalizeText(filters.member),
     album: normalizeText(filters.album),
     version: normalizeText(filters.version),
     keyword: normalizeText(filters.keyword),
-    includeRegistered: filters.includeRegistered === true,
+    includeRegistered: registrationStatus === "all",
+    registrationStatus,
     limit: clampLimit(filters.limit),
     offset: Math.max(0, Number(filters.offset) || 0),
   };
@@ -1140,9 +1150,13 @@ function candidateWhereClauses(
 ) {
   const clauses = [Prisma.sql`("status" IS NULL OR "status" <> 'inactive')`];
 
-  if (!filters.includeRegistered) {
+  if (filters.registrationStatus === "pending") {
     clauses.push(
       Prisma.sql`("user_front_image_url" IS NULL OR "user_front_image_url" = '')`,
+    );
+  } else if (filters.registrationStatus === "registered") {
+    clauses.push(
+      Prisma.sql`("user_front_image_url" IS NOT NULL AND "user_front_image_url" <> '')`,
     );
   }
 
@@ -1311,7 +1325,7 @@ function photoCardFacetCacheKey(
   filters: ReturnType<typeof normalizePhotoCardCandidateFilters>,
 ) {
   return [
-    filters.includeRegistered ? "1" : "0",
+    filters.registrationStatus,
     filters.group ?? "",
     filters.member ?? "",
     filters.album ?? "",
