@@ -402,20 +402,24 @@ export async function findMarketComps(
   }
 
   const queries = [...new Set([query, buildVariationParentSearchQuery(product)])];
-  for (const candidateQuery of queries) {
-    const comps = await markOwnListings(
-      userId,
-      compatibleComps(product, await searchByKeyword(candidateQuery)),
-    );
-    if (comps.length) {
-      return {
-        source: "keyword",
-        fallbackReason,
-        query: candidateQuery,
-        comps,
-        ownListingItemIds: ownIds(comps),
-      };
-    }
+  // Run the direct-card and variation-parent searches together. Sequential
+  // retries can exceed the route's 30-second limit after image search.
+  const keywordResults = await Promise.all(
+    queries.map(async (candidateQuery) => ({
+      query: candidateQuery,
+      comps: compatibleComps(product, await searchByKeyword(candidateQuery)),
+    })),
+  );
+  const found = keywordResults.find((result) => result.comps.length);
+  if (found) {
+    const comps = await markOwnListings(userId, found.comps);
+    return {
+      source: "keyword",
+      fallbackReason,
+      query: found.query,
+      comps,
+      ownListingItemIds: ownIds(comps),
+    };
   }
   return {
     source: "keyword",
