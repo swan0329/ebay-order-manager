@@ -1,6 +1,5 @@
 import "server-only";
 
-import { buildEbayListingTitle } from "@/lib/ebay-listing-fields";
 import { ebayApplicationFetch } from "@/lib/ebay";
 import { getEbayConfig } from "@/lib/env";
 import { normalizeMatchText } from "@/lib/product-matching";
@@ -199,11 +198,44 @@ export function isConfidentMarketCompTitle(
   return albumWords.every((word) => listingWords.has(word));
 }
 
+// eBay titles are often abbreviated or truncated, especially for store benefits
+// and long pop-up names.  Price references may therefore use a tolerant album
+// match, while linking an existing listing keeps the stricter all-words check
+// above.  Requiring at least half of the album identity words (and never zero)
+// still rejects a different album such as ROCK-STAR for an ATE product.
+export function isLikelyMarketCompTitle(
+  product: MarketCompsProduct,
+  listingTitle: string,
+) {
+  if (!isCompatibleMarketCompTitle(product, listingTitle)) return false;
+
+  const albumWords = meaningfulIdentityWords(product.category);
+  if (!albumWords.length) return false;
+
+  const listingWords = new Set(normalizeMatchText(listingTitle).split(" ").filter(Boolean));
+  const matchedWords = albumWords.filter((word) => listingWords.has(word)).length;
+  const requiredWords =
+    albumWords.length <= 2 ? 1 : Math.max(2, Math.ceil(albumWords.length * 0.4));
+  return matchedWords >= requiredWords;
+}
+
+export function buildMarketCompSearchQuery(product: MarketCompsProduct) {
+  // Keep the member before a potentially long category. Otherwise eBay's
+  // 80-character query limit can remove the member and every returned result
+  // is then rejected by the member safety filter.
+  return [product.brand, ...expectedMemberNames(product), product.category, "Photocard"]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .slice(0, 80)
+    .trim();
+}
+
 function compatibleComps(product: MarketCompsProduct, items: BrowseItemSummary[] | undefined) {
   return toComps(items)
     // 시세 자체도 다른 앨범이면 잘못된 가격이므로, 연결 버튼뿐 아니라 표시 후보도
     // 그룹·멤버·앨범이 모두 충분히 맞는 결과로 제한한다.
-    .filter((comp) => isConfidentMarketCompTitle(product, comp.title))
+    .filter((comp) => isLikelyMarketCompTitle(product, comp.title))
     .map((comp) => ({
       ...comp,
       canLinkToProduct: isConfidentMarketCompTitle(product, comp.title),
@@ -336,12 +368,7 @@ export async function findMarketComps(
     fallbackReason = "상품에 이미지가 없어 제목으로 찾았습니다.";
   }
 
-  // 제목 생성기는 상품 전체 타입을 받지만 위 필드만 읽는다(ebay-listing-fields.ts:193).
-  const query = buildEbayListingTitle(
-    product as Parameters<typeof buildEbayListingTitle>[0],
-  )
-    .slice(0, 80)
-    .trim();
+  const query = buildMarketCompSearchQuery(product);
   if (!query) {
     return {
       source: "keyword",
