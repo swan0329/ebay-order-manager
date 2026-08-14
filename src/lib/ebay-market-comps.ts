@@ -27,6 +27,10 @@ export type MarketComp = {
   // 내가 이미 eBay에 올려둔 리스팅인지. 시세 기준으로 삼으면 자기 가격을 다시
   // 참고하는 셈이고, 더 중요하게는 같은 카드를 두 번 올릴 위험을 뜻한다.
   isOwnListing: boolean;
+  // False for a likely variation parent whose title omits the member. Its
+  // displayed base price may belong to another option, so it must not fill the
+  // product price automatically.
+  canUsePrice: boolean;
   // 내 리스팅 중에서도 그룹·멤버·앨범이 충분히 일치해 이 상품에 연결해도 되는가.
   // 단순 시세 후보와 연결 후보를 분리해 다른 앨범 카드를 잘못 연결하지 않는다.
   canLinkToProduct: boolean;
@@ -117,6 +121,7 @@ function toComp(item: BrowseItemSummary): MarketComp | null {
     itemWebUrl: item.itemWebUrl ?? null,
     sellerUsername: item.seller?.username ?? null,
     isOwnListing: false,
+    canUsePrice: false,
     canLinkToProduct: false,
   };
 }
@@ -207,7 +212,13 @@ export function isLikelyMarketCompTitle(
   product: MarketCompsProduct,
   listingTitle: string,
 ) {
-  if (!isCompatibleMarketCompTitle(product, listingTitle)) return false;
+  const brand = product.brand?.trim() ?? "";
+  if (brand) {
+    const aliases = GROUP_ALIASES.get(normalizeMatchText(brand)) ?? [];
+    if (![brand, ...aliases].some((name) => containsExactPhrase(listingTitle, name))) {
+      return false;
+    }
+  }
 
   const albumWords = meaningfulIdentityWords(product.category);
   if (!albumWords.length) return false;
@@ -238,6 +249,7 @@ function compatibleComps(product: MarketCompsProduct, items: BrowseItemSummary[]
     .filter((comp) => isLikelyMarketCompTitle(product, comp.title))
     .map((comp) => ({
       ...comp,
+      canUsePrice: isCompatibleMarketCompTitle(product, comp.title),
       canLinkToProduct: isConfidentMarketCompTitle(product, comp.title),
     }))
     .slice(0, DISPLAY_LIMIT);
