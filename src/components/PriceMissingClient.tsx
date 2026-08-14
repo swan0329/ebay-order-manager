@@ -36,15 +36,27 @@ type MarketComp = {
   itemWebUrl: string | null;
   sellerUsername: string | null;
   isOwnListing: boolean;
+  // exact = 그룹·멤버·앨범이 모두 맞는 후보, similar = 눈으로 확인이 필요한 후보.
+  matchTier: "exact" | "similar";
+  matchReason: string;
+  foundBy: "keyword" | "image";
 };
 
 type CompsState = {
   loading: boolean;
   error: string | null;
-  source: "image" | "keyword" | null;
+  source: "image" | "keyword" | "both" | "none" | null;
   fallbackReason: string | null;
+  query: string | null;
   comps: MarketComp[];
   collapsed?: boolean;
+};
+
+const sourceLabel: Record<"image" | "keyword" | "both" | "none", string> = {
+  keyword: "제목으로 찾은",
+  image: "이미지로 찾은",
+  both: "제목·이미지로 찾은",
+  none: "찾은",
 };
 
 function isValidPrice(value: string | undefined) {
@@ -58,6 +70,108 @@ function supplyText(item: Item) {
     return `포카 매물 ${item.pocamarketAvailableCount}개`;
   }
   return "공급 확인 필요";
+}
+
+export function googleImageSearchUrl(item: Pick<Item, "imageUrl" | "brand" | "optionName" | "productName">) {
+  if (item.imageUrl?.trim()) {
+    return `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(item.imageUrl.trim())}`;
+  }
+
+  const query = [item.brand, item.optionName, item.productName, "photocard"]
+    .map((value) => value?.trim())
+    .filter(Boolean)
+    .join(" ");
+  return `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`;
+}
+
+// 후보 한 건. 눌러야 판매가 칸에 들어가고, 저장은 사람이 따로 누른다.
+function CompRow({
+  comp,
+  busy,
+  onPick,
+  onLink,
+}: {
+  comp: MarketComp;
+  busy: boolean;
+  onPick: () => void;
+  onLink: () => void;
+}) {
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-md border p-2 ${
+        comp.isOwnListing
+          ? "border-rose-300 bg-rose-50"
+          : comp.matchTier === "exact"
+            ? "border-emerald-200"
+            : "border-amber-200 bg-amber-50/40"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onPick}
+        title={comp.matchReason}
+        className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-80"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={comp.imageUrl ?? ""}
+          alt=""
+          loading="lazy"
+          className="h-10 w-10 shrink-0 rounded border border-zinc-200 object-cover"
+        />
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-zinc-900">
+            ${comp.totalUsd.toFixed(2)}
+            {comp.shippingUsd ? (
+              <span className="ml-1 text-xs font-normal text-zinc-500">
+                (${comp.priceUsd.toFixed(2)} + 배송 ${comp.shippingUsd.toFixed(2)})
+              </span>
+            ) : null}
+          </span>
+          <span className="block truncate text-xs text-zinc-500">
+            {comp.isOwnListing ? (
+              <span className="mr-1 rounded bg-rose-600 px-1 py-0.5 text-[10px] font-semibold text-white">
+                내 리스팅
+              </span>
+            ) : null}
+            {comp.title}
+          </span>
+          <span className="block truncate text-[11px] text-zinc-400">
+            {comp.matchReason}
+            {comp.foundBy === "image" ? " · 이미지 검색" : ""}
+          </span>
+          {comp.isOwnListing && comp.legacyItemId ? (
+            <span className="block text-[11px] text-rose-700">
+              상품번호 {comp.legacyItemId}
+            </span>
+          ) : null}
+        </span>
+      </button>
+      {comp.isOwnListing ? (
+        <button
+          type="button"
+          onClick={onLink}
+          disabled={busy}
+          title="이 리스팅을 이 상품에 연결합니다 (eBay에는 아무것도 올리지 않습니다)"
+          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md bg-rose-600 px-2.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+        >
+          <Link2 className="h-3.5 w-3.5" />
+          {busy ? "처리 중..." : "이 리스팅과 연결"}
+        </button>
+      ) : null}
+      {comp.itemWebUrl ? (
+        <a
+          href={comp.itemWebUrl}
+          target="_blank"
+          rel="noreferrer"
+          title="eBay에서 열기"
+          className="shrink-0 rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+        >
+          <ExternalLink className="h-4 w-4" />
+        </a>
+      ) : null}
+    </div>
+  );
 }
 
 export function PriceMissingClient({
@@ -145,6 +259,7 @@ export function PriceMissingClient({
         error: null,
         source: null,
         fallbackReason: null,
+        query: null,
         comps: prev[item.id]?.comps ?? [],
       },
     }));
@@ -157,8 +272,9 @@ export function PriceMissingClient({
       });
       const body = (await response.json().catch(() => null)) as
         | {
-            source?: "image" | "keyword";
+            source?: "image" | "keyword" | "both" | "none";
             fallbackReason?: string | null;
+            query?: string | null;
             comps?: MarketComp[];
             error?: string;
           }
@@ -174,6 +290,7 @@ export function PriceMissingClient({
           error: null,
           source: body?.source ?? null,
           fallbackReason: body?.fallbackReason ?? null,
+          query: body?.query ?? null,
           comps: body?.comps ?? [],
         },
       }));
@@ -185,6 +302,7 @@ export function PriceMissingClient({
           error: error instanceof Error ? error.message : "조회에 실패했습니다.",
           source: null,
           fallbackReason: null,
+          query: null,
           comps: [],
         },
       }));
@@ -315,6 +433,11 @@ export function PriceMissingClient({
         {items.map((item) => {
           const busy = busyId === item.id;
           const comps = compsById[item.id];
+          // 확신 있는 후보와 확인이 필요한 후보를 섞어 보여주면 결국 아무거나
+          // 누르게 된다. 서버가 매긴 등급대로 나눠서 보여준다.
+          const exactComps = comps?.comps.filter((comp) => comp.matchTier === "exact") ?? [];
+          const similarComps =
+            comps?.comps.filter((comp) => comp.matchTier === "similar") ?? [];
           return (
             <article
               key={item.id}
@@ -409,6 +532,21 @@ export function PriceMissingClient({
                       : "eBay 시세"}
                 </button>
 
+                <a
+                  href={googleImageSearchUrl(item)}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={
+                    item.imageUrl
+                      ? "현재 카드 이미지를 Google Lens로 검색합니다"
+                      : "상품 정보로 Google 이미지 검색을 엽니다"
+                  }
+                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Google 이미지
+                </a>
+
                 <button
                   type="button"
                   onClick={() => void saveOne(item)}
@@ -426,9 +564,29 @@ export function PriceMissingClient({
                   {comps.error ? (
                     <p className="text-xs text-rose-700">{comps.error}</p>
                   ) : comps.comps.length === 0 ? (
-                    <p className="text-xs text-amber-700">
-                      eBay에서 같은 카드를 찾지 못했습니다. 직접 입력해 주세요.
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-amber-700">
+                      <span>
+                        eBay에서 같은 그룹·멤버·앨범의 카드를 찾지 못했습니다.
+                        {comps.fallbackReason ? ` ${comps.fallbackReason}` : ""}
+                        {comps.query ? ` (검색어: ${comps.query})` : ""}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void lookupComps(item)}
+                        className="underline hover:text-amber-900"
+                      >
+                        다시 찾기
+                      </button>
+                      <a
+                        href={googleImageSearchUrl(item)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 font-semibold text-white hover:bg-blue-700"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Google 이미지로 찾기
+                      </a>
+                    </div>
                   ) : (
                     <>
                       {comps.comps.some((comp) => comp.isOwnListing) ? (
@@ -441,9 +599,10 @@ export function PriceMissingClient({
                         </p>
                       ) : null}
                       <p className="mb-2 text-xs text-zinc-500">
-                        {comps.source === "image" ? "이미지로 찾은" : "제목으로 찾은"} eBay 판매중
-                        상품 {comps.comps.length}건 · 배송비 포함 낮은 순 · 클릭하면 판매가 칸에
+                        {sourceLabel[comps.source ?? "none"]} eBay 판매중 상품{" "}
+                        {comps.comps.length}건 · 배송비 포함 낮은 순 · 클릭하면 판매가 칸에
                         들어갑니다
+                        {comps.query ? ` · 검색어 "${comps.query}"` : ""}
                         {comps.fallbackReason ? ` · ${comps.fallbackReason}` : ""}
                         {" · "}
                         <button
@@ -454,85 +613,58 @@ export function PriceMissingClient({
                           다시 찾기
                         </button>
                       </p>
-                      <ul className="grid gap-2 sm:grid-cols-2">
-                        {comps.comps.map((comp) => (
-                          <li key={comp.itemId}>
-                            <div
-                              className={`flex items-center gap-2 rounded-md border p-2 ${
-                                comp.isOwnListing
-                                  ? "border-rose-300 bg-rose-50"
-                                  : "border-zinc-200"
-                              }`}
-                            >
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setPrices((prev) => ({
-                                    ...prev,
-                                    [item.id]: comp.totalUsd.toFixed(2),
-                                  }))
-                                }
-                                className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-80"
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={comp.imageUrl ?? ""}
-                                  alt=""
-                                  loading="lazy"
-                                  className="h-10 w-10 shrink-0 rounded border border-zinc-200 object-cover"
+
+                      {exactComps.length ? (
+                        <>
+                          <p className="mb-1 text-xs font-semibold text-emerald-700">
+                            그룹·멤버·앨범이 모두 맞는 후보 {exactComps.length}건 · 최저 $
+                            {exactComps[0].totalUsd.toFixed(2)}
+                          </p>
+                          <ul className="grid gap-2 sm:grid-cols-2">
+                            {exactComps.map((comp) => (
+                              <li key={comp.itemId}>
+                                <CompRow
+                                  comp={comp}
+                                  busy={busy}
+                                  onPick={() =>
+                                    setPrices((prev) => ({
+                                      ...prev,
+                                      [item.id]: comp.totalUsd.toFixed(2),
+                                    }))
+                                  }
+                                  onLink={() => void linkListing(item, comp)}
                                 />
-                                <span className="min-w-0">
-                                  <span className="block text-sm font-semibold text-zinc-900">
-                                    ${comp.totalUsd.toFixed(2)}
-                                    {comp.shippingUsd ? (
-                                      <span className="ml-1 text-xs font-normal text-zinc-500">
-                                        (${comp.priceUsd.toFixed(2)} + 배송 $
-                                        {comp.shippingUsd.toFixed(2)})
-                                      </span>
-                                    ) : null}
-                                  </span>
-                                  <span className="block truncate text-xs text-zinc-500">
-                                    {comp.isOwnListing ? (
-                                      <span className="mr-1 rounded bg-rose-600 px-1 py-0.5 text-[10px] font-semibold text-white">
-                                        내 리스팅
-                                      </span>
-                                    ) : null}
-                                    {comp.title}
-                                  </span>
-                                  {comp.isOwnListing && comp.legacyItemId ? (
-                                    <span className="block text-[11px] text-rose-700">
-                                      상품번호 {comp.legacyItemId}
-                                    </span>
-                                  ) : null}
-                                </span>
-                              </button>
-                              {comp.isOwnListing ? (
-                                <button
-                                  type="button"
-                                  onClick={() => void linkListing(item, comp)}
-                                  disabled={busy}
-                                  title="이 리스팅을 이 상품에 연결합니다 (eBay에는 아무것도 올리지 않습니다)"
-                                  className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md bg-rose-600 px-2.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
-                                >
-                                  <Link2 className="h-3.5 w-3.5" />
-                                  {busy ? "처리 중..." : "이 리스팅과 연결"}
-                                </button>
-                              ) : null}
-                              {comp.itemWebUrl ? (
-                                <a
-                                  href={comp.itemWebUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  title="eBay에서 열기"
-                                  className="shrink-0 rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
-                                >
-                                  <ExternalLink className="h-4 w-4" />
-                                </a>
-                              ) : null}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      ) : null}
+
+                      {similarComps.length ? (
+                        <>
+                          <p className="mb-1 mt-3 text-xs font-semibold text-amber-700">
+                            확인이 필요한 후보 {similarComps.length}건 — 같은 멤버지만 앨범이나
+                            버전이 다를 수 있습니다. 사진과 제목을 보고 같은 카드일 때만 쓰세요.
+                          </p>
+                          <ul className="grid gap-2 sm:grid-cols-2">
+                            {similarComps.map((comp) => (
+                              <li key={comp.itemId}>
+                                <CompRow
+                                  comp={comp}
+                                  busy={busy}
+                                  onPick={() =>
+                                    setPrices((prev) => ({
+                                      ...prev,
+                                      [item.id]: comp.totalUsd.toFixed(2),
+                                    }))
+                                  }
+                                  onLink={() => void linkListing(item, comp)}
+                                />
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      ) : null}
                     </>
                   )}
                 </div>
