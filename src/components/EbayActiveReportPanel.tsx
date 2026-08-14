@@ -13,6 +13,7 @@ type ReportSummary = {
   matchedCount: number;
   unmatchedCount: number;
   duplicateCount: number;
+  variationMatchedCount: number;
   endedCount: number;
   createdAt: string;
   listings: Array<{
@@ -72,6 +73,7 @@ export function EbayActiveReportPanel() {
               matchedCount: number;
               unmatchedCount: number;
               duplicateCount: number;
+              variationMatchedCount: number;
               endedCount: number;
             };
             error?: string;
@@ -82,7 +84,7 @@ export function EbayActiveReportPanel() {
       setMessage(
         `가져오기 완료: ${result?.rowCount ?? 0}건 · 연결 ${
           result?.matchedCount ?? 0
-        }건 · 확인 필요 ${
+        }건 · 옵션묶음 확인 ${result?.variationMatchedCount ?? 0}건 · 확인 필요 ${
           (result?.unmatchedCount ?? 0) + (result?.duplicateCount ?? 0)
         }건 · 종료 확인 ${result?.endedCount ?? 0}건`,
       );
@@ -107,6 +109,7 @@ export function EbayActiveReportPanel() {
               matchedCount: number;
               unmatchedCount: number;
               duplicateCount: number;
+              variationMatchedCount: number;
               newlyLinked: number;
               titleLinked: number;
             };
@@ -118,7 +121,9 @@ export function EbayActiveReportPanel() {
       setMessage(
         `다시 연결 완료: 새로 연결 ${result?.newlyLinked ?? 0}건(제목 매칭 ${
           result?.titleLinked ?? 0
-        }건 포함) · 연결 ${result?.matchedCount ?? 0}건 · 확인 필요 ${
+        }건 포함) · 연결 ${result?.matchedCount ?? 0}건 · 옵션묶음 확인 ${
+          result?.variationMatchedCount ?? 0
+        }건 · 확인 필요 ${
           (result?.unmatchedCount ?? 0) + (result?.duplicateCount ?? 0)
         }건`,
       );
@@ -229,6 +234,9 @@ export function EbayActiveReportPanel() {
           <div className="mt-2 flex flex-wrap gap-2 text-xs">
             <span className="rounded bg-emerald-50 px-2 py-1 text-emerald-800">
               연결 {latest.matchedCount.toLocaleString()}
+            </span>
+            <span className="rounded bg-violet-50 px-2 py-1 text-violet-800">
+              옵션묶음 확인 {latest.variationMatchedCount.toLocaleString()}
             </span>
             <span className="rounded bg-sky-50 px-2 py-1 text-sky-800">
               제목 매칭 확인{" "}
