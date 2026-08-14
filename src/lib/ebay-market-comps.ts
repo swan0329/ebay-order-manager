@@ -242,6 +242,16 @@ export function buildMarketCompSearchQuery(product: MarketCompsProduct) {
     .trim();
 }
 
+export function buildVariationParentSearchQuery(product: MarketCompsProduct) {
+  // Variation parent titles usually omit the selected member completely.
+  return [product.brand, product.category, "Photocard"]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .slice(0, 80)
+    .trim();
+}
+
 function compatibleComps(product: MarketCompsProduct, items: BrowseItemSummary[] | undefined) {
   return toComps(items)
     // 시세 자체도 다른 앨범이면 잘못된 가격이므로, 연결 버튼뿐 아니라 표시 후보도
@@ -391,16 +401,28 @@ export async function findMarketComps(
     };
   }
 
-  const comps = await markOwnListings(
-    userId,
-    compatibleComps(product, await searchByKeyword(query)),
-  );
+  const queries = [...new Set([query, buildVariationParentSearchQuery(product)])];
+  for (const candidateQuery of queries) {
+    const comps = await markOwnListings(
+      userId,
+      compatibleComps(product, await searchByKeyword(candidateQuery)),
+    );
+    if (comps.length) {
+      return {
+        source: "keyword",
+        fallbackReason,
+        query: candidateQuery,
+        comps,
+        ownListingItemIds: ownIds(comps),
+      };
+    }
+  }
   return {
     source: "keyword",
     fallbackReason,
-    query,
-    comps,
-    ownListingItemIds: ownIds(comps),
+    query: queries.at(-1) ?? query,
+    comps: [],
+    ownListingItemIds: [],
   };
 }
 

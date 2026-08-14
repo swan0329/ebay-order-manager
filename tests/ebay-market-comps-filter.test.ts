@@ -8,6 +8,7 @@ const {
   isConfidentMarketCompTitle,
   isLikelyMarketCompTitle,
   buildMarketCompSearchQuery,
+  buildVariationParentSearchQuery,
 } = await import(
   "@/lib/ebay-market-comps"
   );
@@ -60,6 +61,17 @@ const {
         "Stray Kids ATE Platform Album NEMO Ver Official Photocard",
       ),
     ).toBe(true);
+  });
+
+  it("builds a variation-parent fallback query without the hidden member", () => {
+    const query = buildVariationParentSearchQuery({
+      brand: "Stray Kids",
+      category: "ATE PLATFORM ALBUM NEMO Ver. JYP SHOP",
+      optionName: "BANG CHAN",
+    });
+
+    expect(query).not.toContain("BANG CHAN");
+    expect(query).toContain("ATE PLATFORM ALBUM NEMO");
   });
 
 describe("eBay 시세 후보 그룹·멤버 필터", () => {
