@@ -274,6 +274,28 @@ export async function importEbayActiveReport(input: {
       })),
     );
 
+    const variationStates = await tx.variationListingState.findMany({
+      where: { userId: input.userId, lastExportedAt: { not: null } },
+    });
+    for (const state of variationStates) {
+      const listing = input.rows.find((row) =>
+        row.sku === state.parentSku ||
+        (!row.sku && row.title?.trim() === state.title.trim()),
+      );
+      if (!listing || !state.lastExportedAt || state.lastExportedAt > report.createdAt) continue;
+      const included = Array.isArray(state.includedProductIds) ? state.includedProductIds.filter((id): id is string => typeof id === "string") : [];
+      const pending = Array.isArray(state.pendingProductIds) ? state.pendingProductIds.filter((id): id is string => typeof id === "string") : [];
+      await tx.variationListingState.update({
+        where: { id: state.id },
+        data: {
+          ebayItemId: listing.itemId,
+          includedProductIds: [...new Set([...included, ...pending])],
+          pendingProductIds: [],
+          lastConfirmedAt: report.createdAt,
+        },
+      });
+    }
+
     return {
       id: report.id,
       rowCount: report.rowCount,

@@ -265,6 +265,42 @@ model EbayActiveListing {
   @@map("ebay_active_listings")
 }
 
+model VariationListingState {
+  id                 String   @id @default(cuid())
+  userId             String   @map("user_id")
+  groupKey           String   @map("group_key")
+  parentSku          String   @map("parent_sku")
+  title              String
+  ebayItemId         String?  @map("ebay_item_id")
+  includedProductIds Json     @default("[]") @map("included_product_ids")
+  pendingProductIds  Json     @default("[]") @map("pending_product_ids")
+  thumbnailStatus    String   @default("MISSING") @map("thumbnail_status")
+  thumbnailUrl       String?  @map("thumbnail_url")
+  thumbnailKey       String?  @map("thumbnail_key")
+  thumbnailHash      String?  @map("thumbnail_hash")
+  thumbnailProductIds Json    @default("[]") @map("thumbnail_product_ids")
+  thumbnailError     String?  @map("thumbnail_error") @db.Text
+  thumbnailGeneratedAt DateTime? @map("thumbnail_generated_at")
+  lastExportedAt     DateTime? @map("last_exported_at")
+  lastConfirmedAt    DateTime? @map("last_confirmed_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, groupKey])
+  @@unique([userId, parentSku])
+  @@index([userId, ebayItemId])
+  @@map("variation_listing_states")
+}
+
+model VariationThumbnailSetting {
+  userId    String   @id @map("user_id")
+  logoUrl   String?  @map("logo_url")
+  logoKey   String?  @map("logo_key")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("variation_thumbnail_settings")
+}
+
 model ProductUploadJob {
   id               String    @id @default(cuid())
   userId           String    @map("user_id")
