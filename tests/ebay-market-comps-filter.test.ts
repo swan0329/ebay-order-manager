@@ -3,9 +3,51 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 
-const { isCompatibleMarketCompTitle, isConfidentMarketCompTitle } = await import(
+const {
+  isCompatibleMarketCompTitle,
+  isConfidentMarketCompTitle,
+  isLikelyMarketCompTitle,
+  buildMarketCompSearchQuery,
+} = await import(
   "@/lib/ebay-market-comps"
-);
+  );
+
+  it("shows an abbreviated same-album title as a price candidate without allowing a link", () => {
+    const product = {
+      brand: "Stray Kids",
+      category: "ATE PLATFORM ALBUM NEMO Ver. JYP SHOP",
+      optionName: "BANG CHAN",
+    };
+    const title = "Stray Kids ATE Nemo JYP Shop Bang Chan Official Photocard";
+
+    expect(isLikelyMarketCompTitle(product, title)).toBe(true);
+    expect(isConfidentMarketCompTitle(product, title)).toBe(false);
+  });
+
+  it("does not show another album even when group and member match", () => {
+    expect(
+      isLikelyMarketCompTitle(
+        {
+          brand: "Stray Kids",
+          category: "ATE POP-UP STORE REWARD",
+          optionName: "HAN",
+        },
+        "Stray Kids ROCK-STAR Han Official Photocard",
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps the member near the front of a long eBay search query", () => {
+    const query = buildMarketCompSearchQuery({
+      brand: "Stray Kids",
+      category:
+        "Stray Kids x SKZOO POP-UP & CAFE SKZOO'S MAGIC SCHOOL IN BUSAN SKZOO 10CM CHAIR",
+      optionName: "HAN",
+    });
+
+    expect(query.length).toBeLessThanOrEqual(80);
+    expect(query).toContain("HAN");
+  });
 
 describe("eBay 시세 후보 그룹·멤버 필터", () => {
   it("같은 그룹과 멤버가 제목에 있는 후보만 허용한다", () => {
