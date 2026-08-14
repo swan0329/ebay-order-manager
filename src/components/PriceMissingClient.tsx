@@ -36,6 +36,7 @@ type MarketComp = {
   itemWebUrl: string | null;
   sellerUsername: string | null;
   isOwnListing: boolean;
+  canLinkToProduct: boolean;
 };
 
 type CompsState = {
@@ -113,7 +114,11 @@ export function PriceMissingClient({
       const response = await fetch("/api/ebay/active-report/link", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ productId: item.id, itemId: comp.legacyItemId }),
+        body: JSON.stringify({
+          productId: item.id,
+          itemId: comp.legacyItemId,
+          requireCompatibleTitle: true,
+        }),
       });
       const body = (await response.json().catch(() => null)) as
         | { error?: string }
@@ -469,7 +474,9 @@ export function PriceMissingClient({
                     </div>
                   ) : (
                     <>
-                      {comps.comps.some((comp) => comp.isOwnListing) ? (
+                      {comps.comps.some(
+                        (comp) => comp.isOwnListing && comp.canLinkToProduct,
+                      ) ? (
                         <p className="mb-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
                           <strong>이 카드는 이미 eBay에 올라가 있습니다.</strong> 아래 후보 중
                           &quot;내 리스팅&quot;으로 표시된 것이 사장님 상품입니다. 프로그램을 거치지
@@ -497,8 +504,10 @@ export function PriceMissingClient({
                           <li key={comp.itemId}>
                             <div
                               className={`flex items-center gap-2 rounded-md border p-2 ${
-                                comp.isOwnListing
+                                comp.isOwnListing && comp.canLinkToProduct
                                   ? "border-rose-300 bg-rose-50"
+                                  : comp.isOwnListing
+                                    ? "border-amber-200 bg-amber-50"
                                   : "border-zinc-200"
                               }`}
                             >
@@ -532,7 +541,7 @@ export function PriceMissingClient({
                                   <span className="block truncate text-xs text-zinc-500">
                                     {comp.isOwnListing ? (
                                       <span className="mr-1 rounded bg-rose-600 px-1 py-0.5 text-[10px] font-semibold text-white">
-                                        내 리스팅
+                                        {comp.canLinkToProduct ? "내 리스팅" : "내 다른 리스팅"}
                                       </span>
                                     ) : null}
                                     {comp.title}
@@ -540,11 +549,14 @@ export function PriceMissingClient({
                                   {comp.isOwnListing && comp.legacyItemId ? (
                                     <span className="block text-[11px] text-rose-700">
                                       상품번호 {comp.legacyItemId}
+                                      {!comp.canLinkToProduct
+                                        ? " · 앨범이 달라 연결할 수 없음"
+                                        : ""}
                                     </span>
                                   ) : null}
                                 </span>
                               </button>
-                              {comp.isOwnListing ? (
+                              {comp.isOwnListing && comp.canLinkToProduct ? (
                                 <button
                                   type="button"
                                   onClick={() => void linkListing(item, comp)}
