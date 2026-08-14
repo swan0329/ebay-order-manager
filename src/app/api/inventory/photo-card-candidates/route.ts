@@ -14,6 +14,14 @@ export async function GET(request: Request) {
       version: url.searchParams.get("version"),
       keyword: url.searchParams.get("keyword"),
       includeRegistered: url.searchParams.get("includeRegistered") === "1",
+      registrationStatus:
+        url.searchParams.get("registrationStatus") === "registered"
+          ? "registered"
+          : url.searchParams.get("registrationStatus") === "all"
+            ? "all"
+            : url.searchParams.get("registrationStatus") === "pending"
+              ? "pending"
+              : null,
       limit: Number(url.searchParams.get("limit") || "50"),
       offset: Number(url.searchParams.get("offset") || "0"),
     });

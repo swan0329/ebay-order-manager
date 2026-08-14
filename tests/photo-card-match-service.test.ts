@@ -36,10 +36,23 @@ describe("photo card candidate filters", () => {
 
   it("hides registered photo cards by default", () => {
     expect(normalizePhotoCardCandidateFilters({}).includeRegistered).toBe(false);
+    expect(normalizePhotoCardCandidateFilters({}).registrationStatus).toBe("pending");
     expect(
       normalizePhotoCardCandidateFilters({ includeRegistered: true })
         .includeRegistered,
     ).toBe(true);
+    expect(
+      normalizePhotoCardCandidateFilters({ includeRegistered: true }).registrationStatus,
+    ).toBe("all");
+  });
+
+  it("supports showing only registered photo cards", () => {
+    expect(
+      normalizePhotoCardCandidateFilters({ registrationStatus: "registered" }),
+    ).toMatchObject({
+      includeRegistered: false,
+      registrationStatus: "registered",
+    });
   });
 
   it("builds listing image URLs with front/back priority", () => {

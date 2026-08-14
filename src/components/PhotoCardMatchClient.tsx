@@ -329,7 +329,9 @@ export function PhotoCardMatchClient() {
   const [regAlbum, setRegAlbum] = useState("");
   const [regPrice, setRegPrice] = useState("");
   const [registering, setRegistering] = useState(false);
-  const [includeRegistered, setIncludeRegistered] = useState(true);
+  const [registrationStatus, setRegistrationStatus] = useState<
+    "pending" | "registered" | "all"
+  >("all");
   const [stockAdjustingId, setStockAdjustingId] = useState<string | null>(null);
   const [ebayPriceSavingId, setEbayPriceSavingId] = useState<string | null>(null);
   const [featuredMembersSavingId, setFeaturedMembersSavingId] = useState<string | null>(null);
@@ -740,7 +742,7 @@ export function PhotoCardMatchClient() {
 
         autoNextTimer.current = window.setTimeout(() => {
           autoNextTimer.current = null;
-          if (!includeRegistered) {
+          if (registrationStatus === "pending") {
             setCandidates((current) =>
               current.filter((item) => item.cardId !== candidate.cardId),
             );
@@ -758,7 +760,7 @@ export function PhotoCardMatchClient() {
     frontImageUrl,
     backImageUrl,
     continuousMode,
-    includeRegistered,
+    registrationStatus,
     clearUploadedImages,
     refreshR2PendingCount,
   ]);
@@ -1480,9 +1482,7 @@ export function PhotoCardMatchClient() {
     params.set("limit", "50");
     params.set("offset", String(nextOffset));
 
-    if (includeRegistered) {
-      params.set("includeRegistered", "1");
-    }
+    params.set("registrationStatus", registrationStatus);
 
     const response = await fetch(`/api/inventory/photo-card-candidates?${params}`);
     const data = (await response.json().catch(() => null)) as CandidateResponse | null;
@@ -1492,7 +1492,7 @@ export function PhotoCardMatchClient() {
     }
 
     return data;
-  }, [buildPhotoCardFilterParams, includeRegistered]);
+  }, [buildPhotoCardFilterParams, registrationStatus]);
 
   useEffect(() => {
     let active = true;
@@ -1920,6 +1920,7 @@ export function PhotoCardMatchClient() {
     setAlbum("");
     setVersion("");
     setKeyword("");
+    setRegistrationStatus("all");
     window.localStorage.removeItem(storageKey);
   }
 
@@ -2151,15 +2152,27 @@ export function PhotoCardMatchClient() {
           </label>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-            <input
-              type="checkbox"
-              checked={includeRegistered}
-              onChange={(event) => setIncludeRegistered(event.currentTarget.checked)}
-              className="h-4 w-4 rounded border-zinc-300"
-            />
-            등록완료 카드도 보기
-          </label>
+          <div className="inline-flex rounded-md border border-zinc-300 bg-white p-1 text-sm">
+            {([
+              ["pending", "등록 전만"],
+              ["all", "전체"],
+              ["registered", "등록 완료만"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setRegistrationStatus(value)}
+                aria-pressed={registrationStatus === value}
+                className={`rounded px-3 py-1.5 font-medium transition-colors ${
+                  registrationStatus === value
+                    ? "bg-emerald-700 text-white"
+                    : "text-zinc-600 hover:bg-zinc-100"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             onClick={resetFilters}
