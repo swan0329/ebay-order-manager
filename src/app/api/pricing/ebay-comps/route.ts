@@ -18,7 +18,7 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   try {
-    await requireApiUser();
+    const user = await requireApiUser();
     const { productId } = schema.parse(await request.json());
 
     const product = await prisma.product.findUnique({
@@ -40,11 +40,14 @@ export async function POST(request: Request) {
     }
 
     const extras = (await productImageExtrasById([product.id])).get(product.id);
-    const result = await findMarketComps({
-      ...product,
-      userFrontImageUrl: extras?.userFrontImageUrl ?? null,
-      featuredMembers: extras?.featuredMembers ?? null,
-    });
+    const result = await findMarketComps(
+      {
+        ...product,
+        userFrontImageUrl: extras?.userFrontImageUrl ?? null,
+        featuredMembers: extras?.featuredMembers ?? null,
+      },
+      user.id,
+    );
 
     return Response.json(result);
   } catch (error) {

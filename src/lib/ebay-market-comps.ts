@@ -28,6 +28,9 @@ export type MarketComp = {
   // 내가 이미 eBay에 올려둔 리스팅인지. 시세 기준으로 삼으면 자기 가격을 다시
   // 참고하는 셈이고, 더 중요하게는 같은 카드를 두 번 올릴 위험을 뜻한다.
   isOwnListing: boolean;
+  // 내 리스팅 중에서도 그룹·멤버·앨범이 충분히 일치해 이 상품에 연결해도 되는가.
+  // 단순 시세 후보와 연결 후보를 분리해 다른 앨범 카드를 잘못 연결하지 않는다.
+  canLinkToProduct: boolean;
 };
 
 export type MarketCompsResult = {
@@ -115,6 +118,7 @@ function toComp(item: BrowseItemSummary): MarketComp | null {
     itemWebUrl: item.itemWebUrl ?? null,
     sellerUsername: item.seller?.username ?? null,
     isOwnListing: false,
+    canLinkToProduct: false,
   };
 }
 
@@ -165,9 +169,45 @@ export function isCompatibleMarketCompTitle(
   return !members.length || members.some((name) => containsExactPhrase(listingTitle, name));
 }
 
+const GENERIC_IDENTITY_WORDS = new Set([
+  "official",
+  "photocard",
+  "photo",
+  "card",
+  "kpop",
+  "album",
+  "ver",
+  "version",
+]);
+
+function meaningfulIdentityWords(value: string | null | undefined) {
+  return normalizeMatchText(value ?? "")
+    .split(" ")
+    .filter((word) => word.length >= 2 && !GENERIC_IDENTITY_WORDS.has(word));
+}
+
+export function isConfidentMarketCompTitle(
+  product: MarketCompsProduct,
+  listingTitle: string,
+) {
+  if (!isCompatibleMarketCompTitle(product, listingTitle)) return false;
+
+  const albumWords = meaningfulIdentityWords(product.category);
+  if (!albumWords.length) return false;
+
+  const listingWords = new Set(normalizeMatchText(listingTitle).split(" ").filter(Boolean));
+  return albumWords.every((word) => listingWords.has(word));
+}
+
 function compatibleComps(product: MarketCompsProduct, items: BrowseItemSummary[] | undefined) {
   return toComps(items)
-    .filter((comp) => isCompatibleMarketCompTitle(product, comp.title))
+    // 시세 자체도 다른 앨범이면 잘못된 가격이므로, 연결 버튼뿐 아니라 표시 후보도
+    // 그룹·멤버·앨범이 모두 충분히 맞는 결과로 제한한다.
+    .filter((comp) => isConfidentMarketCompTitle(product, comp.title))
+    .map((comp) => ({
+      ...comp,
+      canLinkToProduct: isConfidentMarketCompTitle(product, comp.title),
+    }))
     .slice(0, DISPLAY_LIMIT);
 }
 
@@ -175,21 +215,26 @@ function compatibleComps(product: MarketCompsProduct, items: BrowseItemSummary[]
 //  1) 최근 전체 활성상품 보고서에 같은 상품번호가 있는가 — 프로그램을 거치지 않고
 //     수동으로 올린 리스팅도 보고서에는 들어 있으므로 이 대조로 잡힌다.
 //  2) 판매자 계정명이 내 eBay 계정과 같은가 — 보고서가 오래됐을 때를 위한 보완.
-async function markOwnListings(comps: MarketComp[]) {
+async function markOwnListings(userId: string, comps: MarketComp[]) {
   if (!comps.length) return comps;
 
   const legacyIds = comps
     .map((comp) => comp.legacyItemId)
     .filter((id): id is string => Boolean(id));
 
+  const latestReport = await prisma.ebayReportImport.findFirst({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
   const [ownListings, accounts] = await Promise.all([
-    legacyIds.length
+    legacyIds.length && latestReport
       ? prisma.ebayActiveListing.findMany({
-          where: { itemId: { in: legacyIds } },
+          where: { importId: latestReport.id, itemId: { in: legacyIds } },
           select: { itemId: true },
         })
       : Promise.resolve([]),
-    prisma.ebayAccount.findMany({ select: { username: true } }),
+    prisma.ebayAccount.findMany({ where: { userId }, select: { username: true } }),
   ]);
 
   const ownItemIds = new Set(ownListings.map((listing) => listing.itemId));
@@ -258,6 +303,7 @@ async function searchByKeyword(query: string): Promise<BrowseItemSummary[]> {
 // 이미지 검색을 먼저 시도하고, 이미지가 없거나 결과가 비면 제목 검색으로 넘어간다.
 export async function findMarketComps(
   product: MarketCompsProduct,
+  userId: string,
 ): Promise<MarketCompsResult> {
   const imageUrl = compSearchImageUrl(product);
   let fallbackReason: string | null = null;
@@ -265,6 +311,7 @@ export async function findMarketComps(
   if (imageUrl) {
     try {
       const comps = await markOwnListings(
+        userId,
         compatibleComps(product, await searchByImage(imageUrl)),
       );
       if (comps.length) {
@@ -306,6 +353,7 @@ export async function findMarketComps(
   }
 
   const comps = await markOwnListings(
+    userId,
     compatibleComps(product, await searchByKeyword(query)),
   );
   return {
@@ -319,6 +367,6 @@ export async function findMarketComps(
 
 function ownIds(comps: MarketComp[]) {
   return comps
-    .filter((comp) => comp.isOwnListing)
+    .filter((comp) => comp.isOwnListing && comp.canLinkToProduct)
     .map((comp) => comp.legacyItemId ?? comp.itemId);
 }

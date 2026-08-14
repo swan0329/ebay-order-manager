@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const listingFindFirst = vi.fn();
+const reportFindFirst = vi.fn();
 const productFindUnique = vi.fn();
 const productFindFirst = vi.fn();
 const listingUpdate = vi.fn();
@@ -14,6 +15,9 @@ vi.mock("@/lib/prisma", () => ({
     ebayActiveListing: {
       findFirst: (...args: unknown[]) => listingFindFirst(...args),
       update: (...args: unknown[]) => listingUpdate(...args),
+    },
+    ebayReportImport: {
+      findFirst: (...args: unknown[]) => reportFindFirst(...args),
     },
     product: {
       findUnique: (...args: unknown[]) => productFindUnique(...args),
@@ -36,16 +40,36 @@ const input = { productId: "prod-1", itemId: "123456789012" };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  reportFindFirst.mockResolvedValue({ id: "report-latest" });
   listingFindFirst.mockResolvedValue({
     id: "listing-1",
     itemId: input.itemId,
     productId: null,
+    title: "Stray Kids HAN ATE POP-UP STORE REWARD Official Photocard",
   });
-  productFindUnique.mockResolvedValue({ id: "prod-1", ebayItemId: null });
+  productFindUnique.mockResolvedValue({
+    id: "prod-1",
+    ebayItemId: null,
+    brand: "Stray Kids",
+    category: "ATE POP-UP STORE REWARD",
+    optionName: "HAN",
+    productName: "Stray Kids ATE POP-UP STORE REWARD HAN",
+    ebayTitle: null,
+    featuredMembers: null,
+  });
   productFindFirst.mockResolvedValue(null);
 });
 
 describe("수동 리스팅 연결", () => {
+  it("최신 활성상품 보고서가 없으면 연결을 거부한다", async () => {
+    reportFindFirst.mockResolvedValue(null);
+
+    await expect(linkEbayActiveListing("user-1", input)).rejects.toThrow(
+      "최신 보고서를 먼저 가져와 주세요",
+    );
+    expect(listingFindFirst).not.toHaveBeenCalled();
+  });
+
   it("보고서에 있는 리스팅을 상품에 연결하고 판매중으로 표시한다", async () => {
     await expect(linkEbayActiveListing("user-1", input)).resolves.toEqual({
       productId: "prod-1",
@@ -78,6 +102,20 @@ describe("수동 리스팅 연결", () => {
     await expect(linkEbayActiveListing("user-1", input)).rejects.toThrow(
       EbayListingLinkError,
     );
+    expect(productUpdate).not.toHaveBeenCalled();
+  });
+
+  it("가격 화면의 연결은 같은 멤버라도 앨범이 다르면 서버에서 거부한다", async () => {
+    listingFindFirst.mockResolvedValue({
+      id: "listing-1",
+      itemId: input.itemId,
+      productId: null,
+      title: "Stray Kids HAN ROCK-STAR Official Photocard",
+    });
+
+    await expect(
+      linkEbayActiveListing("user-1", { ...input, requireCompatibleTitle: true }),
+    ).rejects.toThrow("앨범과 충분히 일치하지 않아");
     expect(productUpdate).not.toHaveBeenCalled();
   });
 

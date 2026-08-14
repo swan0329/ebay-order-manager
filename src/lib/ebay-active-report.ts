@@ -3,6 +3,7 @@ import "server-only";
 import * as XLSX from "xlsx";
 import { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
+import { isConfidentMarketCompTitle } from "@/lib/ebay-market-comps";
 import { resolveOrderItemProductMatch } from "@/lib/product-matching";
 import { variationEbayTitle } from "@/lib/variation-listing-groups";
 
@@ -499,12 +500,22 @@ export async function linkEbayActiveListing(
     // 두 건으로 올린 경우이며, 둘 다 그 상품이 맞다.
     // 상품이 지닐 수 있는 상품번호는 하나뿐이라 대표값은 먼저 붙은 것을 유지한다.
     allowMultiple?: boolean;
+    requireCompatibleTitle?: boolean;
   },
 ) {
-  const listing = await prisma.ebayActiveListing.findFirst({
-    where: { itemId: input.itemId, reportImport: { userId } },
+  const latestReport = await prisma.ebayReportImport.findFirst({
+    where: { userId },
     orderBy: { createdAt: "desc" },
-    select: { id: true, itemId: true, productId: true },
+    select: { id: true },
+  });
+  if (!latestReport) {
+    throw new EbayListingLinkError(
+      "연결에 사용할 활성상품 보고서가 없습니다. 최신 보고서를 먼저 가져와 주세요.",
+    );
+  }
+  const listing = await prisma.ebayActiveListing.findFirst({
+    where: { importId: latestReport.id, itemId: input.itemId },
+    select: { id: true, itemId: true, productId: true, title: true },
   });
   if (!listing) {
     throw new EbayListingLinkError(
@@ -518,7 +529,15 @@ export async function linkEbayActiveListing(
   const [product, otherClaim] = await Promise.all([
     prisma.product.findUnique({
       where: { id: input.productId },
-      select: { id: true, ebayItemId: true },
+      select: {
+        id: true,
+        ebayItemId: true,
+        brand: true,
+        category: true,
+        optionName: true,
+        productName: true,
+        ebayTitle: true,
+      },
     }),
     prisma.product.findFirst({
       where: { ebayItemId: input.itemId, id: { not: input.productId } },
@@ -527,6 +546,14 @@ export async function linkEbayActiveListing(
   ]);
   if (!product) {
     throw new EbayListingLinkError("상품을 찾을 수 없습니다.");
+  }
+  if (
+    input.requireCompatibleTitle &&
+    (!listing.title || !isConfidentMarketCompTitle(product, listing.title))
+  ) {
+    throw new EbayListingLinkError(
+      "선택한 리스팅은 이 카드의 그룹·멤버·앨범과 충분히 일치하지 않아 연결할 수 없습니다.",
+    );
   }
   const otherItemId =
     product.ebayItemId && product.ebayItemId !== input.itemId ? product.ebayItemId : null;

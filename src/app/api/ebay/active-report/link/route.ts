@@ -17,6 +17,9 @@ const schema = z.object({
   replaceExisting: z.boolean().optional(),
   // 기존 연결을 두고 이 리스팅도 같은 상품에 붙인다(같은 카드를 두 건으로 올린 경우).
   allowMultiple: z.boolean().optional(),
+  // 가격 미입력 화면처럼 자동 후보에서 연결할 때는 제목의 그룹·멤버·앨범을
+  // 서버에서도 다시 확인한다. 화면 버튼만 숨기는 것으로 안전을 맡기지 않는다.
+  requireCompatibleTitle: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
