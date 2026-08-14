@@ -71,7 +71,8 @@ const {
     });
 
     expect(query).not.toContain("BANG CHAN");
-    expect(query).toContain("ATE PLATFORM ALBUM NEMO");
+    expect(query).toContain("ate platform");
+    expect(query).not.toContain("JYP SHOP");
   });
 
 describe("eBay 시세 후보 그룹·멤버 필터", () => {

@@ -225,8 +225,7 @@ export function isLikelyMarketCompTitle(
 
   const listingWords = new Set(normalizeMatchText(listingTitle).split(" ").filter(Boolean));
   const matchedWords = albumWords.filter((word) => listingWords.has(word)).length;
-  const requiredWords =
-    albumWords.length <= 2 ? 1 : Math.max(2, Math.ceil(albumWords.length * 0.4));
+  const requiredWords = albumWords.length <= 2 ? 1 : 2;
   return matchedWords >= requiredWords;
 }
 
@@ -244,7 +243,14 @@ export function buildMarketCompSearchQuery(product: MarketCompsProduct) {
 
 export function buildVariationParentSearchQuery(product: MarketCompsProduct) {
   // Variation parent titles usually omit the selected member completely.
-  return [product.brand, product.category, "Photocard"]
+  // Keep this query deliberately short: benefit-shop and merchandise words
+  // stored in our category are frequently absent from the eBay parent title.
+  const brandWords = new Set(meaningfulIdentityWords(product.brand));
+  const categoryAnchors = meaningfulIdentityWords(product.category)
+    .filter((word) => !brandWords.has(word))
+    .filter((word, index, words) => words.indexOf(word) === index)
+    .slice(0, 2);
+  return [product.brand, categoryAnchors.join(" "), "Photocard"]
     .map((value) => value?.trim())
     .filter((value): value is string => Boolean(value))
     .join(" ")
