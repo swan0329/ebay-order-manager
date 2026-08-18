@@ -574,6 +574,105 @@ export function normalizeProductImportRow(row: ProductImportRow) {
   };
 }
 
+/**
+ * 같은 카드인지 판단하는 열쇠. 그룹·앨범·멤버·상품명이 모두 같으면 같은 카드다.
+ *
+ * 업로드는 SKU로만 중복을 걸렀다. 그래서 같은 카드가 SKU만 다른 여러 줄로 들어오면
+ * 상품이 그 수만큼 만들어졌고, 재고가 그 줄들에 흩어져 주문은 그중 하나에만 붙었다.
+ * 한 카드가 서른여섯 개 상품까지 쪼개진 적이 있다.
+ */
+export function productCardKey(input: {
+  brand?: string | null;
+  category?: string | null;
+  optionName?: string | null;
+  productName?: string | null;
+}) {
+  const part = (value?: string | null) =>
+    String(value ?? "")
+      .normalize("NFKC")
+      .toLocaleLowerCase("en")
+      .replace(/\s+/g, " ")
+      .trim();
+  const pieces = [
+    part(input.brand),
+    part(input.category),
+    part(input.optionName),
+    part(input.productName),
+  ];
+  // 판단할 근거가 없으면 막지 않는다. 잘못 막는 것이 더 나쁘다.
+  return pieces.some(Boolean) ? pieces.join("") : null;
+}
+
+export type DuplicateCardSkip = {
+  sku: string;
+  productName: string;
+  existingSku: string;
+};
+
+/**
+ * 새로 만들 상품 중 이미 같은 카드가 있는 것을 골라낸다.
+ *
+ * 이미 있는 SKU를 갱신하는 것은 그대로 두고, 새 상품을 만들 때만 본다. 재고를 말없이
+ * 합치지 않고 만들기를 건너뛰기만 하는 이유는, 업로드 파일의 수량이 우리 보유량인지
+ * 판매자 목록 수량인지 알 수 없기 때문이다. 사람이 보고 정해야 한다.
+ */
+async function findDuplicateCardSkips(
+  newProducts: Array<Pick<ProductInput, "sku" | "brand" | "category" | "optionName" | "productName">>,
+) {
+  const skips = new Map<string, DuplicateCardSkip>();
+  if (!newProducts.length) return skips;
+
+  const names = [
+    ...new Set(
+      newProducts
+        .map((product) => String(product.productName ?? "").trim())
+        .filter(Boolean),
+    ),
+  ];
+  const existing = names.length
+    ? (
+        await Promise.all(
+          chunkItems(names, 500).map((chunk) =>
+            prisma.product.findMany({
+              where: { productName: { in: chunk } },
+              select: {
+                sku: true,
+                brand: true,
+                category: true,
+                optionName: true,
+                productName: true,
+              },
+            }),
+          ),
+        )
+      ).flat()
+    : [];
+
+  const claimed = new Map<string, string>();
+  for (const product of existing) {
+    const key = productCardKey(product);
+    if (key && !claimed.has(key)) claimed.set(key, product.sku);
+  }
+
+  for (const product of newProducts) {
+    const key = productCardKey(product);
+    if (!key) continue;
+    const owner = claimed.get(key);
+    if (owner && owner !== product.sku) {
+      skips.set(product.sku, {
+        sku: product.sku,
+        productName: String(product.productName ?? ""),
+        existingSku: owner,
+      });
+      continue;
+    }
+    // 같은 파일 안에서 뒤따라오는 같은 카드도 막는다.
+    if (!owner) claimed.set(key, product.sku);
+  }
+
+  return skips;
+}
+
 async function saveProductImport(input: ProductInput, createdBy?: string | null) {
   const data = productData(input);
   const existing = await prisma.product.findUnique({
@@ -598,7 +697,13 @@ async function saveProductImport(input: ProductInput, createdBy?: string | null)
       });
     }
 
-    return "updated" as const;
+    return { outcome: "updated" as const };
+  }
+
+  // 새로 만들기 전에 같은 카드가 이미 있는지 본다. 있으면 만들지 않는다.
+  const duplicate = (await findDuplicateCardSkips([input])).get(input.sku);
+  if (duplicate) {
+    return { outcome: "duplicate_card" as const, skip: duplicate };
   }
 
   const product = await prisma.product.create({ data });
@@ -617,7 +722,7 @@ async function saveProductImport(input: ProductInput, createdBy?: string | null)
     });
   }
 
-  return "created" as const;
+  return { outcome: "created" as const };
 }
 
 export async function importProductsRows(
@@ -627,6 +732,7 @@ export async function importProductsRows(
   let created = 0;
   let updated = 0;
   const errors: string[] = [];
+  const duplicateCards: DuplicateCardSkip[] = [];
 
   for (const [index, row] of rows.entries()) {
     const parsed = productInputSchema.safeParse(normalizeProductImportRow(row));
@@ -638,14 +744,19 @@ export async function importProductsRows(
 
     const result = await saveProductImport(parsed.data, createdBy);
 
-    if (result === "updated") {
+    if (result.outcome === "duplicate_card") {
+      duplicateCards.push(result.skip);
+      continue;
+    }
+
+    if (result.outcome === "updated") {
       updated += 1;
     } else {
       created += 1;
     }
   }
 
-  return { created, updated, errors };
+  return { created, updated, errors, duplicateCards };
 }
 
 export async function importProductsRowsFast(
@@ -689,7 +800,7 @@ async function importProductsRowsFastWithMovements(
   const values = [...products.values()];
 
   if (!values.length) {
-    return { created: 0, updated: 0, errors };
+    return { created: 0, updated: 0, errors, duplicateCards: [] as DuplicateCardSkip[] };
   }
 
   const existingProducts = (
@@ -706,10 +817,27 @@ async function importProductsRowsFastWithMovements(
   const existingBySku = new Map(
     existingProducts.map((product) => [product.sku, product]),
   );
-  const created = values.filter((product) => !existingSkus.has(product.sku)).length;
-  const updated = values.length - created;
 
-  for (const chunk of chunkItems(values, 500)) {
+  // 이미 같은 카드가 있는데 SKU만 다른 줄은 새로 만들지 않는다. 만들면 재고가
+  // 그 줄로 흩어져 주문이 엉뚱한 쪽에 붙는다.
+  const duplicateSkips = await findDuplicateCardSkips(
+    values.filter((product) => !existingSkus.has(product.sku)),
+  );
+  const importable = values.filter((product) => !duplicateSkips.has(product.sku));
+
+  if (!importable.length) {
+    return {
+      created: 0,
+      updated: 0,
+      errors,
+      duplicateCards: [...duplicateSkips.values()],
+    };
+  }
+
+  const created = importable.filter((product) => !existingSkus.has(product.sku)).length;
+  const updated = importable.length - created;
+
+  for (const chunk of chunkItems(importable, 500)) {
     await prisma.$executeRaw`
       INSERT INTO "products" (
         "id",
@@ -771,7 +899,7 @@ async function importProductsRowsFastWithMovements(
     `;
   }
 
-  const existingMovements = values
+  const existingMovements = importable
     .map((product) => {
       const existing = existingBySku.get(product.sku);
 
@@ -791,7 +919,7 @@ async function importProductsRowsFastWithMovements(
     })
     .filter((movement) => movement !== null);
 
-  const createdWithStock = values.filter(
+  const createdWithStock = importable.filter(
     (product) => !existingSkus.has(product.sku) && product.stockQuantity > 0,
   );
 
@@ -833,7 +961,12 @@ async function importProductsRowsFastWithMovements(
     await prisma.inventoryMovement.createMany({ data: chunk });
   }
 
-  return { created, updated, errors };
+  return {
+    created,
+    updated,
+    errors,
+    duplicateCards: [...duplicateSkips.values()],
+  };
 }
 
 export async function importProductsCsv(text: string, createdBy?: string | null) {
@@ -845,7 +978,12 @@ export async function importProductsExcel(buffer: Buffer, createdBy?: string | n
   const sheetName = workbook.SheetNames[0];
 
   if (!sheetName) {
-    return { created: 0, updated: 0, errors: ["엑셀 시트를 찾을 수 없습니다."] };
+    return {
+      created: 0,
+      updated: 0,
+      errors: ["엑셀 시트를 찾을 수 없습니다."],
+      duplicateCards: [] as DuplicateCardSkip[],
+    };
   }
 
   const rows = XLSX.utils.sheet_to_json<ProductImportRow>(

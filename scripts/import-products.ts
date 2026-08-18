@@ -57,8 +57,20 @@ async function main() {
       : await importProductsCsv(readFileSync(absolutePath, "utf8"), "script");
 
   console.log(
-    `상품 등록 ${result.created}건, 수정 ${result.updated}건, 오류 ${result.errors.length}건`,
+    `상품 등록 ${result.created}건, 수정 ${result.updated}건, 오류 ${result.errors.length}건, 같은 카드라 건너뜀 ${result.duplicateCards.length}건`,
   );
+
+  // 같은 카드가 SKU만 다른 줄로 또 들어오면 상품이 쪼개지고 재고가 흩어진다.
+  // 만들지 않고 어떤 줄이 어디에 걸렸는지 그대로 보여 준다.
+  if (result.duplicateCards.length) {
+    console.log("\n이미 같은 카드가 있어 새로 만들지 않은 줄:");
+    for (const skip of result.duplicateCards.slice(0, 20)) {
+      console.log(`  ${skip.sku} → 기존 ${skip.existingSku} · ${skip.productName}`);
+    }
+    if (result.duplicateCards.length > 20) {
+      console.log(`  … 외 ${result.duplicateCards.length - 20}건`);
+    }
+  }
 
   if (result.errors.length) {
     console.log(result.errors.slice(0, 20).join("\n"));
