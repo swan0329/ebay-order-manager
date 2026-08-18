@@ -136,3 +136,40 @@ export function variationParentSku(key: string) {
   }
   return `VAR-${(hash >>> 0).toString(36).toUpperCase()}`;
 }
+
+const ACTIVE_LISTING_STATUSES = ["ACTIVE", "PUBLISHED", "LISTED"];
+
+export type VariationEndableProduct = {
+  id: string;
+  sku: string;
+  ebayItemId: string | null;
+  listingStatus: string | null;
+};
+
+/**
+ * 옵션 추가와 같은 파일에서 끝낼 기존 단품을 고른다.
+ *
+ * 단품을 끝내는 데에는 그 단품의 상품번호와 SKU만 있으면 되고, 새로 만들어질 부모
+ * 옵션상품의 상품번호는 필요 없다. 그래서 옵션 추가 뒤에 전체 활성상품 보고서를
+ * 다시 받아올 때까지 기다릴 이유가 없다. 한 파일로 합치면 같은 카드가 단품과
+ * 옵션상품으로 동시에 살아 있는 구간도 거의 사라진다.
+ *
+ * 아직 eBay에 없는 묶음(Add)은 등록이 거부되면 단품만 사라지므로, 사람이 그 위험을
+ * 알고 켰을 때만 포함한다.
+ */
+export function variationSinglesToEnd<T extends VariationEndableProduct>(input: {
+  products: T[];
+  parentItemId: string | null;
+  endSingles: boolean;
+  endNewGroupSingles: boolean;
+}) {
+  if (!input.endSingles) return [];
+  if (!input.parentItemId && !input.endNewGroupSingles) return [];
+
+  return input.products.filter(
+    (product) =>
+      Boolean(product.ebayItemId) &&
+      product.ebayItemId !== input.parentItemId &&
+      ACTIVE_LISTING_STATUSES.includes(String(product.listingStatus ?? "").toUpperCase()),
+  );
+}

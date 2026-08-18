@@ -14,7 +14,9 @@ import {
   relationshipDetails,
   variationEbayTitle,
   variationParentSku,
+  variationSinglesToEnd,
 } from "@/lib/variation-listing-groups";
+import { EBAY_END_LISTING_REASON } from "@/lib/ebay-end-listing-csv";
 import { getVariationListingReadyImages, isPublicListingImageUrl } from "@/lib/variation-listing-products";
 import { thumbnailIsCurrent, variationThumbnailHash } from "@/lib/variation-thumbnail-state";
 import {
@@ -28,6 +30,12 @@ const schema = z.object({
   // When omitted, resolveListingTemplateDefaults safely uses the saved default.
   templateId: z.string().min(1).optional().nullable(),
   confirmed: z.literal(true),
+  // 옵션 추가 행 뒤에 기존 단품 종료 행을 같은 파일에 넣는다. eBay 업로드가 한 번으로
+  // 끝나고, 단품과 옵션상품이 같이 살아 있는 중복 등록 구간도 거의 사라진다.
+  endSingles: z.boolean().optional().default(true),
+  // 아직 eBay에 없는 신규 묶음까지 함께 종료할지. Add가 거부되면 단품만 사라지므로
+  // 기본은 끄고, 사람이 위험을 알고 켤 때만 넣는다.
+  endNewGroupSingles: z.boolean().optional().default(false),
 });
 
 const headers = [
@@ -40,6 +48,8 @@ const headers = [
   "Return profile name", "Payment profile name", "C:Original/Reproduction",
   "C:Brand", "C:Type", "C:Artist", "C:Franchise", "C:Set", "C:Genre",
   "C:Country/Region of Manufacture",
+  // End 행에만 쓰는 열. eBay는 종료 사유가 없으면 End 행을 거부한다.
+  "EndingReason",
 ] as const;
 
 function csvCell(value: unknown) {
@@ -165,6 +175,24 @@ export async function POST(request: Request) {
           [headers[10]]: `${item.product.variationName.replace(/[;|=]/g, " ")}=${item.product.imageUrl || item.product.ebayImageUrls[0]}`,
         });
       }
+      // 이 묶음의 카드가 아직 단품으로도 올라가 있으면 같은 파일에서 종료한다.
+      // 부모 옵션상품의 Item number는 필요 없다. 종료에 필요한 값(단품의 Item number와
+      // SKU)은 직전 보고서에서 이미 상품에 들어와 있으므로, 보고서를 다시 받을 이유가 없다.
+      const endable = variationSinglesToEnd({
+        products: group.products,
+        parentItemId: state?.ebayItemId ?? null,
+        endSingles: input.endSingles,
+        endNewGroupSingles: input.endNewGroupSingles,
+      });
+      for (const product of endable) {
+        rows.push({
+          [headers[0]]: "End",
+          [headers[1]]: product.ebayItemId ?? "",
+          [headers[2]]: product.sku,
+          [headers[33]]: EBAY_END_LISTING_REASON,
+        });
+      }
+
       await prisma.variationListingState.upsert({
         where: { userId_groupKey: { userId: user.id, groupKey: group.key } },
         create: { userId: user.id, groupKey: group.key, parentSku: variationParentSku(group.key), title: group.title, pendingProductIds: exportProducts.map((product)=>product.id), lastExportedAt: new Date() },

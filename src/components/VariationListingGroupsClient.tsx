@@ -42,6 +42,19 @@ type BatchResult = {
   failed: number;
   finishedAt: number;
 };
+type ConfirmResult = {
+  confirmedGroups: number;
+  newParentListings: number;
+  addedOptions: number;
+  endedSingles: number;
+  pendingGroups: Array<{ title: string; parentSku: string }>;
+  endableGroupKeys: string[];
+  failures: Array<{
+    sku: string | null;
+    itemId: string | null;
+    message: string | null;
+  }>;
+};
 type ListingTemplate = {
   id: string;
   name: string;
@@ -70,6 +83,8 @@ export function VariationListingGroupsClient() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [templates, setTemplates] = useState<ListingTemplate[]>([]);
   const [templateId, setTemplateId] = useState("");
+  const [endNewGroups, setEndNewGroups] = useState(false);
+  const [confirmResult, setConfirmResult] = useState<ConfirmResult | null>(null);
   useEffect(() => {
     void Promise.all([
       fetch("/api/listing-upload/variation-groups", { cache: "no-store" }),
@@ -140,7 +155,11 @@ export function VariationListingGroupsClient() {
       URL.revokeObjectURL(url);
     }, 1000);
   }
-  async function requestCsv(endpoint: string, groupKeys: string[]) {
+  async function requestCsv(
+    endpoint: string,
+    groupKeys: string[],
+    extra: Record<string, unknown> = {},
+  ) {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 120_000);
     try {
@@ -148,7 +167,7 @@ export function VariationListingGroupsClient() {
         method: "POST",
         headers: { "content-type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({ groupKeys, templateId, confirmed: true }),
+        body: JSON.stringify({ groupKeys, templateId, confirmed: true, ...extra }),
       });
       if (!r.ok) {
         const contentType = r.headers.get("content-type") ?? "";
@@ -299,15 +318,19 @@ export function VariationListingGroupsClient() {
     setBusy(false);
     setProgress(null);
   }
+  // 옵션 추가 행과 기존 단품 종료 행을 한 파일에 담아 받는다. eBay 업로드가 한 번으로
+  // 끝나고, 단품과 옵션상품이 동시에 살아 있는 중복 등록 구간도 거의 사라진다.
   async function downloadVariationCsv() {
     setBusy(true);
     setError(null);
+    setConfirmResult(null);
     try {
       const parts: string[] = [];
       for (let offset = 0; offset < selected.length; offset += 20) {
         const blob = await requestCsv(
           "/api/listing-upload/variation-groups/export",
           selected.slice(offset, offset + 20),
+          { endSingles: true, endNewGroupSingles: endNewGroups },
         );
         const text = (await blob.text()).replace(/^\uFEFF/, "");
         parts.push(
@@ -328,6 +351,46 @@ export function VariationListingGroupsClient() {
             ? e.message
             : String(e),
       );
+    } finally {
+      setBusy(false);
+    }
+  }
+  // eBay가 돌려준 처리 결과 파일로 부모 옵션상품의 Item number를 확정한다. 전체
+  // 활성상품 보고서를 다시 받을 필요가 없고, eBay API도 호출하지 않는다.
+  async function confirmUpload(file: File) {
+    setBusy(true);
+    setError(null);
+    setConfirmResult(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const r = await fetch(
+        "/api/listing-upload/variation-groups/confirm-upload",
+        { method: "POST", body: form },
+      );
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || "결과 파일을 읽지 못했습니다.");
+      setConfirmResult(body.result);
+      await refreshGroups();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  // 결과 파일로 등록 성공이 확인된 묶음에 남은 단품만 골라 종료 CSV를 받는다.
+  // 신규 묶음도 여기서는 안전하게 끝낼 수 있다.
+  async function downloadConfirmedEndCsv(groupKeys: string[]) {
+    setBusy(true);
+    setError(null);
+    try {
+      const blob = await requestCsv(
+        "/api/listing-upload/variation-groups/end-singles",
+        groupKeys,
+      );
+      saveBlob(blob, "ebay-end-replaced-singles");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -378,9 +441,11 @@ export function VariationListingGroupsClient() {
       <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
         <b>업로드 순서</b>
         <p className="mt-1 text-xs leading-5">
-          썸네일 미리보기 → 신규 등록·옵션 추가 CSV 업로드 → eBay 전체 활성상품
-          보고서 다시 가져오기 → 반영 확인 후 기존 단품 종료 CSV 업로드. CSV
-          생성 시 미리보기와 같은 구성을 R2에 업로드합니다.
+          ① 선택 묶음 썸네일 만들기 → ② <b>옵션 추가 + 단품 종료 CSV</b> 한 파일을
+          eBay에 업로드 → ③ eBay가 준 처리 결과 파일을 아래에 올리기. 기존 단품을
+          끝내는 행이 같은 파일에 함께 들어가므로 eBay 업로드는 한 번이면 되고,
+          중간에 전체 활성상품 보고서를 다시 받지 않아도 됩니다. CSV 생성 시
+          미리보기와 같은 구성을 R2에 업로드합니다.
         </p>
       </section>
       <section className="rounded-xl border bg-white p-4">
@@ -666,10 +731,85 @@ export function VariationListingGroupsClient() {
               onClick={downloadVariationCsv}
               className="h-11 rounded bg-violet-600 px-5 text-sm font-semibold text-white disabled:bg-zinc-300"
             >
-              신규 등록·옵션 추가 CSV
+              옵션 추가 + 단품 종료 CSV
             </button>
           </div>
         </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+          <label
+            className="flex items-center gap-2 text-xs text-zinc-600"
+            title="신규 묶음은 eBay가 등록을 거부하면 단품만 사라집니다. 그래서 기본은 꺼져 있습니다."
+          >
+            <input
+              type="checkbox"
+              checked={endNewGroups}
+              onChange={(event) => setEndNewGroups(event.target.checked)}
+            />
+            신규 묶음의 단품도 같은 파일에서 종료(등록이 거부되면 단품만 사라짐)
+          </label>
+          <label className="flex items-center gap-2 text-xs font-semibold text-violet-700">
+            <span>eBay 처리 결과 파일 올리기</span>
+            <input
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              disabled={busy}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void confirmUpload(file);
+              }}
+              className="text-xs font-normal text-zinc-600"
+            />
+          </label>
+        </div>
+        {confirmResult && (
+          <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+            <b>결과 반영 완료</b> · 묶음 {confirmResult.confirmedGroups}개(신규
+            등록 {confirmResult.newParentListings}개) · 옵션 추가{" "}
+            {confirmResult.addedOptions}장 · 단품 종료{" "}
+            {confirmResult.endedSingles}장
+            {confirmResult.endableGroupKeys.length > 0 && (
+              <div className="mt-2">
+                <p className="text-amber-800">
+                  등록이 확인된 묶음 {confirmResult.endableGroupKeys.length}개에
+                  아직 활성 단품이 남아 있습니다.
+                </p>
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    downloadConfirmedEndCsv(confirmResult.endableGroupKeys)
+                  }
+                  className="mt-1 h-9 rounded border border-red-300 px-3 text-xs font-semibold text-red-700 disabled:text-zinc-300"
+                >
+                  남은 단품 종료 CSV 받기
+                </button>
+              </div>
+            )}
+            {confirmResult.pendingGroups.length > 0 && (
+              <p className="mt-1 text-amber-800">
+                결과 파일에서 찾지 못한 묶음{" "}
+                {confirmResult.pendingGroups.length}개:{" "}
+                {confirmResult.pendingGroups
+                  .slice(0, 5)
+                  .map((group) => group.title)
+                  .join(", ")}
+              </p>
+            )}
+            {confirmResult.failures.length > 0 && (
+              <div className="mt-1 text-red-700">
+                <b>eBay가 실패로 알려 준 행 {confirmResult.failures.length}건</b>
+                <ul className="mt-1 list-disc pl-4">
+                  {confirmResult.failures.slice(0, 5).map((failure, index) => (
+                    <li key={index}>
+                      {failure.sku ?? failure.itemId ?? "-"}:{" "}
+                      {failure.message ?? "사유 없음"}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
         {!descriptionTemplateReady && (
           <p className="rounded bg-red-50 p-2 text-xs font-semibold text-red-800">
             상세페이지 HTML이 저장된 템플릿을 선택해야 CSV를 받을 수 있습니다.
