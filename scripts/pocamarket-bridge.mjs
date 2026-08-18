@@ -18,18 +18,46 @@ function adbBuffer(...args) {
   return execFileSync(adb, args, { encoding: "buffer", timeout: 20000 });
 }
 
+function connectedDevices() {
+  return adbRun("devices").split(/\r?\n/).slice(1).map((line) => line.trim())
+    .filter((line) => line.endsWith("\tdevice")).map((line) => line.split(/\s+/)[0]);
+}
+
+function tryConnect(address) {
+  try { adbRun("connect", address); } catch { /* 아래 장치 목록으로 확인한다. */ }
+  return connectedDevices().includes(address);
+}
+
+// Android 11 이상의 무선 디버깅은 켤 때마다 포트가 바뀌고 IP도 DHCP로 바뀐다.
+// 설정 파일에 적어 둔 주소는 금방 낡으므로, 실패하면 mDNS로 실제 주소를 찾는다.
+function discoverWirelessAddresses() {
+  let output = "";
+  try { output = adbRun("mdns", "services"); } catch { return []; }
+  return [...output.matchAll(/_adb-tls-connect\._tcp\s+(\S+:\d+)/g)].map((match) => match[1]);
+}
+
 function deviceSerial() {
-  if (config.adbAddress) {
-    try { adbRun("connect", config.adbAddress); } catch { /* Checked below. */ }
+  if (config.adbAddress && tryConnect(config.adbAddress)) return config.adbAddress;
+
+  const usb = connectedDevices().filter((serial) => !/:\d+$/.test(serial));
+  if (usb.length === 1) return usb[0];
+
+  for (const address of discoverWirelessAddresses()) {
+    if (address === config.adbAddress) continue;
+    if (tryConnect(address)) {
+      console.log(`무선 주소가 바뀌어 자동으로 찾았습니다: ${address}`);
+      console.log(`pocamarket-bridge.config.json의 adbAddress를 이 값으로 바꿔 두면 다음부터 빨라집니다.`);
+      return address;
+    }
   }
-  const devices = adbRun("devices").split(/\r?\n/).slice(1).map((line) => line.trim()).filter((line) => line.endsWith("\tdevice"));
-  if (config.adbAddress) {
-    const wireless = devices.find((line) => line.split(/\s+/)[0] === config.adbAddress);
-    if (wireless) return config.adbAddress;
-    throw new Error(`무선 Android 장치에 연결할 수 없습니다: ${config.adbAddress}`);
-  }
-  if (devices.length !== 1) throw new Error(`연결된 Android 장치는 정확히 1대여야 합니다. 현재 ${devices.length}대`);
-  return devices[0].split(/\s+/)[0];
+
+  const devices = connectedDevices();
+  if (devices.length === 1) return devices[0];
+  if (devices.length > 1) throw new Error(`연결된 Android 장치는 정확히 1대여야 합니다. 현재 ${devices.length}대`);
+  throw new Error(
+    "Android 장치를 찾지 못했습니다. 휴대폰 화면을 켜고 같은 와이파이에서 개발자 옵션 > 무선 디버깅을 켠 뒤, " +
+    "처음이라면 '페어링 코드로 기기 페어링'을 열어 PC에서 adb pair <IP>:<페어링포트>로 한 번 짝을 지어 주세요.",
+  );
 }
 
 async function unlockSimpleKeyguard(serial) {
@@ -303,14 +331,33 @@ async function main() {
     await runCatalogSync(serial);
     return;
   }
+  // 서버에 물어보는 동안 생긴 오류로 브리지가 조용히 종료되면, 화면에는 "휴대폰 연결
+  // 대기"만 남아 원인을 알 수 없다. 사유를 출력하고 계속 다시 시도한다.
+  let lastPollError = "";
   while (true) {
-    const { job } = await api(`/api/pocamarket-bridge/jobs?device=${encodeURIComponent(serial)}`);
+    let job = null;
+    try {
+      ({ job } = await api(`/api/pocamarket-bridge/jobs?device=${encodeURIComponent(serial)}`));
+      lastPollError = "";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message !== lastPollError) {
+        lastPollError = message;
+        console.error(
+          /401/.test(message)
+            ? "서버가 토큰을 거부했습니다(401). POCAMARKET_BRIDGE_TOKEN이 Vercel 운영 값과 같은지 확인해 주세요. 계속 다시 시도합니다."
+            : `서버에 연결하지 못했습니다: ${message}. 계속 다시 시도합니다.`,
+        );
+      }
+      await wait(5000);
+      continue;
+    }
     if (job) {
       try { await processJob(serial, job); }
       catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.error(`[${job.id}] ${message}`);
-        await update(job.id, { status: "failed", errorMessage: message });
+        await update(job.id, { status: "failed", errorMessage: message }).catch(() => {});
       }
     }
     await wait(job ? 1000 : 5000);

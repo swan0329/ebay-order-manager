@@ -17,7 +17,9 @@
     "products:import": "tsx scripts/import-products.ts",
     "products:image-signatures": "tsx scripts/build-product-image-signatures.ts",
     "products:image-fingerprints": "tsx scripts/build_image_fingerprints.ts",
-    "pocamarket:sync": "tsx scripts/sync-pocamarket-api.ts"
+    "pocamarket:sync": "tsx scripts/sync-pocamarket-api.ts",
+    "pocamarket:bridge": "node scripts/pocamarket-bridge.mjs",
+    "pocamarket:bridge:check": "node scripts/pocamarket-bridge.mjs --inspect"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

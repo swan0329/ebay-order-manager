@@ -3,6 +3,7 @@ import { createPurchaseJobs, ensurePocamarketPurchaseJobs } from "@/lib/pocamark
 import { prisma } from "@/lib/prisma";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { getCurrentUser } from "@/lib/session";
+import { readBridgeStatus } from "@/lib/pocamarket-bridge-status";
 
 const schema = z.object({ orderId: z.string().min(1) });
 
@@ -17,7 +18,8 @@ export async function GET(request: Request) {
     FROM "pocamarket_purchase_jobs" WHERE "order_id" = ${orderId} AND "user_id" = ${user.id}
     ORDER BY "created_at" DESC
   `;
-  return Response.json({ jobs });
+  // 화면이 이미 5초마다 이 응답을 받아 가므로, 브리지 상태도 같이 실어 보낸다.
+  return Response.json({ jobs, bridge: await readBridgeStatus() });
 }
 
 export async function POST(request: Request) {

@@ -301,6 +301,17 @@ model VariationThumbnailSetting {
   @@map("variation_thumbnail_settings")
 }
 
+// PC에서 도는 포카마켓 브리지가 마지막으로 서버에 붙은 시각. 주문 화면에서
+// "휴대폰 연결 대기"가 정상 대기인지 브리지가 꺼진 것인지 구분하는 데 쓴다.
+model PocamarketBridgeHeartbeat {
+  deviceSerial String   @id @map("device_serial")
+  lastSeenAt   DateTime @default(now()) @map("last_seen_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([lastSeenAt(sort: Desc)])
+  @@map("pocamarket_bridge_heartbeats")
+}
+
 model ProductUploadJob {
   id               String    @id @default(cuid())
   userId           String    @map("user_id")

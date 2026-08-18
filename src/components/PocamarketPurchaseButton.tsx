@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 
 type PurchaseJob = { id: string; productNumber: string; requestedQuantity: number; purchasedQuantity: number; status: string; warningMessage: string | null };
+type BridgeStatus = { online: boolean; deviceSerial: string | null; lastSeenAt: string | null; secondsAgo: number | null };
+
+function bridgeAgeText(secondsAgo: number | null) {
+  if (secondsAgo === null) return "한 번도 연결된 적 없음";
+  if (secondsAgo < 60) return `${secondsAgo}초 전 응답`;
+  const minutes = Math.floor(secondsAgo / 60);
+  if (minutes < 60) return `${minutes}분 전 응답`;
+  return `${Math.floor(minutes / 60)}시간 전 응답`;
+}
 
 const statusLabel: Record<string, string> = {
   queued: "휴대폰 연결 대기", running: "상품 확인 중", awaiting_confirmation: "결제 확인 대기",
@@ -14,12 +23,14 @@ export function PocamarketPurchaseButton({ orderId }: { orderId: string }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [jobs, setJobs] = useState<PurchaseJob[]>([]);
+  const [bridge, setBridge] = useState<BridgeStatus | null>(null);
 
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/pocamarket-purchases?orderId=${encodeURIComponent(orderId)}`);
     if (!response.ok) return;
-    const body = await response.json() as { jobs?: PurchaseJob[] };
+    const body = await response.json() as { jobs?: PurchaseJob[]; bridge?: BridgeStatus };
     setJobs(body.jobs ?? []);
+    setBridge(body.bridge ?? null);
   }, [orderId]);
 
   useEffect(() => {
@@ -60,5 +71,26 @@ export function PocamarketPurchaseButton({ orderId }: { orderId: string }) {
     finally { setLoading(false); }
   }
 
-  return <div className="mt-2 space-y-1"><button type="button" onClick={requestPurchase} disabled={loading} className="rounded bg-rose-600 px-2 py-1 text-xs font-semibold text-white disabled:opacity-50">{loading ? "처리 중..." : "재고없는 포카 구매"}</button>{jobs.map((job) => <div key={job.id} className="text-xs text-zinc-600"><span>{job.productNumber} · {job.purchasedQuantity}/{job.requestedQuantity}개 · {statusLabel[job.status] ?? job.status}</span>{job.status === "awaiting_confirmation" ? <button type="button" disabled={loading} onClick={() => confirmUnit(job)} className="ml-1 rounded bg-emerald-700 px-1.5 py-0.5 font-semibold text-white">휴대폰 결제 1장 완료</button> : null}{job.warningMessage ? <p className="text-rose-600">{job.warningMessage}</p> : null}</div>)}{message ? <p className="text-xs text-zinc-600" title={message}>{message}</p> : null}</div>;
+  // 브리지가 꺼져 있으면 대기 중인 작업을 아무도 가져가지 않는다. "휴대폰 연결 대기"만
+  // 계속 보여 주면 정상 대기인지 브리지가 죽은 것인지 구분할 수 없으므로 상태를 함께 알린다.
+  const waiting = jobs.some((job) => job.status === "queued");
+  const bridgeOffline = bridge !== null && !bridge.online;
+
+  return <div className="mt-2 space-y-1">
+    <button type="button" onClick={requestPurchase} disabled={loading} className="rounded bg-rose-600 px-2 py-1 text-xs font-semibold text-white disabled:opacity-50">{loading ? "처리 중..." : "재고없는 포카 구매"}</button>
+    {bridge ? <p className={`text-xs font-semibold ${bridge.online ? "text-emerald-700" : "text-rose-600"}`}>
+      {bridge.online
+        ? `● PC 브리지 연결됨${bridge.deviceSerial ? ` · ${bridge.deviceSerial}` : ""} · ${bridgeAgeText(bridge.secondsAgo)}`
+        : `● PC 브리지 꺼짐 · ${bridgeAgeText(bridge.secondsAgo)}`}
+    </p> : null}
+    {bridgeOffline && waiting ? <p className="rounded bg-rose-50 p-2 text-xs text-rose-800">
+      구매 요청은 접수됐지만 <b>PC에서 브리지가 돌고 있지 않아 진행되지 않습니다.</b> 휴대폰 무선 디버깅을 켜고 PC에서 <code className="font-mono">npm run pocamarket:bridge</code>를 실행해 주세요. 브리지가 붙으면 대기 중인 작업이 자동으로 이어집니다.
+    </p> : null}
+    {jobs.map((job) => <div key={job.id} className="text-xs text-zinc-600">
+      <span>{job.productNumber} · {job.purchasedQuantity}/{job.requestedQuantity}개 · {job.status === "queued" && bridgeOffline ? "브리지 꺼짐 · 대기 중" : statusLabel[job.status] ?? job.status}</span>
+      {job.status === "awaiting_confirmation" ? <button type="button" disabled={loading} onClick={() => confirmUnit(job)} className="ml-1 rounded bg-emerald-700 px-1.5 py-0.5 font-semibold text-white">휴대폰 결제 1장 완료</button> : null}
+      {job.warningMessage ? <p className="text-rose-600">{job.warningMessage}</p> : null}
+    </div>)}
+    {message ? <p className="text-xs text-zinc-600" title={message}>{message}</p> : null}
+  </div>;
 }
