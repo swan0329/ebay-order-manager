@@ -7,6 +7,9 @@ export type MatchMethod = "sku" | "item_variation" | "item_id" | "fuzzy_title";
 export type ProductForMatching = {
   id: string;
   sku: string;
+  // eBay 활성상품 보고서로 상품에 직접 연결해 둔 상품번호. 주문에 SKU가 실려 오지
+  // 않을 때 어느 카드인지 가리는 가장 확실한 근거다.
+  ebayItemId?: string | null;
   productName: string;
   optionName?: string | null;
   category?: string | null;
@@ -236,6 +239,29 @@ function matchByMappedListing<TProduct extends ProductForMatching>(
   return null;
 }
 
+/**
+ * 주문이 가리키는 eBay 상품번호와 같은 번호가 저장된 상품을 찾는다.
+ *
+ * 옵션상품은 여러 카드가 한 상품번호를 함께 쓰므로 하나로 좁혀지지 않는다. 그럴
+ * 때는 고르지 않고 넘긴다. 잘못 붙이는 것보다 사람이 고르게 두는 편이 낫다.
+ */
+function matchByProductItemId<TProduct extends ProductForMatching>(
+  item: OrderItemForMatching,
+  products: TProduct[],
+) {
+  const reference = legacyListingReferenceFromOrderItemRaw(item.rawJson);
+
+  if (!reference?.legacyItemId) {
+    return null;
+  }
+
+  const matches = products.filter(
+    (product) => (product.ebayItemId ?? null) === reference.legacyItemId,
+  );
+
+  return matches.length === 1 ? matches[0] : null;
+}
+
 function matchByMappedTitle<TProduct extends ProductForMatching>(
   item: OrderItemForMatching,
   mappings: ProductMappingForMatching<TProduct>[],
@@ -275,6 +301,20 @@ export function resolveOrderItemProductMatch<TProduct extends ProductForMatching
         candidates: [],
       };
     }
+  }
+
+  // 상품에 저장된 eBay 상품번호를 먼저 본다. 매핑 표에 없어도 여기 있으면 확정이다.
+  // 이것을 보지 않아 제목 유사도로 떨어졌고, 이름이 같고 포즈만 다른 카드 중
+  // 엉뚱한 것에 붙는 일이 있었다.
+  const productItemMatch = matchByProductItemId(item, products);
+
+  if (productItemMatch) {
+    return {
+      product: productItemMatch,
+      matchedBy: "item_id",
+      matchScore: null,
+      candidates: [],
+    };
   }
 
   const listingMatch = matchByMappedListing(item, mappings);
@@ -413,6 +453,7 @@ export async function matchOrderItemsForOrder(orderId: string) {
     select: {
       id: true,
       sku: true,
+      ebayItemId: true,
       productName: true,
       optionName: true,
       category: true,
