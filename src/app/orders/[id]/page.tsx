@@ -9,6 +9,8 @@ import {
 import { ShipmentForm } from "@/components/ShipmentForm";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TopNav } from "@/components/TopNav";
+import { PocamarketPurchaseButton } from "@/components/PocamarketPurchaseButton";
+import { deriveEbayOrderCategory } from "@/lib/ebay-order-status";
 import { orderWarningClass } from "@/lib/order-automation";
 import { orderItemImageUrlFromRaw } from "@/lib/order-images";
 import { rankFuzzyTitleMatches } from "@/lib/services/matchingService";
@@ -150,6 +152,32 @@ export default async function OrderDetailPage({
   }
 
   const unmatchedItems = order.items.filter((item) => !item.productId);
+  // 재고가 모자란 항목. 목록 화면에만 있던 포카마켓 구매를 여기서도 할 수 있게
+  // 어느 카드가 몇 장 모자란지 함께 보여 준다.
+  const shortageItems = order.items.filter(
+    (item) =>
+      !item.stockDeducted &&
+      item.product &&
+      item.product.stockQuantity < item.quantity,
+  );
+  const orderRaw =
+    order.rawJson && typeof order.rawJson === "object" && !Array.isArray(order.rawJson)
+      ? (order.rawJson as Record<string, unknown>)
+      : {};
+  const cancelStatus =
+    orderRaw.cancelStatus && typeof orderRaw.cancelStatus === "object"
+      ? (orderRaw.cancelStatus as Record<string, unknown>)
+      : {};
+  // 구매 요청은 배송대기 주문에만 만들 수 있다. 그 조건이 아니면 버튼을 눌러도
+  // 서버가 거절하므로, 같은 기준으로 여기서도 보이지 않게 한다.
+  const canPurchaseShortage =
+    deriveEbayOrderCategory({
+      fulfillmentStatus: order.fulfillmentStatus,
+      paymentStatus:
+        typeof orderRaw.orderPaymentStatus === "string" ? orderRaw.orderPaymentStatus : null,
+      cancelState:
+        typeof cancelStatus.cancelState === "string" ? cancelStatus.cancelState : null,
+    }) === "AWAITING_SHIPMENT";
   const products = allProducts.slice(0, 50).map((product) => ({
     id: product.id,
     sku: product.sku,
@@ -225,6 +253,31 @@ export default async function OrderDetailPage({
                 </p>
               ))}
             </div>
+          </section>
+        ) : null}
+
+        {shortageItems.length ? (
+          <section className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+            <p className="font-semibold">재고 부족 {shortageItems.length}건</p>
+            <div className="mt-2 space-y-1">
+              {shortageItems.map((item) => (
+                <p key={item.id}>
+                  {item.product?.sku} · {item.product?.productName}
+                  {item.product?.optionName ? ` · ${item.product.optionName}` : ""} ·{" "}
+                  필요 {item.quantity}, 현재 {item.product?.stockQuantity ?? 0} ·{" "}
+                  <b>{item.quantity - (item.product?.stockQuantity ?? 0)}장 부족</b>
+                </p>
+              ))}
+            </div>
+            {canPurchaseShortage ? (
+              <div className="mt-2">
+                <PocamarketPurchaseButton orderId={order.id} />
+              </div>
+            ) : (
+              <p className="mt-2 text-xs">
+                배송대기 주문만 포카마켓 구매를 요청할 수 있습니다.
+              </p>
+            )}
           </section>
         ) : null}
 
