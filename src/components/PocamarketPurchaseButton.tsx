@@ -49,9 +49,14 @@ export function PocamarketPurchaseButton({ orderId }: { orderId: string }) {
       const body = await response.json() as { error?: string; created?: Array<{ productNumber: string; quantity: number; maxUnitPrice: number }>; skipped?: string[] };
       if (!response.ok) throw new Error(body.error ?? "구매 요청에 실패했습니다.");
       const created = body.created ?? [];
+      const skipped = body.skipped ?? [];
+      // 아무것도 만들지 않았을 때 빈 문자열을 넣으면 화면에 아무 반응이 없어, 버튼이
+      // 고장난 것처럼 보인다. 왜 요청하지 않았는지 항상 한 줄로 알려 준다.
       setMessage(created.length
         ? `${created.map((item) => `${item.productNumber} ${item.quantity}개(최대 ${item.maxUnitPrice.toLocaleString()}원)`).join(", ")} 요청 완료`
-        : (body.skipped ?? []).join(", "));
+        : skipped.length
+          ? `새로 요청하지 않았습니다 · ${skipped.join(", ")}`
+          : "새로 요청할 재고 부족 상품이 없습니다.");
       await refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "구매 요청에 실패했습니다.");
@@ -73,7 +78,11 @@ export function PocamarketPurchaseButton({ orderId }: { orderId: string }) {
 
   // 브리지가 꺼져 있으면 대기 중인 작업을 아무도 가져가지 않는다. "휴대폰 연결 대기"만
   // 계속 보여 주면 정상 대기인지 브리지가 죽은 것인지 구분할 수 없으므로 상태를 함께 알린다.
-  const waiting = jobs.some((job) => job.status === "queued");
+  // 브리지가 있어야 넘어가는 상태들. 대기 중(queued)뿐 아니라 브리지가 이미 가져간
+  // 작업(running, purchasing)도 브리지가 꺼지면 그대로 멈춘다. queued만 따지면 화면에
+  // "상품 확인 중"만 남아 아무 설명이 없다. 결제 확인 대기는 사람이 할 차례이므로 뺀다.
+  const stalledStatuses = ["queued", "running", "purchasing"];
+  const waiting = jobs.some((job) => stalledStatuses.includes(job.status));
   const bridgeOffline = bridge !== null && !bridge.online;
 
   return <div className="mt-2 space-y-1">
@@ -87,7 +96,7 @@ export function PocamarketPurchaseButton({ orderId }: { orderId: string }) {
       구매 요청은 접수됐지만 <b>PC에서 브리지가 돌고 있지 않아 진행되지 않습니다.</b> 휴대폰 무선 디버깅을 켜고 PC에서 <code className="font-mono">npm run pocamarket:bridge</code>를 실행해 주세요. 브리지가 붙으면 대기 중인 작업이 자동으로 이어집니다.
     </p> : null}
     {jobs.map((job) => <div key={job.id} className="text-xs text-zinc-600">
-      <span>{job.productNumber} · {job.purchasedQuantity}/{job.requestedQuantity}개 · {job.status === "queued" && bridgeOffline ? "브리지 꺼짐 · 대기 중" : statusLabel[job.status] ?? job.status}</span>
+      <span>{job.productNumber} · {job.purchasedQuantity}/{job.requestedQuantity}개 · {bridgeOffline && stalledStatuses.includes(job.status) ? "브리지 꺼짐 · 멈춤" : statusLabel[job.status] ?? job.status}</span>
       {job.status === "awaiting_confirmation" ? <button type="button" disabled={loading} onClick={() => confirmUnit(job)} className="ml-1 rounded bg-emerald-700 px-1.5 py-0.5 font-semibold text-white">휴대폰 결제 1장 완료</button> : null}
       {job.warningMessage ? <p className="text-rose-600">{job.warningMessage}</p> : null}
     </div>)}
