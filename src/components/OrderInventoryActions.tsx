@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ImageOff, Search } from "lucide-react";
+import { OrderProductLinkPicker } from "@/components/OrderProductLinkPicker";
 
 type MatchProduct = {
   id: string;
@@ -28,44 +29,11 @@ function productLabel(product: MatchProduct) {
   ].filter(Boolean).join(" · ");
 }
 
-function initialProductSearchQuery(itemSku: string | null | undefined, itemTitle: string) {
-  if (itemSku?.trim()) {
-    return itemSku.trim();
-  }
-
-  const title = itemTitle.toUpperCase();
-  const members = [
-    "BANG CHAN",
-    "LEE KNOW",
-    "CHANGBIN",
-    "HYUNJIN",
-    "HAN",
-    "FELIX",
-    "SEUNGMIN",
-    "I.N",
-  ];
-  const albums = [
-    "I AM NOT",
-    "I AM WHO",
-    "I AM YOU",
-    "MIROH",
-    "YELLOW WOOD",
-    "LEVANTER",
-    "GO LIVE",
-    "IN LIFE",
-    "NOEASY",
-    "ODDINARY",
-    "MAXIDENT",
-    "5-STAR",
-    "ROCK",
-    "ATE",
-    "KARMA",
-    "DO IT",
-  ];
-  const member = members.find((candidate) => title.includes(candidate));
-  const album = albums.find((candidate) => title.includes(candidate));
-
-  return [album, member].filter(Boolean).join(" ");
+function initialProductSearchQuery(itemSku: string | null | undefined) {
+  // 주문 제목에서 멤버·앨범을 알아내는 일은 상품 찾기 패널이 실제 데이터의
+  // 그룹·멤버·앨범 목록과 대조해서 한다. 여기에 그룹 이름을 적어 두면 그 그룹의
+  // 주문만 찾아지고 나머지는 검색어가 비어 아무것도 뜨지 않는다.
+  return itemSku?.trim() ?? "";
 }
 
 function ProductImage({
@@ -115,9 +83,7 @@ export function OrderItemProductMatcher({
 }) {
   const router = useRouter();
   const [value, setValue] = useState(productId ?? "");
-  const [query, setQuery] = useState(() =>
-    initialProductSearchQuery(itemSku, itemTitle),
-  );
+  const [query, setQuery] = useState(() => initialProductSearchQuery(itemSku));
   const initialResults = useMemo(() => {
     const merged = new Map<string, MatchProduct>();
 
@@ -265,6 +231,35 @@ export function OrderItemProductMatcher({
             ))}
           </div>
         </div>
+      ) : null}
+
+      {isUnmatched ? (
+        <OrderProductLinkPicker
+          itemTitle={itemTitle}
+          itemSku={itemSku}
+          selectedProductId={value}
+          disabled={disabled}
+          onPick={(candidate) => {
+            setValue(candidate.id);
+            setResults((previous) =>
+              previous.some((product) => product.id === candidate.id)
+                ? previous
+                : [
+                    {
+                      id: candidate.id,
+                      sku: candidate.sku,
+                      productName: candidate.title,
+                      optionName: candidate.memberName,
+                      category: candidate.albumName,
+                      brand: candidate.groupName,
+                      imageUrl: candidate.userFrontImageUrl || candidate.currentImageUrl,
+                      stockQuantity: candidate.stockQuantity,
+                    },
+                    ...previous,
+                  ],
+            );
+          }}
+        />
       ) : null}
 
       <div className="flex gap-2">
