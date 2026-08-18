@@ -3,6 +3,7 @@ import {
   backoffDelayMs,
   fetchPocamarketProductState,
   loadPocamarketApiConfig,
+  parsePocamarketProductState,
   PocamarketBlockingError,
   PocamarketSchemaError,
   randomDelayMs,
@@ -29,18 +30,19 @@ describe("포카마켓 API 수집기", () => {
       POCAMARKET_SOLD_OUT_PATH: "data.is_sold_out",
     })).toMatchObject({
       productUrlTemplate: "https://example.test/{pocamarket_id}",
-      responseMode: "CARD_SELL_LIST",
+      responseMode: "CARD_DETAIL_COLLECTION",
       minDelayMs: 1000,
       maxDelayMs: 3000,
       headers: { Authorization: "Bearer secret" },
     });
   });
 
-  it("uses the verified domestic card sell endpoint without secrets by default", () => {
+  it("uses the verified card detail endpoint without secrets by default", () => {
+    // 조달 창구가 빠른구매이므로 기본 주소도 빠른구매 가격이 들어 있는 카드 상세다.
     expect(loadPocamarketApiConfig({})).toMatchObject({
-      productUrlTemplate: "https://phocamarket.com/card/v2/{pocamarket_id}/sell",
+      productUrlTemplate: "https://phocamarket.com/card/v2/{pocamarket_id}",
       headers: {},
-      responseMode: "CARD_SELL_LIST",
+      responseMode: "CARD_DETAIL_COLLECTION",
     });
   });
 
@@ -185,5 +187,88 @@ describe("포카마켓 API 수집기", () => {
     ));
     await expect(fetchPocamarketProductState("1", config, { fetch: request }))
       .rejects.toThrow("가격 응답 필드");
+  });
+});
+
+describe("빠른구매(CARD_DETAIL_COLLECTION) 기준 수집", () => {
+  const detailConfig = {
+    pricePath: "data.price",
+    soldOutPath: "data.is_sold_out",
+    responseMode: "CARD_DETAIL_COLLECTION" as const,
+  };
+
+  // 실제 포카마켓 카드 상세 응답(카드 3150)에서 확인한 필드 구성이다.
+  const detail = {
+    name: "I am NOT",
+    get_matching_price: 6000,
+    get_lowest_sell_price: 10000,
+    get_highest_buy_price: 7000,
+    get_collection_transaction_price: 19000,
+    get_collection_lowest_sell_offer_price: 20000,
+    get_collection_count: 8,
+    is_exists_collection: true,
+  };
+
+  it("1:1 최저가가 아니라 빠른구매 최저가와 재고를 읽는다", () => {
+    // 1:1 최저가 10,000원으로는 살 수 없다. 우리가 결제하는 값은 20,000원이다.
+    expect(parsePocamarketProductState(detail, detailConfig)).toEqual({
+      price: 20000,
+      isSoldOut: false,
+      availableCount: 8,
+    });
+  });
+
+  it("data로 감싸 온 응답도 읽는다", () => {
+    expect(parsePocamarketProductState({ data: detail }, detailConfig)).toEqual({
+      price: 20000,
+      isSoldOut: false,
+      availableCount: 8,
+    });
+  });
+
+  it("빠른구매 물건이 없으면 1:1에 물건이 있어도 품절로 본다", () => {
+    // 1:1로는 살 수 있어도 우리 조달 창구로는 살 수 없다. 팔 수 있다고 하면 안 된다.
+    expect(
+      parsePocamarketProductState(
+        { ...detail, get_collection_count: 0, get_collection_lowest_sell_offer_price: null },
+        detailConfig,
+      ),
+    ).toEqual({ price: 0, isSoldOut: true, availableCount: 0 });
+  });
+
+  it("빠른구매 재고가 있는데 가격이 비면 품절로 본다", () => {
+    expect(
+      parsePocamarketProductState(
+        { ...detail, get_collection_lowest_sell_offer_price: null },
+        detailConfig,
+      ),
+    ).toEqual({ price: 0, isSoldOut: true, availableCount: 0 });
+  });
+
+  it("재고 수량 형식이 바뀌면 조용히 넘어가지 않고 알린다", () => {
+    expect(() =>
+      parsePocamarketProductState({ ...detail, get_collection_count: "여덟" }, detailConfig),
+    ).toThrow(PocamarketSchemaError);
+  });
+
+  it("빠른구매 정보가 아예 없는 응답은 거절한다", () => {
+    expect(() =>
+      parsePocamarketProductState({ name: "I am NOT", price: 10000 }, detailConfig),
+    ).toThrow(PocamarketSchemaError);
+  });
+
+  it("설정 없이도 빠른구매 기준과 카드 상세 주소를 기본으로 쓴다", () => {
+    const loaded = loadPocamarketApiConfig({});
+    expect(loaded.responseMode).toBe("CARD_DETAIL_COLLECTION");
+    expect(loaded.productUrlTemplate).toBe(
+      "https://phocamarket.com/card/v2/{pocamarket_id}",
+    );
+  });
+
+  it("예전 1:1 목록 방식을 켜면 그 주소를 그대로 쓴다", () => {
+    const loaded = loadPocamarketApiConfig({ POCAMARKET_RESPONSE_MODE: "CARD_SELL_LIST" });
+    expect(loaded.productUrlTemplate).toBe(
+      "https://phocamarket.com/card/v2/{pocamarket_id}/sell",
+    );
   });
 });

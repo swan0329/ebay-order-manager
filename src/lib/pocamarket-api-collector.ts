@@ -4,7 +4,7 @@ export type PocamarketApiConfig = {
   headers: Record<string, string>;
   pricePath: string;
   soldOutPath: string;
-  responseMode: "CARD_SELL_LIST" | "PATHS";
+  responseMode: "CARD_DETAIL_COLLECTION" | "CARD_SELL_LIST" | "PATHS";
   minDelayMs: number;
   maxDelayMs: number;
   maxRetries: number;
@@ -78,9 +78,25 @@ export function loadPocamarketApiConfig(
     );
   }
 
+  const responseMode =
+    env.POCAMARKET_RESPONSE_MODE?.trim() || "CARD_DETAIL_COLLECTION";
+  if (
+    responseMode !== "CARD_DETAIL_COLLECTION" &&
+    responseMode !== "CARD_SELL_LIST" &&
+    responseMode !== "PATHS"
+  ) {
+    throw new Error(
+      "POCAMARKET_RESPONSE_MODE는 CARD_DETAIL_COLLECTION, CARD_SELL_LIST 또는 PATHS여야 합니다.",
+    );
+  }
+
+  // 우리는 빠른구매로 조달한다. 빠른구매 최저가와 재고 수량은 카드 상세 응답에만
+  // 있고, 예전에 쓰던 `/sell`(1:1 거래 판매 목록)에는 들어 있지 않다.
   const productUrlTemplate =
     env.POCAMARKET_PRODUCT_URL_TEMPLATE?.trim() ||
-    "https://phocamarket.com/card/v2/{pocamarket_id}/sell";
+    (responseMode === "CARD_SELL_LIST"
+      ? "https://phocamarket.com/card/v2/{pocamarket_id}/sell"
+      : "https://phocamarket.com/card/v2/{pocamarket_id}");
   if (!productUrlTemplate.includes("{pocamarket_id}")) {
     throw new Error(
       "POCAMARKET_PRODUCT_URL_TEMPLATE에 {pocamarket_id}가 필요합니다.",
@@ -107,13 +123,6 @@ export function loadPocamarketApiConfig(
         "POCAMARKET_PRODUCT_URL_TEMPLATES_JSON은 상품번호 자리표시자가 있는 URL 배열이어야 합니다.",
       );
     }
-  }
-
-  const responseMode = env.POCAMARKET_RESPONSE_MODE?.trim() || "CARD_SELL_LIST";
-  if (responseMode !== "CARD_SELL_LIST" && responseMode !== "PATHS") {
-    throw new Error(
-      "POCAMARKET_RESPONSE_MODE는 CARD_SELL_LIST 또는 PATHS여야 합니다.",
-    );
   }
 
   return {
@@ -151,6 +160,26 @@ export function valueAtPath(input: unknown, path: string): unknown {
   }, input);
 }
 
+// 카드 상세 응답. 최상위에 바로 오기도 하고 data로 한 겹 감싸 오기도 한다.
+function collectionDetail(payload: unknown) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new PocamarketSchemaError("포카마켓 상세 응답이 객체가 아닙니다.");
+  }
+  const root = payload as Record<string, unknown>;
+  const candidate =
+    "get_collection_count" in root
+      ? root
+      : root.data && typeof root.data === "object" && !Array.isArray(root.data)
+        ? (root.data as Record<string, unknown>)
+        : null;
+  if (!candidate || !("get_collection_count" in candidate)) {
+    throw new PocamarketSchemaError(
+      "포카마켓 상세 응답에서 빠른구매 정보를 찾지 못했습니다. API 구조 변경 가능성이 있습니다.",
+    );
+  }
+  return candidate;
+}
+
 function sellRows(payload: unknown): unknown[] {
   if (Array.isArray(payload)) return payload;
   if (!payload || typeof payload !== "object") {
@@ -180,6 +209,31 @@ export function parsePocamarketProductState(
     "pricePath" | "soldOutPath" | "responseMode"
   >,
 ): PocamarketProductState {
+  // 빠른구매(포카마켓 보관 재고) 기준. 우리가 실제로 조달하는 창구이므로 가격과
+  // 조달 가능 수량을 모두 여기서 읽는다. 1:1 거래 최저가(get_lowest_sell_price)는
+  // 우리가 그 값으로 살 수 없으므로 쓰지 않는다.
+  if (config.responseMode === "CARD_DETAIL_COLLECTION") {
+    const detail = collectionDetail(payload);
+    const count = Number(detail.get_collection_count);
+    if (!Number.isInteger(count) || count < 0) {
+      throw new PocamarketSchemaError(
+        "포카마켓 상세 응답의 빠른구매 재고 수량(get_collection_count) 형식이 변경되었습니다.",
+      );
+    }
+    const rawPrice = detail.get_collection_lowest_sell_offer_price;
+    // 빠른구매 물건이 없으면 우리 방식으로는 조달할 수 없다. 품절로 본다.
+    if (!count || rawPrice === null || rawPrice === undefined) {
+      return { price: 0, isSoldOut: true, availableCount: 0 };
+    }
+    const price = Number(rawPrice);
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new PocamarketSchemaError(
+        "포카마켓 상세 응답의 빠른구매 최저가(get_collection_lowest_sell_offer_price) 형식이 변경되었습니다.",
+      );
+    }
+    return { price, isSoldOut: false, availableCount: count };
+  }
+
   if (config.responseMode === "CARD_SELL_LIST") {
     const results = sellRows(payload);
     if (!results.length) {
@@ -274,7 +328,8 @@ export async function fetchPocamarketProductState(
   } = {},
 ): Promise<PocamarketProductState> {
   if (
-    config.responseMode === "CARD_SELL_LIST" &&
+    (config.responseMode === "CARD_SELL_LIST" ||
+      config.responseMode === "CARD_DETAIL_COLLECTION") &&
     !/^\d+$/.test(pocamarketId)
   ) {
     throw new Error("포카마켓 카드 ID는 숫자여야 합니다.");
