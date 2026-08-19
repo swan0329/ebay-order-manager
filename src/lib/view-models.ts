@@ -3,7 +3,8 @@ import type { ShippingOrder } from "@/components/BulkShippingClient";
 
 type OrderWithItems = {
   id: string;
-  ebayOrderId: string;
+  // 채널 공통 주문번호. eBay 전용 번호를 직접 보지 않는다.
+  externalOrderId: string;
   buyerName: string | null;
   buyerUsername: string | null;
   buyerCountry: string | null;
@@ -31,7 +32,7 @@ export function formatDate(date: Date | null | undefined) {
 export function toShippingOrder(order: OrderWithItems): ShippingOrder {
   return {
     id: order.id,
-    ebayOrderId: order.ebayOrderId,
+    externalOrderId: order.externalOrderId,
     buyerName: order.buyerName ?? order.buyerUsername ?? "-",
     buyerCountry: order.buyerCountry ?? "-",
     items: order.items.map((item) => item.title).join(" | "),

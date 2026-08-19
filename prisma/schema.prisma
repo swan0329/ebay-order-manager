@@ -86,7 +86,12 @@ model Order {
   id                  String    @id @default(cuid())
   userId              String    @map("user_id")
   ebayAccountId       String?   @map("ebay_account_id")
-  ebayOrderId         String    @map("ebay_order_id")
+  // 판매 채널. 지금은 EBAY와 SHOPIFY만 쓰지만 몰이 늘어도 열을 더하지 않는다.
+  channel             String    @default("EBAY")
+  // 채널이 준 주문번호. 채널 공통으로 주문을 가리키는 값이다.
+  externalOrderId     String    @map("external_order_id")
+  // eBay 전용 주문번호. 채널 공통 자리로 옮겼지만 기존 동기화가 그대로 쓰므로 남긴다.
+  ebayOrderId         String?   @map("ebay_order_id")
   orderStatus         String    @map("order_status")
   fulfillmentStatus   String    @map("fulfillment_status")
   buyerName           String?   @map("buyer_name")
@@ -113,6 +118,8 @@ model Order {
   inventoryMovements InventoryMovement[]
 
   @@unique([ebayAccountId, ebayOrderId])
+  @@unique([channel, ebayAccountId, externalOrderId])
+  @@index([channel, orderDate])
   @@index([userId, fulfillmentStatus])
   @@index([userId, fulfillmentStatus, orderDate])
   @@index([userId, orderDate])

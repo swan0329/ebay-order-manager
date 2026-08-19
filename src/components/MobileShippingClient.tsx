@@ -23,7 +23,7 @@ export function MobileShippingClient({ orders }: { orders: ShippingOrder[] }) {
     }
 
     return orders.filter((order) =>
-      [order.ebayOrderId, order.buyerName, order.items, order.sku]
+      [order.externalOrderId, order.buyerName, order.items, order.sku]
         .join(" ")
         .toLowerCase()
         .includes(q),
@@ -126,7 +126,7 @@ export function MobileShippingClient({ orders }: { orders: ShippingOrder[] }) {
           >
             <div className="mb-2 flex items-center justify-between gap-3">
               <span className="text-sm font-semibold text-zinc-950">
-                {order.ebayOrderId}
+                {order.externalOrderId}
               </span>
               <StatusBadge status={order.fulfillmentStatus} />
             </div>

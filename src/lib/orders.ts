@@ -255,6 +255,8 @@ export async function saveEbayOrder(
       },
     },
     update: {
+      channel: "EBAY",
+      externalOrderId: parsed.ebayOrderId,
       orderStatus: parsed.orderStatus,
       fulfillmentStatus: parsed.fulfillmentStatus,
       buyerName: parsed.buyerName,
@@ -271,6 +273,8 @@ export async function saveEbayOrder(
     create: {
       userId,
       ebayAccountId,
+      channel: "EBAY",
+      externalOrderId: parsed.ebayOrderId,
       ebayOrderId: parsed.ebayOrderId,
       orderStatus: parsed.orderStatus,
       fulfillmentStatus: parsed.fulfillmentStatus,
@@ -536,6 +540,9 @@ export async function shipOrders(userId: string, requests: ShipRequest[]) {
     }));
 
     try {
+      if (!order.ebayOrderId) {
+        throw new Error("eBay 주문이 아니어서 eBay 배송을 등록할 수 없습니다.");
+      }
       const fulfillment = await createShippingFulfillment(
         account,
         order.ebayOrderId,
@@ -654,6 +661,9 @@ export async function syncFulfillmentsForOrder(userId: string, orderId: string) 
     throw new Error("주문 또는 eBay 계정을 찾을 수 없습니다.");
   }
 
+  if (!order.ebayOrderId) {
+    return { fulfillments: [], synced: 0 };
+  }
   const data = await getShippingFulfillments(order.ebayAccount, order.ebayOrderId);
   const fulfillments = data.fulfillments ?? [];
 

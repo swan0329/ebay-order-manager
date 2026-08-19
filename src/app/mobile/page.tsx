@@ -18,7 +18,7 @@ export default async function MobilePage() {
     },
     select: {
       id: true,
-      ebayOrderId: true,
+      externalOrderId: true,
       buyerName: true,
       buyerUsername: true,
       buyerCountry: true,

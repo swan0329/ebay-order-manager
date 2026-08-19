@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 
 export type ShippingOrder = {
   id: string;
-  ebayOrderId: string;
+  externalOrderId: string;
   buyerName: string;
   buyerCountry: string;
   items: string;
@@ -35,7 +35,7 @@ export function BulkShippingClient({ orders }: { orders: ShippingOrder[] }) {
 
     return orders.filter((order) =>
       [
-        order.ebayOrderId,
+        order.externalOrderId,
         order.buyerName,
         order.buyerCountry,
         order.items,
@@ -150,7 +150,7 @@ export function BulkShippingClient({ orders }: { orders: ShippingOrder[] }) {
                   />
                 </td>
                 <td className="px-4 py-3 font-medium text-zinc-950">
-                  {order.ebayOrderId}
+                  {order.externalOrderId}
                 </td>
                 <td className="px-4 py-3 text-zinc-700">{order.buyerName}</td>
                 <td className="max-w-xs px-4 py-3 text-zinc-700">
@@ -202,7 +202,7 @@ export function BulkShippingClient({ orders }: { orders: ShippingOrder[] }) {
                   }
                 />
                 <span className="font-medium text-zinc-950">
-                  {order.ebayOrderId}
+                  {order.externalOrderId}
                 </span>
               </label>
               <StatusBadge status={order.fulfillmentStatus} />

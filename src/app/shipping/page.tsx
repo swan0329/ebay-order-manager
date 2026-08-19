@@ -15,7 +15,7 @@ export default async function ShippingPage() {
     },
     select: {
       id: true,
-      ebayOrderId: true,
+      externalOrderId: true,
       buyerName: true,
       buyerUsername: true,
       buyerCountry: true,
