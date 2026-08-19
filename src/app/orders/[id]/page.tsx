@@ -291,6 +291,11 @@ export default async function OrderDetailPage({
                     ? (missingByProduct.get(item.product.id) ?? 0)
                     : 0;
                   const shortage = !item.stockDeducted && missing > 0;
+                  // 포카마켓 기준가가 없으면 빠른구매에 물건이 없다는 뜻이라 살 수
+                  // 없다. 서버도 같은 이유로 요청을 만들지 않으므로, 누를 수 없는
+                  // 버튼을 보여 주는 대신 왜 못 사는지 적는다.
+                  const referencePrice = Number(item.product?.salePrice ?? 0);
+                  const canBuyCard = Number.isFinite(referencePrice) && referencePrice > 0;
                   const state = itemInventoryState({
                     stockDeducted: item.stockDeducted,
                     shortage: Boolean(shortage),
@@ -360,7 +365,11 @@ export default async function OrderDetailPage({
                             <p className="text-xs font-semibold text-rose-700">
                               {missing}장 부족
                             </p>
-                            {canPurchaseShortage ? (
+                            {!canPurchaseShortage ? (
+                              <p className="mt-1 text-xs text-zinc-500">
+                                배송대기 주문만 구매 요청할 수 있습니다.
+                              </p>
+                            ) : canBuyCard ? (
                               <PocamarketPurchaseButton
                                 orderId={order.id}
                                 productId={item.product.id}
@@ -368,7 +377,7 @@ export default async function OrderDetailPage({
                               />
                             ) : (
                               <p className="mt-1 text-xs text-zinc-500">
-                                배송대기 주문만 구매 요청할 수 있습니다.
+                                포카마켓 빠른구매에 물건이 없어 구매할 수 없습니다.
                               </p>
                             )}
                           </div>
