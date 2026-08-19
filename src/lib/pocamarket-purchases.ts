@@ -1,6 +1,10 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { deriveEbayOrderCategory } from "@/lib/ebay-order-status";
+import {
+  fetchPocamarketProductState,
+  loadPocamarketApiConfig,
+} from "@/lib/pocamarket-api-collector";
 
 export type PocamarketPurchaseJob = {
   id: string;
@@ -81,10 +85,11 @@ export async function createPurchaseJobs(
     cancelState: typeof cancelStatus.cancelState === "string" ? cancelStatus.cancelState : null,
   }) !== "AWAITING_SHIPMENT") throw new Error("배송대기 주문만 구매 요청할 수 있습니다.");
   const items = await prisma.$queryRaw<Array<{
-    orderItemId: string; productId: string; productNumber: string; quantity: number;
+    orderItemId: string; productId: string; productNumber: string; lookupId: string; quantity: number;
     stockQuantity: number; referenceUnitPrice: string | null; fulfillmentStatus: string;
   }>>`
     SELECT oi."id" AS "orderItemId", p."id" AS "productId", p."sku" AS "productNumber",
+           COALESCE(NULLIF(p."pocamarket_id", ''), p."sku") AS "lookupId",
            oi."quantity", p."stock_quantity" AS "stockQuantity",
            p."sale_price"::text AS "referenceUnitPrice", o."fulfillment_status" AS "fulfillmentStatus"
     FROM "order_items" oi
@@ -96,7 +101,7 @@ export async function createPurchaseJobs(
 
   // 카드 단위로 필요량을 합친 뒤 재고를 한 번만 뺀다. 작업은 그 카드의 첫 줄에 건다.
   const byProduct = new Map<string, {
-    orderItemId: string; productId: string; productNumber: string;
+    orderItemId: string; productId: string; productNumber: string; lookupId: string;
     neededQuantity: number; stockQuantity: number; referenceUnitPrice: string | null;
   }>();
   for (const item of items) {
@@ -109,6 +114,7 @@ export async function createPurchaseJobs(
       orderItemId: item.orderItemId,
       productId: item.productId,
       productNumber: item.productNumber,
+      lookupId: item.lookupId,
       neededQuantity: item.quantity,
       stockQuantity: item.stockQuantity,
       referenceUnitPrice: item.referenceUnitPrice,
@@ -127,10 +133,17 @@ export async function createPurchaseJobs(
   for (const item of targets) {
     const shortage = Math.max(0, item.neededQuantity - item.stockQuantity);
     if (!shortage) continue;
-    const referencePrice = Number(item.referenceUnitPrice);
+    // 저장된 기준가가 없거나 0이면 최신화를 기다리지 않고 지금 포카마켓에서
+    // 빠른구매 최저가를 직접 읽는다. 사람이 지금 사겠다고 눌렀는데 낡은 값이
+    // 없다는 이유로 막을 일이 아니다.
+    let referencePrice = Number(item.referenceUnitPrice);
     if (!Number.isFinite(referencePrice) || referencePrice <= 0) {
-      skipped.push(`${item.productNumber}: 포카마켓 기준가격 없음`);
-      continue;
+      const live = await livePocamarketPrice(item.lookupId);
+      if (live.price === null) {
+        skipped.push(`${item.productNumber}: ${live.reason}`);
+        continue;
+      }
+      referencePrice = live.price;
     }
     const maxPrice = Math.round(referencePrice * 1.2);
     const id = randomUUID();
@@ -145,6 +158,33 @@ export async function createPurchaseJobs(
   }
   if (!created.length && !skipped.length) throw new Error("현재 재고 부족 상품이 없습니다.");
   return { created, skipped };
+}
+
+/**
+ * 지금 이 카드의 빠른구매 최저가를 포카마켓에서 읽는다.
+ *
+ * 저장된 기준가는 최신화가 돌아야 채워지는데, 구매는 그때까지 기다릴 수 없다.
+ * 실패하면 왜 못 샀는지 그대로 돌려준다.
+ */
+async function livePocamarketPrice(lookupId: string) {
+  if (!/^\d+$/.test(lookupId)) {
+    return { price: null, reason: "포카마켓 상품번호가 숫자가 아니라 가격을 조회할 수 없음" };
+  }
+  try {
+    const state = await fetchPocamarketProductState(lookupId, {
+      ...loadPocamarketApiConfig(),
+      maxRetries: 1,
+    });
+    if (state.isSoldOut || state.price <= 0) {
+      return { price: null, reason: "포카마켓 빠른구매에 물건이 없음" };
+    }
+    return { price: state.price, reason: "" };
+  } catch (error) {
+    return {
+      price: null,
+      reason: `포카마켓 가격 조회 실패: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }
 
 export function validBridgeToken(request: Request) {
