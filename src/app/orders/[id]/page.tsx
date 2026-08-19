@@ -291,9 +291,10 @@ export default async function OrderDetailPage({
                     ? (missingByProduct.get(item.product.id) ?? 0)
                     : 0;
                   const shortage = !item.stockDeducted && missing > 0;
-                  // 포카마켓 기준가가 없으면 빠른구매에 물건이 없다는 뜻이라 살 수
-                  // 없다. 서버도 같은 이유로 요청을 만들지 않으므로, 누를 수 없는
-                  // 버튼을 보여 주는 대신 왜 못 사는지 적는다.
+                  // 기준가가 없으면 서버가 구매 요청을 만들지 않는다. 다만 그것이
+                  // 포카마켓에 물건이 없다는 뜻은 아니다. 옛 수집기가 1:1 거래 목록만
+                  // 보고 품절로 적어 둔 카드가 많아서, 빠른구매에 물건이 있어도
+                  // 기준가가 비어 있을 수 있다. 최신화가 그 카드를 돌면 채워진다.
                   const referencePrice = Number(item.product?.salePrice ?? 0);
                   const canBuyCard = Number.isFinite(referencePrice) && referencePrice > 0;
                   const state = itemInventoryState({
@@ -377,7 +378,8 @@ export default async function OrderDetailPage({
                               />
                             ) : (
                               <p className="mt-1 text-xs text-zinc-500">
-                                포카마켓 빠른구매에 물건이 없어 구매할 수 없습니다.
+                                포카마켓 기준가가 아직 없습니다. 가격 최신화가 이
+                                카드를 처리하면 구매할 수 있습니다.
                               </p>
                             )}
                           </div>
