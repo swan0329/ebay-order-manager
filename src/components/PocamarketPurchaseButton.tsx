@@ -19,7 +19,16 @@ const statusLabel: Record<string, string> = {
   cancelled: "취소", price_blocked: "가격 초과로 구매 중단",
 };
 
-export function PocamarketPurchaseButton({ orderId }: { orderId: string }) {
+export function PocamarketPurchaseButton({
+  orderId,
+  productId,
+  cardLabel,
+}: {
+  orderId: string;
+  // 카드 하나만 살 때 쓴다. 없으면 이 주문에서 부족한 카드를 모두 요청한다.
+  productId?: string;
+  cardLabel?: string;
+}) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [jobs, setJobs] = useState<PurchaseJob[]>([]);
@@ -40,11 +49,12 @@ export function PocamarketPurchaseButton({ orderId }: { orderId: string }) {
   }, [refresh]);
 
   async function requestPurchase() {
-    if (!window.confirm("재고 부족 수량만 포카마켓 구매 대기열에 추가할까요? 기준가격의 120%를 넘으면 구매하지 않으며, 결제 직전에 휴대폰 확인이 필요합니다.")) return;
+    const target = cardLabel ? `${cardLabel} 카드의 ` : "";
+    if (!window.confirm(`${target}재고 부족 수량만 포카마켓 구매 대기열에 추가할까요? 기준가격의 120%를 넘으면 구매하지 않으며, 결제 직전에 휴대폰 확인이 필요합니다.`)) return;
     setLoading(true); setMessage("");
     try {
       const response = await fetch("/api/pocamarket-purchases", {
-        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ orderId }),
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ orderId, productId }),
       });
       const body = await response.json() as { error?: string; created?: Array<{ productNumber: string; quantity: number; maxUnitPrice: number }>; skipped?: string[] };
       if (!response.ok) throw new Error(body.error ?? "구매 요청에 실패했습니다.");
@@ -86,7 +96,7 @@ export function PocamarketPurchaseButton({ orderId }: { orderId: string }) {
   const bridgeOffline = bridge !== null && !bridge.online;
 
   return <div className="mt-2 space-y-1">
-    <button type="button" onClick={requestPurchase} disabled={loading} className="rounded bg-rose-600 px-2 py-1 text-xs font-semibold text-white disabled:opacity-50">{loading ? "처리 중..." : "재고없는 포카 구매"}</button>
+    <button type="button" onClick={requestPurchase} disabled={loading} className="rounded bg-rose-600 px-2 py-1 text-xs font-semibold text-white disabled:opacity-50">{loading ? "처리 중..." : productId ? "이 카드 구매" : "재고없는 포카 구매"}</button>
     {bridge ? <p className={`text-xs font-semibold ${bridge.online ? "text-emerald-700" : "text-rose-600"}`}>
       {bridge.online
         ? `● PC 브리지 연결됨${bridge.deviceSerial ? ` · ${bridge.deviceSerial}` : ""} · ${bridgeAgeText(bridge.secondsAgo)}`

@@ -55,7 +55,21 @@ async function ensurePocamarketPurchaseJobsOnce() {
   await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "pocamarket_purchase_jobs_active_item_idx" ON "pocamarket_purchase_jobs" ("order_item_id") WHERE "status" IN ('queued','running','awaiting_confirmation','purchasing')`);
 }
 
-export async function createPurchaseJobs(userId: string, orderId: string) {
+/**
+ * 부족 수량은 카드 단위로 센다.
+ *
+ * 예전에는 주문 줄마다 그 줄의 수량을 상품 재고와 따로 비교했다. 같은 카드가 두
+ * 줄에 있으면 두 줄 다 전체 재고와 겨루므로, 재고 한 장에 각 한 장씩 필요한
+ * 경우 둘 다 부족이 아니라고 보고 아무것도 사지 않았고, 재고가 없으면 한 카드를
+ * 두 건으로 세어 두 번 사려 했다. 어느 쪽도 실제 필요량이 아니다.
+ *
+ * productId를 주면 그 카드만 만든다. 화면에서 카드별로 따로 사기 위한 것이다.
+ */
+export async function createPurchaseJobs(
+  userId: string,
+  orderId: string,
+  productId?: string | null,
+) {
   await ensurePocamarketPurchaseJobs();
   const order = await prisma.order.findFirst({ where: { id: orderId, userId }, select: { fulfillmentStatus: true, rawJson: true } });
   if (!order) throw new Error("주문을 찾을 수 없습니다.");
@@ -80,10 +94,38 @@ export async function createPurchaseJobs(userId: string, orderId: string) {
   `;
   if (!items.length) throw new Error("구매할 수 있는 매칭 상품이 없습니다.");
 
+  // 카드 단위로 필요량을 합친 뒤 재고를 한 번만 뺀다. 작업은 그 카드의 첫 줄에 건다.
+  const byProduct = new Map<string, {
+    orderItemId: string; productId: string; productNumber: string;
+    neededQuantity: number; stockQuantity: number; referenceUnitPrice: string | null;
+  }>();
+  for (const item of items) {
+    const current = byProduct.get(item.productId);
+    if (current) {
+      current.neededQuantity += item.quantity;
+      continue;
+    }
+    byProduct.set(item.productId, {
+      orderItemId: item.orderItemId,
+      productId: item.productId,
+      productNumber: item.productNumber,
+      neededQuantity: item.quantity,
+      stockQuantity: item.stockQuantity,
+      referenceUnitPrice: item.referenceUnitPrice,
+    });
+  }
+
+  const targets = [...byProduct.values()].filter(
+    (item) => !productId || item.productId === productId,
+  );
+  if (productId && !targets.length) {
+    throw new Error("선택한 카드를 이 주문에서 찾을 수 없습니다.");
+  }
+
   const created: Array<{ id: string; productNumber: string; quantity: number; maxUnitPrice: number }> = [];
   const skipped: string[] = [];
-  for (const item of items) {
-    const shortage = Math.max(0, item.quantity - item.stockQuantity);
+  for (const item of targets) {
+    const shortage = Math.max(0, item.neededQuantity - item.stockQuantity);
     if (!shortage) continue;
     const referencePrice = Number(item.referenceUnitPrice);
     if (!Number.isFinite(referencePrice) || referencePrice <= 0) {

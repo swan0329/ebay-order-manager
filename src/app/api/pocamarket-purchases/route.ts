@@ -5,7 +5,11 @@ import { asErrorMessage, jsonError } from "@/lib/http";
 import { getCurrentUser } from "@/lib/session";
 import { readBridgeStatus } from "@/lib/pocamarket-bridge-status";
 
-const schema = z.object({ orderId: z.string().min(1) });
+const schema = z.object({
+  orderId: z.string().min(1),
+  // 주면 그 카드만 구매 요청한다. 없으면 이 주문의 부족한 카드를 모두 만든다.
+  productId: z.string().min(1).optional(),
+});
 
 export async function GET(request: Request) {
   const user = await getCurrentUser();
@@ -27,7 +31,7 @@ export async function POST(request: Request) {
     const user = await getCurrentUser();
     if (!user) return jsonError("Unauthorized", 401);
     const input = schema.parse(await request.json());
-    return Response.json(await createPurchaseJobs(user.id, input.orderId));
+    return Response.json(await createPurchaseJobs(user.id, input.orderId, input.productId));
   } catch (error) {
     if (error instanceof z.ZodError) return jsonError("주문 정보가 올바르지 않습니다.", 422);
     return jsonError(asErrorMessage(error), 400);

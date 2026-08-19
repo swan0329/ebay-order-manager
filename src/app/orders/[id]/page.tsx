@@ -154,12 +154,31 @@ export default async function OrderDetailPage({
   const unmatchedItems = order.items.filter((item) => !item.productId);
   // 재고가 모자란 항목. 목록 화면에만 있던 포카마켓 구매를 여기서도 할 수 있게
   // 어느 카드가 몇 장 모자란지 함께 보여 준다.
-  const shortageItems = order.items.filter(
-    (item) =>
-      !item.stockDeducted &&
-      item.product &&
-      item.product.stockQuantity < item.quantity,
-  );
+  // 부족 수량은 카드 단위로 센다. 같은 카드가 여러 줄에 있으면 필요량을 합친 뒤
+  // 재고를 한 번만 뺀다. 줄마다 따로 재고와 비교하면 같은 카드가 두 건으로 보인다.
+  const neededByProduct = new Map<
+    string,
+    { productId: string; sku: string; name: string; member: string | null; needed: number; stock: number }
+  >();
+  for (const item of order.items) {
+    if (item.stockDeducted || !item.product) continue;
+    const current = neededByProduct.get(item.product.id);
+    if (current) {
+      current.needed += item.quantity;
+      continue;
+    }
+    neededByProduct.set(item.product.id, {
+      productId: item.product.id,
+      sku: item.product.sku,
+      name: item.product.productName,
+      member: item.product.optionName,
+      needed: item.quantity,
+      stock: item.product.stockQuantity,
+    });
+  }
+  const shortageCards = [...neededByProduct.values()]
+    .map((card) => ({ ...card, missing: card.needed - card.stock }))
+    .filter((card) => card.missing > 0);
   const orderRaw =
     order.rawJson && typeof order.rawJson === "object" && !Array.isArray(order.rawJson)
       ? (order.rawJson as Record<string, unknown>)
@@ -256,23 +275,34 @@ export default async function OrderDetailPage({
           </section>
         ) : null}
 
-        {shortageItems.length ? (
+        {shortageCards.length ? (
           <section className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
-            <p className="font-semibold">재고 부족 {shortageItems.length}건</p>
-            <div className="mt-2 space-y-1">
-              {shortageItems.map((item) => (
-                <p key={item.id}>
-                  {item.product?.sku} · {item.product?.productName}
-                  {item.product?.optionName ? ` · ${item.product.optionName}` : ""} ·{" "}
-                  필요 {item.quantity}, 현재 {item.product?.stockQuantity ?? 0} ·{" "}
-                  <b>{item.quantity - (item.product?.stockQuantity ?? 0)}장 부족</b>
-                </p>
+            <p className="font-semibold">재고 부족 {shortageCards.length}종</p>
+            <div className="mt-2 space-y-2">
+              {shortageCards.map((card) => (
+                <div
+                  key={card.productId}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/70 p-2"
+                >
+                  <span>
+                    {card.sku} · {card.name}
+                    {card.member ? ` · ${card.member}` : ""} · 필요 {card.needed}, 현재{" "}
+                    {card.stock} · <b>{card.missing}장 부족</b>
+                  </span>
+                  {canPurchaseShortage ? (
+                    <PocamarketPurchaseButton
+                      orderId={order.id}
+                      productId={card.productId}
+                      cardLabel={card.sku}
+                    />
+                  ) : null}
+                </div>
               ))}
             </div>
             {canPurchaseShortage ? (
-              <div className="mt-2">
-                <PocamarketPurchaseButton orderId={order.id} />
-              </div>
+              <p className="mt-2 text-xs">
+                카드마다 따로 요청할 수 있습니다. 부족한 수량만 대기열에 들어갑니다.
+              </p>
             ) : (
               <p className="mt-2 text-xs">
                 배송대기 주문만 포카마켓 구매를 요청할 수 있습니다.
