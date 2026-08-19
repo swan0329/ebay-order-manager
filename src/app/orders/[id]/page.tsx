@@ -176,9 +176,13 @@ export default async function OrderDetailPage({
       stock: item.product.stockQuantity,
     });
   }
-  const shortageCards = [...neededByProduct.values()]
-    .map((card) => ({ ...card, missing: card.needed - card.stock }))
-    .filter((card) => card.missing > 0);
+  // 카드별 부족 수량. 주문 줄 하나하나가 아니라 카드 단위로 센 값이라 화면의
+  // 뱃지와 구매 버튼이 같은 수를 본다.
+  const missingByProduct = new Map(
+    [...neededByProduct.values()]
+      .map((card) => [card.productId, card.needed - card.stock] as const)
+      .filter(([, missing]) => missing > 0),
+  );
   const orderRaw =
     order.rawJson && typeof order.rawJson === "object" && !Array.isArray(order.rawJson)
       ? (order.rawJson as Record<string, unknown>)
@@ -275,42 +279,6 @@ export default async function OrderDetailPage({
           </section>
         ) : null}
 
-        {shortageCards.length ? (
-          <section className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
-            <p className="font-semibold">재고 부족 {shortageCards.length}종</p>
-            <div className="mt-2 space-y-2">
-              {shortageCards.map((card) => (
-                <div
-                  key={card.productId}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/70 p-2"
-                >
-                  <span>
-                    {card.sku} · {card.name}
-                    {card.member ? ` · ${card.member}` : ""} · 필요 {card.needed}, 현재{" "}
-                    {card.stock} · <b>{card.missing}장 부족</b>
-                  </span>
-                  {canPurchaseShortage ? (
-                    <PocamarketPurchaseButton
-                      orderId={order.id}
-                      productId={card.productId}
-                      cardLabel={card.sku}
-                    />
-                  ) : null}
-                </div>
-              ))}
-            </div>
-            {canPurchaseShortage ? (
-              <p className="mt-2 text-xs">
-                카드마다 따로 요청할 수 있습니다. 부족한 수량만 대기열에 들어갑니다.
-              </p>
-            ) : (
-              <p className="mt-2 text-xs">
-                배송대기 주문만 포카마켓 구매를 요청할 수 있습니다.
-              </p>
-            )}
-          </section>
-        ) : null}
-
         <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
           <section className="space-y-4">
             <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -319,10 +287,10 @@ export default async function OrderDetailPage({
               </h2>
               <div className="divide-y divide-zinc-200">
                 {order.items.map((item) => {
-                  const shortage =
-                    !item.stockDeducted &&
-                    item.product &&
-                    item.product.stockQuantity < item.quantity;
+                  const missing = item.product
+                    ? (missingByProduct.get(item.product.id) ?? 0)
+                    : 0;
+                  const shortage = !item.stockDeducted && missing > 0;
                   const state = itemInventoryState({
                     stockDeducted: item.stockDeducted,
                     shortage: Boolean(shortage),
@@ -386,11 +354,30 @@ export default async function OrderDetailPage({
                           <p className="mt-1 text-xs text-zinc-500">
                             현재 재고 {item.product.stockQuantity}
                           </p>
-                        ) : (
+                        ) : null}
+                        {shortage && item.product ? (
+                          <div className="mt-1">
+                            <p className="text-xs font-semibold text-rose-700">
+                              {missing}장 부족
+                            </p>
+                            {canPurchaseShortage ? (
+                              <PocamarketPurchaseButton
+                                orderId={order.id}
+                                productId={item.product.id}
+                                cardLabel={item.product.sku}
+                              />
+                            ) : (
+                              <p className="mt-1 text-xs text-zinc-500">
+                                배송대기 주문만 구매 요청할 수 있습니다.
+                              </p>
+                            )}
+                          </div>
+                        ) : null}
+                        {!item.product ? (
                           <p className="mt-1 text-xs text-zinc-500">
                             상품을 매칭하면 재고가 표시됩니다.
                           </p>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   );
