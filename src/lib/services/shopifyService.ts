@@ -27,7 +27,7 @@ type ShopifyRequestInput = {
   body?: unknown;
 };
 
-async function shopifyApiRequest(
+export async function shopifyApiRequest(
   config: ShopifyConfig,
   input: ShopifyRequestInput,
 ): Promise<unknown> {
