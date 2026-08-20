@@ -37,4 +37,11 @@ export async function syncInventoryChannelsAfterChange(input: {
         ? { pushed: shopify.value.pushed, failed: shopify.value.failed }
         : { error: shopify.reason instanceof Error ? shopify.reason.message : String(shopify.reason) },
   });
+  const { runZeroStockRule } = await import("@/lib/services/automationRules");
+  await runZeroStockRule(input).catch((error) => {
+    safeLog("warn", "automation.zero_stock.failed", {
+      productIds,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  });
 }

@@ -56,6 +56,7 @@ model User {
   pocamarketSyncItemsApplied  PocamarketSyncItem[]         @relation("PocamarketSyncItemAppliedBy")
   pocamarketSyncSettings      PocamarketSyncSettings?
   ebayReportImports           EbayReportImport[]
+  automationRulesUpdated      AutomationRule[]             @relation("AutomationRuleUpdatedBy")
 
   @@map("users")
 }
@@ -209,6 +210,7 @@ model Product {
   listingDrafts       ListingDraft[]
   listingLinks        InventoryListingLink[]
   productListings     ProductListing[]
+  automationEvents    AutomationEvent[]
   pricingReviewItems  PricingReviewItem[]
   pocamarketSyncItems PocamarketSyncItem[]
   ebayActiveListings  EbayActiveListing[]
@@ -242,6 +244,41 @@ model ProductListing {
   @@index([channel, externalId])
   @@index([channel, status])
   @@map("product_listings")
+}
+
+model AutomationRule {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  enabled     Boolean  @default(true)
+  mode        String   @default("NOTIFY")
+  updatedById String?  @map("updated_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  updatedBy User?             @relation("AutomationRuleUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  events    AutomationEvent[]
+
+  @@map("automation_rules")
+}
+
+model AutomationEvent {
+  id         String   @id @default(cuid())
+  ruleId     String   @map("rule_id")
+  productId  String?  @map("product_id")
+  triggerKey String   @map("trigger_key")
+  status     String
+  message    String   @db.Text
+  rawJson    Json?    @map("raw_json")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  rule    AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  product Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([ruleId, triggerKey])
+  @@index([status, createdAt])
+  @@index([productId, createdAt])
+  @@map("automation_events")
 }
 
 model EbayReportImport {
