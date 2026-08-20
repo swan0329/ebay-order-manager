@@ -79,25 +79,27 @@ export async function createInventoryMovement(input: {
     throw new Error("재고는 음수가 될 수 없습니다.");
   }
 
-  await prisma.product.update({
-    where: { id: input.productId },
-    data: {
-      stockQuantity: afterQuantity,
-      status: statusAfterStockChange(product.status, afterQuantity),
-    },
-  });
+  return prisma.$transaction(async (tx) => {
+    await tx.product.update({
+      where: { id: input.productId },
+      data: {
+        stockQuantity: afterQuantity,
+        status: statusAfterStockChange(product.status, afterQuantity),
+      },
+    });
 
-  return prisma.inventoryMovement.create({
-    data: {
-      productId: input.productId,
-      type: input.type,
-      quantity: movementQuantity,
-      beforeQuantity,
-      afterQuantity,
-      reason: input.reason,
-      relatedOrderId: input.relatedOrderId,
-      createdBy: input.createdBy,
-    },
+    return tx.inventoryMovement.create({
+      data: {
+        productId: input.productId,
+        type: input.type,
+        quantity: movementQuantity,
+        beforeQuantity,
+        afterQuantity,
+        reason: input.reason,
+        relatedOrderId: input.relatedOrderId,
+        createdBy: input.createdBy,
+      },
+    });
   });
 }
 
@@ -169,13 +171,20 @@ export async function deductStockForOrder(orderId: string, createdBy?: string | 
   }
 
   if (!isDeductibleOrder(order)) {
-    return { deducted: 0, skipped: order.items.length, shortages: 0, unmatched: 0 };
+    return {
+      deducted: 0,
+      skipped: order.items.length,
+      shortages: 0,
+      unmatched: 0,
+      productIds: [] as string[],
+    };
   }
 
   let deducted = 0;
   let skipped = 0;
   let shortages = 0;
   let unmatched = 0;
+  const productIds: string[] = [];
 
   for (const item of order.items) {
     if (item.stockDeducted) {
@@ -208,22 +217,25 @@ export async function deductStockForOrder(orderId: string, createdBy?: string | 
       continue;
     }
 
-    await createInventoryMovement({
-      productId: currentItem.product.id,
-      type: "ORDER_DEDUCT",
-      quantity: currentItem.quantity,
-      reason: `Order ${order.ebayOrderId}`,
-      relatedOrderId: order.id,
-      createdBy,
+    await prisma.$transaction(async (tx) => {
+      await createInventoryMovementTx(tx, {
+        productId: currentItem.product!.id,
+        type: "ORDER_DEDUCT",
+        quantity: currentItem.quantity,
+        reason: `Order ${order.externalOrderId}`,
+        relatedOrderId: order.id,
+        createdBy,
+      });
+      await tx.orderItem.update({
+        where: { id: currentItem.id },
+        data: { stockDeducted: true },
+      });
     });
-    await prisma.orderItem.update({
-      where: { id: currentItem.id },
-      data: { stockDeducted: true },
-    });
+    productIds.push(currentItem.product.id);
     deducted += 1;
   }
 
-  return { deducted, skipped, shortages, unmatched };
+  return { deducted, skipped, shortages, unmatched, productIds: [...new Set(productIds)] };
 }
 
 export async function inventoryMovementsCsv(where: Prisma.InventoryMovementWhereInput = {}) {

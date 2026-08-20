@@ -15,6 +15,7 @@ import { applyOrderAutomation, applyOrderAutomationMany } from "@/lib/order-auto
 import { orderItemImageUrlFromRaw } from "@/lib/order-images";
 import { legacyListingReferenceFromOrderItemRaw } from "@/lib/services/matchingService";
 import { safeLog } from "@/lib/safe-log";
+import { after } from "next/server";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -388,7 +389,16 @@ export async function saveEbayOrder(
   );
 
   await Promise.all(shipmentWrites.filter((write) => write !== null));
-  await deductStockForOrder(order.id, userId);
+  const stockResult = await deductStockForOrder(order.id, userId);
+  after(async () => {
+    const { syncInventoryChannelsAfterChange } = await import(
+      "@/lib/services/automaticChannelInventorySync"
+    );
+    await syncInventoryChannelsAfterChange({
+      userId,
+      productIds: stockResult.productIds,
+    });
+  });
   await applyOrderAutomation(order.id);
 
   return order;

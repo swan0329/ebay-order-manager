@@ -5,6 +5,8 @@ import {
 } from "@/lib/inventory";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
+import { syncInventoryChannelsAfterChange } from "@/lib/services/automaticChannelInventorySync";
+import { after } from "next/server";
 
 export async function POST(request: Request) {
   try {
@@ -14,6 +16,12 @@ export async function POST(request: Request) {
       ...input,
       createdBy: user.id,
     });
+    after(() =>
+      syncInventoryChannelsAfterChange({
+        userId: user.id,
+        productIds: [movement.productId],
+      }),
+    );
 
     return Response.json({ movement }, { status: 201 });
   } catch (error) {

@@ -3,6 +3,8 @@ import { deductStockForOrder } from "@/lib/inventory";
 import { applyOrderAutomation } from "@/lib/order-automation";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
+import { syncInventoryChannelsAfterChange } from "@/lib/services/automaticChannelInventorySync";
+import { after } from "next/server";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -22,6 +24,12 @@ export async function POST(_request: Request, context: RouteContext) {
     }
 
     const result = await deductStockForOrder(order.id, user.id);
+    after(() =>
+      syncInventoryChannelsAfterChange({
+        userId: user.id,
+        productIds: result.productIds,
+      }),
+    );
     await applyOrderAutomation(order.id);
     return Response.json(result);
   } catch (error) {
