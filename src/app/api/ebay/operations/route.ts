@@ -1,11 +1,9 @@
 import { z } from "zod";
 import { asErrorMessage, jsonError } from "@/lib/http";
-import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 import { getEbayOperations, getShopifyOperations } from "@/lib/services/ebayOperations";
 import { pushEbayInventory } from "@/lib/services/ebayInventoryPush";
 import { issueListingPreviewToken, previewListingUpload, verifyListingPreviewToken } from "@/lib/services/listingUploadSafety";
-import { createDraftsFromInventory } from "@/lib/services/listingDraftService";
 import { uploadShopifyProduct } from "@/lib/services/shopifyProductUpload";
 
 const executeSchema = z.object({
@@ -43,17 +41,10 @@ export async function POST(request: Request) {
     if (input.action === "CREATE") {
       if (!input.dryRun) return jsonError("신규등록 실행은 서명된 신규등록 경로를 사용해 주세요.", 409);
       const current = await getEbayOperations(user.id);
-      const allowed = new Set(current.create.flatMap(row => row.productId ? [row.productId] : []));
+      const allowed = new Map(current.create.flatMap(row => row.productId ? [[row.productId, row.id] as const] : []));
       const productIds = [...new Set(input.productIds)];
-      if (productIds.some(id => !allowed.has(id))) return jsonError("현재 신규등록 대상이 아닌 상품이 포함되어 있습니다.", 409);
-      const existing = await prisma.listingDraft.findMany({ where: { userId: user.id, sourceInventoryId: { in: productIds }, status: { in: ["draft", "validated", "failed"] } }, orderBy: { updatedAt: "desc" }, select: { id: true, sourceInventoryId: true } });
-      const existingProducts = new Set(existing.flatMap(row => row.sourceInventoryId ? [row.sourceInventoryId] : []));
-      const missing = productIds.filter(id => !existingProducts.has(id));
-      if (missing.length) await createDraftsFromInventory({ userId: user.id, productIds: missing });
-      const drafts = await prisma.listingDraft.findMany({ where: { userId: user.id, sourceInventoryId: { in: productIds }, status: { in: ["draft", "validated", "failed"] } }, orderBy: { updatedAt: "desc" }, select: { id: true, sourceInventoryId: true } });
-      const newest = new Map<string,string>(); for (const draft of drafts) if (draft.sourceInventoryId && !newest.has(draft.sourceInventoryId)) newest.set(draft.sourceInventoryId,draft.id);
-      const draftIds = productIds.flatMap(id => newest.get(id) ? [newest.get(id)!] : []);
-      if (draftIds.length !== productIds.length) return jsonError("일부 상품의 등록 초안을 만들지 못했습니다.", 500);
+      if (productIds.some(id => !allowed.has(id))) return jsonError("현재 eBay 필수 검증을 통과한 등록 초안이 아닌 항목이 포함되어 있습니다.", 409);
+      const draftIds = productIds.map(id => allowed.get(id)!);
       const preview = await previewListingUpload(user.id, draftIds);
       return Response.json({ ...preview, dryRun: true, previewToken: preview.valid ? issueListingPreviewToken(draftIds) : null });
     }

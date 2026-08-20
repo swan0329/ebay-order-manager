@@ -59,5 +59,38 @@ export async function previewListingUpload(userId: string, ids: string[]) {
       if (draft) issues.push({ draftId: draft.id, sku: draft.sku, reason: "같은 이미지 지문의 활성 리스팅이 이미 있습니다." });
     }
   }
-  return { ids: uniqueIds, valid: issues.length === 0, issues, drafts: drafts.map((draft) => ({ id:draft.id,sku:draft.sku,title:draft.title,price:String(draft.price),quantity:draft.quantity })) };
+  const rows = drafts.map((draft) => {
+    const checked = validation.find((row) => row.draftId === draft.id);
+    const rowIssues = checked?.validation.issues.map((issue) => ({
+      field: issue.field,
+      message: issue.message,
+    })) ?? [];
+    const duplicateIssues = issues
+      .filter((issue) => issue.draftId === draft.id)
+      .map((issue) => ({ field: "duplicate", message: issue.reason }));
+    const imageUrls = Array.isArray(draft.imageUrlsJson) ? draft.imageUrlsJson : [];
+
+    return {
+      id: draft.id,
+      productId: draft.sourceInventoryId,
+      sku: draft.sku,
+      title: draft.title,
+      price: draft.price == null ? null : Number(draft.price),
+      quantity: draft.quantity,
+      imageCount: imageUrls.length,
+      valid: Boolean(checked?.validation.valid) && duplicateIssues.length === 0,
+      issues: [...rowIssues, ...duplicateIssues],
+      payload: checked && "preview" in checked ? checked.preview : null,
+    };
+  });
+
+  return {
+    ids: uniqueIds,
+    valid: issues.length === 0,
+    issues,
+    rows,
+    // eBay 응답 시간에 따라 달라지는 안내용 범위이며 실행 제한 시간이 아니다.
+    estimateSeconds: { minimum: uniqueIds.length * 3, maximum: uniqueIds.length * 8 },
+    drafts: drafts.map((draft) => ({ id:draft.id,sku:draft.sku,title:draft.title,price:String(draft.price),quantity:draft.quantity })),
+  };
 }

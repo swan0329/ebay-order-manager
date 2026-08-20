@@ -14,11 +14,13 @@ function priceChanged(current: number | null, previous: number | null) {
 }
 
 export async function getEbayOperations(userId: string) {
-  const [drafts, readyProducts, inventory, pricingSettings] = await Promise.all([
+  const [drafts, preparationCount, inventory] = await Promise.all([
     prisma.listingDraft.findMany({
       where: {
         userId,
-        status: { in: ["draft", "validated", "failed"] },
+        // 신규등록 화면에는 전체 필수 검증을 통과한 초안만 노출한다.
+        // 단순히 이미지와 가격이 있다는 이유만으로 "등록 가능"으로 세면 안 된다.
+        status: "validated",
         sourceInventory: {
           ebayItemId: null,
           OR: [{ listingStatus: null }, { listingStatus: { notIn: ACTIVE } }],
@@ -29,24 +31,18 @@ export async function getEbayOperations(userId: string) {
         status: true, errorSummary: true, updatedAt: true, sourceInventoryId: true,
       },
       orderBy: { updatedAt: "desc" },
-      take: 500,
     }),
-    prisma.product.findMany({
+    prisma.listingDraft.count({
       where: {
-        ebayItemId: null,
-        OR: [{ listingStatus: null }, { listingStatus: { notIn: ACTIVE } }],
-        AND: [
-          { OR: [{ imageUrl: { not: null } }, { ebayImageUrls: { isEmpty: false } }] },
-          { OR: [{ salePrice: { not: null } }, { ebayPrice: { not: null } }] },
-          { OR: [{ stockQuantity: { gt: 0 } }, { pocamarketAvailableCount: { gt: 0 }, isSoldOut: false }] },
-        ],
+        userId,
+        status: { in: ["draft", "failed"] },
+        sourceInventory: {
+          ebayItemId: null,
+          OR: [{ listingStatus: null }, { listingStatus: { notIn: ACTIVE } }],
+        },
       },
-      select: { id: true, sku: true, productName: true, salePrice: true, ebayPrice: true, stockQuantity: true },
-      orderBy: { updatedAt: "desc" },
-      take: 500,
     }),
     planEbayInventoryPush(),
-    prisma.pricingSettings.findUnique({ where: { id: "default" } }),
   ]);
 
   const newestDraftByProduct = new Map<string, (typeof drafts)[number]>();
@@ -55,7 +51,7 @@ export async function getEbayOperations(userId: string) {
       newestDraftByProduct.set(draft.sourceInventoryId, draft);
     }
   }
-  const draftRows = [...newestDraftByProduct.values()].map((draft) => ({
+  const create = [...newestDraftByProduct.values()].map((draft) => ({
     id: draft.id,
     productId: draft.sourceInventoryId,
     sku: draft.sku,
@@ -65,21 +61,6 @@ export async function getEbayOperations(userId: string) {
     status: draft.status,
     error: draft.errorSummary,
   }));
-  const draftProductIds = new Set(draftRows.flatMap(row => row.productId ? [row.productId] : []));
-  const create = [
-    ...draftRows,
-    ...readyProducts.filter(product => !draftProductIds.has(product.id)).map(product => ({
-      id: `product:${product.id}`,
-      productId: product.id,
-      sku: product.sku,
-      name: product.productName,
-      price: pricingSettings ? Number(resolveListingPriceUsd(product, pricingSettings)?.priceUsd ?? 0) || null : null,
-      quantity: Math.max(1, product.stockQuantity),
-      status: "준비완료",
-      error: null,
-    })),
-  ];
-
   const soldOut = inventory.rows.filter((row) => row.quantity === 0);
   const discontinued = inventory.rows.filter((row) => row.productStatus !== "active" && row.quantity > 0);
   const unavailableIds = new Set([...soldOut, ...discontinued].map((row) => row.productId));
@@ -95,6 +76,11 @@ export async function getEbayOperations(userId: string) {
       ...soldOut.map((row) => ({ ...row, reason: "품절" as const })),
       ...discontinued.map((row) => ({ ...row, reason: "판매중지" as const })),
     ],
+    summary: {
+      createReady: create.length,
+      createNeedsReview: preparationCount,
+      createCountMeaning: "eBay 필수 검증을 모두 통과한 등록 초안 수",
+    },
     limits: { createBatch: 50, reviseBatch: 200 },
   };
 }

@@ -62,6 +62,8 @@
 
 `GET /api/ebay/operations?channel=EBAY|SHOPIFY`는 마켓별 연결 상태와 마지막 전송값을 독립적으로 비교한다. `POST`에도 같은 `channel`을 보내며 미리보기 토큰은 선택 상품과 채널 실행 경로에서 확인된다. Shopify 신규등록·변동·품절은 Shopify 상품/재고 API만 호출하고 eBay에는 쓰지 않는다.
 
+eBay `신규등록` 건수는 조회 상한이나 단순 상품 후보 수가 아니라 `ListingDraft.status=validated`이고 활성 eBay Item ID가 없는 최신 상품별 초안 수다. 초안·실패 상태는 별도 검토 수로만 보여 주며, 미리보기 요청이 초안을 자동 생성하거나 검증 실패 상품을 등록 대상으로 승격하지 않는다. 미리보기 응답은 SKU·제목·가격·수량·이미지 수·항목별 검증 사유와 예상 처리시간 범위를 반환한다.
+
 `GET/PUT /api/automation/rules`는 재고 0 리스팅 규칙과 최근 이벤트를 다룬다. 기본 모드는 `NOTIFY`이며 `AUTOMATIC` 저장은 현재 대상 미리보기와 명시적 확인을 요구한다.
 
 ## 이미지
