@@ -2,6 +2,7 @@ import "server-only";
 
 import { SyncStatus } from "@/generated/prisma";
 import { getShopifyConfig } from "@/lib/env";
+import { restoreStockForCancelledOrder } from "@/lib/inventory";
 import { writeSyncLog } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { safeLog } from "@/lib/safe-log";
@@ -10,6 +11,7 @@ import {
   normalizeShopifyOrder,
   type NormalizedShopifyOrder,
 } from "@/lib/services/shopifyOrders";
+import { after } from "next/server";
 
 // Shopify 주문을 우리 주문 표로 가져온다. 재고와 재고 이력은 이미 채널과 무관한
 // 한 곳에 있으므로, 주문만 들어오면 eBay 주문과 같은 화면·같은 규칙으로 처리된다.
@@ -121,6 +123,16 @@ async function saveShopifyOrder(
     });
   }
 
+  const restoreResult = await restoreStockForCancelledOrder(order.id, userId);
+  after(async () => {
+    const { syncInventoryChannelsAfterChange } = await import(
+      "@/lib/services/automaticChannelInventorySync"
+    );
+    await syncInventoryChannelsAfterChange({
+      userId,
+      productIds: restoreResult.productIds,
+    });
+  });
   return { orderId: order.id, itemCount: parsed.items.length, matched };
 }
 

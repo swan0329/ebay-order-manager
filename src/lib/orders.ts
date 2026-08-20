@@ -10,7 +10,7 @@ import {
   type OrderSyncFilters,
 } from "@/lib/ebay";
 import { currentEbayEnvironment } from "@/lib/ebay-environment";
-import { deductStockForOrder } from "@/lib/inventory";
+import { deductStockForOrder, restoreStockForCancelledOrder } from "@/lib/inventory";
 import { applyOrderAutomation, applyOrderAutomationMany } from "@/lib/order-automation";
 import { orderItemImageUrlFromRaw } from "@/lib/order-images";
 import { legacyListingReferenceFromOrderItemRaw } from "@/lib/services/matchingService";
@@ -390,13 +390,14 @@ export async function saveEbayOrder(
 
   await Promise.all(shipmentWrites.filter((write) => write !== null));
   const stockResult = await deductStockForOrder(order.id, userId);
+  const restoreResult = await restoreStockForCancelledOrder(order.id, userId);
   after(async () => {
     const { syncInventoryChannelsAfterChange } = await import(
       "@/lib/services/automaticChannelInventorySync"
     );
     await syncInventoryChannelsAfterChange({
       userId,
-      productIds: stockResult.productIds,
+      productIds: [...stockResult.productIds, ...restoreResult.productIds],
     });
   });
   await applyOrderAutomation(order.id);

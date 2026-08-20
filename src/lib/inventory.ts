@@ -238,6 +238,49 @@ export async function deductStockForOrder(orderId: string, createdBy?: string | 
   return { deducted, skipped, shortages, unmatched, productIds: [...new Set(productIds)] };
 }
 
+function isCancelledOrRefunded(order: {
+  orderStatus: string;
+  fulfillmentStatus: string;
+  rawJson: unknown;
+}) {
+  const raw = order.rawJson && typeof order.rawJson === "object" && !Array.isArray(order.rawJson)
+    ? order.rawJson as Record<string, unknown> : {};
+  const cancel = raw.cancelStatus && typeof raw.cancelStatus === "object"
+    ? raw.cancelStatus as Record<string, unknown> : {};
+  return [order.orderStatus, order.fulfillmentStatus, raw.orderPaymentStatus, cancel.cancelState]
+    .map((value) => String(value ?? "").toUpperCase())
+    .some((value) => ["CANCELLED", "CANCELED", "CANCELLED_BY_SELLER", "FULLY_REFUNDED"].includes(value));
+}
+
+export async function restoreStockForCancelledOrder(orderId: string, createdBy?: string | null) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { items: { include: { product: true } } },
+  });
+  if (!order) throw new Error("주문을 찾을 수 없습니다.");
+  if (!isCancelledOrRefunded(order)) return { restored: 0, productIds: [] as string[] };
+
+  const productIds: string[] = [];
+  for (const item of order.items) {
+    if (!item.stockDeducted || !item.productId) continue;
+    await prisma.$transaction(async (tx) => {
+      const current = await tx.orderItem.findUnique({ where: { id: item.id } });
+      if (!current?.stockDeducted || !current.productId) return;
+      await createInventoryMovementTx(tx, {
+        productId: current.productId,
+        type: "CANCEL_RESTORE",
+        quantity: current.quantity,
+        reason: `Cancelled/refunded order ${order.externalOrderId}`,
+        relatedOrderId: order.id,
+        createdBy,
+      });
+      await tx.orderItem.update({ where: { id: current.id }, data: { stockDeducted: false } });
+      productIds.push(current.productId);
+    });
+  }
+  return { restored: productIds.length, productIds: [...new Set(productIds)] };
+}
+
 export async function inventoryMovementsCsv(where: Prisma.InventoryMovementWhereInput = {}) {
   const movements = await prisma.inventoryMovement.findMany({
     where,
