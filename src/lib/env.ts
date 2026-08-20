@@ -30,7 +30,10 @@ export function getEbayScopes(): string[] {
 
 export type ShopifyConfig = {
   storeDomain: string;
+  // 고정 토큰. 비어 있으면 자격 증명으로 그때그때 발급받는다.
   accessToken: string;
+  clientId: string;
+  clientSecret: string;
   apiVersion: string;
   locationId: string | null;
 };
@@ -39,8 +42,10 @@ export type ShopifyConfig = {
  * Shopify Admin API config for a single store, via a Custom App access token.
  *
  * - SHOPIFY_STORE_DOMAIN: "your-store.myshopify.com" (no protocol)
- * - SHOPIFY_ADMIN_ACCESS_TOKEN: Admin API access token from the Custom App
- *   (starts with "shpat_"). Does not expire.
+ * - SHOPIFY_ADMIN_ACCESS_TOKEN: 고정 토큰. 예전 방식이며 있으면 그대로 쓴다.
+ * - SHOPIFY_CLIENT_ID / SHOPIFY_CLIENT_SECRET: Dev Dashboard 앱의 자격 증명.
+ *   이 둘이 있으면 토큰을 그때그때 발급받는다. 발급된 토큰은 24시간 뒤 만료되므로
+ *   고정 토큰을 환경변수에 넣어 두는 방식은 하루가 지나면 멈춘다.
  * - SHOPIFY_API_VERSION: optional, e.g. "2025-10". Defaults below — bump it as
  *   Shopify ages versions out (~1 year support window).
  * - SHOPIFY_LOCATION_ID: optional. If unset, the primary location is fetched
@@ -54,7 +59,10 @@ export function getShopifyConfig(): ShopifyConfig {
 
   return {
     storeDomain,
-    accessToken: requiredEnv("SHOPIFY_ADMIN_ACCESS_TOKEN").trim(),
+    // 고정 토큰이 없으면 자격 증명으로 발급받는다. 둘 중 하나는 있어야 한다.
+    accessToken: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim() || "",
+    clientId: process.env.SHOPIFY_CLIENT_ID?.trim() || "",
+    clientSecret: process.env.SHOPIFY_CLIENT_SECRET?.trim() || "",
     apiVersion: process.env.SHOPIFY_API_VERSION?.trim() || "2025-10",
     locationId: process.env.SHOPIFY_LOCATION_ID?.trim() || null,
   };

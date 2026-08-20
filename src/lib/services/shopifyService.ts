@@ -8,6 +8,7 @@ import {
   type ProductImageExtras,
 } from "@/lib/ebay-listing-fields";
 import { safeLog } from "@/lib/safe-log";
+import { getShopifyAccessToken } from "@/lib/services/shopifyToken";
 
 export class ShopifyApiError extends Error {
   status: number;
@@ -33,11 +34,12 @@ export async function shopifyApiRequest(
 ): Promise<unknown> {
   const url = `https://${config.storeDomain}/admin/api/${config.apiVersion}${input.path}`;
   const hasBody = input.body !== undefined;
+  const accessToken = await getShopifyAccessToken(config);
 
   const response = await fetch(url, {
     method: input.method ?? "GET",
     headers: {
-      "X-Shopify-Access-Token": config.accessToken,
+      "X-Shopify-Access-Token": accessToken,
       accept: "application/json",
       ...(hasBody ? { "content-type": "application/json" } : {}),
     },
@@ -204,7 +206,7 @@ async function setShopifyProductCategory(
       {
         method: "POST",
         headers: {
-          "X-Shopify-Access-Token": config.accessToken,
+          "X-Shopify-Access-Token": await getShopifyAccessToken(config),
           accept: "application/json",
           "content-type": "application/json",
         },
