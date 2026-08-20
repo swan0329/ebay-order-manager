@@ -1,6 +1,8 @@
 import "server-only";
 
+import { SyncStatus } from "@/generated/prisma";
 import { getShopifyConfig } from "@/lib/env";
+import { writeSyncLog } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { safeLog } from "@/lib/safe-log";
 import { shopifyApiRequest } from "@/lib/services/shopifyService";
@@ -126,11 +128,22 @@ export async function syncShopifyOrders(input: {
   userId: string;
   limit?: number;
   updatedAfter?: Date | null;
+  logType?: string;
 }) {
-  const raws = await fetchShopifyOrders(
-    input.limit ?? 50,
-    input.updatedAfter ?? null,
-  );
+  const logType = input.logType ?? "shopify.orders.sync";
+  const updatedAfter = input.updatedAfter ?? null;
+  let raws: unknown[];
+  try {
+    raws = await fetchShopifyOrders(input.limit ?? 50, updatedAfter);
+  } catch (error) {
+    await writeSyncLog(
+      input.userId,
+      logType,
+      SyncStatus.FAILED,
+      error instanceof Error ? error.message : "Unknown Shopify sync error",
+    );
+    throw error;
+  }
   let saved = 0;
   let items = 0;
   let matched = 0;
@@ -154,5 +167,19 @@ export async function syncShopifyOrders(input: {
     items,
     matched,
   });
+  await writeSyncLog(
+    input.userId,
+    logType,
+    SyncStatus.SUCCESS,
+    `${saved} Shopify orders synced.`,
+    {
+      updatedAfter: updatedAfter?.toISOString() ?? null,
+      fetched: raws.length,
+      saved,
+      items,
+      matched,
+      skipped,
+    },
+  );
   return { fetched: raws.length, saved, items, matched, skipped };
 }

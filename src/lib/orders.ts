@@ -397,7 +397,9 @@ export async function saveEbayOrder(
 export async function syncOrdersForUser(
   userId: string,
   filters: OrderSyncFilters,
+  options?: { logType?: string },
 ) {
+  const logType = options?.logType ?? "orders.sync";
   const environment = currentEbayEnvironment();
   const account = await prisma.ebayAccount.findFirst({
     where: { userId, environment },
@@ -439,7 +441,7 @@ export async function syncOrdersForUser(
 
     await writeSyncLog(
       userId,
-      "orders.sync",
+      logType,
       SyncStatus.SUCCESS,
       `${imported} orders synced.`,
       toInputJson({ filters, imported }),
@@ -470,7 +472,7 @@ export async function syncOrdersForUser(
 
     await writeSyncLog(
       userId,
-      "orders.sync",
+      logType,
       SyncStatus.FAILED,
       error instanceof EbayApiError
         ? JSON.stringify({ status: error.status, body: error.body })

@@ -13,6 +13,7 @@
 | `GET /api/auth/me` | 세션 쿠키 | 현재 사용자 또는 비로그인 상태 | 잘못된 세션 |
 | `GET /api/health` | 없음 | 서버 상태 JSON | 데이터베이스 장애 |
 | `GET /api/cron/keepalive` | `Authorization: Bearer <CRON_SECRET>` | 상태 확인 JSON | 토큰 불일치 |
+| `GET /api/cron/orders-sync` | `Authorization: Bearer <CRON_SECRET>` | eBay·Shopify 주문 증분 수집 결과 | 토큰 불일치·채널별 수집 실패 |
 
 ## 상품·재고·주문
 
