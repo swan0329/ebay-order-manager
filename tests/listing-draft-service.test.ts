@@ -7,6 +7,7 @@ const prismaMock = vi.hoisted(() => ({
   listingTemplate: {
     findFirst: vi.fn(),
   },
+  pricingSettings: { findUnique: vi.fn() },
   listingDraft: {
     create: vi.fn(),
     createMany: vi.fn(),
@@ -44,6 +45,7 @@ beforeEach(() => {
   );
   prismaMock.ebayPolicyCache.findMany.mockResolvedValue([]);
   prismaMock.ebayInventoryLocationCache.findMany.mockResolvedValue([]);
+  prismaMock.pricingSettings.findUnique.mockResolvedValue(null);
 });
 
 describe("listing draft service", () => {

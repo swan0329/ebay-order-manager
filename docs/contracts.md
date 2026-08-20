@@ -56,7 +56,9 @@
 
 등록 성공은 외부 offer/item ID와 최종 payload를 내부 작업에 기록한다. 성공 후 응답만 실패한 재시도는 외부 ID를 먼저 조회하며 같은 상품을 중복 게시하지 않는다.
 
-`POST /api/listing-upload/drafts/upload`는 최대 2개 초안과 Seller Hub 잔여 월 판매 한도를 받는다. `dryRun=true`로 중복·이미지 지문·필수값·한도를 검증해 서명된 미리보기 토큰을 받은 뒤, 같은 대상과 한도로 `confirmed=true`, `dryRun=false`를 보내야 실제 게시한다.
+`POST /api/listing-upload/drafts/upload`는 최대 50개 초안을 받는다. `dryRun=true`로 중복·이미지 지문·필수값을 검증해 서명된 미리보기 토큰을 받은 뒤, 같은 대상으로 `confirmed=true`, `dryRun=false`를 보내야 실제 게시한다.
+
+`GET /api/ebay/operations`는 신규등록·가격/재고 변동·품절/판매중지 대상을 현재 내부 값과 마지막 eBay 전송값으로 분류한다. `POST /api/ebay/operations`는 선택한 변동 또는 품절 항목을 먼저 `dryRun=true`로 보여 주며, 실제 전송은 `confirmed=true`가 필요하다.
 
 `GET/PUT /api/automation/rules`는 재고 0 리스팅 규칙과 최근 이벤트를 다룬다. 기본 모드는 `NOTIFY`이며 `AUTOMATIC` 저장은 현재 대상 미리보기와 명시적 확인을 요구한다.
 

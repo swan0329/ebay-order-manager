@@ -18,11 +18,15 @@ const ACTIVE = ["ACTIVE", "PUBLISHED", "LISTED"];
 export type PushPlanRow = {
   productId: string;
   sku: string;
+  productName: string;
+  productStatus: string;
   itemId: string;
   stock: number;
   reserved: number;
   quantity: number;
   price: number | null;
+  previousQuantity: number | null;
+  previousPrice: number | null;
 };
 
 export async function planEbayInventoryPush(input: { productIds?: string[] } = {}) {
@@ -77,6 +81,8 @@ export async function planEbayInventoryPush(input: { productIds?: string[] } = {
     rows.push({
       productId: product.id,
       sku: product.sku,
+      productName: product.productName,
+      productStatus: product.status,
       itemId,
       stock: product.stockQuantity,
       reserved: productReserved,
@@ -86,6 +92,8 @@ export async function planEbayInventoryPush(input: { productIds?: string[] } = {
         safetyStock: product.safetyStock,
       }),
       price,
+      previousQuantity: listing?.quantity ?? null,
+      previousPrice: listing?.price == null ? null : Number(listing.price),
     });
   }
 

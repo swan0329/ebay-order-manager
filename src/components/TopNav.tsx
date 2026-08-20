@@ -6,7 +6,7 @@ import { EbayApiUsageBadge } from "@/components/EbayApiUsageBadge";
 import { useEffect, useRef, useState } from "react";
 import {
   Camera, ChevronRight, Images, Menu, Package, PackageOpen, PlugZap,
-  Calculator, CircleDollarSign, RefreshCw, Settings, Sparkles, Truck, Users, X,
+  Calculator, CircleDollarSign, ListChecks, RefreshCw, Settings, Sparkles, Truck, Users, X,
 } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
 
@@ -26,6 +26,7 @@ const sections:NavSection[]=[
     {href:"/image-workers",label:"이미지 작업자 관리",icon:Users,matchPrefixes:["/image-workers"]},
   ]},
   {label:"eBay 판매",items:[
+    {href:"/ebay-operations",label:"변동·품단종 관리",icon:ListChecks,matchPrefixes:["/ebay-operations"]},
     {href:"/pricing",label:"가격 관리",icon:Calculator,matchPrefixes:["/pricing"]},
     {href:"/listing-upload/variation-groups",label:"옵션상품 구성",icon:Images,matchPrefixes:["/listing-upload/variation-groups"]},
     {href:"/pocamarket-sync",label:"포카마켓 최신화",icon:RefreshCw,matchPrefixes:["/pocamarket-sync"]},

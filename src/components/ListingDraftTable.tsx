@@ -856,7 +856,6 @@ export function ListingDraftTable({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
   const [confirmUploadOpen, setConfirmUploadOpen] = useState(false);
-  const [remainingSellingLimit, setRemainingSellingLimit] = useState("");
   const [uploadPreviewToken, setUploadPreviewToken] = useState("");
   const [uploadSafetyIssues, setUploadSafetyIssues] = useState<Array<{sku:string;reason:string}>>([]);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -1076,8 +1075,8 @@ export function ListingDraftTable({
       return;
     }
 
-    if (selectedIds.length > 2) {
-      setMessage("첫 API 등록은 상품 1~2개만 선택해 주세요.");
+    if (selectedIds.length > 50) {
+      setMessage("한 번에 최대 50개까지 등록할 수 있습니다.");
       return;
     }
     setUploadPreviewToken(""); setUploadSafetyIssues([]); setConfirmUploadOpen(true);
@@ -1085,7 +1084,7 @@ export function ListingDraftTable({
 
   async function previewApiUpload() {
     setBusy("upload-preview"); setMessage("");
-    const response=await fetch("/api/listing-upload/drafts/upload",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({ids:selectedIds,remainingLimit:Number(remainingSellingLimit),dryRun:true})});
+    const response=await fetch("/api/listing-upload/drafts/upload",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({ids:selectedIds,dryRun:true})});
     const data=await response.json();setBusy("");
     if(!response.ok){setMessage(data.error??"미리보기 실패");setUploadPreviewToken("");return}
     setUploadSafetyIssues(data.issues??[]);setUploadPreviewToken(data.previewToken??"");
@@ -1835,9 +1834,6 @@ export function ListingDraftTable({
                   <span>기존 offer 저장값 {selectedUploadPlan.revise}/{selectedUploadPlan.total}</span>
                 </div>
               </div>
-              <label className="text-sm font-semibold text-zinc-800">Seller Hub 잔여 월 판매 한도
-                <input type="number" min="0" value={remainingSellingLimit} onChange={event=>{setRemainingSellingLimit(event.target.value);setUploadPreviewToken("")}} placeholder="Seller Hub에서 확인한 숫자" className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2"/>
-              </label>
               {uploadSafetyIssues.length?<div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{uploadSafetyIssues.map((issue,index)=><p key={`${issue.sku}-${index}`}>{issue.sku}: {issue.reason}</p>)}</div>:null}
 
               {selectedUploadPlan.expectedFailure ? (
@@ -1859,12 +1855,12 @@ export function ListingDraftTable({
               <button
                 type="button"
                 onClick={()=>void previewApiUpload()}
-                disabled={!remainingSellingLimit||Boolean(busy)}
+                disabled={Boolean(busy)}
                 className="h-10 rounded-md border border-violet-500 px-4 text-sm font-semibold text-violet-700 disabled:opacity-40"
               >
                 서버 미리보기
               </button>
-              <button type="button" disabled={!uploadPreviewToken||Boolean(busy)} onClick={()=>{setConfirmUploadOpen(false);void postAction("/api/listing-upload/drafts/upload",{ids:selectedIds,remainingLimit:Number(remainingSellingLimit),dryRun:false,confirmed:true,previewToken:uploadPreviewToken},"업로드 완료")}} className="h-10 rounded-md bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-40">실제 eBay 업로드 실행</button>
+              <button type="button" disabled={!uploadPreviewToken||Boolean(busy)} onClick={()=>{setConfirmUploadOpen(false);void postAction("/api/listing-upload/drafts/upload",{ids:selectedIds,dryRun:false,confirmed:true,previewToken:uploadPreviewToken},"업로드 완료")}} className="h-10 rounded-md bg-rose-700 px-4 text-sm font-semibold text-white disabled:opacity-40">실제 eBay 업로드 실행</button>
             </div>
           </div>
         </div>

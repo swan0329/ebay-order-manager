@@ -9,6 +9,7 @@ import {
   buildEbayListingTitle,
 } from "@/lib/ebay-listing-fields";
 import { prisma } from "@/lib/prisma";
+import { resolveListingPriceUsd } from "@/lib/listing-price";
 import type { ListingUploadInput } from "@/lib/services/inventoryService";
 import {
   coerceListingUploadInput,
@@ -390,22 +391,26 @@ export async function createDraftsFromInventory(input: {
   const products = await prisma.product.findMany({
     where: {
       id: { in: input.productIds },
-      OR: [{ status: "unlisted" }, { status: "inactive" }],
+      ebayItemId: null,
+      OR: [{ listingStatus: null }, { listingStatus: { notIn: ["ACTIVE", "PUBLISHED", "LISTED"] } }],
     },
     orderBy: { updatedAt: "desc" },
   });
-  const template = input.templateId
+  const [template, pricingSettings] = await Promise.all([input.templateId
     ? await prisma.listingTemplate.findFirst({
         where: { id: input.templateId, userId: input.userId },
       })
     : await prisma.listingTemplate.findFirst({
         where: { userId: input.userId, isDefault: true },
-      });
+      }), prisma.pricingSettings.findUnique({ where: { id: "default" } })]);
   const templateDefaults = template ? listingTemplateToDefaults(template) : null;
   const rows: Prisma.ListingDraftCreateManyInput[] = [];
 
   for (const product of products) {
     const primary = productDraft(product);
+    const calculatedPrice = pricingSettings ? resolveListingPriceUsd(product, pricingSettings)?.priceUsd.toString() ?? null : primary.price;
+    primary.price = calculatedPrice;
+    primary.quantity = Math.max(1, product.stockQuantity);
     const merged = mergeListingUploadDrafts(primary, templateDefaults);
     const title = renderTitle(template?.titleTemplate, merged);
     rows.push(

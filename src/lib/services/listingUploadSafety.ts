@@ -6,32 +6,30 @@ import { prisma } from "@/lib/prisma";
 import { requiredEnv } from "@/lib/env";
 import { validateDrafts } from "@/lib/services/listingDraftService";
 
-const MAX_FIRST_BATCH = 2;
+export const MAX_LISTING_UPLOAD_BATCH = 50;
 const TOKEN_TTL_MS = 15 * 60 * 1000;
 
 function normalizedIds(ids: string[]) { return [...new Set(ids)].sort(); }
-function payload(ids: string[], remainingLimit: number, issuedAt: number) { return JSON.stringify({ ids: normalizedIds(ids), remainingLimit, issuedAt }); }
+function payload(ids: string[], issuedAt: number) { return JSON.stringify({ ids: normalizedIds(ids), issuedAt }); }
 function signature(value: string) { return createHmac("sha256", requiredEnv("SESSION_SECRET")).update(value).digest("base64url"); }
 
-export function issueListingPreviewToken(ids: string[], remainingLimit: number, issuedAt = Date.now()) {
-  const body = Buffer.from(payload(ids, remainingLimit, issuedAt)).toString("base64url");
+export function issueListingPreviewToken(ids: string[], issuedAt = Date.now()) {
+  const body = Buffer.from(payload(ids, issuedAt)).toString("base64url");
   return `${body}.${signature(body)}`;
 }
 
-export function verifyListingPreviewToken(token: string, ids: string[], remainingLimit: number, now = Date.now()) {
+export function verifyListingPreviewToken(token: string, ids: string[], now = Date.now()) {
   const [body, supplied] = token.split("."); if (!body || !supplied) return false;
   const expected = signature(body); const a = Buffer.from(supplied); const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return false;
-  try { const parsed = JSON.parse(Buffer.from(body, "base64url").toString()) as { ids:string[];remainingLimit:number;issuedAt:number };
-    return JSON.stringify(parsed.ids) === JSON.stringify(normalizedIds(ids)) && parsed.remainingLimit === remainingLimit && now - parsed.issuedAt >= 0 && now - parsed.issuedAt <= TOKEN_TTL_MS;
+  try { const parsed = JSON.parse(Buffer.from(body, "base64url").toString()) as { ids:string[];issuedAt:number };
+    return JSON.stringify(parsed.ids) === JSON.stringify(normalizedIds(ids)) && now - parsed.issuedAt >= 0 && now - parsed.issuedAt <= TOKEN_TTL_MS;
   } catch { return false; }
 }
 
-export async function previewListingUpload(userId: string, ids: string[], remainingLimit: number) {
+export async function previewListingUpload(userId: string, ids: string[]) {
   const uniqueIds = normalizedIds(ids);
-  if (!Number.isInteger(remainingLimit) || remainingLimit < 0) throw new Error("Seller Hub 잔여 판매 한도를 입력해 주세요.");
-  if (!uniqueIds.length || uniqueIds.length > MAX_FIRST_BATCH) throw new Error("첫 API 등록은 한 번에 1~2개만 가능합니다.");
-  if (uniqueIds.length > remainingLimit) throw new Error("선택 수량이 eBay 잔여 월 판매 한도를 초과합니다.");
+  if (!uniqueIds.length || uniqueIds.length > MAX_LISTING_UPLOAD_BATCH) throw new Error(`한 번에 1~${MAX_LISTING_UPLOAD_BATCH}개까지 등록할 수 있습니다.`);
 
   const drafts = await prisma.listingDraft.findMany({ where: { userId, id: { in: uniqueIds } }, include: { sourceInventory: true } });
   if (drafts.length !== uniqueIds.length) throw new Error("선택한 초안 일부를 찾을 수 없습니다.");
@@ -61,5 +59,5 @@ export async function previewListingUpload(userId: string, ids: string[], remain
       if (draft) issues.push({ draftId: draft.id, sku: draft.sku, reason: "같은 이미지 지문의 활성 리스팅이 이미 있습니다." });
     }
   }
-  return { ids: uniqueIds, remainingLimit, valid: issues.length === 0, issues, drafts: drafts.map((draft) => ({ id:draft.id,sku:draft.sku,title:draft.title,price:String(draft.price),quantity:draft.quantity })) };
+  return { ids: uniqueIds, valid: issues.length === 0, issues, drafts: drafts.map((draft) => ({ id:draft.id,sku:draft.sku,title:draft.title,price:String(draft.price),quantity:draft.quantity })) };
 }
