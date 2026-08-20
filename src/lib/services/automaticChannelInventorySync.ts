@@ -13,7 +13,7 @@ export async function syncInventoryChannelsAfterChange(input: {
 
   // 같은 계산 경로의 미리보기를 먼저 남긴 뒤에만 실제 채널 쓰기를 수행한다.
   const [ebayPlan, shopifyPlan] = await Promise.all([
-    pushEbayInventory({ userId: input.userId, productIds, dryRun: true }),
+    pushEbayInventory({ userId: input.userId, productIds, dryRun: true, quantityOnly: true }),
     syncShopifyInventory({ productIds, dryRun: true }),
   ]);
   safeLog("info", "channel.inventory.auto_preview", {
@@ -23,7 +23,7 @@ export async function syncInventoryChannelsAfterChange(input: {
   });
 
   const [ebay, shopify] = await Promise.allSettled([
-    pushEbayInventory({ userId: input.userId, productIds }),
+    pushEbayInventory({ userId: input.userId, productIds, quantityOnly: true }),
     syncShopifyInventory({ productIds }),
   ]);
   safeLog("info", "channel.inventory.auto_completed", {

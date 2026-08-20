@@ -91,6 +91,8 @@ export async function pushEbayInventory(input: {
   dryRun?: boolean;
   /** 한 번에 너무 많이 보내지 않도록 자른다. */
   limit?: number;
+  /** 재고 자동화에서는 가격을 절대 건드리지 않는다. */
+  quantityOnly?: boolean;
 }) {
   const plan = await planEbayInventoryPush({ productIds: input.productIds });
   const rows = plan.rows.slice(0, Math.max(1, Math.min(200, input.limit ?? 100)));
@@ -117,7 +119,7 @@ export async function pushEbayInventory(input: {
     itemId: row.itemId,
     sku: row.sku,
     quantity: row.quantity,
-    price: row.price,
+    price: input.quantityOnly ? null : row.price,
   }));
   const result = await reviseEbayPriceQuantity(account, targets);
 
