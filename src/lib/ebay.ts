@@ -489,6 +489,36 @@ export async function getShippingFulfillment(
   return result.body as unknown;
 }
 
+/**
+ * 오늘 eBay API를 얼마나 썼고 한도가 얼마인지 물어본다.
+ *
+ * 한도를 넘으면 계정이 정지되는 것이 아니라 호출이 거부된다. 그래도 얼마나 남았는지
+ * 모르면 자동 수집 주기를 정할 근거가 없어 막연히 겁내게 된다. 숫자로 본다.
+ *
+ * 이 호출 자체는 읽기이고 리스팅을 만들지 않는다.
+ */
+export async function getEbayApiUsage(account: EbayAccount) {
+  const config = getEbayConfig();
+  const url = new URL("/developer/analytics/v1_beta/rate_limit/", config.hosts.api);
+  const { body } = await ebayFetch(account, url);
+  return body as {
+    rateLimits?: Array<{
+      apiName?: string;
+      apiContext?: string;
+      apiVersion?: string;
+      resources?: Array<{
+        name?: string;
+        rates?: Array<{
+          limit?: number;
+          remaining?: number;
+          reset?: string;
+          timeWindow?: number;
+        }>;
+      }>;
+    }>;
+  };
+}
+
 export async function getEbayUserProfile(accessToken: string) {
   const config = getEbayConfig();
   const url = new URL("/commerce/identity/v1/user/", config.hosts.identity);

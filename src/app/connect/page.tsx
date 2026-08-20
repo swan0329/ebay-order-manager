@@ -6,6 +6,7 @@ import {
   PlugZap,
   RotateCcw,
 } from "lucide-react";
+import { EbayApiUsageCard } from "@/components/EbayApiUsageCard";
 import { EbayConnectionTest } from "@/components/EbayConnectionTest";
 import { EbayManualCodeForm } from "@/components/EbayManualCodeForm";
 import { TopNav } from "@/components/TopNav";
@@ -68,6 +69,10 @@ export default async function ConnectPage({
     <div className="min-h-screen bg-zinc-50">
       <TopNav loginId={user.loginId} />
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+        {/* 자동화 주기를 정할 때 볼 근거. 아무것도 바꾸지 않고 현황만 읽는다. */}
+        <div className="mb-4">
+          <EbayApiUsageCard />
+        </div>
         <div className="mb-6 flex items-center gap-3">
           <span className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-zinc-950 text-white">
             <PlugZap className="h-5 w-5" />
