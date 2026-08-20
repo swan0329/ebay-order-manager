@@ -641,6 +641,11 @@ export function ResizableProductsTable({
       running: true,
     });
 
+    // Shopify Admin REST는 초당 두 건까지만 받는다. 쉬지 않고 부르면 429가 나고
+    // 그때부터 줄줄이 실패한다. 한 건에 여러 번 부르므로 넉넉히 띄운다.
+    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const reasons: string[] = [];
+
     for (let index = 0; index < ids.length; index += 1) {
       try {
         const response = await fetch(`/api/products/${ids[index]}/shopify-upload`, {
@@ -650,9 +655,17 @@ export function ResizableProductsTable({
           success += 1;
         } else {
           failed += 1;
+          // 몇 개 실패했는지만 알면 무엇을 고쳐야 할지 알 수 없다. 사유를 남긴다.
+          const body = await response.json().catch(() => null);
+          if (reasons.length < 5) {
+            reasons.push(body?.error ?? `HTTP ${response.status}`);
+          }
         }
-      } catch {
+      } catch (error) {
         failed += 1;
+        if (reasons.length < 5) {
+          reasons.push(error instanceof Error ? error.message : String(error));
+        }
       }
 
       setShopifyProgress({
@@ -662,12 +675,14 @@ export function ResizableProductsTable({
         failed,
         running: index + 1 < ids.length,
       });
+
+      if (index + 1 < ids.length) await wait(700);
     }
 
     setShopifyLoading(false);
     setBulkMessage(
       failed > 0
-        ? `쇼피파이 업로드 완료: 성공 ${success}개, 실패 ${failed}개.`
+        ? `쇼피파이 업로드 완료: 성공 ${success}개, 실패 ${failed}개. ${reasons.join(" / ")}`
         : `쇼피파이 업로드 완료: ${success}개 모두 성공했습니다.`,
     );
     router.refresh();

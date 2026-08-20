@@ -1,5 +1,6 @@
 import type { ProductImageExtras } from "@/lib/ebay-listing-fields";
 import { asErrorMessage, jsonError } from "@/lib/http";
+import { reservedByProduct } from "@/lib/stock-reservation";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 import {
@@ -35,7 +36,31 @@ export async function POST(_request: Request, context: RouteContext) {
       extras = undefined;
     }
 
-    const result = await uploadProductToShopify(product, extras);
+    // 아직 처리하지 않은 주문이 잡아 둔 몫을 빼고 올린다. 실재고를 올리면 이미
+    // 팔린 카드가 쇼피파이에서 계속 팔린다.
+    const reservedLines = await prisma.orderItem.findMany({
+      where: { productId: id, stockDeducted: false },
+      select: {
+        productId: true,
+        quantity: true,
+        stockDeducted: true,
+        order: { select: { orderStatus: true, fulfillmentStatus: true } },
+      },
+    });
+    const cancelled = ["CANCELLED", "CANCELED", "CANCELLED_BY_SELLER"];
+    const reserved =
+      reservedByProduct(
+        reservedLines.map((line) => ({
+          productId: line.productId as string,
+          quantity: line.quantity,
+          stockDeducted: line.stockDeducted,
+          orderCancelled:
+            cancelled.includes(line.order.orderStatus) ||
+            cancelled.includes(line.order.fulfillmentStatus),
+        })),
+      ).get(id) ?? 0;
+
+    const result = await uploadProductToShopify(product, extras, reserved);
 
     const updated = await prisma.product.update({
       where: { id },
