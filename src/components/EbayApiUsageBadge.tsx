@@ -36,8 +36,10 @@ export function EbayApiUsageBadge() {
       }
     };
     void load();
-    // 사용량은 천천히 움직인다. 5분마다면 충분하고, 이 확인 자체도 호출을 쓴다.
-    const timer = window.setInterval(() => void load(), 5 * 60 * 1000);
+    // 이 확인 자체가 하루 한도 오천 번짜리 호출을 쓴다. 오분마다 보면 하루 이백여든
+    // 번이라 그 한도의 육 퍼센트를 확인하는 데만 쓰게 되고, 화면을 여러 개 열면 그만큼
+    // 곱해진다. 사용량은 하루 단위로 움직이므로 삼십분이면 충분하다.
+    const timer = window.setInterval(() => void load(), 30 * 60 * 1000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
