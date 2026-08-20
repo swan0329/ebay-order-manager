@@ -18,6 +18,7 @@
 │   ├── contracts.md                  → 외부 시스템과 내부 API의 약속
 │   └── tracking/
 │       ├── status.md                 → 구현 완료·미완료 현황
+│       ├── handoff.md                → 남은 작업과 지켜야 할 선, 확인된 사실
 │       ├── findings.md               → 아직 해결되지 않은 문제
 │       └── decisions/
 │           ├── index.md              → 주요 선택 목록
@@ -42,6 +43,7 @@
 ## 작업 전 확인
 
 - 모든 변경 전에 `docs/standards.md`, `docs/engineering-notes.md`, 변경할 디렉터리의 `AGENTS.md`를 읽는다.
+- 남은 작업을 이어받을 때는 `docs/tracking/handoff.md`를 먼저 읽는다. 이미 확인한 사실을 다시 조사하지 않기 위해서다.
 - 로그인·권한을 바꾸기 전에는 `docs/security.md`와 `src/lib/session.ts`의 페이지·API 권한 검사를 함께 확인한다.
 - 재고·주문을 바꾸기 전에는 `docs/business-rules.md`와 재고 이력 생성 경로를 확인한다.
 - 데이터 구조를 바꾸기 전에는 `prisma/AGENTS.md`와 기존 마이그레이션을 확인한다. 요청 시 테이블을 만드는 임시 코드가 남아 있는 영역도 함께 조사한다.
