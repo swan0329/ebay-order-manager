@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { TopNav } from "@/components/TopNav";
 import { PocamarketPurchaseButton } from "@/components/PocamarketPurchaseButton";
 import { deriveEbayOrderCategory } from "@/lib/ebay-order-status";
+import { availabilityForOrder, reservedByProduct } from "@/lib/stock-reservation";
 import { orderWarningClass } from "@/lib/order-automation";
 import { orderItemImageUrlFromRaw } from "@/lib/order-images";
 import { rankFuzzyTitleMatches } from "@/lib/services/matchingService";
@@ -156,33 +157,54 @@ export default async function OrderDetailPage({
   // 어느 카드가 몇 장 모자란지 함께 보여 준다.
   // 부족 수량은 카드 단위로 센다. 같은 카드가 여러 줄에 있으면 필요량을 합친 뒤
   // 재고를 한 번만 뺀다. 줄마다 따로 재고와 비교하면 같은 카드가 두 건으로 보인다.
-  const neededByProduct = new Map<
-    string,
-    { productId: string; sku: string; name: string; member: string | null; needed: number; stock: number }
-  >();
+  const neededByProduct = new Map<string, number>();
   for (const item of order.items) {
     if (item.stockDeducted || !item.product) continue;
-    const current = neededByProduct.get(item.product.id);
-    if (current) {
-      current.needed += item.quantity;
-      continue;
-    }
-    neededByProduct.set(item.product.id, {
-      productId: item.product.id,
-      sku: item.product.sku,
-      name: item.product.productName,
-      member: item.product.optionName,
-      needed: item.quantity,
-      stock: item.product.stockQuantity,
-    });
+    neededByProduct.set(
+      item.product.id,
+      (neededByProduct.get(item.product.id) ?? 0) + item.quantity,
+    );
   }
-  // 카드별 부족 수량. 주문 줄 하나하나가 아니라 카드 단위로 센 값이라 화면의
-  // 뱃지와 구매 버튼이 같은 수를 본다.
-  const missingByProduct = new Map(
-    [...neededByProduct.values()]
-      .map((card) => [card.productId, card.needed - card.stock] as const)
-      .filter(([, missing]) => missing > 0),
+
+  // 다른 주문이 이미 잡아 둔 수량까지 봐야 진짜 쓸 수 있는 양이 나온다. 이것을 보지
+  // 않으면 같은 한 장을 두 주문이 각각 자기 것으로 여긴다.
+  const reservationLines = neededByProduct.size
+    ? await prisma.orderItem.findMany({
+        where: { productId: { in: [...neededByProduct.keys()] }, stockDeducted: false },
+        select: {
+          productId: true,
+          quantity: true,
+          stockDeducted: true,
+          order: { select: { orderStatus: true, fulfillmentStatus: true } },
+        },
+      })
+    : [];
+  const cancelled = ["CANCELLED", "CANCELED", "CANCELLED_BY_SELLER"];
+  const totalReserved = reservedByProduct(
+    reservationLines.map((line) => ({
+      productId: line.productId as string,
+      quantity: line.quantity,
+      stockDeducted: line.stockDeducted,
+      orderCancelled:
+        cancelled.includes(line.order.orderStatus) ||
+        cancelled.includes(line.order.fulfillmentStatus),
+    })),
   );
+
+  const availabilityByProduct = new Map(
+    [...neededByProduct.entries()].map(([productId, needed]) => {
+      const product = order.items.find((item) => item.product?.id === productId)?.product;
+      return [
+        productId,
+        availabilityForOrder({
+          stock: product?.stockQuantity ?? 0,
+          totalReserved: totalReserved.get(productId) ?? needed,
+          neededByThisOrder: needed,
+        }),
+      ] as const;
+    }),
+  );
+
   const orderRaw =
     order.rawJson && typeof order.rawJson === "object" && !Array.isArray(order.rawJson)
       ? (order.rawJson as Record<string, unknown>)
@@ -287,9 +309,10 @@ export default async function OrderDetailPage({
               </h2>
               <div className="divide-y divide-zinc-200">
                 {order.items.map((item) => {
-                  const missing = item.product
-                    ? (missingByProduct.get(item.product.id) ?? 0)
-                    : 0;
+                  const availability = item.product
+                    ? availabilityByProduct.get(item.product.id)
+                    : undefined;
+                  const missing = availability?.missing ?? 0;
                   const shortage = !item.stockDeducted && missing > 0;
 
                   const state = itemInventoryState({
@@ -353,7 +376,10 @@ export default async function OrderDetailPage({
                         </span>
                         {item.product ? (
                           <p className="mt-1 text-xs text-zinc-500">
-                            현재 재고 {item.product.stockQuantity}
+                            재고 {item.product.stockQuantity}
+                            {availability && availability.reservedByOthers > 0
+                              ? ` · 다른 주문이 ${availability.reservedByOthers}장 예약 · 이 주문이 쓸 수 있는 수량 ${availability.available}`
+                              : ""}
                           </p>
                         ) : null}
                         {shortage && item.product ? (

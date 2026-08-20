@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Prisma } from "@/generated/prisma";
 import { OrdersControls } from "@/components/OrdersControls";
+import { ShopifyOrderSyncButton } from "@/components/ShopifyOrderSyncButton";
 import { OrdersPager } from "@/components/OrdersPager";
 import {
   ResizableOrdersTable,
@@ -429,6 +430,10 @@ export default async function OrdersPage({
       <TopNav loginId={user.loginId} />
       <OrdersControls />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        {/* eBay 주문은 위쪽 동기화로 들어온다. Shopify는 아직 자동 수신이 없어 여기서 가져온다. */}
+        <div className="mb-4 flex justify-end">
+          <ShopifyOrderSyncButton />
+        </div>
         <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {statusCards.map((card) => {
             const active = card.key === statusFilter;
