@@ -2,14 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Download,
-  Image as ImageIcon,
-  Loader2,
-  ShoppingBag,
-  Upload,
-  X,
-} from "lucide-react";
+import { Download, Image as ImageIcon, Loader2, RefreshCw, ShoppingBag, Upload, X } from "lucide-react";
 import {
   ProductQuickEditCard,
   ProductQuickEditRow,
@@ -611,6 +604,70 @@ export function ResizableProductsTable({
     }
   }
 
+  const [ebayPushing, setEbayPushing] = useState(false);
+
+  // eBay에 값을 쓰는 첫 기능이다. 무엇이 바뀌는지 먼저 보여 주고 사람이 확인한
+  // 뒤에만 보낸다. 새 리스팅은 만들지 않고 가격과 수량만 바꾼다.
+  async function pushSelectedToEbay() {
+    if (!selectedCount) {
+      setBulkMessage("eBay에 반영할 상품을 선택해 주세요.");
+      return;
+    }
+    setEbayPushing(true);
+    setBulkMessage("");
+    try {
+      const preview = await fetch("/api/ebay/inventory/push", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ productIds: selectedProductIds, dryRun: true }),
+      });
+      const plan = await preview.json();
+      if (!preview.ok) throw new Error(plan?.error ?? "미리보기에 실패했습니다.");
+      if (!plan.planned) {
+        setBulkMessage("선택 항목 중 eBay에 올라가 있는 활성 상품이 없습니다.");
+        return;
+      }
+
+      const sample = (plan.rows ?? [])
+        .slice(0, 5)
+        .map(
+          (row: { sku: string; stock: number; reserved: number; quantity: number; price: number | null }) =>
+            `${row.sku}: 수량 ${row.quantity} (재고 ${row.stock} - 예약 ${row.reserved})${row.price ? ` · $${row.price.toFixed(2)}` : " · 가격 유지"}`,
+        )
+        .join("\n");
+      const missing = plan.missingPrice?.length
+        ? `\n\n가격을 정할 수 없어 수량만 바꾸는 상품 ${plan.missingPrice.length}개`
+        : "";
+      if (
+        !window.confirm(
+          `eBay 리스팅 ${plan.planned}개의 가격과 수량을 아래처럼 바꿉니다.\n\n${sample}${plan.planned > 5 ? `\n… 외 ${plan.planned - 5}개` : ""}${missing}\n\n리스팅을 새로 만들지는 않습니다. 진행할까요?`,
+        )
+      ) {
+        setBulkMessage("취소했습니다. 아무것도 바꾸지 않았습니다.");
+        return;
+      }
+
+      const response = await fetch("/api/ebay/inventory/push", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ productIds: selectedProductIds }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error ?? "반영에 실패했습니다.");
+      setBulkMessage(
+        `eBay 반영 성공 ${data.succeeded}개 · 실패 ${data.failed?.length ?? 0}개` +
+          (data.failed?.length
+            ? ` (${data.failed.slice(0, 3).map((item: { itemId: string; reason: string }) => `${item.itemId}: ${item.reason}`).join(" / ")})`
+            : ""),
+      );
+      router.refresh();
+    } catch (error) {
+      setBulkMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setEbayPushing(false);
+    }
+  }
+
   async function runBulkShopifyUpload() {
     // Kept separate from the regular selection export so operators cannot
     // accidentally mix Pokamarket/direct-photo items into a Lens upload batch.
@@ -764,6 +821,18 @@ export function ResizableProductsTable({
                   : `선택 신규등록 CSV (${selectedCount}개)`}
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => void pushSelectedToEbay()}
+              disabled={ebayPushing || !selectedCount}
+              title="기존 eBay 리스팅의 가격과 수량만 바꿉니다. 새 리스팅은 만들지 않습니다."
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-violet-600 bg-violet-600 px-3 text-xs font-semibold text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              {ebayPushing
+                ? "eBay 반영 중"
+                : `eBay 가격·수량 반영${selectedCount > 0 ? ` (${selectedCount}개)` : ""}`}
+            </button>
             <button
               type="button"
               onClick={() => void runBulkShopifyUpload()}
