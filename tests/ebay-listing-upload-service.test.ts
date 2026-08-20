@@ -12,6 +12,7 @@ const prismaMock = vi.hoisted(() => ({
     upsert: vi.fn(),
   },
   product: {
+    findUnique: vi.fn(),
     update: vi.fn(),
   },
 }));
@@ -81,6 +82,7 @@ beforeEach(() => {
   prismaMock.inventoryListingLink.upsert.mockResolvedValue({});
   prismaMock.productListing.upsert.mockResolvedValue({});
   prismaMock.product.update.mockResolvedValue({});
+  prismaMock.product.findUnique.mockResolvedValue({ id: "product-1", ebayOfferId: null, ebayItemId: null });
 });
 
 describe("uploadDraft", () => {

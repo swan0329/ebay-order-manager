@@ -308,10 +308,20 @@ export async function publishProductListing(
   product: Product,
   inputOverride?: ListingUploadInput,
 ): Promise<ListingUploadResult> {
-  void account;
-  void product;
-  void inputOverride;
-  throw new Error(
-    "보안 정책에 따라 eBay API 상품 등록·수정 기능은 영구 비활성화되었습니다. eBay Excel 파일을 사용하세요.",
-  );
+  const input = inputOverride ?? productToListingInput(product);
+  await createOrReplaceInventoryItem(account, input);
+
+  let offerId = product.ebayOfferId;
+  if (!offerId) {
+    offerId = (await getExistingOffer(account, input.sku, input.marketplaceId ?? "EBAY_US"))?.offerId ?? null;
+  }
+  if (offerId && !(await updateOffer(account, offerId, input))) offerId = null;
+  if (!offerId) offerId = await createOffer(account, input);
+
+  // 이미 게시된 Item ID가 있으면 publish를 다시 호출해 중복 게시하지 않는다.
+  if (product.ebayItemId) {
+    return { action: "revise", offerId, listingId: product.ebayItemId, listingStatus: "ACTIVE" };
+  }
+  const listingId = await publishOffer(account, offerId);
+  return { action: "create", offerId, listingId, listingStatus: "ACTIVE" };
 }

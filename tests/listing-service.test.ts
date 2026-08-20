@@ -71,12 +71,27 @@ describe("publishProductListing", () => {
     ]);
   });
 
-  it("permanently blocks direct eBay listing writes and requires Excel", async () => {
-    await expect(
-      publishProductListing(account as never, product as never, input),
-    ).rejects.toThrow(
-      "eBay API 상품 등록·수정 기능은 영구 비활성화되었습니다",
-    );
-    expect(ebayApiRequestMock).not.toHaveBeenCalled();
+  it("creates the inventory item and publishes one new offer", async () => {
+    ebayApiRequestMock.mockImplementation(async (_account, request) => {
+      if (request.path === "/sell/inventory/v1/offer" && !request.method) return { body: { offers: [] } };
+      if (request.path === "/sell/inventory/v1/offer" && request.method === "POST") return { body: { offerId: "offer-1" } };
+      if (request.path.endsWith("/publish")) return { body: { listingId: "item-1" } };
+      return { body: null };
+    });
+    await expect(publishProductListing(account as never, product as never, input)).resolves.toEqual({
+      action: "create", offerId: "offer-1", listingId: "item-1", listingStatus: "ACTIVE",
+    });
+    expect(ebayApiRequestMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not publish again when a product already has an item id", async () => {
+    ebayApiRequestMock.mockImplementation(async (_account, request) => {
+      if (request.path === "/sell/inventory/v1/offer" && !request.method) return { body: { offers: [{ offerId: "offer-1" }] } };
+      return { body: null };
+    });
+    const existing={...product,ebayItemId:"item-existing"};
+    const result=await publishProductListing(account as never,existing as never,input);
+    expect(result).toMatchObject({action:"revise",listingId:"item-existing"});
+    expect(ebayApiRequestMock.mock.calls.some(([,request])=>request.path.endsWith("/publish"))).toBe(false);
   });
 });

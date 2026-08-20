@@ -14,6 +14,7 @@
 | `GET /api/health` | 없음 | 서버 상태 JSON | 데이터베이스 장애 |
 | `GET /api/cron/keepalive` | `Authorization: Bearer <CRON_SECRET>` | 상태 확인 JSON | 토큰 불일치 |
 | `GET /api/cron/orders-sync` | `Authorization: Bearer <CRON_SECRET>` | eBay·Shopify 주문 증분 수집 결과 | 토큰 불일치·채널별 수집 실패 |
+| `GET /api/settlements/reconcile?days=30` | 관리자 세션, 1~90일 | 주문번호 기준 eBay·Shopify 실제 정산 대조 | 채널 정산 권한 없음·외부 조회 실패 |
 
 ## 상품·재고·주문
 
@@ -54,6 +55,10 @@
 | `GET /api/listing-upload/taxonomy/aspects`, `/promoted/campaigns` | 마켓·카테고리 | 필수 속성 또는 캠페인 | 잘못된 카테고리·scope 부족 |
 
 등록 성공은 외부 offer/item ID와 최종 payload를 내부 작업에 기록한다. 성공 후 응답만 실패한 재시도는 외부 ID를 먼저 조회하며 같은 상품을 중복 게시하지 않는다.
+
+`POST /api/listing-upload/drafts/upload`는 최대 2개 초안과 Seller Hub 잔여 월 판매 한도를 받는다. `dryRun=true`로 중복·이미지 지문·필수값·한도를 검증해 서명된 미리보기 토큰을 받은 뒤, 같은 대상과 한도로 `confirmed=true`, `dryRun=false`를 보내야 실제 게시한다.
+
+`GET/PUT /api/automation/rules`는 재고 0 리스팅 규칙과 최근 이벤트를 다룬다. 기본 모드는 `NOTIFY`이며 `AUTOMATIC` 저장은 현재 대상 미리보기와 명시적 확인을 요구한다.
 
 ## 이미지
 

@@ -117,7 +117,10 @@ export async function uploadDraft(userId: string, draft: ListingDraft) {
 
   try {
     const account = await getActiveEbayInventoryAccount(userId);
-    const { product } = await upsertProductFromListingInput(input, userId);
+    const product = draft.sourceInventoryId
+      ? await prisma.product.findUnique({ where: { id: draft.sourceInventoryId } })
+      : (await upsertProductFromListingInput(input, userId)).product;
+    if (!product) throw new Error("업로드할 원본 상품을 찾을 수 없습니다.");
     const result = await publishProductListing(account, product, input);
     const now = new Date();
     let promotedStatus: string | null = null;
