@@ -8,6 +8,7 @@ import {
   type ProductImageExtras,
 } from "@/lib/ebay-listing-fields";
 import { safeLog } from "@/lib/safe-log";
+import { sellableQuantity } from "@/lib/stock-reservation";
 import { getShopifyAccessToken } from "@/lib/services/shopifyToken";
 
 export class ShopifyApiError extends Error {
@@ -95,7 +96,7 @@ function collectImageUrls(product: Product): string[] {
 
 let cachedLocationId: { domain: string; id: string } | null = null;
 
-async function resolvePrimaryLocationId(
+export async function resolvePrimaryLocationId(
   config: ShopifyConfig,
 ): Promise<string | null> {
   if (config.locationId) {
@@ -233,9 +234,37 @@ async function setShopifyProductCategory(
   }
 }
 
+/**
+ * 한 카드의 Shopify 판매 가능 수량을 정한다.
+ *
+ * 상품 등록 때만이 아니라 재고가 바뀔 때마다 불러야 같은 카드가 두 채널에서
+ * 동시에 팔리지 않는다.
+ */
+export async function setShopifyInventoryLevel(
+  config: ShopifyConfig,
+  inventoryItemId: string,
+  available: number,
+) {
+  const locationId = config.locationId ?? (await resolvePrimaryLocationId(config));
+  if (!locationId) {
+    throw new Error("Shopify 재고 위치를 찾지 못했습니다.");
+  }
+  await shopifyApiRequest(config, {
+    method: "POST",
+    path: "/inventory_levels/set.json",
+    body: {
+      location_id: Number(locationId),
+      inventory_item_id: Number(inventoryItemId),
+      available: Math.max(0, Math.trunc(available)),
+    },
+  });
+}
+
 export async function uploadProductToShopify(
   product: Product,
   extras?: ProductImageExtras,
+  // 아직 처리하지 않은 주문이 잡아 둔 수량. 주면 그만큼 빼고 올린다.
+  reservedQuantity?: number,
 ): Promise<ShopifyUploadResult> {
   const config = getShopifyConfig();
 
@@ -354,18 +383,22 @@ export async function uploadProductToShopify(
 
   let inventorySynced = false;
   if (inventoryItemId) {
-    const locationId = await resolvePrimaryLocationId(config);
-    if (locationId) {
-      await shopifyApiRequest(config, {
-        method: "POST",
-        path: "/inventory_levels/set.json",
-        body: {
-          location_id: Number(locationId),
-          inventory_item_id: Number(inventoryItemId),
-          available: Math.max(0, product.stockQuantity),
-        },
-      });
+    // 실재고가 아니라 판매 가능 수량을 올린다. 아직 처리하지 않은 주문이 잡아 둔
+    // 몫까지 팔면 이미 나간 카드를 또 팔게 된다.
+    try {
+      await setShopifyInventoryLevel(
+        config,
+        inventoryItemId,
+        sellableQuantity({
+          stock: product.stockQuantity,
+          reserved: reservedQuantity ?? 0,
+          safetyStock: product.safetyStock ?? 0,
+        }),
+      );
       inventorySynced = true;
+    } catch {
+      // 재고 위치를 못 찾는 등으로 실패해도 상품 등록 자체는 살린다.
+      inventorySynced = false;
     }
   }
 
