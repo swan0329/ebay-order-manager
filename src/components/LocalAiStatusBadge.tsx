@@ -46,7 +46,7 @@ export function LocalAiStatusBadge({
         onEnabledChange?.(body.localAiEnabled);
       })
       .catch(() => undefined);
-    void check();
+    queueMicrotask(() => void check());
     const timer = window.setInterval(() => void check(), 15_000);
     const onFocus = () => void check();
     window.addEventListener("focus", onFocus);

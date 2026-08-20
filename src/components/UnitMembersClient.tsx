@@ -40,7 +40,7 @@ export function UnitMembersClient({ items: initial }: { items: Item[] }) {
       ...new Set(items.map((item) => item.brand?.trim()).filter(Boolean)),
     ] as string[];
     for (const group of groups) {
-      if (!(group in membersByGroup)) void loadGroup(group);
+      if (!(group in membersByGroup)) queueMicrotask(() => void loadGroup(group));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, loadGroup]);

@@ -53,7 +53,9 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
     total: number;
     started: number;
   } | null>(null);
-  useEffect(() => setLocalItems(items), [items]);
+  useEffect(() => {
+    queueMicrotask(() => setLocalItems(items));
+  }, [items]);
   async function call(body: object) {
     const r = await fetch("/api/ai-image-work", {
       method: "POST",
@@ -392,7 +394,7 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
     failed = localItems.filter((i) => i.status === "failed"),
     rework = localItems.filter((i) => i.status === "rework"),
     current = review[0] ?? null;
-  const elapsed = upload ? (Date.now() - upload.started) / 1000 : 0;
+  const elapsed = upload ? (clock - upload.started) / 1000 : 0;
   const eta =
     upload && upload.done > 0
       ? (elapsed / upload.done) * (upload.total - upload.done)
