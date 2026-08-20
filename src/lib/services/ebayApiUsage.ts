@@ -40,7 +40,7 @@ export async function loadEbayApiUsage(userId: string): Promise<ApiUsageSummary>
     };
   }
 
-  const body = await getEbayApiUsage(account);
+  const body = await getEbayApiUsage();
   const rows: ApiUsageRow[] = [];
   for (const entry of body.rateLimits ?? []) {
     for (const resource of entry.resources ?? []) {

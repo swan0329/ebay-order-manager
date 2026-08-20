@@ -8,6 +8,7 @@ import Link from "next/link";
 // 잠시 거부되므로, 겁내는 대신 남은 양을 보고 정하면 된다.
 
 type Summary = { connected: boolean; busiestRate: number };
+type State = { kind: "ok"; data: Summary } | { kind: "error"; message: string } | null;
 
 function tone(rate: number) {
   if (rate >= 0.8) return { bar: "bg-rose-500", text: "text-rose-700", box: "border-rose-200 bg-rose-50" };
@@ -16,15 +17,23 @@ function tone(rate: number) {
 }
 
 export function EbayApiUsageBadge() {
-  const [data, setData] = useState<Summary | null>(null);
+  const [state, setState] = useState<State>(null);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      const response = await fetch("/api/ebay/api-usage", { cache: "no-store" }).catch(() => null);
-      if (!response?.ok || cancelled) return;
-      const body = await response.json().catch(() => null);
-      if (!cancelled && body) setData(body);
+      try {
+        const response = await fetch("/api/ebay/api-usage", { cache: "no-store" });
+        const body = await response.json();
+        if (cancelled) return;
+        if (!response.ok) throw new Error(body?.error ?? `확인 실패 (${response.status})`);
+        setState({ kind: "ok", data: body });
+      } catch (error) {
+        // 조용히 사라지면 기능이 없는 것으로 보인다. 실패했다는 사실은 남긴다.
+        if (!cancelled) {
+          setState({ kind: "error", message: error instanceof Error ? error.message : "확인 실패" });
+        }
+      }
     };
     void load();
     // 사용량은 천천히 움직인다. 5분마다면 충분하고, 이 확인 자체도 호출을 쓴다.
@@ -35,7 +44,25 @@ export function EbayApiUsageBadge() {
     };
   }, []);
 
-  if (!data?.connected) return null;
+  if (!state) return null;
+
+  if (state.kind === "error") {
+    return (
+      <Link
+        href="/connect"
+        prefetch={false}
+        className="mx-3 mb-3 block rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-500"
+      >
+        <span className="font-semibold text-zinc-600">eBay API 사용량</span>
+        <span className="mt-1 block truncate" title={state.message}>
+          {state.message}
+        </span>
+      </Link>
+    );
+  }
+
+  const data = state.data;
+  if (!data.connected) return null;
 
   const percent = Math.round(data.busiestRate * 100);
   const color = tone(data.busiestRate);

@@ -497,10 +497,12 @@ export async function getShippingFulfillment(
  *
  * 이 호출 자체는 읽기이고 리스팅을 만들지 않는다.
  */
-export async function getEbayApiUsage(account: EbayAccount) {
+export async function getEbayApiUsage() {
   const config = getEbayConfig();
   const url = new URL("/developer/analytics/v1_beta/rate_limit/", config.hosts.api);
-  const { body } = await ebayFetch(account, url);
+  // 이 호출은 판매자 토큰이 아니라 앱 토큰으로 해야 한다. 판매자 토큰으로 부르면
+  // 거부되어 화면에 아무것도 뜨지 않는다.
+  const { body } = await ebayApplicationFetch(url);
   return body as {
     rateLimits?: Array<{
       apiName?: string;
