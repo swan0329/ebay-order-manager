@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("@/lib/orders", () => ({ syncOrdersForUser: vi.fn(), writeSyncLog: vi.fn() }));
 vi.mock("@/lib/services/shopifyOrderSync", () => ({ syncShopifyOrders: vi.fn() }));
+vi.mock("@/lib/services/ebayReturnSync", () => ({ syncReceivedEbayReturns: vi.fn() }));
 
 import { incrementalSyncStart } from "@/lib/scheduled-order-sync";
 

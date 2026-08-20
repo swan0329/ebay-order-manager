@@ -6,6 +6,7 @@ import { syncOrdersForUser, writeSyncLog } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { safeLog } from "@/lib/safe-log";
 import { syncShopifyOrders } from "@/lib/services/shopifyOrderSync";
+import { syncReceivedEbayReturns } from "@/lib/services/ebayReturnSync";
 
 export const EBAY_CRON_LOG_TYPE = "orders.sync.cron";
 export const SHOPIFY_CRON_LOG_TYPE = "shopify.orders.sync.cron";
@@ -56,6 +57,7 @@ export async function runScheduledOrderSync(now = new Date()) {
     ok: boolean;
     imported?: number;
     error?: string;
+    returns?: Awaited<ReturnType<typeof syncReceivedEbayReturns>>;
   }> = [];
   for (const account of accounts) {
     const ebayCursor = await lastSuccess(EBAY_CRON_LOG_TYPE, account.userId);
@@ -66,7 +68,20 @@ export async function runScheduledOrderSync(now = new Date()) {
         { modifiedDateFrom: ebayFrom.toISOString(), modifiedDateTo: now.toISOString() },
         { logType: EBAY_CRON_LOG_TYPE },
       );
-      ebayResults.push({ userId: account.userId, ok: true, ...result });
+      let returns: Awaited<ReturnType<typeof syncReceivedEbayReturns>>;
+      try {
+        const fullAccount = await prisma.ebayAccount.findFirstOrThrow({
+          where: { userId: account.userId, environment },
+          orderBy: { updatedAt: "desc" },
+        });
+        returns = await syncReceivedEbayReturns(fullAccount, now);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown eBay return sync error";
+        await writeSyncLog(account.userId, "ebay.returns.sync.cron", SyncStatus.FAILED, message);
+        returns = { fetched: 0, received: 0, restored: 0, skipped: 0, unsupported: false };
+        safeLog("warn", "ebay.returns.sync.failed", { userId: account.userId, message });
+      }
+      ebayResults.push({ userId: account.userId, ok: true, ...result, returns });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown eBay sync error";
       ebayResults.push({ userId: account.userId, ok: false, error: message });

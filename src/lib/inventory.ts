@@ -281,6 +281,55 @@ export async function restoreStockForCancelledOrder(orderId: string, createdBy?:
   return { restored: productIds.length, productIds: [...new Set(productIds)] };
 }
 
+export async function restoreStockForReturnedOrderItem(input: {
+  orderItemId: string;
+  returnQuantity: number;
+  returnId: string;
+  createdBy?: string | null;
+}) {
+  if (!Number.isInteger(input.returnQuantity) || input.returnQuantity <= 0) {
+    return { restored: 0, productIds: [] as string[], reason: "invalid_quantity" as const };
+  }
+
+  const item = await prisma.orderItem.findUnique({
+    where: { id: input.orderItemId },
+    include: { order: true },
+  });
+  if (!item?.stockDeducted || !item.productId) {
+    return { restored: 0, productIds: [] as string[], reason: "not_deducted" as const };
+  }
+
+  // stockDeducted is a boolean, so a partial return cannot be represented without
+  // making a later cancellation restore too much stock. Leave it for human review.
+  if (input.returnQuantity !== item.quantity) {
+    return { restored: 0, productIds: [] as string[], reason: "partial_return" as const };
+  }
+
+  let restoredProductId: string | null = null;
+  await prisma.$transaction(async (tx) => {
+    const current = await tx.orderItem.findUnique({ where: { id: input.orderItemId } });
+    if (!current?.stockDeducted || !current.productId) return;
+
+    await createInventoryMovementTx(tx, {
+      productId: current.productId,
+      type: "CANCEL_RESTORE",
+      quantity: current.quantity,
+      reason: `eBay return ${input.returnId} received for order ${item.order.externalOrderId}`,
+      relatedOrderId: item.orderId,
+      createdBy: input.createdBy,
+    });
+    await tx.orderItem.update({
+      where: { id: current.id },
+      data: { stockDeducted: false },
+    });
+    restoredProductId = current.productId;
+  });
+
+  return restoredProductId
+    ? { restored: 1, productIds: [restoredProductId], reason: "restored" as const }
+    : { restored: 0, productIds: [] as string[], reason: "not_deducted" as const };
+}
+
 export async function inventoryMovementsCsv(where: Prisma.InventoryMovementWhereInput = {}) {
   const movements = await prisma.inventoryMovement.findMany({
     where,

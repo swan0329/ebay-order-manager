@@ -9,11 +9,12 @@ const tx = {
 };
 const prismaMock = {
   order: { findUnique: vi.fn() },
+  orderItem: { findUnique: vi.fn() },
   $transaction: vi.fn(async (work: (client: typeof tx) => unknown) => work(tx)),
 };
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 
-const { restoreStockForCancelledOrder } = await import("@/lib/inventory");
+const { restoreStockForCancelledOrder, restoreStockForReturnedOrderItem } = await import("@/lib/inventory");
 
 describe("cancel/refund stock restoration", () => {
   beforeEach(() => {
@@ -48,5 +49,54 @@ describe("cancel/refund stock restoration", () => {
       where: { id: "line-1" },
       data: { stockDeducted: false },
     });
+  });
+});
+
+describe("received return stock restoration", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tx.product.findUnique.mockResolvedValue({ id: "product-1", stockQuantity: 0, status: "sold_out" });
+    tx.inventoryMovement.create.mockResolvedValue({ id: "movement-1" });
+  });
+
+  it("restores only a full returned line and remains idempotent", async () => {
+    prismaMock.orderItem.findUnique.mockResolvedValue({
+      id: "line-1",
+      orderId: "order-1",
+      productId: "product-1",
+      quantity: 1,
+      stockDeducted: true,
+      order: { externalOrderId: "external-1" },
+    });
+    tx.orderItem.findUnique
+      .mockResolvedValueOnce({ id: "line-1", productId: "product-1", quantity: 1, stockDeducted: true })
+      .mockResolvedValueOnce({ id: "line-1", productId: "product-1", quantity: 1, stockDeducted: false });
+
+    const first = await restoreStockForReturnedOrderItem({
+      orderItemId: "line-1", returnQuantity: 1, returnId: "return-1",
+    });
+    const second = await restoreStockForReturnedOrderItem({
+      orderItemId: "line-1", returnQuantity: 1, returnId: "return-1",
+    });
+
+    expect(first).toMatchObject({ restored: 1, reason: "restored" });
+    expect(second).toMatchObject({ restored: 0, reason: "not_deducted" });
+    expect(tx.inventoryMovement.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves partial returns for human review", async () => {
+    prismaMock.orderItem.findUnique.mockResolvedValue({
+      id: "line-1",
+      orderId: "order-1",
+      productId: "product-1",
+      quantity: 2,
+      stockDeducted: true,
+      order: { externalOrderId: "external-1" },
+    });
+
+    await expect(restoreStockForReturnedOrderItem({
+      orderItemId: "line-1", returnQuantity: 1, returnId: "return-1",
+    })).resolves.toMatchObject({ restored: 0, reason: "partial_return" });
+    expect(tx.inventoryMovement.create).not.toHaveBeenCalled();
   });
 });
