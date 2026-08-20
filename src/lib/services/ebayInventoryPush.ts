@@ -16,6 +16,7 @@ const CANCELLED = ["CANCELLED", "CANCELED", "CANCELLED_BY_SELLER"];
 const ACTIVE = ["ACTIVE", "PUBLISHED", "LISTED"];
 
 export type PushPlanRow = {
+  productId: string;
   sku: string;
   itemId: string;
   stock: number;
@@ -27,10 +28,13 @@ export type PushPlanRow = {
 export async function planEbayInventoryPush(input: { productIds?: string[] } = {}) {
   const products = await prisma.product.findMany({
     where: {
-      ebayItemId: { not: null },
-      listingStatus: { in: ACTIVE },
+      OR: [
+        { ebayItemId: { not: null }, listingStatus: { in: ACTIVE } },
+        { productListings: { some: { channel: "EBAY", status: { in: ACTIVE } } } },
+      ],
       ...(input.productIds?.length ? { id: { in: input.productIds } } : {}),
     },
+    include: { productListings: { where: { channel: "EBAY" }, take: 1 } },
   });
   if (!products.length) return { rows: [] as PushPlanRow[], missingPrice: [] as string[] };
 
@@ -59,6 +63,9 @@ export async function planEbayInventoryPush(input: { productIds?: string[] } = {
   const missingPrice: string[] = [];
 
   for (const product of products) {
+    const listing = product.productListings[0];
+    const itemId = listing?.externalId ?? product.ebayItemId;
+    if (!itemId) continue;
     const productReserved = reserved.get(product.id) ?? 0;
     // 가격을 못 정하는 상품은 수량만 맞춘다. 값을 지어내지 않는다.
     let price: number | null = null;
@@ -68,8 +75,9 @@ export async function planEbayInventoryPush(input: { productIds?: string[] } = {
     if (!price) missingPrice.push(product.sku);
 
     rows.push({
+      productId: product.id,
       sku: product.sku,
-      itemId: product.ebayItemId as string,
+      itemId,
       stock: product.stockQuantity,
       reserved: productReserved,
       quantity: sellableQuantity({
@@ -122,6 +130,17 @@ export async function pushEbayInventory(input: {
     price: input.quantityOnly ? null : row.price,
   }));
   const result = await reviseEbayPriceQuantity(account, targets);
+
+  const succeeded = new Set(result.succeeded);
+  await Promise.all(rows.filter((row) => succeeded.has(row.itemId)).map((row) =>
+    prisma.productListing.updateMany({
+      where: { productId: row.productId, channel: "EBAY" },
+      data: {
+        quantity: row.quantity,
+        ...(input.quantityOnly || row.price === null ? {} : { price: row.price }),
+      },
+    }),
+  ));
 
   return {
     dryRun: false,

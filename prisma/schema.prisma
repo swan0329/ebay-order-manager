@@ -208,6 +208,7 @@ model Product {
   uploadJobs          ProductUploadJob[]
   listingDrafts       ListingDraft[]
   listingLinks        InventoryListingLink[]
+  productListings     ProductListing[]
   pricingReviewItems  PricingReviewItem[]
   pocamarketSyncItems PocamarketSyncItem[]
   ebayActiveListings  EbayActiveListing[]
@@ -221,6 +222,26 @@ model Product {
   @@index([pocamarketLastAttemptAt])
   @@index([pocamarketSyncedAt])
   @@map("products")
+}
+
+model ProductListing {
+  id         String   @id @default(cuid())
+  productId  String   @map("product_id")
+  channel    String
+  externalId String   @map("external_id")
+  price      Decimal? @db.Decimal(12, 2)
+  quantity   Int?
+  status     String?
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, channel])
+  @@index([channel, externalId])
+  @@index([channel, status])
+  @@map("product_listings")
 }
 
 model EbayReportImport {
@@ -243,24 +264,24 @@ model EbayReportImport {
 }
 
 model EbayActiveListing {
-  id          String   @id @default(cuid())
-  importId    String   @map("import_id")
-  productId   String?  @map("product_id")
-  itemId      String   @map("item_id")
+  id          String    @id @default(cuid())
+  importId    String    @map("import_id")
+  productId   String?   @map("product_id")
+  itemId      String    @map("item_id")
   sku         String?
   title       String?
   // eBay에서 한 번 받아와 저장해 두는 대표 이미지. 연결 화면에서 카드를 눈으로
   // 대조하는 데 쓰며, 같은 리스팅을 다시 열어도 eBay를 다시 부르지 않는다.
-  imageUrl    String?  @map("image_url")
-  price       Decimal? @db.Decimal(12, 2)
+  imageUrl    String?   @map("image_url")
+  price       Decimal?  @db.Decimal(12, 2)
   quantity    Int?
   currency    String?
-  status      String   @default("ACTIVE")
-  matchStatus String   @default("UNMATCHED") @map("match_status")
+  status      String    @default("ACTIVE")
+  matchStatus String    @default("UNMATCHED") @map("match_status")
   // 사람이 이 리스팅을 상품에 연결한 시각. 방금 한 연결을 되짚어 풀 수 있게 남긴다.
   linkedAt    DateTime? @map("linked_at")
-  rawJson     Json?    @map("raw_json")
-  createdAt   DateTime @default(now()) @map("created_at")
+  rawJson     Json?     @map("raw_json")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   reportImport EbayReportImport @relation(fields: [importId], references: [id], onDelete: Cascade)
   product      Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
@@ -273,25 +294,25 @@ model EbayActiveListing {
 }
 
 model VariationListingState {
-  id                 String   @id @default(cuid())
-  userId             String   @map("user_id")
-  groupKey           String   @map("group_key")
-  parentSku          String   @map("parent_sku")
-  title              String
-  ebayItemId         String?  @map("ebay_item_id")
-  includedProductIds Json     @default("[]") @map("included_product_ids")
-  pendingProductIds  Json     @default("[]") @map("pending_product_ids")
-  thumbnailStatus    String   @default("MISSING") @map("thumbnail_status")
-  thumbnailUrl       String?  @map("thumbnail_url")
-  thumbnailKey       String?  @map("thumbnail_key")
-  thumbnailHash      String?  @map("thumbnail_hash")
-  thumbnailProductIds Json    @default("[]") @map("thumbnail_product_ids")
-  thumbnailError     String?  @map("thumbnail_error") @db.Text
+  id                   String    @id @default(cuid())
+  userId               String    @map("user_id")
+  groupKey             String    @map("group_key")
+  parentSku            String    @map("parent_sku")
+  title                String
+  ebayItemId           String?   @map("ebay_item_id")
+  includedProductIds   Json      @default("[]") @map("included_product_ids")
+  pendingProductIds    Json      @default("[]") @map("pending_product_ids")
+  thumbnailStatus      String    @default("MISSING") @map("thumbnail_status")
+  thumbnailUrl         String?   @map("thumbnail_url")
+  thumbnailKey         String?   @map("thumbnail_key")
+  thumbnailHash        String?   @map("thumbnail_hash")
+  thumbnailProductIds  Json      @default("[]") @map("thumbnail_product_ids")
+  thumbnailError       String?   @map("thumbnail_error") @db.Text
   thumbnailGeneratedAt DateTime? @map("thumbnail_generated_at")
-  lastExportedAt     DateTime? @map("last_exported_at")
-  lastConfirmedAt    DateTime? @map("last_confirmed_at")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  lastExportedAt       DateTime? @map("last_exported_at")
+  lastConfirmedAt      DateTime? @map("last_confirmed_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
   @@unique([userId, groupKey])
   @@unique([userId, parentSku])

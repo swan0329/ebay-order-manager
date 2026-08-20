@@ -7,6 +7,7 @@ import {
   ShopifyApiError,
   uploadProductToShopify,
 } from "@/lib/services/shopifyService";
+import { upsertProductListing } from "@/lib/services/productListingService";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -78,6 +79,19 @@ export async function POST(_request: Request, context: RouteContext) {
         shopifyVariantId: true,
         shopifyStatus: true,
         shopifyLastUploadedAt: true,
+      },
+    });
+    await upsertProductListing({
+      productId: id,
+      channel: "SHOPIFY",
+      externalId: result.productId,
+      price: product.ebayPrice ?? product.salePrice,
+      quantity: Math.max(product.stockQuantity - product.safetyStock - reserved, 0),
+      status: result.status,
+      metadata: {
+        variantId: result.variantId,
+        inventoryItemId: result.inventoryItemId,
+        source: "shopify_upload",
       },
     });
 

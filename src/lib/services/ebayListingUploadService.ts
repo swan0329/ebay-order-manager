@@ -6,6 +6,7 @@ import { addListingToPromotedCampaign } from "@/lib/services/ebayMarketingServic
 import { upsertProductFromListingInput } from "@/lib/services/inventoryService";
 import { draftToListingInput } from "@/lib/services/listingDraftService";
 import { publishProductListing } from "@/lib/services/listingService";
+import { upsertProductListing } from "@/lib/services/productListingService";
 import { validateListingUploadInput } from "@/lib/services/listingValidationService";
 
 function toJson(value: unknown): Prisma.InputJsonValue | Prisma.JsonNullValueInput {
@@ -178,6 +179,17 @@ export async function uploadDraft(userId: string, draft: ListingDraft) {
         uploadRawError: Prisma.JsonNull,
       },
     });
+    if (result.listingId) {
+      await upsertProductListing({
+        productId: product.id,
+        channel: "EBAY",
+        externalId: result.listingId,
+        price: input.price,
+        quantity: input.quantity,
+        status: result.listingStatus,
+        metadata: { offerId: result.offerId, source: "listing_upload" },
+      });
+    }
 
     return { draftId: draft.id, result, promotedStatus, promotedErrorSummary };
   } catch (error) {

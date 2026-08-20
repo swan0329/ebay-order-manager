@@ -8,6 +8,9 @@ const prismaMock = vi.hoisted(() => ({
   inventoryListingLink: {
     upsert: vi.fn(),
   },
+  productListing: {
+    upsert: vi.fn(),
+  },
   product: {
     update: vi.fn(),
   },
@@ -76,6 +79,7 @@ beforeEach(() => {
   addListingToPromotedCampaignMock.mockResolvedValue({ status: "active" });
   prismaMock.listingDraft.update.mockResolvedValue({});
   prismaMock.inventoryListingLink.upsert.mockResolvedValue({});
+  prismaMock.productListing.upsert.mockResolvedValue({});
   prismaMock.product.update.mockResolvedValue({});
 });
 
