@@ -78,6 +78,7 @@ export async function planEbayInventoryPush(input: { productIds?: string[]; user
     // 수정해야 한다. 부모 Item ID만 수량 0으로 보내면 묶음 전체가 내려갈 수 있다.
     const itemId = variation?.itemId ?? listing?.externalId ?? product.ebayItemId;
     if (!itemId) continue;
+    const listingMatchesTarget = listing?.externalId === itemId;
     const productReserved = reserved.get(product.id) ?? 0;
     // 가격을 못 정하는 상품은 수량만 맞춘다. 값을 지어내지 않는다.
     let price: number | null = null;
@@ -100,8 +101,10 @@ export async function planEbayInventoryPush(input: { productIds?: string[]; user
         safetyStock: product.safetyStock,
       }) : 0,
       price,
-      previousQuantity: listing?.quantity ?? null,
-      previousPrice: listing?.price == null ? null : Number(listing.price),
+      // 예전 단품 ProductListing 값을 묶음 옵션의 이전 값으로 비교하면 모든 옵션이
+      // 변동으로 잘못 뜬다. 현재 수정 대상 Item ID와 같은 전송 이력만 기준으로 쓴다.
+      previousQuantity: listingMatchesTarget ? listing?.quantity ?? null : null,
+      previousPrice: listingMatchesTarget && listing?.price != null ? Number(listing.price) : null,
       listingType: variation ? "VARIATION_OPTION" : "SINGLE",
       parentTitle: variation?.title ?? null,
     });
