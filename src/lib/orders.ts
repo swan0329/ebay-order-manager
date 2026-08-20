@@ -504,10 +504,6 @@ export async function shipOrders(userId: string, requests: ShipRequest[]) {
     orderBy: { updatedAt: "desc" },
   });
 
-  if (!account) {
-    throw new Error("eBay 계정이 아직 연결되지 않았습니다.");
-  }
-
   const results = [];
 
   for (const request of requests) {
@@ -553,16 +549,28 @@ export async function shipOrders(userId: string, requests: ShipRequest[]) {
     }));
 
     try {
-      if (!order.ebayOrderId) {
-        throw new Error("eBay 주문이 아니어서 eBay 배송을 등록할 수 없습니다.");
-      }
-      const fulfillment = await createShippingFulfillment(
-        account,
-        order.ebayOrderId,
-        lineItems,
-        carrierCode,
-        trackingNumber,
-      );
+      const fulfillment = order.channel === "SHOPIFY"
+        ? await (async () => {
+            const { createShopifyFulfillment } = await import(
+              "@/lib/services/shopifyFulfillment"
+            );
+            return createShopifyFulfillment({
+              orderId: order.externalOrderId,
+              carrierCode,
+              trackingNumber,
+            });
+          })()
+        : await (async () => {
+            if (!account) throw new Error("eBay 계정이 아직 연결되지 않았습니다.");
+            if (!order.ebayOrderId) throw new Error("eBay 주문번호가 없습니다.");
+            return createShippingFulfillment(
+              account,
+              order.ebayOrderId,
+              lineItems,
+              carrierCode,
+              trackingNumber,
+            );
+          })();
 
       await prisma.$transaction([
         prisma.shipment.upsert({
