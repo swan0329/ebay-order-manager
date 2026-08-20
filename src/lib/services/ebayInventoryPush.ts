@@ -5,6 +5,7 @@ import { getEbayConfig } from "@/lib/env";
 import { hasListingPrice, resolveListingPriceUsd } from "@/lib/listing-price";
 import { reservedByProduct, sellableQuantity } from "@/lib/stock-reservation";
 import { reviseEbayPriceQuantity, type ReviseTarget } from "@/lib/services/ebayRevise";
+import { getActiveVariationProductListings } from "@/lib/variation-selling-state";
 
 // eBay에 올려 둔 가격과 수량을 우리 값으로 맞춘다.
 //
@@ -27,14 +28,18 @@ export type PushPlanRow = {
   price: number | null;
   previousQuantity: number | null;
   previousPrice: number | null;
+  listingType: "SINGLE" | "VARIATION_OPTION";
+  parentTitle: string | null;
 };
 
-export async function planEbayInventoryPush(input: { productIds?: string[] } = {}) {
+export async function planEbayInventoryPush(input: { productIds?: string[]; userId?: string } = {}) {
+  const variationListings = input.userId ? await getActiveVariationProductListings(input.userId) : new Map<string, { itemId: string; title: string }>();
   const products = await prisma.product.findMany({
     where: {
       OR: [
         { ebayItemId: { not: null }, listingStatus: { in: ACTIVE } },
         { productListings: { some: { channel: "EBAY", status: { in: ACTIVE } } } },
+        ...(variationListings.size ? [{ id: { in: [...variationListings.keys()] } }] : []),
       ],
       ...(input.productIds?.length ? { id: { in: input.productIds } } : {}),
     },
@@ -68,7 +73,10 @@ export async function planEbayInventoryPush(input: { productIds?: string[] } = {
 
   for (const product of products) {
     const listing = product.productListings[0];
-    const itemId = listing?.externalId ?? product.ebayItemId;
+    const variation = variationListings.get(product.id);
+    // 옵션상품에 들어간 카드는 예전 단품 Item ID가 남아 있어도 부모 Item ID + SKU로
+    // 수정해야 한다. 부모 Item ID만 수량 0으로 보내면 묶음 전체가 내려갈 수 있다.
+    const itemId = variation?.itemId ?? listing?.externalId ?? product.ebayItemId;
     if (!itemId) continue;
     const productReserved = reserved.get(product.id) ?? 0;
     // 가격을 못 정하는 상품은 수량만 맞춘다. 값을 지어내지 않는다.
@@ -86,14 +94,16 @@ export async function planEbayInventoryPush(input: { productIds?: string[] } = {
       itemId,
       stock: product.stockQuantity,
       reserved: productReserved,
-      quantity: sellableQuantity({
+      quantity: product.status === "active" ? sellableQuantity({
         stock: product.stockQuantity,
         reserved: productReserved,
         safetyStock: product.safetyStock,
-      }),
+      }) : 0,
       price,
       previousQuantity: listing?.quantity ?? null,
       previousPrice: listing?.price == null ? null : Number(listing.price),
+      listingType: variation ? "VARIATION_OPTION" : "SINGLE",
+      parentTitle: variation?.title ?? null,
     });
   }
 
@@ -110,7 +120,7 @@ export async function pushEbayInventory(input: {
   /** 재고 자동화에서는 가격을 절대 건드리지 않는다. */
   quantityOnly?: boolean;
 }) {
-  const plan = await planEbayInventoryPush({ productIds: input.productIds });
+  const plan = await planEbayInventoryPush({ productIds: input.productIds, userId: input.userId });
   const rows = plan.rows.slice(0, Math.max(1, Math.min(200, input.limit ?? 100)));
 
   if (input.dryRun || !rows.length) {
@@ -141,12 +151,15 @@ export async function pushEbayInventory(input: {
 
   const succeeded = new Set(result.succeeded);
   await Promise.all(rows.filter((row) => succeeded.has(row.itemId)).map((row) =>
-    prisma.productListing.updateMany({
-      where: { productId: row.productId, channel: "EBAY" },
-      data: {
+    prisma.productListing.upsert({
+      where: { productId_channel: { productId: row.productId, channel: "EBAY" } },
+      update: {
         quantity: row.quantity,
         ...(input.quantityOnly || row.price === null ? {} : { price: row.price }),
+        externalId: row.itemId,
+        metadata: { listingType: row.listingType, sku: row.sku },
       },
+      create: { productId: row.productId, channel: "EBAY", externalId: row.itemId, quantity: row.quantity, price: input.quantityOnly ? null : row.price, status: "ACTIVE", metadata: { listingType: row.listingType, sku: row.sku } },
     }),
   ));
 

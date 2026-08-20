@@ -5,6 +5,7 @@ import { getEbayOperations, getShopifyOperations } from "@/lib/services/ebayOper
 import { pushEbayInventory } from "@/lib/services/ebayInventoryPush";
 import { issueListingPreviewToken, previewListingUpload, verifyListingPreviewToken } from "@/lib/services/listingUploadSafety";
 import { uploadShopifyProduct } from "@/lib/services/shopifyProductUpload";
+import { uploadShopifyVariationGroup } from "@/lib/services/shopifyVariationUpload";
 
 const executeSchema = z.object({
   action: z.enum(["CREATE", "CHANGE", "UNAVAILABLE"]),
@@ -32,10 +33,10 @@ export async function POST(request: Request) {
     const user = await requireApiUser();
     const input = executeSchema.parse(await request.json());
     if(input.channel==="SHOPIFY"){
-      const current=await getShopifyOperations();const source=input.action==="CREATE"?current.create:input.action==="CHANGE"?current.change:current.unavailable;const allowed=new Set(source.map(row=>row.productId));const productIds=[...new Set(input.productIds)];if(productIds.some(id=>!allowed.has(id)))return jsonError("현재 Shopify 대상이 아닌 상품이 포함되어 있습니다.",409);
-      if(input.dryRun)return Response.json({dryRun:true,planned:productIds.length,rows:source.filter(row=>productIds.includes(row.productId)),previewToken:issueListingPreviewToken(productIds)});
+      const current=await getShopifyOperations();const source=input.action==="CREATE"?current.create:input.action==="CHANGE"?current.change:current.unavailable;const allowed=new Set(source.map(row=>String(row.productId)));const productIds=[...new Set(input.productIds)];if(productIds.some(id=>!allowed.has(id)))return jsonError("현재 Shopify 대상이 아닌 상품이 포함되어 있습니다.",409);
+      if(input.dryRun)return Response.json({dryRun:true,planned:productIds.length,rows:source.filter(row=>productIds.includes(String(row.productId))),previewToken:issueListingPreviewToken(productIds)});
       if(!input.confirmed||!input.previewToken||!verifyListingPreviewToken(input.previewToken,productIds))return jsonError("유효한 Shopify 미리보기 후 최종 확인이 필요합니다.",409);
-      const results=[];for(const productId of productIds){try{results.push({productId,result:await uploadShopifyProduct(productId)})}catch(error){results.push({productId,error:error instanceof Error?error.message:"Shopify 전송 실패"})}}
+      const selectedRows=source.filter(row=>productIds.includes(String(row.productId)));const results=[];for(const row of selectedRows){try{const memberIds=("productIds" in row&&Array.isArray(row.productIds)?row.productIds:[row.productId]).filter((id):id is string=>typeof id==="string");results.push({productId:String(row.productId),result:memberIds.length>1?await uploadShopifyVariationGroup(memberIds):await uploadShopifyProduct(memberIds[0])})}catch(error){results.push({productId:String(row.productId),error:error instanceof Error?error.message:"Shopify 전송 실패"})}}
       return Response.json({succeeded:results.filter(row=>"result" in row).length,failed:results.filter(row=>"error" in row),results});
     }
     if (input.action === "CREATE") {

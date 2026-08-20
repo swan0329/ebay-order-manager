@@ -125,7 +125,7 @@ type ShopifyProductResponse = {
   product?: {
     id: number;
     status?: string;
-    variants?: Array<{ id: number; inventory_item_id?: number }>;
+    variants?: Array<{ id: number; inventory_item_id?: number; sku?: string }>;
   };
 };
 
@@ -137,6 +137,71 @@ export type ShopifyUploadResult = {
   action: "created" | "updated";
   inventorySynced: boolean;
 };
+
+export type ShopifyVariationUploadInput = {
+  sku: string;
+  optionName: string;
+  priceUsd: string;
+  quantity: number;
+  imageUrls: string[];
+  variantId?: string | null;
+};
+
+export type ShopifyVariationUploadResult = {
+  productId: string;
+  status: string | null;
+  variants: Array<{ sku: string; variantId: string; inventoryItemId: string | null; inventorySynced: boolean }>;
+};
+
+/** 한 묶음을 Shopify 상품 하나와 여러 옵션으로 만든다. */
+export async function upsertShopifyVariationProduct(
+  title: string,
+  items: ShopifyVariationUploadInput[],
+  existingProductId?: string | null,
+): Promise<ShopifyVariationUploadResult> {
+  if (items.length < 2) throw new Error("Shopify 묶음상품은 옵션이 두 개 이상이어야 합니다.");
+  const config = getShopifyConfig();
+  const images = [...new Set(items.flatMap((item) => item.imageUrls))];
+  const response = await shopifyApiRequest(config, {
+    method: existingProductId ? "PUT" : "POST",
+    path: existingProductId ? `/products/${existingProductId}.json` : "/products.json",
+    body: {
+      product: {
+        title,
+        product_type: "Photocard",
+        tags: "Kpop, Photocard",
+        status: "active",
+        options: [{ name: "Card" }],
+        variants: items.map((item) => ({
+          ...(item.variantId ? { id: Number(item.variantId) } : {}),
+          sku: item.sku,
+          option1: item.optionName,
+          price: item.priceUsd,
+          inventory_management: "shopify",
+        })),
+        ...(!existingProductId && images.length ? { images: images.map((src) => ({ src })) } : {}),
+      },
+    },
+  }) as ShopifyProductResponse;
+  const created = response.product;
+  if (!created?.id) throw new ShopifyApiError("Shopify가 묶음 상품 ID를 반환하지 않았습니다.", 502, response);
+  const bySku = new Map((created.variants ?? []).flatMap((variant) => variant.sku ? [[variant.sku, variant] as const] : []));
+  const variants = [];
+  for (const item of items) {
+    const variant = bySku.get(item.sku);
+    if (!variant) throw new ShopifyApiError(`Shopify가 ${item.sku} 옵션 ID를 반환하지 않았습니다.`, 502, response);
+    const inventoryItemId = variant.inventory_item_id ? String(variant.inventory_item_id) : null;
+    let inventorySynced = false;
+    if (inventoryItemId) {
+      await setShopifyInventoryLevel(config, inventoryItemId, item.quantity);
+      inventorySynced = true;
+    }
+    variants.push({ sku: item.sku, variantId: String(variant.id), inventoryItemId, inventorySynced });
+  }
+  const productId = String(created.id);
+  await setShopifyProductCategory(config, productId, PHOTOCARD_TAXONOMY_CATEGORY);
+  return { productId, status: created.status ?? null, variants };
+}
 
 /**
  * Push a single product to Shopify via the Admin REST API.

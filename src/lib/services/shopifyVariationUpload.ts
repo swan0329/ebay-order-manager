@@ -1,0 +1,54 @@
+import "server-only";
+
+import { prisma } from "@/lib/prisma";
+import { resolveListingPriceUsd } from "@/lib/listing-price";
+import { reservedByProduct, sellableQuantity } from "@/lib/stock-reservation";
+import { buildVariationListingGroups } from "@/lib/variation-listing-groups";
+import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
+import { upsertShopifyVariationProduct } from "@/lib/services/shopifyService";
+
+export async function uploadShopifyVariationGroup(productIds: string[]) {
+  const [storedProducts, readyImages] = await Promise.all([
+    prisma.product.findMany({ where: { id: { in: productIds } } }),
+    getVariationListingReadyImages(),
+  ]);
+  const readyImageById = new Map(readyImages.map((row) => [row.id, row.listingImageUrl]));
+  const products = storedProducts.map((product) => ({ ...product, imageUrl: readyImageById.get(product.id) ?? product.imageUrl }));
+  if (products.some((product) => !readyImageById.has(product.id))) throw new Error("최종 승인 이미지가 없는 Shopify 옵션이 포함되어 있습니다.");
+  const groups = buildVariationListingGroups(products).groups;
+  if (groups.length !== 1 || groups[0].products.length !== productIds.length) throw new Error("Shopify 묶음 구성이 변경되었습니다. 목록을 새로고침해 주세요.");
+  const group = groups[0];
+  const [settings, orderItems] = await Promise.all([
+    prisma.pricingSettings.findUnique({ where: { id: "default" } }),
+    prisma.orderItem.findMany({ where: { productId: { in: productIds }, stockDeducted: false }, select: { productId: true, quantity: true, stockDeducted: true, order: { select: { orderStatus: true, fulfillmentStatus: true } } } }),
+  ]);
+  if (!settings) throw new Error("가격 설정을 먼저 저장해 주세요.");
+  const cancelled = ["CANCELLED", "CANCELED", "CANCELLED_BY_SELLER"];
+  const reserved = reservedByProduct(orderItems.map((line) => ({ productId: line.productId as string, quantity: line.quantity, stockDeducted: line.stockDeducted, orderCancelled: cancelled.includes(line.order.orderStatus) || cancelled.includes(line.order.fulfillmentStatus) })));
+  const items = group.products.map((product) => {
+    const price = resolveListingPriceUsd(product, settings);
+    if (!price) throw new Error(`${product.sku}: 판매가를 계산할 수 없습니다.`);
+    return {
+      sku: product.sku,
+      optionName: product.variationName,
+      priceUsd: price.priceUsd.toString(),
+      quantity: product.status === "active" ? sellableQuantity({ stock: product.stockQuantity, reserved: reserved.get(product.id) ?? 0, safetyStock: product.safetyStock }) : 0,
+      imageUrls: [...new Set([...(product.ebayImageUrls ?? []), product.imageUrl ?? ""].filter(Boolean))],
+      variantId: product.shopifyVariantId,
+    };
+  });
+  const existingIds = [...new Set(products.flatMap((product) => product.shopifyProductId ? [product.shopifyProductId] : []))];
+  if (existingIds.length > 1) throw new Error("같은 Shopify 묶음에 서로 다른 상품 ID가 연결되어 있습니다.");
+  const result = await upsertShopifyVariationProduct(group.title, items, existingIds[0]);
+  const variants = new Map(result.variants.map((variant) => [variant.sku, variant]));
+  await prisma.$transaction(group.products.flatMap((product) => {
+    const variant = variants.get(product.sku)!;
+    const item = items.find((candidate) => candidate.sku === product.sku)!;
+    const metadata = { variantId: variant.variantId, inventoryItemId: variant.inventoryItemId, groupKey: group.key, optionName: product.variationName, source: "shopify_variation_upload" };
+    return [
+      prisma.product.update({ where: { id: product.id }, data: { shopifyProductId: result.productId, shopifyVariantId: variant.variantId, shopifyInventoryItemId: variant.inventoryItemId, shopifyStatus: result.status, shopifyLastUploadedAt: new Date(), shopifyUploadError: null } }),
+      prisma.productListing.upsert({ where: { productId_channel: { productId: product.id, channel: "SHOPIFY" } }, update: { externalId: result.productId, price: item.priceUsd, quantity: item.quantity, status: result.status, metadata }, create: { productId: product.id, channel: "SHOPIFY", externalId: result.productId, price: item.priceUsd, quantity: item.quantity, status: result.status, metadata } }),
+    ];
+  }));
+  return result;
+}
