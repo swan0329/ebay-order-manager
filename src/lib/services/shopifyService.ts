@@ -265,6 +265,7 @@ export async function uploadProductToShopify(
   extras?: ProductImageExtras,
   // 아직 처리하지 않은 주문이 잡아 둔 수량. 주면 그만큼 빼고 올린다.
   reservedQuantity?: number,
+  priceOverrideUsd?: string,
 ): Promise<ShopifyUploadResult> {
   const config = getShopifyConfig();
 
@@ -288,7 +289,7 @@ export async function uploadProductToShopify(
         .filter(Boolean),
     ),
   );
-  const price = decimalToPriceString(product.ebayPrice ?? product.salePrice);
+  const price = priceOverrideUsd ?? decimalToPriceString(product.ebayPrice ?? product.salePrice);
   const images = collectImageUrls(product);
 
   const variant: Record<string, unknown> = {

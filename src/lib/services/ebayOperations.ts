@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { planEbayInventoryPush } from "@/lib/services/ebayInventoryPush";
 import { resolveListingPriceUsd } from "@/lib/listing-price";
+import { reservedByProduct, sellableQuantity } from "@/lib/stock-reservation";
 
 const ACTIVE = ["ACTIVE", "PUBLISHED", "LISTED"];
 
@@ -96,4 +97,15 @@ export async function getEbayOperations(userId: string) {
     ],
     limits: { createBatch: 50, reviseBatch: 200 },
   };
+}
+
+export async function getShopifyOperations(){
+ const [products,settings]=await Promise.all([prisma.product.findMany({where:{OR:[{shopifyProductId:{not:null}},{productListings:{some:{channel:"SHOPIFY"}}},{AND:[{shopifyProductId:null},{OR:[{imageUrl:{not:null}},{ebayImageUrls:{isEmpty:false}}]},{OR:[{salePrice:{not:null}},{ebayPrice:{not:null}}]},{OR:[{stockQuantity:{gt:0}},{pocamarketAvailableCount:{gt:0},isSoldOut:false}]}]}]},include:{productListings:{where:{channel:"SHOPIFY"},take:1}},orderBy:{updatedAt:"desc"},take:500}),prisma.pricingSettings.findUnique({where:{id:"default"}})]);
+ const lines=await prisma.orderItem.findMany({where:{productId:{in:products.map(p=>p.id)},stockDeducted:false},select:{productId:true,quantity:true,stockDeducted:true,order:{select:{orderStatus:true,fulfillmentStatus:true}}}});const cancelled=["CANCELLED","CANCELED","CANCELLED_BY_SELLER"];
+ const reserved=reservedByProduct(lines.map(line=>({productId:line.productId as string,quantity:line.quantity,stockDeducted:line.stockDeducted,orderCancelled:cancelled.includes(line.order.orderStatus)||cancelled.includes(line.order.fulfillmentStatus)})));
+ const mapped=products.map(product=>{const listing=product.productListings[0];const quantity=sellableQuantity({stock:product.stockQuantity,reserved:reserved.get(product.id)??0,safetyStock:product.safetyStock});const price=settings?Number(resolveListingPriceUsd(product,settings)?.priceUsd??0)||null:null;return{productId:product.id,sku:product.sku,productName:product.productName,itemId:listing?.externalId??product.shopifyProductId??"-",quantity,price,previousQuantity:listing?.quantity??null,previousPrice:listing?.price==null?null:Number(listing.price),productStatus:product.status,linked:Boolean(listing?.externalId??product.shopifyProductId)}});
+ const create=mapped.filter(row=>!row.linked&&row.quantity>0).map(row=>({id:`product:${row.productId}`,productId:row.productId,sku:row.sku,name:row.productName,price:row.price,quantity:Math.max(1,row.quantity),status:"준비완료",error:null}));
+ const linked=mapped.filter(row=>row.linked),unavailable=linked.filter(row=>row.quantity===0||row.productStatus!=="active").map(row=>({...row,reason:row.productStatus!=="active"?"판매중지" as const:"품절" as const}));const unavailableIds=new Set(unavailable.map(row=>row.productId));
+ const change=linked.filter(row=>!unavailableIds.has(row.productId)&&(row.previousQuantity!==row.quantity||priceChanged(row.price,row.previousPrice)));
+ return{create,change,unavailable,limits:{createBatch:50,reviseBatch:100}};
 }

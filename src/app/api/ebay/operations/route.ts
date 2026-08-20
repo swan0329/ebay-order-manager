@@ -2,10 +2,11 @@ import { z } from "zod";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
-import { getEbayOperations } from "@/lib/services/ebayOperations";
+import { getEbayOperations, getShopifyOperations } from "@/lib/services/ebayOperations";
 import { pushEbayInventory } from "@/lib/services/ebayInventoryPush";
 import { issueListingPreviewToken, previewListingUpload, verifyListingPreviewToken } from "@/lib/services/listingUploadSafety";
 import { createDraftsFromInventory } from "@/lib/services/listingDraftService";
+import { uploadShopifyProduct } from "@/lib/services/shopifyProductUpload";
 
 const executeSchema = z.object({
   action: z.enum(["CREATE", "CHANGE", "UNAVAILABLE"]),
@@ -13,14 +14,15 @@ const executeSchema = z.object({
   dryRun: z.boolean().default(true),
   confirmed: z.boolean().default(false),
   previewToken: z.string().optional(),
+  channel: z.enum(["EBAY","SHOPIFY"]).default("EBAY"),
 });
 
 export const maxDuration = 300;
 
-export async function GET() {
+export async function GET(request:Request) {
   try {
     const user = await requireApiUser();
-    return Response.json(await getEbayOperations(user.id));
+    return Response.json(new URL(request.url).searchParams.get("channel")==="SHOPIFY"?await getShopifyOperations():await getEbayOperations(user.id));
   } catch (error) {
     if (error instanceof UnauthorizedError) return jsonError("Unauthorized", 401);
     return jsonError(asErrorMessage(error), 500);
@@ -31,6 +33,13 @@ export async function POST(request: Request) {
   try {
     const user = await requireApiUser();
     const input = executeSchema.parse(await request.json());
+    if(input.channel==="SHOPIFY"){
+      const current=await getShopifyOperations();const source=input.action==="CREATE"?current.create:input.action==="CHANGE"?current.change:current.unavailable;const allowed=new Set(source.map(row=>row.productId));const productIds=[...new Set(input.productIds)];if(productIds.some(id=>!allowed.has(id)))return jsonError("현재 Shopify 대상이 아닌 상품이 포함되어 있습니다.",409);
+      if(input.dryRun)return Response.json({dryRun:true,planned:productIds.length,rows:source.filter(row=>productIds.includes(row.productId)),previewToken:issueListingPreviewToken(productIds)});
+      if(!input.confirmed||!input.previewToken||!verifyListingPreviewToken(input.previewToken,productIds))return jsonError("유효한 Shopify 미리보기 후 최종 확인이 필요합니다.",409);
+      const results=[];for(const productId of productIds){try{results.push({productId,result:await uploadShopifyProduct(productId)})}catch(error){results.push({productId,error:error instanceof Error?error.message:"Shopify 전송 실패"})}}
+      return Response.json({succeeded:results.filter(row=>"result" in row).length,failed:results.filter(row=>"error" in row),results});
+    }
     if (input.action === "CREATE") {
       if (!input.dryRun) return jsonError("신규등록 실행은 서명된 신규등록 경로를 사용해 주세요.", 409);
       const current = await getEbayOperations(user.id);

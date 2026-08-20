@@ -60,6 +60,8 @@
 
 `GET /api/ebay/operations`는 신규등록·가격/재고 변동·품절/판매중지 대상을 현재 내부 값과 마지막 eBay 전송값으로 분류한다. `POST /api/ebay/operations`는 선택한 변동 또는 품절 항목을 먼저 `dryRun=true`로 보여 주며, 실제 전송은 `confirmed=true`가 필요하다.
 
+`GET /api/ebay/operations?channel=EBAY|SHOPIFY`는 마켓별 연결 상태와 마지막 전송값을 독립적으로 비교한다. `POST`에도 같은 `channel`을 보내며 미리보기 토큰은 선택 상품과 채널 실행 경로에서 확인된다. Shopify 신규등록·변동·품절은 Shopify 상품/재고 API만 호출하고 eBay에는 쓰지 않는다.
+
 `GET/PUT /api/automation/rules`는 재고 0 리스팅 규칙과 최근 이벤트를 다룬다. 기본 모드는 `NOTIFY`이며 `AUTOMATIC` 저장은 현재 대상 미리보기와 명시적 확인을 요구한다.
 
 ## 이미지
