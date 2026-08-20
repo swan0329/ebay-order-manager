@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { EbayApiUsageBadge } from "@/components/EbayApiUsageBadge";
 import { useEffect, useRef, useState } from "react";
 import {
   Camera, ChevronRight, Images, Menu, Package, PackageOpen, PlugZap,
@@ -72,10 +73,11 @@ export function TopNav({loginId}:{loginId:string}){
       <div className="border-b border-zinc-100 px-5 py-5"><Link href="/orders" prefetch={false} className="block"><span className="block text-lg font-black tracking-tight text-zinc-950">eBay Manager</span><span className="mt-0.5 block text-xs text-zinc-400">포토카드 운영 시스템</span></Link></div>
       {syncActive&&<Link href="/pocamarket-sync" className="mx-3 mt-3 rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs text-violet-900"><span className="flex items-center justify-between font-semibold"><span className="flex items-center gap-1.5"><RefreshCw className="h-3.5 w-3.5 animate-spin"/>포카 최신화 중</span><span>{syncProgress.scannedCount}/{syncProgress.totalCount}</span></span><span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-violet-100"><span className="block h-full bg-violet-600" style={{width:`${syncPercent}%`}}/></span></Link>}
       <div className="min-h-0 flex-1 overflow-y-auto"><Navigation pathname={pathname} counts={counts}/></div>
+      <EbayApiUsageBadge/>
       <div className="border-t border-zinc-100 p-4"><div className="mb-3 flex items-center gap-3 rounded-xl bg-zinc-50 p-3"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100 text-sm font-bold text-violet-700">{loginId.slice(0,1).toUpperCase()}</span><div className="min-w-0"><p className="truncate text-sm font-semibold text-zinc-800">{loginId}</p><p className="text-[11px] text-zinc-400">관리자 계정</p></div></div><LogoutButton/></div>
     </aside>
 
     <header className="sticky top-0 z-50 border-b border-zinc-200 bg-white/95 backdrop-blur md:hidden"><div className="flex h-14 items-center justify-between px-4"><Link href="/orders" prefetch={false} className="font-bold text-zinc-950">eBay Manager</Link>{syncActive&&<Link href="/pocamarket-sync" className="text-xs font-semibold text-violet-700">{syncProgress.scannedCount}/{syncProgress.totalCount} · {syncPercent}%</Link>}<button type="button" onClick={()=>setOpen(value=>!value)} aria-label={open?"메뉴 닫기":"메뉴 열기"} className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white">{open?<X className="h-5 w-5"/>:<Menu className="h-5 w-5"/>}</button></div></header>
-    {open&&<div className="fixed inset-0 top-14 z-40 overflow-y-auto bg-white md:hidden"><Navigation pathname={pathname} onNavigate={()=>setOpen(false)} counts={counts}/><div className="border-t p-4"><p className="mb-3 text-sm text-zinc-500">{loginId}</p><LogoutButton/></div></div>}
+    {open&&<div className="fixed inset-0 top-14 z-40 overflow-y-auto bg-white md:hidden"><Navigation pathname={pathname} onNavigate={()=>setOpen(false)} counts={counts}/><EbayApiUsageBadge/><div className="border-t p-4"><p className="mb-3 text-sm text-zinc-500">{loginId}</p><LogoutButton/></div></div>}
   </>;
 }
