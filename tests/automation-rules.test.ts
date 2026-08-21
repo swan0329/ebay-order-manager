@@ -14,13 +14,14 @@ vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 vi.mock("@/lib/ebay-environment", () => ({ currentEbayEnvironment: () => "PRODUCTION" }));
 vi.mock("@/lib/safe-log", () => ({ safeLog: vi.fn() }));
 vi.mock("@/lib/services/ebayEndListing", () => ({ endEbayListing: endMock }));
+vi.mock("@/lib/variation-selling-state", () => ({ getActiveVariationProductListings: vi.fn().mockResolvedValue(new Map()) }));
 
 const { runZeroStockRule } = await import("@/lib/services/automationRules");
 
 describe("zero stock automation rule", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    prismaMock.product.findMany.mockResolvedValue([{ id: "p1", sku: "S1", productName: "Card", stockQuantity: 0, updatedAt: new Date("2026-08-20T00:00:00Z"), ebayItemId: "item-1", productListings: [] }]);
+    prismaMock.product.findMany.mockResolvedValue([{ id: "p1", sku: "S1", productName: "Card", stockQuantity: 0, safetyStock: 0, status: "active", isSoldOut: true, pocamarketAvailableCount: 0, pocamarketSyncedAt: new Date(), updatedAt: new Date("2026-08-20T00:00:00Z"), ebayItemId: "item-1", productListings: [] }]);
     prismaMock.automationEvent.upsert.mockResolvedValue({ id: "event-1", status: "NOTIFIED" });
   });
 
@@ -40,5 +41,13 @@ describe("zero stock automation rule", () => {
     const result = await runZeroStockRule({ userId: "u1", productIds: ["p1"] });
     expect(result).toMatchObject({ ended: 1, failed: 0 });
     expect(endMock).toHaveBeenCalledWith(expect.objectContaining({ id: "a1" }), "item-1");
+  });
+
+  it("does not end a listing when PocaMarket can still procure it", async () => {
+    prismaMock.product.findMany.mockResolvedValue([{ id: "p1", sku: "S1", productName: "Card", stockQuantity: 0, safetyStock: 0, status: "active", isSoldOut: false, pocamarketAvailableCount: 3, pocamarketSyncedAt: new Date(), updatedAt: new Date(), ebayItemId: "item-1", productListings: [] }]);
+    prismaMock.automationRule.upsert.mockResolvedValue({ id: "rule-1", enabled: true, mode: "AUTOMATIC" });
+    const result = await runZeroStockRule({ userId: "u1", productIds: ["p1"] });
+    expect(result).toMatchObject({ candidates: 0, ended: 0 });
+    expect(endMock).not.toHaveBeenCalled();
   });
 });

@@ -33,7 +33,7 @@ export async function PUT(request: Request) {
   try {
     const user = await requireApiUser();
     const input = inputSchema.parse(await request.json());
-    const candidates = await previewZeroStockListings();
+    const candidates = await previewZeroStockListings(user.id);
     if (input.dryRun) {
       return Response.json({ dryRun: true, input, candidates });
     }
