@@ -120,7 +120,16 @@ export function parseEbayActiveReport(buffer: Buffer): EbayActiveReportRow[] {
 }
 
 type ResolvableRow = { itemId: string; sku: string | null };
-type MatchingProduct = { id: string; sku: string; ebayItemId: string | null };
+type MatchingProduct = {
+  id: string;
+  sku: string;
+  ebayItemId: string | null;
+  productListings: Array<{ externalId: string }>;
+};
+
+function ebayItemIdOf(product: MatchingProduct) {
+  return product.productListings[0]?.externalId ?? product.ebayItemId;
+}
 
 async function loadMatchingProducts(
   rows: ResolvableRow[],
@@ -133,9 +142,15 @@ async function loadMatchingProducts(
       OR: [
         ...(skus.length ? [{ sku: { in: skus } }] : []),
         ...(itemIds.length ? [{ ebayItemId: { in: itemIds } }] : []),
+        ...(itemIds.length ? [{ productListings: { some: { channel: "EBAY", externalId: { in: itemIds } } } }] : []),
       ],
     },
-    select: { id: true, sku: true, ebayItemId: true },
+    select: {
+      id: true,
+      sku: true,
+      ebayItemId: true,
+      productListings: { where: { channel: "EBAY" }, select: { externalId: true }, take: 1 },
+    },
   });
 }
 
@@ -146,10 +161,11 @@ function resolveActiveListingMatches<T extends ResolvableRow>(
   const productBySku = new Map(products.map((product) => [product.sku, product]));
   const productsByItemId = new Map<string, MatchingProduct[]>();
   for (const product of products) {
-    if (!product.ebayItemId) continue;
-    const list = productsByItemId.get(product.ebayItemId) ?? [];
+    const itemId = ebayItemIdOf(product);
+    if (!itemId) continue;
+    const list = productsByItemId.get(itemId) ?? [];
     list.push(product);
-    productsByItemId.set(product.ebayItemId, list);
+    productsByItemId.set(itemId, list);
   }
   const skuCounts = new Map<string, number>();
   for (const row of rows) {
@@ -158,7 +174,8 @@ function resolveActiveListingMatches<T extends ResolvableRow>(
 
   return rows.map((row) => {
     // 1) eBay Item ID로 우선 매칭한다. 이 프로그램에서 올린 상품은 등록 시
-    //    product.ebayItemId에 eBay Item ID가 저장되므로 가장 확실한 식별자다.
+    //    ProductListing의 eBay Item ID가 가장 확실한 식별자다. 이전 상품 열은
+    //    이관 전 데이터 호환용으로만 뒤에서 사용한다.
     const itemIdMatches = productsByItemId.get(row.itemId) ?? [];
     if (itemIdMatches.length === 1) {
       return { row, product: itemIdMatches[0] as MatchingProduct | null, matchStatus: "MATCHED" };
@@ -173,7 +190,7 @@ function resolveActiveListingMatches<T extends ResolvableRow>(
     let matchStatus = "MATCHED";
     if (!row.sku || !product) matchStatus = "UNMATCHED";
     else if ((skuCounts.get(row.sku) ?? 0) > 1) matchStatus = "DUPLICATE";
-    else if (product.ebayItemId && product.ebayItemId !== row.itemId) {
+    else if (ebayItemIdOf(product) && ebayItemIdOf(product) !== row.itemId) {
       matchStatus = "CONFLICT";
     }
     return {
@@ -186,8 +203,32 @@ function resolveActiveListingMatches<T extends ResolvableRow>(
 
 async function applyMatchedProductUpdates(
   tx: Prisma.TransactionClient,
-  updates: Array<{ productId: string; itemId: string }>,
+  updates: Array<{ productId: string; itemId: string; price: number | null; quantity: number | null }>,
 ) {
+  if (!updates.length) return;
+  const productIds = [...new Set(updates.map((update) => update.productId))];
+  const existing = await tx.productListing.findMany({
+    where: { productId: { in: productIds }, channel: "EBAY" },
+    select: { productId: true },
+  });
+  const existingIds = new Set(existing.map((listing) => listing.productId));
+  // 마이그레이션 이후 새로 수동 연결한 상품처럼 채널 행이 없는 예외도 보고서
+  // 수집 시 한 번만 만들어 둔다. 기존 행의 메타데이터는 아래 UPDATE가 보존한다.
+  const missing = updates.filter((update) => !existingIds.has(update.productId));
+  if (missing.length) {
+    await tx.productListing.createMany({
+      data: missing.map((update) => ({
+        productId: update.productId,
+        channel: "EBAY",
+        externalId: update.itemId,
+        price: update.price,
+        quantity: update.quantity,
+        status: "ACTIVE",
+        metadata: { source: "ebay_active_report" },
+      })),
+      skipDuplicates: true,
+    });
+  }
   // 가격(ebay_price)은 포카마켓가+마진 계산이 소유하므로 여기서 건드리지 않는다.
   // 연결 정보(Item ID)와 활성 상태만 갱신한다.
   for (let index = 0; index < updates.length; index += 500) {
@@ -206,6 +247,26 @@ async function applyMatchedProductUpdates(
         )}
       ) AS v("product_id", "item_id")
       WHERE p."id" = v."product_id"
+    `;
+    // 상품별 eBay 마지막 실제값도 같은 보고서에서 갱신한다. 마이그레이션으로
+    // 이미 만들어진 ProductListing을 일괄 UPDATE하므로 수천 행 보고서도 요청
+    // 시간 안에 처리하며, 개별 upsert로 인한 부분·지연 저장을 피한다.
+    await tx.$executeRaw`
+      UPDATE "product_listings" AS pl
+      SET
+        "external_id" = v."item_id",
+        "price" = v."price",
+        "quantity" = v."quantity",
+        "status" = 'ACTIVE',
+        "updated_at" = CURRENT_TIMESTAMP
+      FROM (
+        VALUES ${Prisma.join(
+          chunk.map(
+            (update) => Prisma.sql`(${update.productId}, ${update.itemId}, ${update.price}, ${update.quantity})`,
+          ),
+        )}
+      ) AS v("product_id", "item_id", "price", "quantity")
+      WHERE pl."product_id" = v."product_id" AND pl."channel" = 'EBAY'
     `;
   }
 }
@@ -284,6 +345,17 @@ export async function importEbayActiveReport(input: {
         data: { listingStatus: "ENDED" },
       });
       endedCount = ended.count;
+      await tx.productListing.updateMany({
+        where: {
+          channel: "EBAY",
+          externalId: { notIn: importedItemIds },
+          OR: [
+            { status: null },
+            { status: { in: ["ACTIVE", "PUBLISHED", "LISTED"] } },
+          ],
+        },
+        data: { status: "ENDED" },
+      });
     }
 
     const report = await tx.ebayReportImport.create({
@@ -322,6 +394,8 @@ export async function importEbayActiveReport(input: {
       matched.map(({ row, product }) => ({
         productId: product!.id,
         itemId: row.itemId,
+        price: row.price,
+        quantity: row.quantity,
       })),
     );
 
@@ -356,6 +430,8 @@ export async function rematchLatestEbayReport(userId: string) {
           itemId: true,
           sku: true,
           title: true,
+          price: true,
+          quantity: true,
           productId: true,
           matchStatus: true,
         },
@@ -388,6 +464,7 @@ export async function rematchLatestEbayReport(userId: string) {
         id: true,
         sku: true,
         ebayItemId: true,
+        productListings: { where: { channel: "EBAY" }, select: { externalId: true }, take: 1 },
         productName: true,
         optionName: true,
         category: true,
@@ -411,6 +488,7 @@ export async function rematchLatestEbayReport(userId: string) {
           id: match.product.id,
           sku: match.product.sku,
           ebayItemId: match.product.ebayItemId,
+          productListings: match.product.productListings,
         };
         // 제목 매칭은 완전일치보다 확신도가 낮아 사람이 확인하도록 별도 상태로 남긴다.
         entry.matchStatus = "TITLE_MATCHED";
@@ -453,6 +531,8 @@ export async function rematchLatestEbayReport(userId: string) {
         matched.map(({ row, product }) => ({
           productId: product!.id,
           itemId: row.itemId,
+          price: row.price == null ? null : Number(row.price),
+          quantity: row.quantity,
         })),
       );
       await reconcileVariationListingStates(tx, {
