@@ -69,7 +69,11 @@ export default async function ProductDetailPage({
   const uploadError = product.uploadError ?? product.listingDrafts[0]?.errorSummary;
   // 채널 식별자의 기준은 ProductListing이다. 이전 열은 이미 저장돼 있는 상품을
   // 읽는 동안만 뒤로 물러난 호환값으로 쓴다.
-  const ebayListing = product.productListings.find((listing) => listing.channel === "EBAY");
+  const ebayListing = product.productListings.find(
+    (listing) =>
+      listing.channel === "EBAY" &&
+      (listing.status == null || ["ACTIVE", "PUBLISHED", "LISTED"].includes(listing.status)),
+  );
   const shopifyListing = product.productListings.find((listing) => listing.channel === "SHOPIFY");
   const ebayExternalId = ebayListing?.externalId ?? product.ebayItemId;
   const shopifyExternalId = shopifyListing?.externalId ?? product.shopifyProductId;

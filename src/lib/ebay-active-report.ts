@@ -595,7 +595,14 @@ export async function linkEbayActiveListing(
   }
   const listing = await prisma.ebayActiveListing.findFirst({
     where: { importId: latestReport.id, itemId: input.itemId },
-    select: { id: true, itemId: true, productId: true, title: true },
+    select: {
+      id: true,
+      itemId: true,
+      productId: true,
+      title: true,
+      price: true,
+      quantity: true,
+    },
   });
   if (!listing) {
     throw new EbayListingLinkError(
@@ -617,10 +624,31 @@ export async function linkEbayActiveListing(
         optionName: true,
         productName: true,
         ebayTitle: true,
+        productListings: {
+          where: { channel: "EBAY" },
+          select: { externalId: true, status: true },
+        },
       },
     }),
     prisma.product.findFirst({
-      where: { ebayItemId: input.itemId, id: { not: input.productId } },
+      where: {
+        id: { not: input.productId },
+        OR: [
+          { ebayItemId: input.itemId },
+          {
+            productListings: {
+              some: {
+                channel: "EBAY",
+                externalId: input.itemId,
+                OR: [
+                  { status: null },
+                  { status: { in: ["ACTIVE", "PUBLISHED", "LISTED"] } },
+                ],
+              },
+            },
+          },
+        ],
+      },
       select: { id: true, sku: true },
     }),
   ]);
@@ -635,8 +663,16 @@ export async function linkEbayActiveListing(
       "선택한 리스팅은 이 카드의 그룹·멤버·앨범과 충분히 일치하지 않아 연결할 수 없습니다.",
     );
   }
+  // ProductListing이 현재 채널의 기준이다. UNLINKED/ENDED는 과거 이력이라
+  // 대표 연결로 쓰지 않고, 이전 열은 아직 이관되지 않은 상품의 호환값으로만 쓴다.
+  const linkedListing = product.productListings?.find(
+    (candidate) =>
+      candidate.status == null ||
+      ["ACTIVE", "PUBLISHED", "LISTED"].includes(candidate.status),
+  );
+  const primaryItemId = linkedListing?.externalId ?? product.ebayItemId;
   const otherItemId =
-    product.ebayItemId && product.ebayItemId !== input.itemId ? product.ebayItemId : null;
+    primaryItemId && primaryItemId !== input.itemId ? primaryItemId : null;
   if (otherItemId && !input.replaceExisting && !input.allowMultiple) {
     throw new EbayListingLinkError(
       `이 상품에는 이미 다른 상품번호(${otherItemId})가 연결되어 있습니다.`,
@@ -665,6 +701,30 @@ export async function linkEbayActiveListing(
       where: { id: listing.id },
       data: { productId: product.id, matchStatus: "MATCHED", linkedAt: new Date() },
     });
+    // 여러 활성 리스팅을 하나의 카드에 "함께 연결"할 때는 ProductListing의
+    // 대표 외부 ID를 바꾸지 않는다. 그 추가 연결은 EbayActiveListing에만 남는다.
+    if (!addedAlongside) {
+      await tx.productListing.upsert({
+        where: {
+          productId_channel: { productId: product.id, channel: "EBAY" },
+        },
+        update: {
+          externalId: listing.itemId,
+          price: listing.price,
+          quantity: listing.quantity,
+          status: "ACTIVE",
+        },
+        create: {
+          productId: product.id,
+          channel: "EBAY",
+          externalId: listing.itemId,
+          price: listing.price,
+          quantity: listing.quantity,
+          status: "ACTIVE",
+          metadata: { source: "manual_active_listing_link" },
+        },
+      });
+    }
     await tx.product.update({
       where: { id: product.id },
       // 함께 연결이면 대표 상품번호는 먼저 붙은 것을 그대로 둔다. 상품이 지닐 수
@@ -694,10 +754,84 @@ export async function unlinkEbayActiveListing(userId: string, listingId: string)
 
   await prisma.$transaction(async (tx) => {
     if (listing.productId) {
-      await tx.product.updateMany({
-        where: { id: listing.productId, ebayItemId: listing.itemId },
-        data: { ebayItemId: null, listingStatus: null },
-      });
+      const [channelListing, replacement] = await Promise.all([
+        tx.productListing.findUnique({
+          where: {
+            productId_channel: { productId: listing.productId, channel: "EBAY" },
+          },
+          select: { externalId: true },
+        }),
+        // 같은 카드에 연결된 다른 활성 리스팅이 있으면 대표 연결을 그쪽으로
+        // 넘긴다. 한 옵션을 해제했다고 카드 전체 연결이 사라지지 않게 한다.
+        tx.ebayActiveListing.findFirst({
+          where: {
+            productId: listing.productId,
+            id: { not: listing.id },
+            status: "ACTIVE",
+            matchStatus: "MATCHED",
+          },
+          orderBy: { createdAt: "desc" },
+          select: { itemId: true, price: true, quantity: true },
+        }),
+      ]);
+
+      if (channelListing?.externalId === listing.itemId) {
+        if (replacement) {
+          await tx.productListing.update({
+            where: {
+              productId_channel: { productId: listing.productId, channel: "EBAY" },
+            },
+            data: {
+              externalId: replacement.itemId,
+              price: replacement.price,
+              quantity: replacement.quantity,
+              status: "ACTIVE",
+            },
+          });
+          await tx.product.update({
+            where: { id: listing.productId },
+            data: { ebayItemId: replacement.itemId, listingStatus: "ACTIVE" },
+          });
+        } else {
+          // 명시적 연결 해제의 이력은 보존한다. 다음 활성상품 보고서에서 다시
+          // 확인·연결하기 전까지는 어떤 화면이나 자동 반영에도 쓰이지 않는다.
+          await tx.productListing.update({
+            where: {
+              productId_channel: { productId: listing.productId, channel: "EBAY" },
+            },
+            data: { status: "UNLINKED", quantity: null },
+          });
+          await tx.product.update({
+            where: { id: listing.productId },
+            data: { ebayItemId: null, listingStatus: null },
+          });
+        }
+      } else if (channelListing) {
+        // ProductListing이 다른 대표 번호를 가리키는 경우에는, 해제하는 보조
+        // 리스팅 때문에 대표 연결을 건드리지 않고 남아 있던 이전 열만 바로잡는다.
+        await tx.product.update({
+          where: { id: listing.productId },
+          data: {
+            ebayItemId: channelListing.externalId,
+            listingStatus: "ACTIVE",
+          },
+        });
+      } else {
+        // ProductListing 도입 전 데이터는 이전 열을 기준으로 동일한 안전 규칙을
+        // 적용한다. 이 경로는 채널 레코드를 임의로 만들지 않는다.
+        const legacyProduct = await tx.product.findUnique({
+          where: { id: listing.productId },
+          select: { ebayItemId: true },
+        });
+        if (legacyProduct?.ebayItemId === listing.itemId) {
+          await tx.product.update({
+            where: { id: listing.productId },
+            data: replacement
+              ? { ebayItemId: replacement.itemId, listingStatus: "ACTIVE" }
+              : { ebayItemId: null, listingStatus: null },
+          });
+        }
+      }
     }
     await tx.ebayActiveListing.update({
       where: { id: listing.id },

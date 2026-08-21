@@ -266,7 +266,17 @@ export function productWhere(params: {
   if (params.upload === "uploaded") {
     and.push({
       OR: [
-        { productListings: { some: { channel: "EBAY" } } },
+        {
+          productListings: {
+            some: {
+              channel: "EBAY",
+              OR: [
+                { status: null },
+                { status: { in: ["ACTIVE", "PUBLISHED", "LISTED"] } },
+              ],
+            },
+          },
+        },
         // ProductListing으로 옮기기 전 연결된 기존 데이터 호환.
         { ebayItemId: { not: null } },
       ],
@@ -274,7 +284,17 @@ export function productWhere(params: {
   } else if (params.upload === "not_uploaded") {
     and.push({
       AND: [
-        { productListings: { none: { channel: "EBAY" } } },
+        {
+          productListings: {
+            none: {
+              channel: "EBAY",
+              OR: [
+                { status: null },
+                { status: { in: ["ACTIVE", "PUBLISHED", "LISTED"] } },
+              ],
+            },
+          },
+        },
         { ebayItemId: null },
       ],
     });

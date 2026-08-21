@@ -232,7 +232,11 @@ export default async function ProductsPage({
   const productRows: ProductQuickEditValue[] = products.map((product) => {
     const photo = photoStatusById.get(product.id);
     const change = changeById.get(product.id);
-    const ebayListing = product.productListings.find((listing) => listing.channel === "EBAY");
+    const ebayListing = product.productListings.find(
+      (listing) =>
+        listing.channel === "EBAY" &&
+        (listing.status == null || ["ACTIVE", "PUBLISHED", "LISTED"].includes(listing.status)),
+    );
     const shopifyListing = product.productListings.find((listing) => listing.channel === "SHOPIFY");
 
     return {

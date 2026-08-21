@@ -9,6 +9,9 @@ const productFindFirst = vi.fn();
 const listingUpdate = vi.fn();
 const listingUpdateMany = vi.fn();
 const productUpdate = vi.fn();
+const productListingUpsert = vi.fn();
+const productListingFindUnique = vi.fn();
+const productListingUpdate = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -24,15 +27,29 @@ vi.mock("@/lib/prisma", () => ({
       findFirst: (...args: unknown[]) => productFindFirst(...args),
       update: (...args: unknown[]) => productUpdate(...args),
     },
+    productListing: {
+      upsert: (...args: unknown[]) => productListingUpsert(...args),
+      findUnique: (...args: unknown[]) => productListingFindUnique(...args),
+      update: (...args: unknown[]) => productListingUpdate(...args),
+    },
     $transaction: async (run: (tx: unknown) => Promise<unknown>) =>
       run({
-        ebayActiveListing: { update: listingUpdate, updateMany: listingUpdateMany },
-        product: { update: productUpdate },
+        ebayActiveListing: {
+          findFirst: listingFindFirst,
+          update: listingUpdate,
+          updateMany: listingUpdateMany,
+        },
+        product: { findUnique: productFindUnique, update: productUpdate },
+        productListing: {
+          upsert: productListingUpsert,
+          findUnique: productListingFindUnique,
+          update: productListingUpdate,
+        },
       }),
   },
 }));
 
-const { linkEbayActiveListing, EbayListingLinkError } = await import(
+const { linkEbayActiveListing, unlinkEbayActiveListing, EbayListingLinkError } = await import(
   "@/lib/ebay-active-report"
 );
 
@@ -56,6 +73,7 @@ beforeEach(() => {
     productName: "Stray Kids ATE POP-UP STORE REWARD HAN",
     ebayTitle: null,
     featuredMembers: null,
+    productListings: [],
   });
   productFindFirst.mockResolvedValue(null);
 });
@@ -92,6 +110,17 @@ describe("수동 리스팅 연결", () => {
     expect(productUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: { ebayItemId: input.itemId, listingStatus: "ACTIVE" },
+      }),
+    );
+    expect(productListingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          productId_channel: { productId: "prod-1", channel: "EBAY" },
+        },
+        update: expect.objectContaining({
+          externalId: input.itemId,
+          status: "ACTIVE",
+        }),
       }),
     );
   });
@@ -183,6 +212,7 @@ describe("수동 리스팅 연결", () => {
 
     // 예전 리스팅은 그대로 둔다.
     expect(listingUpdateMany).not.toHaveBeenCalled();
+    expect(productListingUpsert).not.toHaveBeenCalled();
     // 상품의 대표 상품번호는 먼저 붙은 것을 유지한다.
     expect(productUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: { listingStatus: "ACTIVE" } }),
@@ -223,5 +253,32 @@ describe("수동 리스팅 연결", () => {
       replacedItemId: null,
       addedAlongside: false,
     });
+  });
+});
+
+describe("수동 리스팅 연결 해제", () => {
+  it("대표 리스팅을 해제하면 채널 이력은 남기되 자동 반영 대상에서 제외한다", async () => {
+    listingFindFirst
+      .mockResolvedValueOnce({
+        id: "listing-1",
+        itemId: input.itemId,
+        productId: "prod-1",
+      })
+      .mockResolvedValueOnce(null);
+    productListingFindUnique.mockResolvedValue({ externalId: input.itemId });
+
+    await expect(unlinkEbayActiveListing("user-1", "listing-1")).resolves.toEqual({
+      id: "listing-1",
+    });
+
+    expect(productListingUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "UNLINKED", quantity: null } }),
+    );
+    expect(productUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "prod-1" },
+        data: { ebayItemId: null, listingStatus: null },
+      }),
+    );
   });
 });
