@@ -11,6 +11,7 @@ export const sellAccountReadonlyScope =
 export const sellMarketingScope = "https://api.ebay.com/oauth/api_scope/sell.marketing";
 export const sellMarketingReadonlyScope =
   "https://api.ebay.com/oauth/api_scope/sell.marketing.readonly";
+export const commerceMessageScope = "https://api.ebay.com/oauth/api_scope/commerce.message";
 
 type EbayApiRequestInput = {
   method?: string;
@@ -21,6 +22,8 @@ type EbayApiRequestInput = {
   contentLanguage?: string;
   retry?: boolean;
 };
+
+type EbayRawRequestInput = Omit<EbayApiRequestInput, "body"> & { body?: BodyInit };
 
 async function parseEbayResponse(response: Response) {
   const text = await response.text();
@@ -137,4 +140,34 @@ export async function ebayApiRequest(
   }
 
   return { body, status: response.status, headers: response.headers };
+}
+
+export async function getActiveEbayMessageAccount(userId: string) {
+  const account = await getActiveEbayAccount(userId);
+  if (!accountHasScope(account, commerceMessageScope)) {
+    throw new Error("eBay 메시지 권한이 없습니다. eBay 연결을 다시 진행해 commerce.message 권한을 승인해야 합니다.");
+  }
+  return account;
+}
+
+/** Feed API 결과 파일처럼 JSON이 아닌 응답을 안전하게 받는다. */
+export async function ebayApiRawRequest(account: EbayAccount, input: EbayRawRequestInput) {
+  const config = getEbayConfig();
+  const url = new URL(input.path, config.hosts.api);
+  for (const [key, value] of Object.entries(input.query ?? {})) {
+    if (value !== null && value !== undefined && String(value) !== "") url.searchParams.set(key, String(value));
+  }
+  const token = await getValidAccessToken(account, input.retry === true);
+  const response = await fetch(url, {
+    method: input.method ?? "GET",
+    headers: { accept: "*/*", authorization: `Bearer ${token}`, ...(input.headers ?? {}) },
+    body: input.body,
+  });
+  if (response.status === 401 && !input.retry) return ebayApiRawRequest(account, { ...input, retry: true });
+  if (!response.ok) {
+    const body = await parseEbayResponse(response);
+    safeLog("error", "ebay.raw.request_failed", { endpoint: `${url.origin}${url.pathname}`, status: response.status });
+    throw new EbayApiError("eBay API request failed.", response.status, body);
+  }
+  return response;
 }

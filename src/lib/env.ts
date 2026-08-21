@@ -8,6 +8,7 @@ export const defaultEbayScopes = [
   "https://api.ebay.com/oauth/api_scope/sell.marketing.readonly",
   "https://api.ebay.com/oauth/api_scope/sell.finances",
   "https://api.ebay.com/oauth/api_scope/commerce.identity.readonly",
+  "https://api.ebay.com/oauth/api_scope/commerce.message",
 ];
 
 export function requiredEnv(name: string): string {

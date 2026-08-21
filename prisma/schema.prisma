@@ -56,6 +56,7 @@ model User {
   pocamarketSyncItemsApplied  PocamarketSyncItem[]         @relation("PocamarketSyncItemAppliedBy")
   pocamarketSyncSettings      PocamarketSyncSettings?
   ebayReportImports           EbayReportImport[]
+  ebayActiveReportSyncs       EbayActiveReportSync[]
   automationRulesUpdated      AutomationRule[]             @relation("AutomationRuleUpdatedBy")
 
   @@map("users")
@@ -108,6 +109,8 @@ model Order {
   warningLevel        String    @default("none") @map("warning_level")
   warningMessage      String?   @map("warning_message") @db.Text
   automationCheckedAt DateTime? @map("automation_checked_at")
+  // 주문 목록에서 관리자가 확인을 눌렀는지. 주문 동기화 자체가 확인 처리로 바뀌면 안 된다.
+  acknowledgedAt     DateTime? @map("acknowledged_at")
   rawJson             Json      @map("raw_json")
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
@@ -298,6 +301,25 @@ model EbayReportImport {
 
   @@index([userId, createdAt])
   @@map("ebay_report_imports")
+}
+
+// Feed API는 비동기로 보고서를 만든다. 외부 task ID를 보존해야 재시도 때
+// 같은 보고서를 중복 요청하지 않고, 완료 파일만 전체 스냅샷으로 반영할 수 있다.
+model EbayActiveReportSync {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  ebayTaskId     String   @unique @map("ebay_task_id")
+  status         String   @default("QUEUED")
+  errorMessage   String?  @map("error_message") @db.Text
+  reportImportId String?  @map("report_import_id")
+  requestedAt    DateTime @default(now()) @map("requested_at")
+  completedAt    DateTime? @map("completed_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, requestedAt])
+  @@map("ebay_active_report_syncs")
 }
 
 model EbayActiveListing {

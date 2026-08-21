@@ -1,0 +1,13 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
+
+type Conversation = { conversationId?: string; conversationDate?: string; lastModifiedDate?: string; status?: string; subject?: string; messages?: Array<{ content?: string; messageDate?: string; sender?: { username?: string } }> };
+
+export function EbayMessagesClient() {
+  const [items, setItems] = useState<Conversation[]>([]); const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
+  async function load() { setLoading(true); setError(""); try { const response = await fetch("/api/ebay/messages", { cache: "no-store" }); const body = await response.json().catch(() => null) as { conversations?: Conversation[]; error?: string } | null; if (!response.ok) throw new Error(body?.error ?? "eBay 메시지를 불러오지 못했습니다."); setItems(body?.conversations ?? []); } catch (cause) { setError(cause instanceof Error ? cause.message : "eBay 메시지를 불러오지 못했습니다."); } finally { setLoading(false); } }
+  useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, []);
+  return <section className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-xl font-bold">eBay 메시지</h1><p className="mt-1 text-sm text-zinc-600">eBay 받은편지함 대화를 조회합니다. 답장·읽음 처리는 현재 eBay Seller Hub에서 계속합니다.</p></div><button type="button" onClick={()=>void load()} disabled={loading} className="inline-flex h-10 items-center gap-2 rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading?"animate-spin":""}`}/>새로고침</button></div>{error?<div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><b>메시지 연결 필요</b><p className="mt-1">{error}</p><a href="/connect" className="mt-2 inline-block font-semibold underline">eBay 다시 연결하기</a></div>:null}{!error&&!loading&&!items.length?<p className="mt-5 text-sm text-zinc-500">표시할 최근 대화가 없습니다.</p>:null}{items.length?<div className="mt-4 divide-y rounded-xl border">{items.map((item,index)=>{const latest=item.messages?.at(-1);return <article key={item.conversationId??index} className="p-4"><div className="flex flex-wrap justify-between gap-2"><b>{item.subject??"제목 없는 대화"}</b><span className="text-xs text-zinc-500">{item.lastModifiedDate??item.conversationDate??""}</span></div><p className="mt-1 text-sm text-zinc-600">{latest?.sender?.username?`${latest.sender.username} · `:""}{latest?.content??"메시지 내용을 eBay에서 불러오지 못했습니다."}</p><span className="mt-2 inline-block text-xs text-zinc-500">{item.status??""}</span></article>})}</div>:null}</section>;
+}

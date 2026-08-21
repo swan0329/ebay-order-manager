@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, FileSpreadsheet, Link2, Upload } from "lucide-react";
+import { ChevronDown, ChevronRight, FileSpreadsheet, Link2, RefreshCw, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -42,6 +42,8 @@ export function EbayActiveReportPanel() {
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
   const [showListings, setShowListings] = useState(false);
   const [message, setMessage] = useState("");
+  const [autoSyncing, setAutoSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
   async function loadLatest() {
     const response = await fetch("/api/ebay/active-report", { cache: "no-store" });
@@ -54,6 +56,28 @@ export function EbayActiveReportPanel() {
     const timer = window.setTimeout(() => void loadLatest(), 0);
     return () => window.clearTimeout(timer);
   }, []);
+
+  async function syncFromEbay() {
+    setAutoSyncing(true); setMessage("");
+    try {
+      const started = await fetch("/api/ebay/active-report/sync", { method: "POST" });
+      const startBody = await started.json().catch(() => null) as { sync?: { status?: string }; error?: string } | null;
+      if (!started.ok) throw new Error(startBody?.error ?? "eBay 자동 수집을 시작하지 못했습니다.");
+      setSyncStatus(startBody?.sync?.status ?? "QUEUED");
+      setMessage("eBay에 전체 활성상품 보고서를 요청했습니다. 완료될 때까지 자동으로 상태를 확인합니다.");
+      for (let attempt = 0; attempt < 24; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 5_000));
+        const response = await fetch("/api/ebay/active-report/sync", { cache: "no-store" });
+        const body = await response.json().catch(() => null) as { sync?: { status?: string; errorMessage?: string }; error?: string } | null;
+        if (!response.ok) throw new Error(body?.error ?? "eBay 보고서 상태를 확인하지 못했습니다.");
+        const status = body?.sync?.status ?? "IN_PROCESS"; setSyncStatus(status);
+        if (status === "COMPLETED") { setMessage("eBay 전체 활성상품 보고서를 자동 수집·반영했습니다."); await loadLatest(); router.refresh(); return; }
+        if (status === "FAILED") throw new Error(body?.sync?.errorMessage ?? "eBay 보고서 수집에 실패했습니다. 기존 활성상품 목록은 유지했습니다.");
+      }
+      setMessage("eBay 보고서 생성이 진행 중입니다. 잠시 후 이 화면을 다시 열면 자동 반영 상태를 확인할 수 있습니다.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "eBay 자동 수집 실패"); }
+    finally { setAutoSyncing(false); }
+  }
 
   async function upload(file: File) {
     setUploading(true);
@@ -169,6 +193,10 @@ export function EbayActiveReportPanel() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => void syncFromEbay()} disabled={autoSyncing || uploading} className="inline-flex h-10 items-center gap-2 rounded-md bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50">
+            <RefreshCw className={`h-4 w-4 ${autoSyncing ? "animate-spin" : ""}`} />
+            {autoSyncing ? `eBay 자동 수집 중${syncStatus ? ` · ${syncStatus}` : ""}` : "eBay에서 자동 수집"}
+          </button>
           <label className="flex items-center gap-2 text-sm text-zinc-700">
             <input
               type="checkbox"
@@ -211,6 +239,9 @@ export function EbayActiveReportPanel() {
           내려받은 파일이라면 체크하지 마세요.
         </p>
       ) : null}
+      <p className="mt-3 rounded-md border border-violet-100 bg-violet-50 px-3 py-2 text-xs text-violet-950">
+        자동 수집은 eBay Feed API의 전체 활성상품 결과가 완료된 경우에만 반영합니다. 결과 파일을 해석하지 못하거나 부분 오류이면 기존 목록을 그대로 유지합니다. 주문 동기화와 함께 30분마다 확인합니다.
+      </p>
       {message ? <p className="mt-3 text-sm font-medium text-zinc-800">{message}</p> : null}
       {/* 신규등록 CSV는 전체 보고서가 있어야만 만들어진다. 부분 보고서만 가져온
           상태면 버튼을 눌러도 거부되므로, 그 이유를 여기서 미리 알린다. */}

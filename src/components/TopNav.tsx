@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { EbayApiUsageBadge } from "@/components/EbayApiUsageBadge";
 import { useEffect, useRef, useState } from "react";
 import {
-  Camera, ChevronRight, Images, Menu, Package, PackageOpen, PlugZap,
+  Bell, Camera, ChevronRight, Images, Mail, Menu, Package, PackageOpen, PlugZap,
   Calculator, CircleDollarSign, ListChecks, RefreshCw, Settings, Sparkles, Truck, Users, X,
 } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
@@ -31,6 +31,7 @@ const sections:NavSection[]=[
     {href:"/listing-upload/variation-groups",label:"옵션상품 구성",icon:Images,matchPrefixes:["/listing-upload/variation-groups"]},
     {href:"/pocamarket-sync",label:"포카마켓 최신화",icon:RefreshCw,matchPrefixes:["/pocamarket-sync"]},
     {href:"/connect",label:"eBay 연결",icon:PlugZap,matchPrefixes:["/connect"]},
+    {href:"/ebay-messages",label:"eBay 메시지",icon:Mail,matchPrefixes:["/ebay-messages"]},
     {href:"/automation",label:"자동화 규칙",icon:Settings,matchPrefixes:["/automation"]},
     {href:"/settlements",label:"정산 대조",icon:CircleDollarSign,matchPrefixes:["/settlements"]},
   ]},
@@ -64,6 +65,7 @@ function Navigation({pathname,onNavigate,counts}:{pathname:string;onNavigate?:()
 
 export function TopNav({loginId}:{loginId:string}){
   const pathname=usePathname();const [open,setOpen]=useState(false);
+  const [orderAlertOpen,setOrderAlertOpen]=useState(false);const [orderAlerts,setOrderAlerts]=useState<Array<{id:string;channel:string;externalOrderId:string;orderDate:string;totalAmount:string;currency:string}>>([]);
   const [counts,setCounts]=useState<NavCounts|null>(null);
   useEffect(()=>{let active=true;void fetch("/api/products/stats",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(d=>{if(active&&d)setCounts({imagePendingCount:d.imagePendingCount??0,reviewCount:d.reviewCount??0})}).catch(()=>{});return()=>{active=false}},[pathname]);
   const [syncProgress,setSyncProgress]=useState<{id:string;status:string;scannedCount:number;totalCount:number}|null>(null);
@@ -71,9 +73,12 @@ export function TopNav({loginId}:{loginId:string}){
   useEffect(()=>{let active=true;const check=async()=>{const response=await fetch("/api/pocamarket-sync/progress",{cache:"no-store"}).catch(()=>null);if(!active||!response?.ok)return;const body=await response.json() as {batch?:{id:string;status:string;scannedCount:number;totalCount:number}|null};const batch=body.batch??null;setSyncProgress(batch);if(batch&&["QUEUED","RUNNING"].includes(batch.status)&&Date.now()-lastSyncKickAt.current>=30_000){lastSyncKickAt.current=Date.now();void fetch(`/api/pocamarket-sync/batches/${batch.id}/process`,{method:"POST"})}};void check();const timer=window.setInterval(()=>void check(),5_000);return()=>{active=false;window.clearInterval(timer)}},[]);
   const syncActive=syncProgress&&["QUEUED","RUNNING"].includes(syncProgress.status);
   const syncPercent=syncProgress?.totalCount?Math.round(syncProgress.scannedCount/syncProgress.totalCount*100):0;
+  useEffect(()=>{let active=true;const load=async()=>{const response=await fetch("/api/alerts/orders",{cache:"no-store"}).catch(()=>null);if(!active||!response?.ok)return;const body=await response.json() as {orders?:typeof orderAlerts};setOrderAlerts(body.orders??[])};void load();const timer=window.setInterval(()=>void load(),30_000);return()=>{active=false;window.clearInterval(timer)}},[pathname]);
+  const acknowledgeOrders=async()=>{const response=await fetch("/api/alerts/orders",{method:"POST"});if(response.ok)setOrderAlerts([]);setOrderAlertOpen(false)};
   return <>
     <aside data-app-sidebar className="fixed inset-y-0 left-0 z-50 hidden w-[272px] flex-col border-r border-zinc-200 bg-white md:flex">
-      <div className="border-b border-zinc-100 px-5 py-5"><Link href="/orders" prefetch={false} className="block"><span className="block text-lg font-black tracking-tight text-zinc-950">eBay Manager</span><span className="mt-0.5 block text-xs text-zinc-400">포토카드 운영 시스템</span></Link></div>
+      <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-5"><Link href="/orders" prefetch={false} className="block"><span className="block text-lg font-black tracking-tight text-zinc-950">eBay Manager</span><span className="mt-0.5 block text-xs text-zinc-400">포토카드 운영 시스템</span></Link><button type="button" onClick={()=>setOrderAlertOpen(value=>!value)} className="relative rounded-lg p-2 text-zinc-600 hover:bg-zinc-100" aria-label="미확인 주문 알림"><Bell className="h-5 w-5"/>{orderAlerts.length?<span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-rose-600 px-1 text-center text-[11px] font-bold leading-5 text-white">{orderAlerts.length>99?"99+":orderAlerts.length}</span>:null}</button></div>
+      {orderAlertOpen&&<div className="mx-3 mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm shadow-sm"><div className="flex items-center justify-between gap-2"><b>미확인 주문 {orderAlerts.length}건</b>{orderAlerts.length?<button type="button" onClick={()=>void acknowledgeOrders()} className="rounded-md bg-amber-700 px-2 py-1 text-xs font-semibold text-white">모두 확인</button>:null}</div>{orderAlerts.length?<div className="mt-2 max-h-52 space-y-2 overflow-auto">{orderAlerts.map(order=><Link key={order.id} href={`/orders/${order.id}`} onClick={()=>setOrderAlertOpen(false)} className="block rounded-lg bg-white p-2 hover:bg-zinc-50"><span className="font-semibold">{order.channel} · {order.externalOrderId}</span><br/><span className="text-xs text-zinc-600">{new Date(order.orderDate).toLocaleString("ko-KR")} · {order.currency} {order.totalAmount}</span></Link>)}</div>:<p className="mt-2 text-xs text-zinc-600">새로 들어온 미확인 주문이 없습니다.</p>}</div>}
       {syncActive&&<Link href="/pocamarket-sync" className="mx-3 mt-3 rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs text-violet-900"><span className="flex items-center justify-between font-semibold"><span className="flex items-center gap-1.5"><RefreshCw className="h-3.5 w-3.5 animate-spin"/>포카 최신화 중</span><span>{syncProgress.scannedCount}/{syncProgress.totalCount}</span></span><span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-violet-100"><span className="block h-full bg-violet-600" style={{width:`${syncPercent}%`}}/></span></Link>}
       <div className="min-h-0 flex-1 overflow-y-auto"><Navigation pathname={pathname} counts={counts}/></div>
       <EbayApiUsageBadge/>

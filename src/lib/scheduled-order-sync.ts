@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { safeLog } from "@/lib/safe-log";
 import { syncShopifyOrders } from "@/lib/services/shopifyOrderSync";
 import { syncReceivedEbayReturns } from "@/lib/services/ebayReturnSync";
+import { runEbayActiveReportSync } from "@/lib/services/ebayActiveReportSync";
 
 export const EBAY_CRON_LOG_TYPE = "orders.sync.cron";
 export const SHOPIFY_CRON_LOG_TYPE = "shopify.orders.sync.cron";
@@ -111,12 +112,19 @@ export async function runScheduledOrderSync(now = new Date()) {
     }
   }
 
+  let activeReports: Awaited<ReturnType<typeof runEbayActiveReportSync>> = [];
+  try {
+    activeReports = await runEbayActiveReportSync(now);
+  } catch (error) {
+    safeLog("warn", "ebay.active_report.cron.failed", { message: error instanceof Error ? error.message : "Unknown report sync error" });
+  }
   const ok = ebayResults.every((result) => result.ok) && shopifyResult.ok;
   safeLog(ok ? "info" : "warn", "orders.sync.cron.completed", {
     environment,
     shopifyFrom: shopifyFrom.toISOString(),
     ebayResults,
     shopifyResult,
+    activeReports: activeReports.map((sync) => ({ userId: sync.userId, status: sync.status, ebayTaskId: sync.ebayTaskId })),
   });
 
   return {
@@ -125,5 +133,6 @@ export async function runScheduledOrderSync(now = new Date()) {
     cursors: { shopifyFrom: shopifyFrom.toISOString() },
     ebay: ebayResults,
     shopify: shopifyResult,
+    activeReports: activeReports.map((sync) => ({ status: sync.status, requestedAt: sync.requestedAt.toISOString(), completedAt: sync.completedAt?.toISOString() ?? null })),
   };
 }
