@@ -20,9 +20,9 @@ describe("eBay operations classification", () => {
 
   it("separates changed and sold-out listings", async () => {
     planInventory.mockResolvedValue({ missingPrice: [], rows: [
-      { productId:"changed",sku:"A",productName:"A card",productStatus:"active",itemId:"1",stock:2,reserved:0,quantity:2,price:12,previousQuantity:1,previousPrice:10,listingType:"SINGLE",parentTitle:null },
-      { productId:"same",sku:"B",productName:"B card",productStatus:"active",itemId:"2",stock:1,reserved:0,quantity:1,price:10,previousQuantity:1,previousPrice:10,listingType:"SINGLE",parentTitle:null },
-      { productId:"sold",sku:"C",productName:"C card",productStatus:"active",itemId:"3",stock:0,reserved:0,quantity:0,price:10,previousQuantity:1,previousPrice:10,listingType:"SINGLE",parentTitle:null },
+      { productId:"changed",sku:"A",productName:"A card",productStatus:"active",itemId:"1",stock:2,reserved:0,quantity:2,price:12,previousQuantity:1,previousPrice:10,listingType:"SINGLE",parentTitle:null,availabilityStatus:"AVAILABLE",actionable:true },
+      { productId:"same",sku:"B",productName:"B card",productStatus:"active",itemId:"2",stock:1,reserved:0,quantity:1,price:10,previousQuantity:1,previousPrice:10,listingType:"SINGLE",parentTitle:null,availabilityStatus:"AVAILABLE",actionable:true },
+      { productId:"sold",sku:"C",productName:"C card",productStatus:"active",itemId:"3",stock:0,reserved:0,quantity:0,price:10,previousQuantity:1,previousPrice:10,listingType:"SINGLE",parentTitle:null,availabilityStatus:"SOLD_OUT",actionable:true },
     ] });
     const result = await getEbayOperations("user");
     expect(result.change.map(row => row.productId)).toEqual(["changed"]);
@@ -31,7 +31,7 @@ describe("eBay operations classification", () => {
   });
 
   it("counts Shopify bundles as listings instead of counting every option as a product", async () => {
-    const common = { imageUrl: "https://img.test/card.jpg", ebayImageUrls: [], stockQuantity: 1, safetyStock: 0, status: "active", isSoldOut: false, pocamarketAvailableCount: 0, shopifyProductId: null, productListings: [], ebayPrice: 10 };
+    const common = { imageUrl: "https://img.test/card.jpg", ebayImageUrls: [], stockQuantity: 1, safetyStock: 0, status: "active", isSoldOut: false, pocamarketAvailableCount: 0, pocamarketSyncedAt: new Date(), shopifyProductId: null, productListings: [], ebayPrice: 10 };
     findProducts.mockResolvedValue([
       { ...common, id: "a", sku: "A", brand: "SKZ", category: "Album", productName: "SKZ Album POB A", optionName: "A" },
       { ...common, id: "b", sku: "B", brand: "SKZ", category: "Album", productName: "SKZ Album POB B", optionName: "B" },
@@ -46,7 +46,7 @@ describe("eBay operations classification", () => {
 
   it("keeps a sold-out variation as an option update instead of ending its parent", async () => {
     planInventory.mockResolvedValue({ missingPrice: [], rows: [
-      { productId:"option",sku:"OPT-1",productName:"Option",productStatus:"active",itemId:"parent",stock:0,reserved:0,quantity:0,price:12,previousQuantity:1,previousPrice:12,listingType:"VARIATION_OPTION",parentTitle:"Bundle" },
+      { productId:"option",sku:"OPT-1",productName:"Option",productStatus:"active",itemId:"parent",stock:0,reserved:0,quantity:0,price:12,previousQuantity:1,previousPrice:12,listingType:"VARIATION_OPTION",parentTitle:"Bundle",availabilityStatus:"SOLD_OUT",actionable:true },
     ] });
     const result = await getEbayOperations("user");
     expect(result.unavailable[0]).toMatchObject({ itemId: "parent", sku: "OPT-1", reason: "옵션 품절", listingType: "VARIATION_OPTION" });

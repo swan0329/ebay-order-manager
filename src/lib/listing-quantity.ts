@@ -15,12 +15,14 @@ export type ListingQuantityProduct = {
 // 내려가는 것에 의존한다.
 export function listingQuantity(
   product: ListingQuantityProduct,
-  fallback = 0,
+  _fallback = 0,
 ): number {
+  // 기존 내보내기 호출과의 호환을 위해 인자는 받지만, 재고 0을 기본값으로
+  // 되살려 과판매하는 것을 막기 위해 의도적으로 사용하지 않는다.
+  void _fallback;
   const own = Math.max(0, product.stockQuantity);
-  const procurable = Math.max(0, product.pocamarketAvailableCount ?? 0);
-  const total = own + procurable;
-
-  // 어느 쪽 재고 신호도 없을 때만 넘겨받은 기본값을 쓴다.
-  return total > 0 ? total : fallback;
+  // 조달 판매는 빠른구매 매물이 갑자기 사라질 수 있어 한 장만 연다. 템플릿의
+  // 기본 수량으로 재고 0 상품을 되살리면 안 된다.
+  const procurable = (product.pocamarketAvailableCount ?? 0) > 0 ? 1 : 0;
+  return own + procurable;
 }

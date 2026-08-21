@@ -4,7 +4,8 @@ import { getShopifyConfig } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { safeLog } from "@/lib/safe-log";
 import { setShopifyInventoryLevel } from "@/lib/services/shopifyService";
-import { reservedByProduct, sellableQuantity } from "@/lib/stock-reservation";
+import { reservedByProduct } from "@/lib/stock-reservation";
+import { resolveChannelAvailability } from "@/lib/channel-availability";
 
 // 재고가 바뀌면 채널에 올려 둔 수량도 따라가야 한다. 따라가지 않으면 이미 팔린
 // 카드가 계속 팔린다. 실제로 재고 한 장짜리 리스팅에서 주문이 세 건 들어왔다.
@@ -36,6 +37,10 @@ export async function syncShopifyInventory(input: {
       sku: true,
       stockQuantity: true,
       safetyStock: true,
+      status: true,
+      isSoldOut: true,
+      pocamarketAvailableCount: true,
+      pocamarketSyncedAt: true,
       shopifyInventoryItemId: true,
     },
   });
@@ -70,11 +75,8 @@ export async function syncShopifyInventory(input: {
 
   for (const product of products) {
     const productReserved = reserved.get(product.id) ?? 0;
-    const sellable = sellableQuantity({
-      stock: product.stockQuantity,
-      reserved: productReserved,
-      safetyStock: product.safetyStock,
-    });
+    const availability = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: productReserved, safetyStock: product.safetyStock, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
+    const sellable = availability.quantity;
     plan.push({
       sku: product.sku,
       stock: product.stockQuantity,
@@ -82,7 +84,7 @@ export async function syncShopifyInventory(input: {
       sellable,
     });
 
-    if (!config) {
+    if (!config || !availability.actionable) {
       result.unchanged += 1;
       continue;
     }

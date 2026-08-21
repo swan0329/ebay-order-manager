@@ -6,10 +6,10 @@ import { listingQuantity } from "@/lib/listing-quantity";
 // 다음 날 바뀌는 일이 없다.
 
 describe("리스팅 수량", () => {
-  it("내 재고와 포카 매물을 더한다", () => {
+  it("내 재고와 포카 빠른구매 판매분 한 장을 더한다", () => {
     expect(
       listingQuantity({ stockQuantity: 2, pocamarketAvailableCount: 5 }),
-    ).toBe(7);
+    ).toBe(3);
   });
 
   it("내 재고만 있으면 그 수량", () => {
@@ -21,7 +21,7 @@ describe("리스팅 수량", () => {
   it("포카 매물만 있으면 그 수량", () => {
     expect(
       listingQuantity({ stockQuantity: 0, pocamarketAvailableCount: 5 }),
-    ).toBe(5);
+    ).toBe(1);
   });
 
   it("포카 매물 정보가 없으면 내 재고만 센다", () => {
@@ -30,15 +30,14 @@ describe("리스팅 수량", () => {
     ).toBe(3);
   });
 
-  it("템플릿 기본값은 어느 재고도 없을 때만 쓴다", () => {
-    // 재고가 있으면 기본값 5가 실제 수량을 덮으면 안 된다(초과 판매).
+  it("템플릿 기본값으로 재고 없는 상품을 되살리지 않는다", () => {
     expect(listingQuantity({ stockQuantity: 1, pocamarketAvailableCount: 0 }, 5)).toBe(1);
-    expect(listingQuantity({ stockQuantity: 0, pocamarketAvailableCount: 0 }, 5)).toBe(5);
+    expect(listingQuantity({ stockQuantity: 0, pocamarketAvailableCount: 0 }, 5)).toBe(0);
   });
 
   it("음수 재고는 0으로 본다", () => {
     expect(
       listingQuantity({ stockQuantity: -2, pocamarketAvailableCount: 4 }),
-    ).toBe(4);
+    ).toBe(1);
   });
 });

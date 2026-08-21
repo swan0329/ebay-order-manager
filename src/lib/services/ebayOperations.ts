@@ -3,7 +3,8 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { planEbayInventoryPush } from "@/lib/services/ebayInventoryPush";
 import { resolveListingPriceUsd } from "@/lib/listing-price";
-import { reservedByProduct, sellableQuantity } from "@/lib/stock-reservation";
+import { reservedByProduct } from "@/lib/stock-reservation";
+import { availabilityReason, resolveChannelAvailability } from "@/lib/channel-availability";
 import { buildVariationListingGroups, variationParentSku } from "@/lib/variation-listing-groups";
 import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
 
@@ -63,9 +64,8 @@ export async function getEbayOperations(userId: string) {
     status: draft.status,
     error: draft.errorSummary,
   }));
-  const soldOut = inventory.rows.filter((row) => row.quantity === 0);
-  const discontinued = inventory.rows.filter((row) => row.productStatus !== "active" && row.quantity > 0);
-  const unavailableIds = new Set([...soldOut, ...discontinued].map((row) => row.productId));
+  const unavailable = inventory.rows.filter((row) => row.availabilityStatus !== "AVAILABLE");
+  const unavailableIds = new Set(unavailable.map((row) => row.productId));
   const change = inventory.rows.filter((row) =>
     !unavailableIds.has(row.productId) &&
     (row.listingType === "SINGLE" || row.previousQuantity !== null || row.previousPrice !== null) &&
@@ -75,16 +75,14 @@ export async function getEbayOperations(userId: string) {
   return {
     create,
     change,
-    unavailable: [
-      ...soldOut.map((row) => ({ ...row, reason: row.listingType === "VARIATION_OPTION" ? "옵션 품절" as const : "단품 품절" as const })),
-      ...discontinued.map((row) => ({ ...row, reason: row.listingType === "VARIATION_OPTION" ? "옵션 판매중지" as const : "단품 판매중지" as const })),
-    ],
+    unavailable: unavailable.map((row) => ({ ...row, reason: availabilityReason(row.availabilityStatus, row.listingType === "VARIATION_OPTION") })),
     summary: {
       createReady: create.length,
       createNeedsReview: preparationCount,
       createCountMeaning: "eBay 필수 검증을 모두 통과한 등록 초안 수",
-      unavailableOptions: [...soldOut, ...discontinued].filter((row) => row.listingType === "VARIATION_OPTION").length,
-      unavailableSingles: [...soldOut, ...discontinued].filter((row) => row.listingType === "SINGLE").length,
+      unavailableOptions: unavailable.filter((row) => row.listingType === "VARIATION_OPTION").length,
+      unavailableSingles: unavailable.filter((row) => row.listingType === "SINGLE").length,
+      sourceReview: unavailable.filter((row) => row.availabilityStatus === "SOURCE_UNKNOWN").length,
     },
     limits: { createBatch: 50, reviseBatch: 200 },
   };
@@ -114,11 +112,11 @@ export async function getShopifyOperations() {
   const reserved = reservedByProduct(lines.map((line) => ({ productId: line.productId as string, quantity: line.quantity, stockDeducted: line.stockDeducted, orderCancelled: cancelled.includes(line.order.orderStatus) || cancelled.includes(line.order.fulfillmentStatus) })));
   const mapped = products.map((product) => {
     const listing = product.productListings[0];
-    const quantity = product.status === "active" ? sellableQuantity({ stock: product.stockQuantity, reserved: reserved.get(product.id) ?? 0, safetyStock: product.safetyStock }) : 0;
+    const availability = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: reserved.get(product.id) ?? 0, safetyStock: product.safetyStock, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
     const price = settings ? Number(resolveListingPriceUsd(product, settings)?.priceUsd ?? 0) || null : null;
-    return { productId: product.id, sku: product.sku, productName: product.productName, itemId: listing?.externalId ?? product.shopifyProductId ?? "-", quantity, price, previousQuantity: listing?.quantity ?? null, previousPrice: listing?.price == null ? null : Number(listing.price), productStatus: product.status, linked: Boolean(listing?.externalId ?? product.shopifyProductId), product: readyImageById.has(product.id) ? { ...product, imageUrl: readyImageById.get(product.id)! } : product };
+    return { productId: product.id, sku: product.sku, productName: product.productName, itemId: listing?.externalId ?? product.shopifyProductId ?? "-", price, previousQuantity: listing?.quantity ?? null, previousPrice: listing?.price == null ? null : Number(listing.price), productStatus: product.status, linked: Boolean(listing?.externalId ?? product.shopifyProductId), product: readyImageById.has(product.id) ? { ...product, imageUrl: readyImageById.get(product.id)! } : product, ...availability };
   });
-  const unlinked = mapped.filter((row) => !row.linked && row.quantity > 0 && row.price !== null);
+  const unlinked = mapped.filter((row) => !row.linked && row.availabilityStatus === "AVAILABLE" && row.price !== null);
   const byId = new Map(unlinked.map((row) => [row.productId, row]));
   const grouped = buildVariationListingGroups(unlinked.map((row) => row.product));
   const createGroups = grouped.groups.map((group) => {
@@ -140,11 +138,11 @@ export async function getShopifyOperations() {
   for (const [externalId, members] of linkedBuckets) {
     if (members.length === 1) {
       const row = members[0];
-      if (row.quantity === 0) unavailable.push({ ...row, reason: row.productStatus !== "active" ? "단품 판매중지" : "단품 품절", listingType: "SINGLE", productIds: [row.productId] });
+      if (row.availabilityStatus !== "AVAILABLE") unavailable.push({ ...row, reason: availabilityReason(row.availabilityStatus), listingType: "SINGLE", productIds: [row.productId] });
       else if (row.previousQuantity !== row.quantity || priceChanged(row.price, row.previousPrice)) change.push({ ...row, listingType: "SINGLE", productIds: [row.productId] });
       continue;
     }
-    const unavailableMembers = members.filter((row) => row.quantity === 0);
+    const unavailableMembers = members.filter((row) => row.availabilityStatus !== "AVAILABLE");
     const changedMembers = members.filter((row) => row.previousQuantity !== row.quantity || priceChanged(row.price, row.previousPrice));
     const groupedRow = {
       productId: `shopify-listing:${externalId}`,
@@ -160,8 +158,8 @@ export async function getShopifyOperations() {
       optionCount: members.length,
       affectedOptions: (unavailableMembers.length ? unavailableMembers : changedMembers).map((row) => ({ sku: row.sku, name: row.productName, previousQuantity: row.previousQuantity, quantity: row.quantity, previousPrice: row.previousPrice, price: row.price })),
     };
-    if (unavailableMembers.length) unavailable.push({ ...groupedRow, reason: `옵션 ${unavailableMembers.length}개 품절·중지` });
+    if (unavailableMembers.length) unavailable.push({ ...groupedRow, actionable: unavailableMembers.every((row) => row.actionable), reason: unavailableMembers.map((row) => availabilityReason(row.availabilityStatus, true)).join(" / ") });
     else if (changedMembers.length) change.push(groupedRow);
   }
-  return { create, change, unavailable, summary: { shopifyListings: create.length, shopifyVariationListings: createGroups.length, shopifySingleListings: createSingles.length, shopifyOptions: unlinked.length, unavailableOptions: unavailable.filter((row) => row.listingType === "VARIATION").length, unavailableSingles: unavailable.filter((row) => row.listingType === "SINGLE").length }, limits: { createBatch: 50, reviseBatch: 100 } };
+  return { create, change, unavailable, summary: { shopifyListings: create.length, shopifyVariationListings: createGroups.length, shopifySingleListings: createSingles.length, shopifyOptions: unlinked.length, unavailableOptions: unavailable.filter((row) => row.listingType === "VARIATION").length, unavailableSingles: unavailable.filter((row) => row.listingType === "SINGLE").length, sourceReview: unavailable.filter((row) => row.actionable === false).length }, limits: { createBatch: 50, reviseBatch: 100 } };
 }

@@ -3,7 +3,8 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getEbayConfig } from "@/lib/env";
 import { hasListingPrice, resolveListingPriceUsd } from "@/lib/listing-price";
-import { reservedByProduct, sellableQuantity } from "@/lib/stock-reservation";
+import { reservedByProduct } from "@/lib/stock-reservation";
+import { resolveChannelAvailability, type AvailabilityStatus } from "@/lib/channel-availability";
 import { reviseEbayPriceQuantity, type ReviseTarget } from "@/lib/services/ebayRevise";
 import { getActiveVariationProductListings } from "@/lib/variation-selling-state";
 
@@ -24,6 +25,14 @@ export type PushPlanRow = {
   itemId: string;
   stock: number;
   reserved: number;
+  safetyStock: number;
+  ownSellableQuantity: number;
+  pocamarketAvailableCount: number | null;
+  pocamarketListingQuantity: number;
+  pocamarketSyncedAt: Date | null;
+  pocamarketFresh: boolean;
+  availabilityStatus: AvailabilityStatus;
+  actionable: boolean;
   quantity: number;
   price: number | null;
   previousQuantity: number | null;
@@ -87,6 +96,15 @@ export async function planEbayInventoryPush(input: { productIds?: string[]; user
     }
     if (!price) missingPrice.push(product.sku);
 
+    const availability = resolveChannelAvailability({
+      status: product.status,
+      stockQuantity: product.stockQuantity,
+      reservedQuantity: productReserved,
+      safetyStock: product.safetyStock,
+      isSoldOut: product.isSoldOut,
+      pocamarketAvailableCount: product.pocamarketAvailableCount,
+      pocamarketSyncedAt: product.pocamarketSyncedAt,
+    });
     rows.push({
       productId: product.id,
       sku: product.sku,
@@ -95,11 +113,15 @@ export async function planEbayInventoryPush(input: { productIds?: string[]; user
       itemId,
       stock: product.stockQuantity,
       reserved: productReserved,
-      quantity: product.status === "active" ? sellableQuantity({
-        stock: product.stockQuantity,
-        reserved: productReserved,
-        safetyStock: product.safetyStock,
-      }) : 0,
+      safetyStock: product.safetyStock,
+      ownSellableQuantity: availability.ownSellableQuantity,
+      pocamarketAvailableCount: availability.pocamarketAvailableCount,
+      pocamarketListingQuantity: availability.pocamarketListingQuantity,
+      pocamarketSyncedAt: product.pocamarketSyncedAt,
+      pocamarketFresh: availability.pocamarketFresh,
+      availabilityStatus: availability.availabilityStatus,
+      actionable: availability.actionable,
+      quantity: availability.quantity,
       price,
       // 예전 단품 ProductListing 값을 묶음 옵션의 이전 값으로 비교하면 모든 옵션이
       // 변동으로 잘못 뜬다. 현재 수정 대상 Item ID와 같은 전송 이력만 기준으로 쓴다.
@@ -124,7 +146,8 @@ export async function pushEbayInventory(input: {
   quantityOnly?: boolean;
 }) {
   const plan = await planEbayInventoryPush({ productIds: input.productIds, userId: input.userId });
-  const rows = plan.rows.slice(0, Math.max(1, Math.min(200, input.limit ?? 100)));
+  // 포카마켓 값이 미확인/오래된 행은 목록에만 보여 주고 외부 수량을 바꾸지 않는다.
+  const rows = plan.rows.filter((row) => row.actionable).slice(0, Math.max(1, Math.min(200, input.limit ?? 100)));
 
   if (input.dryRun || !rows.length) {
     return {

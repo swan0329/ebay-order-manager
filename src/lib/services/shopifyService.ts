@@ -8,7 +8,7 @@ import {
   type ProductImageExtras,
 } from "@/lib/ebay-listing-fields";
 import { safeLog } from "@/lib/safe-log";
-import { sellableQuantity } from "@/lib/stock-reservation";
+import { resolveChannelAvailability } from "@/lib/channel-availability";
 import { getShopifyAccessToken } from "@/lib/services/shopifyToken";
 
 export class ShopifyApiError extends Error {
@@ -452,14 +452,12 @@ export async function uploadProductToShopify(
     // 실재고가 아니라 판매 가능 수량을 올린다. 아직 처리하지 않은 주문이 잡아 둔
     // 몫까지 팔면 이미 나간 카드를 또 팔게 된다.
     try {
+      const availability = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: reservedQuantity ?? 0, safetyStock: product.safetyStock ?? 0, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
+      if (!availability.actionable) throw new Error("포카마켓 재고가 확인되지 않아 Shopify 수량을 바꾸지 않습니다.");
       await setShopifyInventoryLevel(
         config,
         inventoryItemId,
-        sellableQuantity({
-          stock: product.stockQuantity,
-          reserved: reservedQuantity ?? 0,
-          safetyStock: product.safetyStock ?? 0,
-        }),
+        availability.quantity,
       );
       inventorySynced = true;
     } catch {

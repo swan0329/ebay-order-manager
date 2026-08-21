@@ -2,7 +2,8 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { resolveListingPriceUsd } from "@/lib/listing-price";
-import { reservedByProduct, sellableQuantity } from "@/lib/stock-reservation";
+import { reservedByProduct } from "@/lib/stock-reservation";
+import { resolveChannelAvailability } from "@/lib/channel-availability";
 import { buildVariationListingGroups } from "@/lib/variation-listing-groups";
 import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
 import { upsertShopifyVariationProduct } from "@/lib/services/shopifyService";
@@ -28,11 +29,13 @@ export async function uploadShopifyVariationGroup(productIds: string[]) {
   const items = group.products.map((product) => {
     const price = resolveListingPriceUsd(product, settings);
     if (!price) throw new Error(`${product.sku}: 판매가를 계산할 수 없습니다.`);
+    const availability = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: reserved.get(product.id) ?? 0, safetyStock: product.safetyStock, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
+    if (!availability.actionable) throw new Error(`${product.sku}: 포카마켓 재고 확인 후 전송할 수 있습니다.`);
     return {
       sku: product.sku,
       optionName: product.variationName,
       priceUsd: price.priceUsd.toString(),
-      quantity: product.status === "active" ? sellableQuantity({ stock: product.stockQuantity, reserved: reserved.get(product.id) ?? 0, safetyStock: product.safetyStock }) : 0,
+      quantity: availability.quantity,
       imageUrls: [...new Set([...(product.ebayImageUrls ?? []), product.imageUrl ?? ""].filter(Boolean))],
       variantId: product.shopifyVariantId,
     };
