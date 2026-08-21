@@ -42,6 +42,8 @@ export async function syncShopifyInventory(input: {
       pocamarketAvailableCount: true,
       pocamarketSyncedAt: true,
       shopifyInventoryItemId: true,
+      shopifyProductId: true,
+      shopifyStatus: true,
     },
   });
 
@@ -90,6 +92,47 @@ export async function syncShopifyInventory(input: {
     }
     try {
       await setShopifyInventoryLevel(config, product.shopifyInventoryItemId as string, sellable);
+      // ProductListing은 "보내려던 값"이 아니라 Shopify가 실제로 수락한 값만
+      // 저장한다. 그래야 운영 화면의 다음 변동 목록도 신뢰할 수 있다.
+      // 예전 데이터에는 product ID가 비어 있어도 ProductListing 행은 이미 있을
+      // 수 있다. 그 경우에도 기존 행의 수량은 갱신해 채널별 화면이 갈라지지
+      // 않게 한다. 새 행 생성에만 외부 상품 ID가 필요하다.
+      const shopifyProductId = product.shopifyProductId;
+      const existingListing = await prisma.productListing.updateMany({
+        where: { productId: product.id, channel: "SHOPIFY" },
+        data: {
+          quantity: sellable,
+          ...(product.shopifyStatus ? { status: product.shopifyStatus } : {}),
+        },
+      });
+      if (existingListing.count === 0 && !shopifyProductId) {
+        safeLog("warn", "channel.inventory.listing_missing_product_id", {
+          productId: product.id,
+          sku: product.sku,
+        });
+      } else if (existingListing.count === 0) {
+        await prisma.productListing.upsert({
+          where: {
+            productId_channel: { productId: product.id, channel: "SHOPIFY" },
+          },
+          update: {
+            externalId: shopifyProductId as string,
+            quantity: sellable,
+            status: product.shopifyStatus ?? "ACTIVE",
+          },
+          create: {
+            productId: product.id,
+            channel: "SHOPIFY",
+            externalId: shopifyProductId as string,
+            quantity: sellable,
+            status: product.shopifyStatus ?? "ACTIVE",
+            metadata: {
+              inventoryItemId: product.shopifyInventoryItemId,
+              source: "shopify_inventory_sync",
+            },
+          },
+        });
+      }
       result.pushed += 1;
     } catch (error) {
       result.failed.push({

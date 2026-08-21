@@ -74,17 +74,6 @@ export async function shopifyApiRequest(
   return body;
 }
 
-function decimalToPriceString(value: Product["salePrice"]): string | undefined {
-  if (value === null || value === undefined) {
-    return undefined;
-  }
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric < 0) {
-    return undefined;
-  }
-  return numeric.toFixed(2);
-}
-
 function collectImageUrls(product: Product): string[] {
   const urls = [
     ...(product.ebayImageUrls ?? []),
@@ -136,6 +125,7 @@ export type ShopifyUploadResult = {
   status: string | null;
   action: "created" | "updated";
   inventorySynced: boolean;
+  inventoryError: string | null;
 };
 
 export type ShopifyVariationUploadInput = {
@@ -332,6 +322,28 @@ export async function uploadProductToShopify(
   reservedQuantity?: number,
   priceOverrideUsd?: string,
 ): Promise<ShopifyUploadResult> {
+  // salePrice는 포카마켓 원화 가격이다. 이 함수가 USD 가격을 못 받았을 때
+  // salePrice를 대신 보내면 12,000원이 USD 12,000로 등록되는 치명적인 오류가 난다.
+  const price = priceOverrideUsd?.trim();
+  if (!price || !Number.isFinite(Number(price)) || Number(price) <= 0) {
+    throw new Error("Shopify 등록/수정에는 검증된 USD 판매가가 필요합니다.");
+  }
+
+  // 외부 상품을 만든 뒤에 공급처 미확인을 발견하면 이미 되돌리기 어려운 반쪽
+  // 등록이 된다. API 호출 전에 재고 출처와 수량을 확정한다.
+  const availability = resolveChannelAvailability({
+    status: product.status,
+    stockQuantity: product.stockQuantity,
+    reservedQuantity: reservedQuantity ?? 0,
+    safetyStock: product.safetyStock ?? 0,
+    isSoldOut: product.isSoldOut,
+    pocamarketAvailableCount: product.pocamarketAvailableCount,
+    pocamarketSyncedAt: product.pocamarketSyncedAt,
+  });
+  if (!availability.actionable) {
+    throw new Error("포카마켓 재고가 확인되지 않아 Shopify 등록/수정을 시작하지 않습니다.");
+  }
+
   const config = getShopifyConfig();
 
   // Build title/description/specifics with the SAME logic as the eBay listing so
@@ -354,16 +366,13 @@ export async function uploadProductToShopify(
         .filter(Boolean),
     ),
   );
-  const price = priceOverrideUsd ?? decimalToPriceString(product.ebayPrice ?? product.salePrice);
   const images = collectImageUrls(product);
 
   const variant: Record<string, unknown> = {
     sku: product.sku,
     inventory_management: "shopify",
   };
-  if (price !== undefined) {
-    variant.price = price;
-  }
+  variant.price = price;
 
   const isUpdate = Boolean(product.shopifyProductId);
 
@@ -448,22 +457,24 @@ export async function uploadProductToShopify(
     : product.shopifyInventoryItemId ?? null;
 
   let inventorySynced = false;
+  let inventoryError: string | null = null;
   if (inventoryItemId) {
     // 실재고가 아니라 판매 가능 수량을 올린다. 아직 처리하지 않은 주문이 잡아 둔
     // 몫까지 팔면 이미 나간 카드를 또 팔게 된다.
     try {
-      const availability = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: reservedQuantity ?? 0, safetyStock: product.safetyStock ?? 0, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
-      if (!availability.actionable) throw new Error("포카마켓 재고가 확인되지 않아 Shopify 수량을 바꾸지 않습니다.");
       await setShopifyInventoryLevel(
         config,
         inventoryItemId,
         availability.quantity,
       );
       inventorySynced = true;
-    } catch {
+    } catch (error) {
       // 재고 위치를 못 찾는 등으로 실패해도 상품 등록 자체는 살린다.
       inventorySynced = false;
+      inventoryError = error instanceof Error ? error.message : String(error);
     }
+  } else {
+    inventoryError = "Shopify가 재고 항목 ID를 반환하지 않았습니다.";
   }
 
   return {
@@ -473,5 +484,6 @@ export async function uploadProductToShopify(
     status: created.status ?? null,
     action,
     inventorySynced,
+    inventoryError,
   };
 }
