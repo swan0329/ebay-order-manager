@@ -207,6 +207,9 @@ export default async function ProductsPage({
         ebayItemId: true,
         listingStatus: true,
         lastUploadedAt: true,
+        productListings: {
+          select: { channel: true, externalId: true, status: true, updatedAt: true },
+        },
       },
       orderBy: productOrderBy(params.sort),
       skip,
@@ -229,6 +232,8 @@ export default async function ProductsPage({
   const productRows: ProductQuickEditValue[] = products.map((product) => {
     const photo = photoStatusById.get(product.id);
     const change = changeById.get(product.id);
+    const ebayListing = product.productListings.find((listing) => listing.channel === "EBAY");
+    const shopifyListing = product.productListings.find((listing) => listing.channel === "SHOPIFY");
 
     return {
       id: product.id,
@@ -267,10 +272,10 @@ export default async function ProductsPage({
       imageUpdatedAt: product.updatedAt.toISOString(),
       status: product.status,
       featuredMembers: extrasById.get(product.id)?.featuredMembers ?? null,
-      shopifyProductId: product.shopifyProductId,
-      shopifyLastUploadedAt: product.shopifyLastUploadedAt?.toISOString() ?? null,
-      ebayItemId: product.ebayItemId,
-      listingStatus: product.listingStatus,
+      shopifyProductId: shopifyListing?.externalId ?? product.shopifyProductId,
+      shopifyLastUploadedAt: (shopifyListing?.updatedAt ?? product.shopifyLastUploadedAt)?.toISOString() ?? null,
+      ebayItemId: ebayListing?.externalId ?? product.ebayItemId,
+      listingStatus: ebayListing?.status ?? product.listingStatus,
       lastUploadedAt: product.lastUploadedAt?.toISOString() ?? null,
       variationItemId: variationByProductId.get(product.id)?.itemId ?? null,
       variationTitle: variationByProductId.get(product.id)?.title ?? null,

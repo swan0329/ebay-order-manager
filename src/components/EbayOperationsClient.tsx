@@ -9,7 +9,7 @@ type CreateRow = { id: string; productId: string | null; productIds?: string[]; 
 type ReviseRow = { productId: string; productIds?: string[]; sku: string; productName: string; itemId: string; quantity: number; price: number | null; previousQuantity: number | null; previousPrice: number | null; listingType?: "SINGLE" | "VARIATION_OPTION" | "VARIATION"; parentTitle?: string | null; optionCount?: number; affectedOptions?: OptionChange[]; stock?: number; reserved?: number; safetyStock?: number; ownSellableQuantity?: number; pocamarketAvailableCount?: number | null; pocamarketListingQuantity?: number; pocamarketFresh?: boolean; availabilityStatus?: string; actionable?: boolean };
 type UnavailableRow = ReviseRow & { reason: string };
 type Summary = { createReady?: number; createNeedsReview?: number; createCountMeaning?: string; unavailableOptions?: number; unavailableSingles?: number; sourceReview?: number; shopifyListings?: number; shopifyVariationListings?: number; shopifySingleListings?: number; shopifyOptions?: number };
-type Data = { create: CreateRow[]; change: ReviseRow[]; unavailable: UnavailableRow[]; limits: { createBatch: number; reviseBatch: number }; summary?: Summary };
+export type OperationsClientData = { create: CreateRow[]; change: ReviseRow[]; unavailable: UnavailableRow[]; limits: { createBatch: number; reviseBatch: number }; summary?: Summary };
 type PreviewRow = { id?: string; productId?: string | null; sku: string; title?: string; name?: string; productName?: string; itemId?: string; price: number | null; priceMax?: number | null; previousPrice?: number | null; quantity: number | null; previousQuantity?: number | null; imageCount?: number; optionCount?: number; listingType?: "SINGLE" | "VARIATION_OPTION" | "VARIATION"; parentTitle?: string | null; options?: OptionChange[]; affectedOptions?: OptionChange[]; valid?: boolean; issues?: Array<{ field: string; message: string }> };
 type Preview = { token?: string; rows: PreviewRow[]; action: Tab; valid: boolean; estimateSeconds?: { minimum: number; maximum: number } };
 type Result = { succeeded: number; failed: number; rows: Array<{ sku: string; status: "성공" | "실패"; message: string; productId?: string }> };
@@ -17,10 +17,10 @@ type Result = { succeeded: number; failed: number; rows: Array<{ sku: string; st
 const money = (value: number | null | undefined) => value == null ? "-" : `$${value.toFixed(2)}`;
 const actionName = (tab: Tab) => tab === "create" ? "신규등록" : tab === "change" ? "가격·재고 변경" : "품절·판매중지";
 
-export function EbayOperationsClient({ initial }: { initial: Data }) {
+export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { initial: OperationsClientData; initialChannel?: Channel }) {
   const [data, setData] = useState(initial);
   const [tab, setTab] = useState<Tab>("create");
-  const [channel, setChannel] = useState<Channel>("EBAY");
+  const [channel, setChannel] = useState<Channel>(initialChannel);
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState<"idle" | "preview" | "sending">("idle");

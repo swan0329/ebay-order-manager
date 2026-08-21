@@ -264,9 +264,20 @@ export function productWhere(params: {
   }
 
   if (params.upload === "uploaded") {
-    and.push({ ebayItemId: { not: null } });
+    and.push({
+      OR: [
+        { productListings: { some: { channel: "EBAY" } } },
+        // ProductListing으로 옮기기 전 연결된 기존 데이터 호환.
+        { ebayItemId: { not: null } },
+      ],
+    });
   } else if (params.upload === "not_uploaded") {
-    and.push({ ebayItemId: null });
+    and.push({
+      AND: [
+        { productListings: { none: { channel: "EBAY" } } },
+        { ebayItemId: null },
+      ],
+    });
   }
 
   if (group) {
