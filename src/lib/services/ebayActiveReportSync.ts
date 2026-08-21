@@ -5,6 +5,7 @@ import type { EbayActiveReportRow } from "@/lib/ebay-active-report";
 import { importEbayActiveReport, parseEbayActiveReport } from "@/lib/ebay-active-report";
 import { currentEbayEnvironment } from "@/lib/ebay-environment";
 import { prisma } from "@/lib/prisma";
+import { safeLog } from "@/lib/safe-log";
 import { getActiveEbayInventoryAccount, ebayApiRawRequest, ebayApiRequest } from "@/lib/services/ebayApiService";
 
 const activeReportType = "LMS_ACTIVE_INVENTORY_REPORT";
@@ -74,7 +75,10 @@ export async function requestEbayActiveReport(userId: string) {
   const existing = await prisma.ebayActiveReportSync.findFirst({
     where: { userId, status: { in: ["QUEUED", "IN_PROCESS"] } }, orderBy: { requestedAt: "desc" },
   });
-  if (existing) return existing;
+  if (existing) {
+    safeLog("info", "ebay.active_report.request.reused", { userId, status: existing.status, ebayTaskId: existing.ebayTaskId });
+    return existing;
+  }
   const account = await getActiveEbayInventoryAccount(userId);
   const result = await ebayApiRequest(account, {
     method: "POST", path: "/sell/feed/v1/inventory_task", contentLanguage: "en-US",
@@ -84,7 +88,9 @@ export async function requestEbayActiveReport(userId: string) {
   const location = result.headers.get("location");
   const ebayTaskId = location?.split("/").filter(Boolean).at(-1);
   if (!ebayTaskId) throw new Error("eBay가 활성상품 보고서 작업 번호를 반환하지 않았습니다.");
-  return prisma.ebayActiveReportSync.create({ data: { userId, ebayTaskId, status: "QUEUED" } });
+  const sync = await prisma.ebayActiveReportSync.create({ data: { userId, ebayTaskId, status: "QUEUED" } });
+  safeLog("info", "ebay.active_report.request.created", { userId, ebayTaskId });
+  return sync;
 }
 
 export async function refreshEbayActiveReportSync(userId: string) {
@@ -94,15 +100,25 @@ export async function refreshEbayActiveReportSync(userId: string) {
   const task = await ebayApiRequest(account, { path: `/sell/feed/v1/inventory_task/${encodeURIComponent(sync.ebayTaskId)}` });
   const payload = task.body as Record<string, unknown>;
   const status = String(payload.status ?? "IN_PROCESS").toUpperCase();
-  if (terminalFailureStatuses.has(status)) return prisma.ebayActiveReportSync.update({ where: { id: sync.id }, data: { status: "FAILED", errorMessage: `eBay 보고서 작업 상태: ${status}`, completedAt: new Date() } });
-  if (status !== "COMPLETED") return prisma.ebayActiveReportSync.update({ where: { id: sync.id }, data: { status: "IN_PROCESS" } });
+  if (terminalFailureStatuses.has(status)) {
+    safeLog("warn", "ebay.active_report.failed", { userId, ebayTaskId: sync.ebayTaskId, ebayStatus: status });
+    return prisma.ebayActiveReportSync.update({ where: { id: sync.id }, data: { status: "FAILED", errorMessage: `eBay 보고서 작업 상태: ${status}`, completedAt: new Date() } });
+  }
+  if (status !== "COMPLETED") {
+    safeLog("info", "ebay.active_report.processing", { userId, ebayTaskId: sync.ebayTaskId, ebayStatus: status });
+    return prisma.ebayActiveReportSync.update({ where: { id: sync.id }, data: { status: "IN_PROCESS" } });
+  }
   try {
     const response = await ebayApiRawRequest(account, { path: `/sell/feed/v1/task/${encodeURIComponent(sync.ebayTaskId)}/download_result_file` });
     const rows = parseDownloadedActiveReport(Buffer.from(await response.arrayBuffer()));
     const imported = await importEbayActiveReport({ userId, fileName: `ebay-feed-active-${sync.ebayTaskId}`, completeSnapshot: true, rows });
-    return prisma.ebayActiveReportSync.update({ where: { id: sync.id }, data: { status: "COMPLETED", reportImportId: imported.id, completedAt: new Date(), errorMessage: null } });
+    const completed = await prisma.ebayActiveReportSync.update({ where: { id: sync.id }, data: { status: "COMPLETED", reportImportId: imported.id, completedAt: new Date(), errorMessage: null } });
+    safeLog("info", "ebay.active_report.completed", { userId, ebayTaskId: sync.ebayTaskId, reportImportId: imported.id, rowCount: imported.rowCount });
+    return completed;
   } catch (error) {
-    return prisma.ebayActiveReportSync.update({ where: { id: sync.id }, data: { status: "FAILED", errorMessage: error instanceof Error ? error.message : "보고서를 가져오지 못했습니다.", completedAt: new Date() } });
+    const errorMessage = error instanceof Error ? error.message : "보고서를 가져오지 못했습니다.";
+    safeLog("warn", "ebay.active_report.download_failed", { userId, ebayTaskId: sync.ebayTaskId, errorMessage });
+    return prisma.ebayActiveReportSync.update({ where: { id: sync.id }, data: { status: "FAILED", errorMessage, completedAt: new Date() } });
   }
 }
 

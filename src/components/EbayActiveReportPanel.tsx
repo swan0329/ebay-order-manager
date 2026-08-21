@@ -25,6 +25,7 @@ type ReportSummary = {
     product: { productName: string; optionName: string | null } | null;
   }>;
 };
+type SyncStatus = { status: "QUEUED" | "IN_PROCESS" | "COMPLETED" | "FAILED"; requestedAt: string; completedAt: string | null; errorMessage: string | null };
 
 const matchLabels: Record<string, string> = {
   TITLE_MATCHED: "제목 매칭 · 확인",
@@ -44,12 +45,15 @@ export function EbayActiveReportPanel() {
   const [message, setMessage] = useState("");
   const [autoSyncing, setAutoSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [latestSync, setLatestSync] = useState<SyncStatus | null>(null);
 
   async function loadLatest() {
-    const response = await fetch("/api/ebay/active-report", { cache: "no-store" });
-    if (!response.ok) return;
-    const body = (await response.json()) as { latest?: ReportSummary | null };
-    setLatest(body.latest ?? null);
+    const [response, syncResponse] = await Promise.all([
+      fetch("/api/ebay/active-report", { cache: "no-store" }),
+      fetch("/api/ebay/active-report/sync", { cache: "no-store" }),
+    ]);
+    if (response.ok) { const body = (await response.json()) as { latest?: ReportSummary | null }; setLatest(body.latest ?? null); }
+    if (syncResponse.ok) { const body = (await syncResponse.json()) as { sync?: SyncStatus | null }; setLatestSync(body.sync ?? null); }
   }
 
   useEffect(() => {
@@ -63,14 +67,14 @@ export function EbayActiveReportPanel() {
       const started = await fetch("/api/ebay/active-report/sync", { method: "POST" });
       const startBody = await started.json().catch(() => null) as { sync?: { status?: string }; error?: string } | null;
       if (!started.ok) throw new Error(startBody?.error ?? "eBay 자동 수집을 시작하지 못했습니다.");
-      setSyncStatus(startBody?.sync?.status ?? "QUEUED");
+      setSyncStatus(startBody?.sync?.status ?? "QUEUED"); setLatestSync(startBody?.sync ? { status: (startBody.sync.status ?? "QUEUED") as SyncStatus["status"], requestedAt: new Date().toISOString(), completedAt: null, errorMessage: null } : null);
       setMessage("eBay에 전체 활성상품 보고서를 요청했습니다. 완료될 때까지 자동으로 상태를 확인합니다.");
       for (let attempt = 0; attempt < 24; attempt += 1) {
         await new Promise((resolve) => window.setTimeout(resolve, 5_000));
         const response = await fetch("/api/ebay/active-report/sync", { cache: "no-store" });
         const body = await response.json().catch(() => null) as { sync?: { status?: string; errorMessage?: string }; error?: string } | null;
         if (!response.ok) throw new Error(body?.error ?? "eBay 보고서 상태를 확인하지 못했습니다.");
-        const status = body?.sync?.status ?? "IN_PROCESS"; setSyncStatus(status);
+        const status = body?.sync?.status ?? "IN_PROCESS"; setSyncStatus(status); setLatestSync(body?.sync ? { status: status as SyncStatus["status"], requestedAt: "", completedAt: null, errorMessage: body.sync.errorMessage ?? null } : null);
         if (status === "COMPLETED") { setMessage("eBay 전체 활성상품 보고서를 자동 수집·반영했습니다."); await loadLatest(); router.refresh(); return; }
         if (status === "FAILED") throw new Error(body?.sync?.errorMessage ?? "eBay 보고서 수집에 실패했습니다. 기존 활성상품 목록은 유지했습니다.");
       }
@@ -242,6 +246,12 @@ export function EbayActiveReportPanel() {
       <p className="mt-3 rounded-md border border-violet-100 bg-violet-50 px-3 py-2 text-xs text-violet-950">
         자동 수집은 eBay Feed API의 전체 활성상품 결과가 완료된 경우에만 반영합니다. 결과 파일을 해석하지 못하거나 부분 오류이면 기존 목록을 그대로 유지합니다. 주문 동기화와 함께 30분마다 확인합니다.
       </p>
+      {latestSync ? <div className={`mt-3 rounded-md border px-3 py-2 text-sm ${latestSync.status === "FAILED" ? "border-rose-200 bg-rose-50 text-rose-900" : latestSync.status === "COMPLETED" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-sky-200 bg-sky-50 text-sky-950"}`}>
+        <b>자동 수집 상태: {latestSync.status === "QUEUED" ? "eBay 보고서 요청됨" : latestSync.status === "IN_PROCESS" ? "eBay가 보고서 생성 중" : latestSync.status === "COMPLETED" ? "자동 수집 완료" : "자동 수집 실패"}</b>
+        {latestSync.requestedAt ? <span className="ml-2 text-xs">요청 {new Date(latestSync.requestedAt).toLocaleString("ko-KR")}</span> : null}
+        {latestSync.errorMessage ? <p className="mt-1 text-xs">{latestSync.errorMessage}</p> : null}
+        {["QUEUED", "IN_PROCESS"].includes(latestSync.status) ? <button type="button" disabled={autoSyncing} onClick={() => void loadLatest()} className="ml-3 text-xs font-semibold underline">상태 새로고침</button> : null}
+      </div> : <p className="mt-3 text-xs text-zinc-500">자동 수집 요청 기록이 없습니다. 위 버튼으로 eBay 전체 활성상품 보고서를 요청할 수 있습니다.</p>}
       {message ? <p className="mt-3 text-sm font-medium text-zinc-800">{message}</p> : null}
       {/* 신규등록 CSV는 전체 보고서가 있어야만 만들어진다. 부분 보고서만 가져온
           상태면 버튼을 눌러도 거부되므로, 그 이유를 여기서 미리 알린다. */}
