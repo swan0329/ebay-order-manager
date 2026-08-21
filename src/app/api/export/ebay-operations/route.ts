@@ -1,11 +1,9 @@
 import * as XLSX from "xlsx";
 import { ebayReviseCsvRow } from "@/lib/ebay-operations-csv";
 import { jsonError } from "@/lib/http";
-import { getOperationalProductIds } from "@/lib/product-operations";
 import { prisma } from "@/lib/prisma";
-import { resolveListingPriceUsd } from "@/lib/listing-price";
-import { listingQuantity } from "@/lib/listing-quantity";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
+import { planEbayInventoryPush } from "@/lib/services/ebayInventoryPush";
 
 function workbookResponse(rows: Record<string, string | number>[], name: string) {
   const workbook = XLSX.utils.book_new();
@@ -91,96 +89,43 @@ export async function GET(request: Request) {
       return workbookResponse(rows, `ebay-link-review-${date}.xlsx`);
     }
 
-    if (type === "end") {
-      const ids = await getOperationalProductIds("stop_required", user.id);
-      const products = await prisma.product.findMany({
-        where: { id: { in: ids }, ebayItemId: { not: null } },
-        orderBy: { sku: "asc" },
-      });
-      return workbookResponse(
-        products.map((product) => ({
-          "*Action": "End",
-          ItemID: product.ebayItemId ?? "",
-          CustomLabel: product.sku,
-          SKU: product.sku,
-          상품명: product.productName,
-          "권장 조치": "내 재고와 포카마켓 매물이 모두 없어 판매중단",
-        })),
-        `ebay-end-listings-${date}.xlsx`,
-      );
-    }
+    // End 파일은 옵션의 부모 리스팅까지 내릴 수 있어 더 이상 만들지 않는다.
+    // 품절은 통합 운영 화면에서 옵션 SKU 또는 단품 수량을 0으로 수정한다.
+    if (type === "end") return jsonError("판매 종료 Excel은 안전하지 않아 중단되었습니다. 변동·품단종 관리에서 미리보기 후 수량 0 처리를 사용해 주세요.", 409);
 
     if (type !== "revise") return jsonError("지원하지 않는 Excel 유형입니다.", 422);
 
-    const [ids, settings, latest] = await Promise.all([
-      getOperationalProductIds("sellable", user.id),
-      prisma.pricingSettings.findUnique({ where: { id: "default" } }),
-      prisma.ebayReportImport.findFirst({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-      }),
-    ]);
-    if (!settings) return jsonError("가격 설정을 먼저 저장해 주세요.", 422);
-    const products = await prisma.product.findMany({
-      where: {
-        id: { in: ids },
-        ebayItemId: { not: null },
-        listingStatus: { in: ["ACTIVE", "PUBLISHED", "LISTED"] },
-        // 가격 판정은 신규등록과 같은 규칙(@/lib/listing-price)에 맡긴다.
-        // 여기서 포카마켓가 있는 상품만 거르면 수동 판매가로 파는 카드는
-        // 가격을 바꿔도 eBay에 영영 반영되지 않는다.
-      },
-      orderBy: { sku: "asc" },
-    });
-    const snapshots = latest
-      ? await prisma.ebayActiveListing.findMany({
-          where: {
-            importId: latest.id,
-            productId: { in: products.map((product) => product.id) },
-            matchStatus: "MATCHED",
-          },
-        })
-      : [];
-    const snapshotByProduct = new Map(
-      snapshots.map((snapshot) => [snapshot.productId, snapshot]),
-    );
-    const rows = products.flatMap((product) => {
-      const current = snapshotByProduct.get(product.id);
-      if (!current) return [];
-      // 포카마켓 가격이 있으면 마진 계산가, 없으면 사람이 넣은 판매가.
-      const resolved = resolveListingPriceUsd(product, settings);
-      if (!resolved) return [];
-      const targetPrice = resolved.priceUsd;
-      // 등록할 때와 같은 규칙을 쓴다. 여기서 달리 계산하면 올린 수량과
-      // 다음 날 바꾸는 수량이 어긋난다.
-      const targetQuantity = listingQuantity(product);
-      const priceChanged =
-        current.price === null ||
-        Math.abs(Number(current.price) - Number(targetPrice)) >= 0.01;
-      const quantityChanged =
-        current.quantity === null || current.quantity !== targetQuantity;
+    const plan = await planEbayInventoryPush({ userId: user.id });
+    const rows = plan.rows.flatMap((row) => {
+      // 포카마켓 정보가 없거나 오래된 행은 파일로도 전송하지 않는다.
+      if (!row.actionable) return [];
+      const priceChanged = row.price !== null && (row.previousPrice === null || Math.abs(row.price - row.previousPrice) >= 0.005);
+      const quantityChanged = row.previousQuantity === null || row.previousQuantity !== row.quantity;
+      // 묶음 옵션은 부모 Item ID + 옵션 SKU 조합만 수정한다. 마지막 전송값이
+      // 없는 옵션은 부모 전체를 잘못 덮을 수 있으므로 운영 화면에서 확인한다.
+      if (row.listingType === "VARIATION_OPTION" && row.previousQuantity === null && row.previousPrice === null) return [];
+      // eBay 일괄 파일의 빈 가격이 "가격 삭제/오류"로 해석되는 것을 막는다.
+      // 가격을 못 정한 수량 변경은 운영 화면의 수량 전용 API 미리보기로 처리한다.
+      if (row.price === null) return [];
       if (!priceChanged && !quantityChanged) return [];
-      return [
-        {
-          "*Action": "Revise",
-          ItemID: product.ebayItemId ?? current.itemId,
-          CustomLabel: product.sku,
-          "*Quantity": targetQuantity,
-          "*BuyItNowPrice": targetPrice.toString(),
-          SKU: product.sku,
-          상품명: product.productName,
-          "변경 사유": [
-            priceChanged ? "가격" : "",
-            quantityChanged ? "수량" : "",
-          ]
-            .filter(Boolean)
-            .join("·"),
-          "현재 가격": current.price?.toString() ?? "",
-          "현재 수량": current.quantity ?? "",
-          // 이 가격이 어디서 나왔는지 검토용 파일에서 바로 보이게 한다.
-          "가격 기준": resolved.source === "pocamarket" ? "포카마켓 계산가" : "수동 입력가",
-        },
-      ];
+      return [{
+        "*Action": "Revise",
+        ItemID: row.itemId,
+        CustomLabel: row.sku,
+        "*Quantity": row.quantity,
+        "*BuyItNowPrice": row.price?.toFixed(2) ?? "",
+        SKU: row.sku,
+        상품명: row.parentTitle ?? row.productName,
+        "리스팅 유형": row.listingType === "VARIATION_OPTION" ? "묶음 옵션 (부모 유지)" : "단품",
+        "변경 사유": [priceChanged ? "가격" : "", quantityChanged ? "수량" : ""].filter(Boolean).join("·"),
+        "내 재고": row.stock,
+        "주문 예약": row.reserved,
+        "안전재고": row.safetyStock,
+        "포카 빠른구매": row.pocamarketFresh ? row.pocamarketAvailableCount ?? "" : "확인 필요",
+        "판정": row.availabilityStatus,
+        "현재 가격": row.previousPrice?.toFixed(2) ?? "",
+        "현재 수량": row.previousQuantity ?? "",
+      }];
     });
     const limited = rowLimit ? rows.slice(0, rowLimit) : rows;
     if (asCsv) {
