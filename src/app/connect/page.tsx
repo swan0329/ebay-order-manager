@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { EbayApiUsageCard } from "@/components/EbayApiUsageCard";
 import { EbayConnectionTest } from "@/components/EbayConnectionTest";
-import { EbayManualCodeForm } from "@/components/EbayManualCodeForm";
 import { TopNav } from "@/components/TopNav";
 import { currentEbayEnvironment } from "@/lib/ebay-environment";
 import { prisma } from "@/lib/prisma";
@@ -104,7 +103,7 @@ export default async function ConnectPage({
           </section>
         ) : null}
 
-        <section className="mb-4 rounded-lg border border-zinc-200 bg-white p-5">
+          <section className="mb-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-semibold text-zinc-950">설정 상태</h2>
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-[150px_1fr]">
             <dt className="text-zinc-500">환경</dt>
@@ -195,7 +194,7 @@ export default async function ConnectPage({
                       {refreshExpired ? " (만료됨)" : ""}
                     </dd>
                   </dl>
-                  <EbayConnectionTest />
+                  <EbayConnectionTest autoRun={Boolean(params.connected)} />
                 </div>
                 <a
                   href="/api/ebay/oauth/start"
@@ -227,49 +226,51 @@ export default async function ConnectPage({
           )}
         </section>
 
-        <section className="mb-4 rounded-lg border border-sky-200 bg-sky-50 p-5">
+        <section className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-5">
           <div className="flex items-start gap-3">
             <RotateCcw className="mt-0.5 h-5 w-5 shrink-0 text-sky-700" />
             <div>
               <h2 className="text-base font-semibold text-zinc-950">
-                Fresh eBay Connect
+                eBay 연결 시작
               </h2>
               <p className="mt-1 text-sm text-zinc-700">
-                This starts a new eBay OAuth attempt with a fresh state value and
-                clears the previous app-side OAuth state cookie first. If eBay still
-                shows invalid_request, try this button in an incognito window or
-                after clearing eBay cookies for ebay.com.
+                새 OAuth 시도를 시작합니다. 승인 뒤에는 이 화면으로 자동 복귀하고,
+                실제 주문 API까지 자동 점검해 연결 성공 여부를 표시합니다.
               </p>
               <a
                 href="/api/ebay/oauth/start"
                 className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
               >
                 <RotateCcw className="h-4 w-4" />
-                Fresh eBay Connect
+                eBay 연결 시작
               </a>
             </div>
           </div>
         </section>
 
-        <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-5">
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
             <div>
               <h2 className="text-base font-semibold text-zinc-950">
-                OAuth callback fallback
+                자동 복귀가 안 될 때 한 번만 설정할 것
               </h2>
               <p className="mt-1 text-sm text-zinc-700">
-                If eBay shows its default &quot;Authorization successfully
-                completed&quot; page and does not return here, paste any URL or value
-                that contains code= below. If there is no code visible, retry OAuth
-                to create a new state cookie and authorization URL.
+                eBay 개발자 포털의 이 앱 RuName <code className="rounded bg-amber-100 px-1">{process.env.EBAY_RU_NAME}</code>에서
+                <strong> Your auth accepted URL</strong>을 아래 주소와 정확히 같게 저장해 주세요.
+                이 값이 다르면 eBay는 승인 완료 화면만 보이고 이 시스템에는 연결 정보가 저장되지 않습니다.
               </p>
+              <code className="mt-3 block break-all rounded-md bg-white px-3 py-2 text-xs text-zinc-900">{callbackUrl}</code>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <a href="https://developer.ebay.com/my/keys" target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-amber-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-amber-100">
+                  <ExternalLink className="h-4 w-4" /> eBay 개발자 설정 열기
+                </a>
+                <a href="/api/ebay/oauth/start" className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800">
+                  <RotateCcw className="h-4 w-4" /> 설정 후 다시 연결
+                </a>
+              </div>
             </div>
           </div>
-          <EbayManualCodeForm
-            initialCodeOrUrl={params.code ?? ""}
-            initialState={params.state ?? ""}
-          />
         </section>
       </main>
     </div>

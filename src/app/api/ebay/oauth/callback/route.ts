@@ -63,5 +63,7 @@ export async function GET(request: Request) {
     environment: result.environment,
     accountId: result.accountId,
   });
-  redirect("/orders?connected=1&sync=1");
+  // 인증 성공 직후에는 주문 화면으로 보내지 않는다. 연결 상태와 실제 API 호출 결과를
+  // 확인할 수 있는 화면으로 돌아와야 "승인만 됐는지"를 명확히 알 수 있다.
+  redirect("/connect?connected=1");
 }

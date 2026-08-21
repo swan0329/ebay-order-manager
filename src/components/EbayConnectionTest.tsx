@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Loader2, Stethoscope } from "lucide-react";
 
 type ConnectionStatusResponse = {
@@ -15,7 +15,7 @@ type TestState =
   | { status: "ok"; message: string }
   | { status: "error"; message: string };
 
-export function EbayConnectionTest() {
+export function EbayConnectionTest({ autoRun = false }: { autoRun?: boolean }) {
   const [state, setState] = useState<TestState>({ status: "idle" });
 
   async function runTest() {
@@ -50,6 +50,12 @@ export function EbayConnectionTest() {
       });
     }
   }
+
+  useEffect(() => {
+    if (!autoRun) return;
+    const timer = window.setTimeout(() => void runTest(), 0);
+    return () => window.clearTimeout(timer);
+  }, [autoRun]);
 
   return (
     <div className="mt-4">
