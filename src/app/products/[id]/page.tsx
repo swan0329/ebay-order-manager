@@ -41,6 +41,9 @@ export default async function ProductDetailPage({
         take: 5,
       },
       listingLinks: true,
+      productListings: {
+        select: { channel: true, externalId: true, status: true, updatedAt: true },
+      },
     },
   });
 
@@ -64,6 +67,12 @@ export default async function ProductDetailPage({
     ]),
   );
   const uploadError = product.uploadError ?? product.listingDrafts[0]?.errorSummary;
+  // 채널 식별자의 기준은 ProductListing이다. 이전 열은 이미 저장돼 있는 상품을
+  // 읽는 동안만 뒤로 물러난 호환값으로 쓴다.
+  const ebayListing = product.productListings.find((listing) => listing.channel === "EBAY");
+  const shopifyListing = product.productListings.find((listing) => listing.channel === "SHOPIFY");
+  const ebayExternalId = ebayListing?.externalId ?? product.ebayItemId;
+  const shopifyExternalId = shopifyListing?.externalId ?? product.shopifyProductId;
   const imageSourceRows = await prisma.$queryRaw<Array<{ imageSource: string | null }>>`
     SELECT "image_source" AS "imageSource" FROM "products" WHERE "id" = ${product.id}
   `;
@@ -90,7 +99,7 @@ export default async function ProductDetailPage({
           <div className="flex items-start gap-2">
             <ShopifyUploadButton
               productId={product.id}
-              alreadyUploaded={Boolean(product.shopifyProductId)}
+              alreadyUploaded={Boolean(shopifyExternalId)}
             />
             <Link
               href={`/products/${product.id}/edit`}
@@ -184,7 +193,7 @@ export default async function ProductDetailPage({
                 <div>
                   <dt className="text-zinc-500">item_id / offer_id</dt>
                   <dd className="font-medium text-zinc-950">
-                    {product.ebayItemId ?? product.listingLinks[0]?.ebayItemId ?? "-"} /{" "}
+                    {ebayExternalId ?? product.listingLinks[0]?.ebayItemId ?? "-"} /{" "}
                     {product.ebayOfferId ?? product.listingLinks[0]?.offerId ?? "-"}
                   </dd>
                 </div>
@@ -218,16 +227,16 @@ export default async function ProductDetailPage({
                 <div>
                   <dt className="text-zinc-500">product_id</dt>
                   <dd className="font-medium text-zinc-950">
-                    {product.shopifyProductId ?? "-"}
+                    {shopifyExternalId ?? "-"}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-zinc-500">상태 / 최근 업로드</dt>
                   <dd className="font-medium text-zinc-950">
-                    {product.shopifyProductId
-                      ? `${product.shopifyStatus ?? "-"} · ${
-                          product.shopifyLastUploadedAt
-                            ? formatDate(product.shopifyLastUploadedAt)
+                    {shopifyExternalId
+                      ? `${shopifyListing?.status ?? product.shopifyStatus ?? "-"} · ${
+                          shopifyListing?.updatedAt ?? product.shopifyLastUploadedAt
+                            ? formatDate(shopifyListing?.updatedAt ?? product.shopifyLastUploadedAt!)
                             : "-"
                         }`
                       : "미업로드"}
