@@ -164,14 +164,6 @@ export function ResizableProductsTable({
   const [lensExportLoading, setLensExportLoading] = useState(false);
   const [combinedExportLoading, setCombinedExportLoading] = useState(false);
   const [ownPhotoExportLoading, setOwnPhotoExportLoading] = useState(false);
-  const [shopifyLoading, setShopifyLoading] = useState(false);
-  const [shopifyProgress, setShopifyProgress] = useState<{
-    total: number;
-    done: number;
-    success: number;
-    failed: number;
-    running: boolean;
-  } | null>(null);
   const [bulkMessage, setBulkMessage] = useState("");
   const [pendingBulkUpdate, setPendingBulkUpdate] =
     useState<PendingBulkUpdate | null>(null);
@@ -650,7 +642,7 @@ export function ResizableProductsTable({
       const response = await fetch("/api/ebay/inventory/push", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ productIds: selectedProductIds }),
+        body: JSON.stringify({ productIds: selectedProductIds, dryRun: false, confirmed: true, previewToken: plan.previewToken }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error ?? "반영에 실패했습니다.");
@@ -676,73 +668,11 @@ export function ResizableProductsTable({
       return;
     }
 
-    if (
-      !window.confirm(
-        `선택한 상품 ${selectedCount}개를 쇼피파이에 업로드할까요?\n\n순서대로 하나씩 업로드되며, 개수가 많으면 시간이 걸립니다.`,
-      )
-    ) {
-      return;
-    }
-
-    setShopifyLoading(true);
-    setBulkMessage("");
-
-    const ids = selectedProductIds;
-    let success = 0;
-    let failed = 0;
-    setShopifyProgress({
-      total: ids.length,
-      done: 0,
-      success: 0,
-      failed: 0,
-      running: true,
-    });
-
-    // Shopify Admin REST는 초당 두 건까지만 받는다. 쉬지 않고 부르면 429가 나고
-    // 그때부터 줄줄이 실패한다. 한 건에 여러 번 부르므로 넉넉히 띄운다.
-    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-    const reasons: string[] = [];
-
-    for (let index = 0; index < ids.length; index += 1) {
-      try {
-        const response = await fetch(`/api/products/${ids[index]}/shopify-upload`, {
-          method: "POST",
-        });
-        if (response.ok) {
-          success += 1;
-        } else {
-          failed += 1;
-          // 몇 개 실패했는지만 알면 무엇을 고쳐야 할지 알 수 없다. 사유를 남긴다.
-          const body = await response.json().catch(() => null);
-          if (reasons.length < 5) {
-            reasons.push(body?.error ?? `HTTP ${response.status}`);
-          }
-        }
-      } catch (error) {
-        failed += 1;
-        if (reasons.length < 5) {
-          reasons.push(error instanceof Error ? error.message : String(error));
-        }
-      }
-
-      setShopifyProgress({
-        total: ids.length,
-        done: index + 1,
-        success,
-        failed,
-        running: index + 1 < ids.length,
-      });
-
-      if (index + 1 < ids.length) await wait(700);
-    }
-
-    setShopifyLoading(false);
-    setBulkMessage(
-      failed > 0
-        ? `쇼피파이 업로드 완료: 성공 ${success}개, 실패 ${failed}개. ${reasons.join(" / ")}`
-        : `쇼피파이 업로드 완료: ${success}개 모두 성공했습니다.`,
-    );
-    router.refresh();
+    // 이 표의 단건 순차 전송은 묶음 옵션을 단품으로 만들 수 있고, 미리보기
+    // 토큰도 거치지 않았다. 채널 운영 메뉴가 묶음 구성·가격·수량을 함께 보여
+    // 준 뒤 실제 전송하므로 그 한 경로만 사용한다.
+    setBulkMessage("Shopify 전송은 채널 운영 메뉴에서 묶음 구성과 전송값을 미리 확인한 뒤 실행해 주세요.");
+    router.push("/ebay-operations?channel=SHOPIFY");
   }
 
   return (
@@ -836,13 +766,11 @@ export function ResizableProductsTable({
             <button
               type="button"
               onClick={() => void runBulkShopifyUpload()}
-              disabled={shopifyLoading || !selectedCount}
+              disabled={!selectedCount}
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-emerald-600 bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
             >
               <ShoppingBag className="h-3.5 w-3.5" />
-              {shopifyLoading
-                ? "쇼피파이 업로드 중"
-                : `쇼피파이 업로드${selectedCount > 0 ? ` (${selectedCount}개)` : ""}`}
+              {`Shopify 운영 메뉴${selectedCount > 0 ? ` (${selectedCount}개)` : ""}`}
             </button>
             <button
               type="button"
@@ -1016,63 +944,6 @@ export function ResizableProductsTable({
             ))
           : null}
       </section>
-
-      {shopifyProgress ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
-            <div className="border-b border-zinc-200 p-4">
-              <h2 className="flex items-center gap-2 text-base font-semibold text-zinc-950">
-                {shopifyProgress.running ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
-                ) : (
-                  <ShoppingBag className="h-4 w-4 text-emerald-600" />
-                )}
-                {shopifyProgress.running ? "쇼피파이 업로드 중…" : "쇼피파이 업로드 완료"}
-              </h2>
-              <p className="mt-1 text-sm text-zinc-600">
-                {shopifyProgress.done} / {shopifyProgress.total}개 처리됨
-              </p>
-            </div>
-            <div className="space-y-3 p-4">
-              <div className="h-2.5 w-full overflow-hidden rounded-full bg-zinc-100">
-                <div
-                  className="h-full rounded-full bg-emerald-600 transition-all duration-300"
-                  style={{
-                    width: `${
-                      shopifyProgress.total
-                        ? Math.round((shopifyProgress.done / shopifyProgress.total) * 100)
-                        : 0
-                    }%`,
-                  }}
-                />
-              </div>
-              <div className="flex gap-4 text-sm font-medium">
-                <span className="text-emerald-700">성공 {shopifyProgress.success}개</span>
-                <span className={shopifyProgress.failed ? "text-rose-600" : "text-zinc-400"}>
-                  실패 {shopifyProgress.failed}개
-                </span>
-              </div>
-              <p className="text-xs text-zinc-500">
-                {shopifyProgress.running
-                  ? "완료될 때까지 이 창을 닫지 마세요."
-                  : shopifyProgress.failed > 0
-                    ? "실패한 상품은 상세페이지에서 오류를 확인하세요."
-                    : "모든 상품이 쇼피파이에 업로드됐습니다."}
-              </p>
-            </div>
-            <div className="flex justify-end border-t border-zinc-200 p-4">
-              <button
-                type="button"
-                onClick={() => setShopifyProgress(null)}
-                disabled={shopifyProgress.running}
-                className="h-9 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
-              >
-                {shopifyProgress.running ? "진행 중…" : "닫기"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {pendingBulkUpdate ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">

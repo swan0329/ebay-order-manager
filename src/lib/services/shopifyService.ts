@@ -140,7 +140,13 @@ export type ShopifyVariationUploadInput = {
 export type ShopifyVariationUploadResult = {
   productId: string;
   status: string | null;
-  variants: Array<{ sku: string; variantId: string; inventoryItemId: string | null; inventorySynced: boolean }>;
+  variants: Array<{
+    sku: string;
+    variantId: string;
+    inventoryItemId: string | null;
+    inventorySynced: boolean;
+    inventoryError: string | null;
+  }>;
 };
 
 /** 한 묶음을 Shopify 상품 하나와 여러 옵션으로 만든다. */
@@ -176,17 +182,32 @@ export async function upsertShopifyVariationProduct(
   const created = response.product;
   if (!created?.id) throw new ShopifyApiError("Shopify가 묶음 상품 ID를 반환하지 않았습니다.", 502, response);
   const bySku = new Map((created.variants ?? []).flatMap((variant) => variant.sku ? [[variant.sku, variant] as const] : []));
-  const variants = [];
+  const variants: ShopifyVariationUploadResult["variants"] = [];
   for (const item of items) {
     const variant = bySku.get(item.sku);
     if (!variant) throw new ShopifyApiError(`Shopify가 ${item.sku} 옵션 ID를 반환하지 않았습니다.`, 502, response);
     const inventoryItemId = variant.inventory_item_id ? String(variant.inventory_item_id) : null;
     let inventorySynced = false;
+    let inventoryError: string | null = null;
     if (inventoryItemId) {
-      await setShopifyInventoryLevel(config, inventoryItemId, item.quantity);
-      inventorySynced = true;
+      try {
+        await setShopifyInventoryLevel(config, inventoryItemId, item.quantity);
+        inventorySynced = true;
+      } catch (error) {
+        // 상품/옵션 생성은 이미 성공했을 수 있다. 여기서 전체 작업을 throw하면
+        // 그 외부 ID를 저장하지 못해 다음 실행 때 같은 묶음을 또 만들 수 있다.
+        inventoryError = error instanceof Error ? error.message : String(error);
+      }
+    } else {
+      inventoryError = "Shopify가 옵션 재고 항목 ID를 반환하지 않았습니다.";
     }
-    variants.push({ sku: item.sku, variantId: String(variant.id), inventoryItemId, inventorySynced });
+    variants.push({
+      sku: item.sku,
+      variantId: String(variant.id),
+      inventoryItemId,
+      inventorySynced,
+      inventoryError,
+    });
   }
   const productId = String(created.id);
   await setShopifyProductCategory(config, productId, PHOTOCARD_TAXONOMY_CATEGORY);
@@ -422,11 +443,11 @@ export async function uploadProductToShopify(
       })) as ShopifyProductResponse;
       action = "updated";
     } catch (error) {
-      // The product was deleted on Shopify (stale id) — recreate it instead of
-      // failing the whole upload.
+      // 연결된 Shopify 상품이 없어졌다고 즉시 새 상품을 만들면, 사람이 의도해
+      // 삭제한 상품을 중복으로 되살릴 수 있다. 운영자가 목록에서 확인해 신규
+      // 등록으로 보낼 때만 다시 만들도록 막는다.
       if (error instanceof ShopifyApiError && error.status === 404) {
-        response = await createProduct();
-        action = "created";
+        throw new Error("연결된 Shopify 상품을 찾지 못했습니다. 중복 등록을 막기 위해 자동 재생성하지 않습니다. 채널 운영 메뉴에서 연결 상태를 확인해 주세요.");
       } else {
         throw error;
       }

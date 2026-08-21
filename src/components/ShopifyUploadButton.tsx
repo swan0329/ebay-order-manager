@@ -18,23 +18,11 @@ export function ShopifyUploadButton({
   const [error, setError] = useState<string | null>(null);
 
   async function handleUpload() {
+    // 단품 버튼으로 바로 전송하면 같은 묶음에 들어갈 옵션을 단품으로 올릴 수
+    // 있다. 운영 메뉴에서 마켓별 미리보기와 최종 확인을 거치게 한다.
     setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/products/${productId}/shopify-upload`, {
-        method: "POST",
-      });
-      const data = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        setError(data.error ?? "업로드에 실패했습니다.");
-        return;
-      }
-      router.refresh();
-    } catch {
-      setError("네트워크 오류로 업로드에 실패했습니다.");
-    } finally {
-      setLoading(false);
-    }
+    setError("Shopify 채널 운영 메뉴에서 미리보기 후 전송해 주세요.");
+    router.push(`/ebay-operations?channel=SHOPIFY&productId=${encodeURIComponent(productId)}`);
   }
 
   return (
@@ -46,11 +34,7 @@ export function ShopifyUploadButton({
         className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <ShoppingBag className="h-4 w-4" />
-        {loading
-          ? "업로드 중…"
-          : alreadyUploaded
-            ? "쇼피파이 재업로드"
-            : "쇼피파이 업로드"}
+        {loading ? "운영 메뉴로 이동 중…" : alreadyUploaded ? "Shopify 운영 메뉴 (재검토)" : "Shopify 운영 메뉴"}
       </button>
       {error ? (
         <p className="max-w-xs text-right text-xs text-rose-600">{error}</p>

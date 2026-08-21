@@ -1,6 +1,5 @@
-import { jsonError } from "@/lib/http";
-import { requireApiUser,UnauthorizedError } from "@/lib/session";
-import { uploadShopifyProduct } from "@/lib/services/shopifyProductUpload";
-import { ShopifyApiError } from "@/lib/services/shopifyService";
 type RouteContext={params:Promise<{id:string}>};
-export async function POST(_request:Request,context:RouteContext){const {id}=await context.params;try{await requireApiUser();return Response.json({ok:true,shopify:await uploadShopifyProduct(id)})}catch(error){if(error instanceof UnauthorizedError)return jsonError("Unauthorized",401);if(error instanceof ShopifyApiError)return jsonError(`Shopify 업로드 실패 (HTTP ${error.status})`,error.status>=400&&error.status<500?error.status:502);return jsonError(error instanceof Error?error.message:"Shopify 업로드 실패",500)}}
+// Shopify 상품 쓰기는 /api/ebay/operations?channel=SHOPIFY 한 곳에서만 한다.
+// 그 경로는 묶음 옵션 구성, 최신 재고, 가격, 미리보기 토큰과 최종 확인을 모두
+// 검사한다. 이 옛 단건 엔드포인트를 남겨 두면 그 안전 절차를 우회하게 된다.
+export async function POST(_request:Request,context:RouteContext){await context.params;return Response.json({error:"Shopify 전송은 채널 운영 메뉴에서 미리보기와 최종 확인 후 실행해 주세요."},{status:409});}

@@ -47,11 +47,21 @@ export async function uploadShopifyVariationGroup(productIds: string[]) {
   await prisma.$transaction(group.products.flatMap((product) => {
     const variant = variants.get(product.sku)!;
     const item = items.find((candidate) => candidate.sku === product.sku)!;
-    const metadata = { variantId: variant.variantId, inventoryItemId: variant.inventoryItemId, groupKey: group.key, optionName: product.variationName, source: "shopify_variation_upload" };
+    // Shopify 상품/옵션 생성 성공과 재고 반영 성공은 별개다. 전자는 즉시 저장해
+    // 재시도 때 같은 묶음을 중복 생성하지 않게 하고, 후자는 성공한 옵션만 실제
+    // 수량으로 기록한다. 실패 옵션은 quantity=null로 남아 다음 변동 목록에 다시
+    // 나타난다.
+    const metadata = { variantId: variant.variantId, inventoryItemId: variant.inventoryItemId, groupKey: group.key, optionName: product.variationName, source: "shopify_variation_upload", inventorySynced: variant.inventorySynced, inventoryError: variant.inventoryError };
     return [
-      prisma.product.update({ where: { id: product.id }, data: { shopifyProductId: result.productId, shopifyVariantId: variant.variantId, shopifyInventoryItemId: variant.inventoryItemId, shopifyStatus: result.status, shopifyLastUploadedAt: new Date(), shopifyUploadError: null } }),
-      prisma.productListing.upsert({ where: { productId_channel: { productId: product.id, channel: "SHOPIFY" } }, update: { externalId: result.productId, price: item.priceUsd, quantity: item.quantity, status: result.status, metadata }, create: { productId: product.id, channel: "SHOPIFY", externalId: result.productId, price: item.priceUsd, quantity: item.quantity, status: result.status, metadata } }),
+      prisma.product.update({ where: { id: product.id }, data: { shopifyProductId: result.productId, shopifyVariantId: variant.variantId, shopifyInventoryItemId: variant.inventoryItemId, shopifyStatus: result.status, shopifyLastUploadedAt: new Date(), shopifyUploadError: variant.inventoryError } }),
+      prisma.productListing.upsert({ where: { productId_channel: { productId: product.id, channel: "SHOPIFY" } }, update: { externalId: result.productId, price: item.priceUsd, quantity: variant.inventorySynced ? item.quantity : null, status: result.status, metadata }, create: { productId: product.id, channel: "SHOPIFY", externalId: result.productId, price: item.priceUsd, quantity: variant.inventorySynced ? item.quantity : null, status: result.status, metadata } }),
     ];
   }));
-  return result;
+  return {
+    ...result,
+    succeeded: result.variants.filter((variant) => variant.inventorySynced).length,
+    failed: result.variants
+      .filter((variant) => !variant.inventorySynced)
+      .map((variant) => ({ sku: variant.sku, reason: variant.inventoryError ?? "Shopify 재고 반영 실패" })),
+  };
 }
