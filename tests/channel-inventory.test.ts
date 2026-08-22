@@ -5,7 +5,6 @@ import { reservedByProduct, sellableQuantity } from "@/lib/stock-reservation";
 // 무엇을 올릴지 정하는 계산만 확인한다.
 function planFor(input: {
   stock: number;
-  safetyStock: number;
   lines: Array<{ quantity: number; stockDeducted: boolean; orderCancelled: boolean }>;
 }) {
   const reserved =
@@ -15,7 +14,6 @@ function planFor(input: {
     sellable: sellableQuantity({
       stock: input.stock,
       reserved,
-      safetyStock: input.safetyStock,
     }),
   };
 }
@@ -26,7 +24,6 @@ describe("채널에 올릴 수량 정하기", () => {
     expect(
       planFor({
         stock: 3,
-        safetyStock: 0,
         lines: [{ quantity: 1, stockDeducted: false, orderCancelled: false }],
       }),
     ).toEqual({ reserved: 1, sellable: 2 });
@@ -37,7 +34,6 @@ describe("채널에 올릴 수량 정하기", () => {
     expect(
       planFor({
         stock: 3,
-        safetyStock: 0,
         lines: [{ quantity: 1, stockDeducted: true, orderCancelled: false }],
       }),
     ).toEqual({ reserved: 0, sellable: 3 });
@@ -47,21 +43,18 @@ describe("채널에 올릴 수량 정하기", () => {
     expect(
       planFor({
         stock: 2,
-        safetyStock: 0,
         lines: [{ quantity: 2, stockDeducted: false, orderCancelled: true }],
       }),
     ).toEqual({ reserved: 0, sellable: 2 });
   });
 
-  it("안전재고를 두면 그만큼 낮춰 올린다", () => {
-    // eBay는 수량 반영이 파일이라 늦다. 그 사이 겹쳐 팔리는 것을 막는 여유다.
+  it("이전 안전재고 값은 채널 전송 수량에 영향을 주지 않는다", () => {
     expect(
       planFor({
         stock: 3,
-        safetyStock: 1,
         lines: [{ quantity: 1, stockDeducted: false, orderCancelled: false }],
       }),
-    ).toEqual({ reserved: 1, sellable: 1 });
+    ).toEqual({ reserved: 1, sellable: 2 });
   });
 
   it("잡아 둔 몫이 재고보다 많으면 0으로 내린다", () => {
@@ -69,7 +62,6 @@ describe("채널에 올릴 수량 정하기", () => {
     expect(
       planFor({
         stock: 1,
-        safetyStock: 0,
         lines: [
           { quantity: 1, stockDeducted: false, orderCancelled: false },
           { quantity: 2, stockDeducted: false, orderCancelled: false },

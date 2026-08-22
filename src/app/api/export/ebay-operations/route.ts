@@ -97,7 +97,8 @@ export async function GET(request: Request) {
 
     const plan = await planEbayInventoryPush({ userId: user.id });
     const rows = plan.rows.flatMap((row) => {
-      // 포카마켓 정보가 없거나 오래된 행은 파일로도 전송하지 않는다.
+      // 포카마켓 수집값이 없는 행만 파일 전송에서 제외한다. 마지막 수집값은
+      // 수집 시각과 무관하게 운영 기준으로 쓴다.
       if (!row.actionable) return [];
       const priceChanged = row.price !== null && (row.previousPrice === null || Math.abs(row.price - row.previousPrice) >= 0.005);
       const quantityChanged = row.previousQuantity === null || row.previousQuantity !== row.quantity;
@@ -120,8 +121,7 @@ export async function GET(request: Request) {
         "변경 사유": [priceChanged ? "가격" : "", quantityChanged ? "수량" : ""].filter(Boolean).join("·"),
         "내 재고": row.stock,
         "주문 예약": row.reserved,
-        "안전재고": row.safetyStock,
-        "포카 빠른구매": row.pocamarketFresh ? row.pocamarketAvailableCount ?? "" : "확인 필요",
+        "포카 최종 수집값": row.pocamarketAvailableCount ?? "수집값 없음",
         "판정": row.availabilityStatus,
         "현재 가격": row.previousPrice?.toFixed(2) ?? "",
         "현재 수량": row.previousQuantity ?? "",

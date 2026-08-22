@@ -38,7 +38,6 @@ export default async function NewProductPage({
             brand: params.brand ?? null,
             memo: params.memo ?? null,
             stockQuantity: 0,
-            safetyStock: 0,
             status: "unlisted",
           }}
         />

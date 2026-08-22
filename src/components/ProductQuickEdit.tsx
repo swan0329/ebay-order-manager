@@ -28,7 +28,6 @@ export type ProductQuickEditValue = {
   pocamarketPreviousAvailableCount?: number | null;
   ebayPrice: string | null;
   stockQuantity: number;
-  safetyStock: number;
   location: string | null;
   memo: string | null;
   imageUrl: string | null;
@@ -423,7 +422,6 @@ export function ProductQuickEditRow({
         salePrice: submittedValue.salePrice,
         ebayPrice: submittedValue.ebayPrice,
         stockQuantity: submittedValue.stockQuantity,
-        safetyStock: product.safetyStock,
         location: product.location,
         memo: submittedValue.memo,
         imageUrl: product.imageUrl,
@@ -823,7 +821,6 @@ export function ProductQuickEditCard({
         salePrice: submittedValue.salePrice,
         ebayPrice: submittedValue.ebayPrice,
         stockQuantity: submittedValue.stockQuantity,
-        safetyStock: product.safetyStock,
         location: product.location,
         memo: submittedValue.memo,
         imageUrl: product.imageUrl,

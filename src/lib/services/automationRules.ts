@@ -30,7 +30,7 @@ export async function previewZeroStockListings(userId: string, productIds?: stri
       ],
     },
     select: {
-      id: true, sku: true, productName: true, stockQuantity: true, safetyStock: true,
+      id: true, sku: true, productName: true, stockQuantity: true,
       status: true, isSoldOut: true, pocamarketAvailableCount: true, pocamarketSyncedAt: true,
       updatedAt: true,
       ebayItemId: true,
@@ -46,7 +46,6 @@ export async function previewZeroStockListings(userId: string, productIds?: stri
     const availability = resolveChannelAvailability({
       status: product.status,
       stockQuantity: product.stockQuantity,
-      safetyStock: product.safetyStock,
       isSoldOut: product.isSoldOut,
       pocamarketAvailableCount: product.pocamarketAvailableCount,
       pocamarketSyncedAt: product.pocamarketSyncedAt,

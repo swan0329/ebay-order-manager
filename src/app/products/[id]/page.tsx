@@ -132,12 +132,6 @@ export default async function ProductDetailPage({
                   </dd>
                 </div>
                 <div className="flex justify-between gap-3">
-                  <dt className="text-zinc-500">안전재고</dt>
-                  <dd className="font-semibold text-zinc-950">
-                    {product.safetyStock}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-3">
                   <dt className="text-zinc-500">상태</dt>
                   <dd className="font-semibold text-zinc-950">
                     {productStockLabel(product)}

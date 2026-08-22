@@ -195,7 +195,6 @@ export default async function ProductsPage({
         pocamarketSyncedAt: true,
         ebayPrice: true,
         stockQuantity: true,
-        safetyStock: true,
         location: true,
         memo: true,
         imageUrl: true,
@@ -257,7 +256,6 @@ export default async function ProductsPage({
       pocamarketPreviousAvailableCount: change?.previousAvailableCount ?? null,
       ebayPrice: product.ebayPrice?.toString() ?? null,
       stockQuantity: product.stockQuantity,
-      safetyStock: product.safetyStock,
       location: product.location,
       memo: product.memo,
       imageUrl:

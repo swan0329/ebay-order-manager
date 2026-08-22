@@ -57,11 +57,11 @@ describe("Shopify 재고 반영 상태", () => {
     expect(mocks.setInventory).toHaveBeenCalledWith(
       expect.anything(),
       "inventory-1",
-      2,
+      3,
     );
     expect(mocks.listingUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        update: expect.objectContaining({ quantity: 2 }),
+        update: expect.objectContaining({ quantity: 3 }),
       }),
     );
   });

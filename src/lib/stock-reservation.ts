@@ -70,16 +70,13 @@ export function availabilityForOrder(input: {
 /**
  * 채널에 올려 둘 판매 가능 수량.
  *
- * 예약된 몫을 빼야 같은 카드가 두 채널에서 동시에 팔리지 않는다. 안전재고를 두면
- * 그만큼 더 낮춰 올린다. eBay는 수량 반영이 파일이라 늦게 반영되므로 여유가 필요하다.
+ * 예약된 몫을 빼야 같은 카드가 두 채널에서 동시에 팔리지 않는다.
  */
 export function sellableQuantity(input: {
   stock: number;
   reserved: number;
-  safetyStock?: number;
 }) {
   const stock = Math.max(0, Number(input.stock) || 0);
   const reserved = Math.max(0, Number(input.reserved) || 0);
-  const safety = Math.max(0, Number(input.safetyStock) || 0);
-  return Math.max(0, stock - reserved - safety);
+  return Math.max(0, stock - reserved);
 }

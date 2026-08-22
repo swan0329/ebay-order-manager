@@ -238,6 +238,10 @@ async function applyMatchedProductUpdates(
       SET
         "ebay_item_id" = v."item_id",
         "listing_status" = 'ACTIVE',
+        -- 활성상품 보고서의 SKU/Item ID가 정확히 일치한 경우에만, 내부의
+        -- 미등록 상태를 활성 리스팅 상태로 자동 연결한다. 품절은 재고 상태라
+        -- 덮어쓰지 않으며 명시적 판매중지도 되살리지 않는다.
+        "status" = CASE WHEN LOWER(COALESCE(p."status", '')) = 'unlisted' THEN 'active' ELSE p."status" END,
         "updated_at" = CURRENT_TIMESTAMP
       FROM (
         VALUES ${Prisma.join(
@@ -618,6 +622,7 @@ export async function linkEbayActiveListing(
       where: { id: input.productId },
       select: {
         id: true,
+        status: true,
         ebayItemId: true,
         brand: true,
         category: true,
@@ -730,8 +735,8 @@ export async function linkEbayActiveListing(
       // 함께 연결이면 대표 상품번호는 먼저 붙은 것을 그대로 둔다. 상품이 지닐 수
       // 있는 값은 하나뿐이라 덮어쓰면 예전 리스팅의 대표성이 사라진다.
       data: addedAlongside
-        ? { listingStatus: "ACTIVE" }
-        : { ebayItemId: listing.itemId, listingStatus: "ACTIVE" },
+        ? { listingStatus: "ACTIVE", ...(product.status === "unlisted" ? { status: "active" } : {}) }
+        : { ebayItemId: listing.itemId, listingStatus: "ACTIVE", ...(product.status === "unlisted" ? { status: "active" } : {}) },
     });
   });
 

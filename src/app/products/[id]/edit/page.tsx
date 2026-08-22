@@ -31,7 +31,6 @@ export default async function EditProductPage({
     costPrice: product.costPrice?.toString() ?? null,
     salePrice: product.salePrice?.toString() ?? null,
     stockQuantity: product.stockQuantity,
-    safetyStock: product.safetyStock,
     location: product.location,
     memo: product.memo,
     imageUrl: product.imageUrl,

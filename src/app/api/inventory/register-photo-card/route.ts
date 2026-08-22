@@ -52,6 +52,7 @@ export async function POST(request: Request) {
       salePrice: null,
       ebayPrice: input.ebayPrice,
       stockQuantity: 0,
+      // 이전 DB 열 호환용 기본값이며 판매 가능 수량에는 사용하지 않는다.
       safetyStock: 0,
       location: null,
       memo: null,

@@ -25,12 +25,10 @@ export type PushPlanRow = {
   itemId: string;
   stock: number;
   reserved: number;
-  safetyStock: number;
   ownSellableQuantity: number;
   pocamarketAvailableCount: number | null;
   pocamarketListingQuantity: number;
   pocamarketSyncedAt: Date | null;
-  pocamarketFresh: boolean;
   availabilityStatus: AvailabilityStatus;
   actionable: boolean;
   quantity: number;
@@ -100,7 +98,6 @@ export async function planEbayInventoryPush(input: { productIds?: string[]; user
       status: product.status,
       stockQuantity: product.stockQuantity,
       reservedQuantity: productReserved,
-      safetyStock: product.safetyStock,
       isSoldOut: product.isSoldOut,
       pocamarketAvailableCount: product.pocamarketAvailableCount,
       pocamarketSyncedAt: product.pocamarketSyncedAt,
@@ -113,12 +110,10 @@ export async function planEbayInventoryPush(input: { productIds?: string[]; user
       itemId,
       stock: product.stockQuantity,
       reserved: productReserved,
-      safetyStock: product.safetyStock,
       ownSellableQuantity: availability.ownSellableQuantity,
       pocamarketAvailableCount: availability.pocamarketAvailableCount,
       pocamarketListingQuantity: availability.pocamarketListingQuantity,
       pocamarketSyncedAt: product.pocamarketSyncedAt,
-      pocamarketFresh: availability.pocamarketFresh,
       availabilityStatus: availability.availabilityStatus,
       actionable: availability.actionable,
       quantity: availability.quantity,

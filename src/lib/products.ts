@@ -140,7 +140,8 @@ export const productInputSchema = z.object({
   salePrice: nullableDecimal,
   ebayPrice: preservableDecimal,
   stockQuantity: intValue.refine((value) => value >= 0, "재고는 음수가 될 수 없습니다."),
-  safetyStock: intValue.refine((value) => value >= 0, "안전재고는 음수가 될 수 없습니다."),
+  // 이전 데이터 열과 가져오기 호환을 위해 받더라도 판매 판단에는 사용하지 않는다.
+  safetyStock: intValue.optional().default(0),
   location: nullableText,
   memo: nullableText,
   imageUrl: nullableText,
@@ -197,7 +198,7 @@ export function productData(input: ProductInput) {
     salePrice: input.salePrice,
     ebayPrice: input.ebayPrice,
     stockQuantity: input.stockQuantity,
-    safetyStock: input.safetyStock,
+    safetyStock: 0,
     location: input.location,
     memo: input.memo,
     imageUrl: input.imageUrl,
@@ -344,7 +345,6 @@ export function productWhere(params: {
 
 export function productStockLabel(product: {
   stockQuantity: number;
-  safetyStock: number;
   status: string;
 }) {
   const status = normalizeProductStatus(product.status);
@@ -361,17 +361,12 @@ export function productStockLabel(product: {
     return "품절";
   }
 
-  if (product.stockQuantity <= product.safetyStock) {
-    return "재고부족";
-  }
-
   return "정상";
 }
 
 export function matchesProductStockFilter(
   product: {
     stockQuantity: number;
-    safetyStock: number;
     status?: string | null;
     pocamarketAvailableCount?: number | null;
     pocamarketSyncedAt?: Date | string | null;
@@ -597,7 +592,6 @@ export function normalizeProductImportRow(row: ProductImportRow) {
     costPrice: rowValue(row, ["cost_price", "원가"]),
     salePrice: rowValue(row, ["sale_price", "판매가", "포카마켓 가격"]),
     stockQuantity,
-    safetyStock: rowValue(row, ["safety_stock", "안전재고"]),
     location: rowValue(row, ["location", "위치"]),
     memo: rowValue(row, ["memo", "메모", "원본 앨범명"]),
     imageUrl: rowValue(row, ["image_url", "이미지", "이미지 URL", "포카마켓 이미지"]),
@@ -774,7 +768,7 @@ async function importProductsRowsFastWithMovements(
             ${product.costPrice},
             ${product.salePrice},
             ${product.stockQuantity},
-            ${product.safetyStock},
+            0,
             ${product.location},
             ${product.memo},
             ${product.imageUrl},
@@ -907,7 +901,6 @@ export async function productsCsv(
     "cost_price",
     "sale_price",
     "stock_quantity",
-    "safety_stock",
     "location",
     "memo",
     "image_url",
@@ -923,7 +916,6 @@ export async function productsCsv(
     product.costPrice?.toString(),
     product.salePrice?.toString(),
     product.stockQuantity,
-    product.safetyStock,
     product.location,
     product.memo,
     product.imageUrl,

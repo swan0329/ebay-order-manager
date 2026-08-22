@@ -68,9 +68,8 @@ describe("채널에 올릴 판매 가능 수량", () => {
     expect(sellableQuantity({ stock: 3, reserved: 1 })).toBe(2);
   });
 
-  it("안전재고만큼 더 낮춘다", () => {
-    // eBay는 수량 반영이 파일이라 늦다. 그만큼 여유가 필요하다.
-    expect(sellableQuantity({ stock: 3, reserved: 1, safetyStock: 1 })).toBe(1);
+  it("이전 안전재고 값은 판매 가능 수량에 영향을 주지 않는다", () => {
+    expect(sellableQuantity({ stock: 3, reserved: 1 })).toBe(2);
   });
 
   it("음수가 되지 않는다", () => {

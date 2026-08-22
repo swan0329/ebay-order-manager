@@ -64,14 +64,13 @@ export async function getEbayOperations(userId: string) {
     status: draft.status,
     error: draft.errorSummary,
   }));
-  // 품절/판매중지와 "지금은 0으로 보이지만 판정이 다른" 행을 섞으면 실제
-  // 품절 건수가 부풀려 보인다. 예약·안전재고 보류는 수량 0 전송이 가능하되,
-  // 포카마켓 관측이 오래된 행은 전송 불가 상태로 별도 보관한다.
+  // 실제 품절/판매중지와 주문 예약 보류를 분리한다. 예약 보류는 수량 0 전송은
+  // 가능하지만, 상품 자체가 품절된 것으로 집계하지 않는다.
   const unavailable = inventory.rows.filter((row) =>
     ["SOLD_OUT", "DISCONTINUED"].includes(row.availabilityStatus),
   );
   const review = inventory.rows.filter((row) =>
-    ["HELD_FOR_ORDER", "SOURCE_UNKNOWN", "LISTING_STATUS_REVIEW"].includes(row.availabilityStatus),
+    ["HELD_FOR_ORDER", "SOURCE_UNKNOWN"].includes(row.availabilityStatus),
   );
   const unavailableIds = new Set(unavailable.map((row) => row.productId));
   const change = inventory.rows.filter((row) =>
@@ -93,7 +92,6 @@ export async function getEbayOperations(userId: string) {
       unavailableSingles: unavailable.filter((row) => row.listingType === "SINGLE").length,
       sourceReview: review.filter((row) => row.availabilityStatus === "SOURCE_UNKNOWN").length,
       heldForOrder: review.filter((row) => row.availabilityStatus === "HELD_FOR_ORDER").length,
-      listingStatusReview: review.filter((row) => row.availabilityStatus === "LISTING_STATUS_REVIEW").length,
     },
     limits: { createBatch: 50, reviseBatch: 200 },
   };
@@ -123,7 +121,7 @@ export async function getShopifyOperations() {
   const reserved = reservedByProduct(lines.map((line) => ({ productId: line.productId as string, quantity: line.quantity, stockDeducted: line.stockDeducted, orderCancelled: cancelled.includes(line.order.orderStatus) || cancelled.includes(line.order.fulfillmentStatus) })));
   const mapped = products.map((product) => {
     const listing = product.productListings[0];
-    const availability = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: reserved.get(product.id) ?? 0, safetyStock: product.safetyStock, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
+    const availability = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: reserved.get(product.id) ?? 0, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
     const price = settings ? Number(resolveListingPriceUsd(product, settings)?.priceUsd ?? 0) || null : null;
     return { productId: product.id, sku: product.sku, productName: product.productName, itemId: listing?.externalId ?? product.shopifyProductId ?? "-", price, previousQuantity: listing?.quantity ?? null, previousPrice: listing?.price == null ? null : Number(listing.price), productStatus: product.status, linked: Boolean(listing?.externalId ?? product.shopifyProductId), product: readyImageById.has(product.id) ? { ...product, imageUrl: readyImageById.get(product.id)! } : product, ...availability };
   });
@@ -173,6 +171,6 @@ export async function getShopifyOperations() {
     else if (changedMembers.length) change.push(groupedRow);
   }
   const actualUnavailable = unavailable.filter((row) => ["SOLD_OUT", "DISCONTINUED"].includes(String(row.availabilityStatus)));
-  const review = unavailable.filter((row) => ["HELD_FOR_ORDER", "SOURCE_UNKNOWN", "LISTING_STATUS_REVIEW"].includes(String(row.availabilityStatus)));
-  return { create, change, unavailable: actualUnavailable, review, summary: { shopifyListings: create.length, shopifyVariationListings: createGroups.length, shopifySingleListings: createSingles.length, shopifyOptions: unlinked.length, unavailableOptions: actualUnavailable.filter((row) => row.listingType === "VARIATION").length, unavailableSingles: actualUnavailable.filter((row) => row.listingType === "SINGLE").length, sourceReview: review.filter((row) => row.availabilityStatus === "SOURCE_UNKNOWN").length, heldForOrder: review.filter((row) => row.availabilityStatus === "HELD_FOR_ORDER").length, listingStatusReview: review.filter((row) => row.availabilityStatus === "LISTING_STATUS_REVIEW").length }, limits: { createBatch: 50, reviseBatch: 100 } };
+  const review = unavailable.filter((row) => ["HELD_FOR_ORDER", "SOURCE_UNKNOWN"].includes(String(row.availabilityStatus)));
+  return { create, change, unavailable: actualUnavailable, review, summary: { shopifyListings: create.length, shopifyVariationListings: createGroups.length, shopifySingleListings: createSingles.length, shopifyOptions: unlinked.length, unavailableOptions: actualUnavailable.filter((row) => row.listingType === "VARIATION").length, unavailableSingles: actualUnavailable.filter((row) => row.listingType === "SINGLE").length, sourceReview: review.filter((row) => row.availabilityStatus === "SOURCE_UNKNOWN").length, heldForOrder: review.filter((row) => row.availabilityStatus === "HELD_FOR_ORDER").length }, limits: { createBatch: 50, reviseBatch: 100 } };
 }

@@ -356,7 +356,6 @@ export async function uploadProductToShopify(
     status: product.status,
     stockQuantity: product.stockQuantity,
     reservedQuantity: reservedQuantity ?? 0,
-    safetyStock: product.safetyStock ?? 0,
     isSoldOut: product.isSoldOut,
     pocamarketAvailableCount: product.pocamarketAvailableCount,
     pocamarketSyncedAt: product.pocamarketSyncedAt,

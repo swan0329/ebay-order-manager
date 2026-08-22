@@ -105,7 +105,6 @@ export async function upsertProductFromListingInput(
       productName: input.title,
       salePrice: input.price,
       stockQuantity: input.quantity,
-      safetyStock: 0,
       imageUrl: firstImageUrl(input.imageUrls),
       status: input.quantity > 0 ? "active" : "sold_out",
       ebayTitle: input.title,

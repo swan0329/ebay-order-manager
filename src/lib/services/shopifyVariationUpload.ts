@@ -29,7 +29,7 @@ export async function uploadShopifyVariationGroup(productIds: string[]) {
   const items = group.products.map((product) => {
     const price = resolveListingPriceUsd(product, settings);
     if (!price) throw new Error(`${product.sku}: 판매가를 계산할 수 없습니다.`);
-    const availability = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: reserved.get(product.id) ?? 0, safetyStock: product.safetyStock, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
+    const availability = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: reserved.get(product.id) ?? 0, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
     if (!availability.actionable) throw new Error(`${product.sku}: 포카마켓 재고 확인 후 전송할 수 있습니다.`);
     return {
       sku: product.sku,

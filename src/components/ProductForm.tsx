@@ -19,7 +19,6 @@ type ProductFormValues = {
   costPrice?: string | number | null;
   salePrice?: string | number | null;
   stockQuantity?: number;
-  safetyStock?: number;
   location?: string | null;
   memo?: string | null;
   imageUrl?: string | null;
@@ -182,7 +181,7 @@ export function ProductForm({ product }: { product?: ProductFormValues }) {
 
       <section className="rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="mb-4 text-base font-semibold text-zinc-950">가격/재고</h2>
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-3">
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-zinc-700">원가</span>
             <input
@@ -212,18 +211,6 @@ export function ProductForm({ product }: { product?: ProductFormValues }) {
               type="number"
               min="0"
               defaultValue={product?.stockQuantity ?? 0}
-              className="h-10 w-full rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-zinc-700">
-              안전재고
-            </span>
-            <input
-              name="safetyStock"
-              type="number"
-              min="0"
-              defaultValue={product?.safetyStock ?? 0}
               className="h-10 w-full rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
             />
           </label>

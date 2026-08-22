@@ -11,7 +11,7 @@ import { resolveChannelAvailability } from "@/lib/channel-availability";
 // 카드가 계속 팔린다. 실제로 재고 한 장짜리 리스팅에서 주문이 세 건 들어왔다.
 //
 // 올리는 값은 실재고가 아니라 판매 가능 수량이다. 아직 처리하지 않은 주문이 잡아
-// 둔 몫과 안전재고를 뺀 값이라야 두 채널이 같은 한 장을 함께 팔지 않는다.
+// 둔 몫을 뺀 값이라야 두 채널이 같은 한 장을 함께 팔지 않는다.
 
 const CANCELLED = ["CANCELLED", "CANCELED", "CANCELLED_BY_SELLER"];
 
@@ -36,7 +36,6 @@ export async function syncShopifyInventory(input: {
       id: true,
       sku: true,
       stockQuantity: true,
-      safetyStock: true,
       status: true,
       isSoldOut: true,
       pocamarketAvailableCount: true,
@@ -77,7 +76,7 @@ export async function syncShopifyInventory(input: {
 
   for (const product of products) {
     const productReserved = reserved.get(product.id) ?? 0;
-    const availability = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: productReserved, safetyStock: product.safetyStock, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
+    const availability = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: productReserved, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
     const sellable = availability.quantity;
     plan.push({
       sku: product.sku,

@@ -75,13 +75,13 @@ describe("product inventory filters", () => {
 
     expect(
       matchesProductStockFilter(
-        { stockQuantity: 3, safetyStock: 0, status: "sold_out" },
+        { stockQuantity: 3, status: "sold_out" },
         "in_stock",
       ),
     ).toBe(true);
     expect(
       matchesProductStockFilter(
-        { stockQuantity: 3, safetyStock: 0, status: "sold_out" },
+        { stockQuantity: 3, status: "sold_out" },
         "sold_out",
       ),
     ).toBe(false);
