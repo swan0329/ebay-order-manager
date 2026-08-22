@@ -83,11 +83,22 @@ export async function previewListingUpload(userId: string, ids: string[]) {
       payload: checked && "preview" in checked ? checked.preview : null,
     };
   });
+  // 이전에는 중복 검출만 전체 valid 판정에 반영되어, 필수 검증에서 탈락한
+  // 초안도 "자동 적용"까지 진행한 뒤 모호한 409 오류로 끝날 수 있었다.
+  // 이제는 각 초안의 필수 검증 결과도 같은 미리보기 단계에서 확정한다.
+  const validationIssues = rows.flatMap((row) =>
+    row.issues.map((issue) => ({
+      draftId: row.id,
+      sku: row.sku,
+      reason: issue.message,
+    })),
+  );
+  const allIssues = [...issues, ...validationIssues];
 
   return {
     ids: uniqueIds,
-    valid: issues.length === 0,
-    issues,
+    valid: allIssues.length === 0,
+    issues: allIssues,
     rows,
     // eBay 응답 시간에 따라 달라지는 안내용 범위이며 실행 제한 시간이 아니다.
     estimateSeconds: { minimum: uniqueIds.length * 3, maximum: uniqueIds.length * 8 },

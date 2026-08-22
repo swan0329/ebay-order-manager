@@ -74,6 +74,47 @@ export async function shopifyApiRequest(
   return body;
 }
 
+type ShopifyGraphqlError = { field?: string[] | null; message?: string; code?: string | null };
+
+// Shopify 상품 REST API는 레거시이며 일부 스토어에서 상품 생성 요청이 500으로
+// 끝난다. GraphQL 응답의 userErrors를 숨기지 않고 호출자에게 돌려 주기 위한
+// 작은 공통 경로다.
+async function shopifyGraphqlRequest<T>(
+  config: ShopifyConfig,
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<T> {
+  const response = await fetch(
+    `https://${config.storeDomain}/admin/api/${config.apiVersion}/graphql.json`,
+    {
+      method: "POST",
+      headers: {
+        "X-Shopify-Access-Token": await getShopifyAccessToken(config),
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ query, variables }),
+    },
+  );
+  const body = await response.json().catch(() => null) as { data?: T; errors?: ShopifyGraphqlError[] } | null;
+  if (!response.ok || body?.errors?.length || !body?.data) {
+    safeLog("error", "shopify.graphql_request_failed", {
+      status: response.status,
+      errors: body?.errors?.map((error) => error.message) ?? [],
+    });
+    throw new ShopifyApiError("Shopify GraphQL 상품 요청에 실패했습니다.", response.status || 502, body);
+  }
+  return body.data;
+}
+
+function gidNumber(value: string) {
+  return value.split("/").at(-1) ?? value;
+}
+
+function graphqlUserErrorMessage(errors: ShopifyGraphqlError[] | undefined) {
+  return (errors ?? []).map((error) => error.message).filter((message): message is string => Boolean(message)).join(" / ");
+}
+
 function collectImageUrls(product: Product): string[] {
   const urls = [
     ...(product.ebayImageUrls ?? []),
@@ -118,6 +159,117 @@ type ShopifyProductResponse = {
   };
 };
 
+type ShopifyGraphqlProduct = {
+  id: string;
+  status?: string | null;
+  variants?: { nodes?: Array<{ id: string; sku?: string | null; inventoryItem?: { id: string } | null }> };
+};
+
+async function createVariationProductWithGraphql(
+  config: ShopifyConfig,
+  title: string,
+  items: ShopifyVariationUploadInput[],
+  images: string[],
+): Promise<ShopifyProductResponse> {
+  const query = `mutation ProductSet($input: ProductSetInput!, $synchronous: Boolean!) {
+    productSet(input: $input, synchronous: $synchronous) {
+      product {
+        id status
+        variants(first: 100) { nodes { id sku inventoryItem { id } } }
+      }
+      userErrors { field message code }
+    }
+  }`;
+  const data = await shopifyGraphqlRequest<{
+    productSet?: { product?: ShopifyGraphqlProduct | null; userErrors?: ShopifyGraphqlError[] };
+  }>(config, query, {
+    synchronous: true,
+    input: {
+      title,
+      productType: "Photocard",
+      tags: ["Kpop", "Photocard"],
+      status: "ACTIVE",
+      // 외부 R2 공개 URL은 Shopify가 비동기로 가져온다. 실패해도 상품·옵션의
+      // 생성 결과는 보존되어 재시도 때 중복 상품을 만들지 않는다.
+      ...(images.length ? { files: images.map((originalSource) => ({ originalSource })) } : {}),
+      productOptions: [{ name: "Card", position: 1, values: items.map((item) => ({ name: item.optionName })) }],
+      variants: items.map((item) => ({
+        sku: item.sku,
+        price: item.priceUsd,
+        optionValues: [{ optionName: "Card", name: item.optionName }],
+        inventoryItem: { sku: item.sku, tracked: true, requiresShipping: true },
+      })),
+    },
+  });
+  const payload = data.productSet;
+  const userErrors = graphqlUserErrorMessage(payload?.userErrors);
+  if (userErrors || !payload?.product) {
+    throw new ShopifyApiError(userErrors || "Shopify가 GraphQL 상품 ID를 반환하지 않았습니다.", 422, data);
+  }
+  return {
+    product: {
+      id: Number(gidNumber(payload.product.id)),
+      status: payload.product.status ?? undefined,
+      variants: (payload.product.variants?.nodes ?? []).map((variant) => ({
+        id: Number(gidNumber(variant.id)),
+        sku: variant.sku ?? undefined,
+        inventory_item_id: variant.inventoryItem ? Number(gidNumber(variant.inventoryItem.id)) : undefined,
+      })),
+    },
+  };
+}
+
+async function createSingleProductWithGraphql(
+  config: ShopifyConfig,
+  input: { title: string; descriptionHtml: string; vendor: string | null; tags: string[]; sku: string; price: string; images: string[] },
+): Promise<ShopifyProductResponse> {
+  const query = `mutation ProductSet($input: ProductSetInput!, $synchronous: Boolean!) {
+    productSet(input: $input, synchronous: $synchronous) {
+      product { id status variants(first: 10) { nodes { id sku inventoryItem { id } } } }
+      userErrors { field message code }
+    }
+  }`;
+  const data = await shopifyGraphqlRequest<{
+    productSet?: { product?: ShopifyGraphqlProduct | null; userErrors?: ShopifyGraphqlError[] };
+  }>(config, query, {
+    synchronous: true,
+    input: {
+      title: input.title,
+      descriptionHtml: input.descriptionHtml || undefined,
+      vendor: input.vendor || undefined,
+      productType: "Photocard",
+      tags: input.tags,
+      status: "ACTIVE",
+      ...(input.images.length ? { files: input.images.map((originalSource) => ({ originalSource })) } : {}),
+      // Shopify의 단일 기본 옵션 이름을 사용해 구매 화면에 불필요한 선택지를
+      // 만들지 않으면서 SKU·가격·재고 추적이 가능한 변형을 한 개 만든다.
+      productOptions: [{ name: "Title", position: 1, values: [{ name: "Default Title" }] }],
+      variants: [{
+        sku: input.sku,
+        price: input.price,
+        optionValues: [{ optionName: "Title", name: "Default Title" }],
+        inventoryItem: { sku: input.sku, tracked: true, requiresShipping: true },
+      }],
+    },
+  });
+  const payload = data.productSet;
+  const userErrors = graphqlUserErrorMessage(payload?.userErrors);
+  if (userErrors || !payload?.product) {
+    throw new ShopifyApiError(userErrors || "Shopify가 GraphQL 상품 ID를 반환하지 않았습니다.", 422, data);
+  }
+  return {
+    product: {
+      id: Number(gidNumber(payload.product.id)),
+      status: payload.product.status ?? undefined,
+      variants: (payload.product.variants?.nodes ?? []).map((variant) => ({
+        id: Number(gidNumber(variant.id)),
+        sku: variant.sku ?? undefined,
+        inventory_item_id: variant.inventoryItem ? Number(gidNumber(variant.inventoryItem.id)) : undefined,
+      })),
+    },
+  };
+}
+
 export type ShopifyUploadResult = {
   productId: string;
   variantId: string | null;
@@ -158,27 +310,38 @@ export async function upsertShopifyVariationProduct(
   if (items.length < 2) throw new Error("Shopify 묶음상품은 옵션이 두 개 이상이어야 합니다.");
   const config = getShopifyConfig();
   const images = [...new Set(items.flatMap((item) => item.imageUrls))];
-  const response = await shopifyApiRequest(config, {
-    method: existingProductId ? "PUT" : "POST",
-    path: existingProductId ? `/products/${existingProductId}.json` : "/products.json",
-    body: {
-      product: {
-        title,
-        product_type: "Photocard",
-        tags: "Kpop, Photocard",
-        status: "active",
-        options: [{ name: "Card" }],
-        variants: items.map((item) => ({
-          ...(item.variantId ? { id: Number(item.variantId) } : {}),
-          sku: item.sku,
-          option1: item.optionName,
-          price: item.priceUsd,
-          inventory_management: "shopify",
-        })),
-        ...(!existingProductId && images.length ? { images: images.map((src) => ({ src })) } : {}),
+  let response: ShopifyProductResponse;
+  try {
+    response = await shopifyApiRequest(config, {
+      method: existingProductId ? "PUT" : "POST",
+      path: existingProductId ? `/products/${existingProductId}.json` : "/products.json",
+      body: {
+        product: {
+          title,
+          product_type: "Photocard",
+          tags: "Kpop, Photocard",
+          status: "active",
+          options: [{ name: "Card" }],
+          variants: items.map((item) => ({
+            ...(item.variantId ? { id: Number(item.variantId) } : {}),
+            sku: item.sku,
+            option1: item.optionName,
+            price: item.priceUsd,
+            inventory_management: "shopify",
+          })),
+          ...(!existingProductId && images.length ? { images: images.map((src) => ({ src })) } : {}),
+        },
       },
-    },
-  }) as ShopifyProductResponse;
+    }) as ShopifyProductResponse;
+  } catch (error) {
+    // 신규 묶음 생성에서만 GraphQL로 대체한다. 기존에 연결된 상품을 REST 오류
+    // 만으로 새로 만들면 중복·분리된 옵션이 생길 수 있다.
+    if (!existingProductId && error instanceof ShopifyApiError && error.status >= 500) {
+      response = await createVariationProductWithGraphql(config, title, items, images);
+    } else {
+      throw error;
+    }
+  }
   const created = response.product;
   if (!created?.id) throw new ShopifyApiError("Shopify가 묶음 상품 ID를 반환하지 않았습니다.", 502, response);
   const bySku = new Map((created.variants ?? []).flatMap((variant) => variant.sku ? [[variant.sku, variant] as const] : []));
@@ -413,11 +576,26 @@ export async function uploadProductToShopify(
   };
 
   async function createProduct() {
-    return (await shopifyApiRequest(config, {
-      method: "POST",
-      path: "/products.json",
-      body: { product: createPayload },
-    })) as ShopifyProductResponse;
+    try {
+      return (await shopifyApiRequest(config, {
+        method: "POST",
+        path: "/products.json",
+        body: { product: createPayload },
+      })) as ShopifyProductResponse;
+    } catch (error) {
+      if (error instanceof ShopifyApiError && error.status >= 500) {
+        return createSingleProductWithGraphql(config, {
+          title,
+          descriptionHtml: bodyHtml,
+          vendor: product.brand,
+          tags,
+          sku: product.sku,
+          price: price!,
+          images,
+        });
+      }
+      throw error;
+    }
   }
 
   let response: ShopifyProductResponse;

@@ -60,4 +60,37 @@ describe("Shopify 묶음상품 부분 실패", () => {
     ]);
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
+
+  it("레거시 REST 상품 생성이 500이면 GraphQL 상품 생성으로 한 번만 대체한다", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ errors: "Internal Server Error" }, 500))
+      .mockResolvedValueOnce(jsonResponse({
+        data: {
+          productSet: {
+            product: {
+              id: "gid://shopify/Product/200",
+              status: "ACTIVE",
+              variants: { nodes: [
+                { id: "gid://shopify/ProductVariant/21", sku: "CARD-A", inventoryItem: { id: "gid://shopify/InventoryItem/201" } },
+                { id: "gid://shopify/ProductVariant/22", sku: "CARD-B", inventoryItem: { id: "gid://shopify/InventoryItem/202" } },
+              ] },
+            },
+            userErrors: [],
+          },
+        },
+      }))
+      .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValueOnce(jsonResponse({ data: { productUpdate: { userErrors: [] } } }));
+
+    await expect(upsertShopifyVariationProduct("Fallback group", [
+      { sku: "CARD-A", optionName: "A", priceUsd: "10.00", quantity: 1, imageUrls: [] },
+      { sku: "CARD-B", optionName: "B", priceUsd: "11.00", quantity: 0, imageUrls: [] },
+    ])).resolves.toMatchObject({ productId: "200", variants: [
+      { sku: "CARD-A", inventorySynced: true },
+      { sku: "CARD-B", inventorySynced: true },
+    ] });
+    expect(fetchMock.mock.calls[1]?.[0]).toContain("/graphql.json");
+  });
 });
