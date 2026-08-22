@@ -8,7 +8,7 @@ import { uploadShopifyProduct } from "@/lib/services/shopifyProductUpload";
 import { uploadShopifyVariationGroup } from "@/lib/services/shopifyVariationUpload";
 
 const executeSchema = z.object({
-  action: z.enum(["CREATE", "CHANGE", "UNAVAILABLE"]),
+  action: z.enum(["CREATE", "CHANGE", "UNAVAILABLE", "REVIEW"]),
   productIds: z.array(z.string().min(1)).min(1).max(200),
   dryRun: z.boolean().default(true),
   confirmed: z.boolean().default(false),
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const user = await requireApiUser();
     const input = executeSchema.parse(await request.json());
     if(input.channel==="SHOPIFY"){
-      const current=await getShopifyOperations();const source=input.action==="CREATE"?current.create:input.action==="CHANGE"?current.change:current.unavailable;const allowed=new Set(source.filter(row=>(row as { actionable?: boolean }).actionable !== false).map(row=>String(row.productId)));const productIds=[...new Set(input.productIds)];if(productIds.some(id=>!allowed.has(id)))return jsonError("포카마켓 재고가 확인되지 않았거나 현재 Shopify 전송 대상이 아닌 항목이 포함되어 있습니다.",409);
+      const current=await getShopifyOperations();const source=input.action==="CREATE"?current.create:input.action==="CHANGE"?current.change:input.action==="UNAVAILABLE"?current.unavailable:current.review;const allowed=new Set(source.filter(row=>(row as { actionable?: boolean }).actionable !== false).map(row=>String(row.productId)));const productIds=[...new Set(input.productIds)];if(productIds.some(id=>!allowed.has(id)))return jsonError("포카마켓 재고가 확인되지 않았거나 현재 Shopify 전송 대상이 아닌 항목이 포함되어 있습니다.",409);
       if(input.dryRun)return Response.json({dryRun:true,planned:productIds.length,rows:source.filter(row=>productIds.includes(String(row.productId))),previewToken:issueListingPreviewToken(productIds)});
       if(!input.confirmed||!input.previewToken||!verifyListingPreviewToken(input.previewToken,productIds))return jsonError("유효한 Shopify 미리보기 후 최종 확인이 필요합니다.",409);
       const selectedRows=source.filter(row=>productIds.includes(String(row.productId)));const results=[];for(const row of selectedRows){try{const memberIds=("productIds" in row&&Array.isArray(row.productIds)?row.productIds:[row.productId]).filter((id):id is string=>typeof id==="string");const result=memberIds.length>1?await uploadShopifyVariationGroup(memberIds):await uploadShopifyProduct(memberIds[0]);const partialFailures="failed" in result&&Array.isArray(result.failed)?result.failed:[];results.push(partialFailures.length?{productId:String(row.productId),result,error:partialFailures.map((failure:{sku:string;reason:string})=>`${failure.sku}: ${failure.reason}`).join(" / ")}:{productId:String(row.productId),result})}catch(error){results.push({productId:String(row.productId),error:error instanceof Error?error.message:"Shopify 전송 실패"})}}
@@ -53,7 +53,8 @@ export async function POST(request: Request) {
     }
     if (!input.dryRun && (!input.confirmed || !input.previewToken || !verifyListingPreviewToken(input.previewToken, input.productIds))) return jsonError("유효한 미리보기 후 최종 확인이 필요합니다.", 409);
     const current = await getEbayOperations(user.id);
-    const allowed = new Set((input.action === "CHANGE" ? current.change : current.unavailable).filter((row) => row.actionable !== false).map((row) => row.productId));
+    const source = input.action === "CHANGE" ? current.change : input.action === "UNAVAILABLE" ? current.unavailable : current.review;
+    const allowed = new Set(source.filter((row) => row.actionable !== false).map((row) => row.productId));
     const productIds = [...new Set(input.productIds)].filter((id) => allowed.has(id));
     if (productIds.length !== new Set(input.productIds).size) return jsonError("현재 대상이 아닌 상품이 포함되어 있습니다. 목록을 새로고침해 주세요.", 409);
     const result = await pushEbayInventory({ userId: user.id, productIds, dryRun: input.dryRun, limit: 200 });

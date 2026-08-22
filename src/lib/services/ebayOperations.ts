@@ -64,7 +64,15 @@ export async function getEbayOperations(userId: string) {
     status: draft.status,
     error: draft.errorSummary,
   }));
-  const unavailable = inventory.rows.filter((row) => row.availabilityStatus !== "AVAILABLE");
+  // 품절/판매중지와 "지금은 0으로 보이지만 판정이 다른" 행을 섞으면 실제
+  // 품절 건수가 부풀려 보인다. 예약·안전재고 보류는 수량 0 전송이 가능하되,
+  // 포카마켓 관측이 오래된 행은 전송 불가 상태로 별도 보관한다.
+  const unavailable = inventory.rows.filter((row) =>
+    ["SOLD_OUT", "DISCONTINUED"].includes(row.availabilityStatus),
+  );
+  const review = inventory.rows.filter((row) =>
+    ["HELD_FOR_ORDER", "SOURCE_UNKNOWN"].includes(row.availabilityStatus),
+  );
   const unavailableIds = new Set(unavailable.map((row) => row.productId));
   const change = inventory.rows.filter((row) =>
     !unavailableIds.has(row.productId) &&
@@ -76,13 +84,15 @@ export async function getEbayOperations(userId: string) {
     create,
     change,
     unavailable: unavailable.map((row) => ({ ...row, reason: availabilityReason(row.availabilityStatus, row.listingType === "VARIATION_OPTION") })),
+    review: review.map((row) => ({ ...row, reason: availabilityReason(row.availabilityStatus, row.listingType === "VARIATION_OPTION") })),
     summary: {
       createReady: create.length,
       createNeedsReview: preparationCount,
       createCountMeaning: "eBay 필수 검증을 모두 통과한 등록 초안 수",
       unavailableOptions: unavailable.filter((row) => row.listingType === "VARIATION_OPTION").length,
       unavailableSingles: unavailable.filter((row) => row.listingType === "SINGLE").length,
-      sourceReview: unavailable.filter((row) => row.availabilityStatus === "SOURCE_UNKNOWN").length,
+      sourceReview: review.filter((row) => row.availabilityStatus === "SOURCE_UNKNOWN").length,
+      heldForOrder: review.filter((row) => row.availabilityStatus === "HELD_FOR_ORDER").length,
     },
     limits: { createBatch: 50, reviseBatch: 200 },
   };
@@ -161,5 +171,7 @@ export async function getShopifyOperations() {
     if (unavailableMembers.length) unavailable.push({ ...groupedRow, actionable: unavailableMembers.every((row) => row.actionable), reason: unavailableMembers.map((row) => availabilityReason(row.availabilityStatus, true)).join(" / ") });
     else if (changedMembers.length) change.push(groupedRow);
   }
-  return { create, change, unavailable, summary: { shopifyListings: create.length, shopifyVariationListings: createGroups.length, shopifySingleListings: createSingles.length, shopifyOptions: unlinked.length, unavailableOptions: unavailable.filter((row) => row.listingType === "VARIATION").length, unavailableSingles: unavailable.filter((row) => row.listingType === "SINGLE").length, sourceReview: unavailable.filter((row) => row.actionable === false).length }, limits: { createBatch: 50, reviseBatch: 100 } };
+  const actualUnavailable = unavailable.filter((row) => ["SOLD_OUT", "DISCONTINUED"].includes(String(row.availabilityStatus)));
+  const review = unavailable.filter((row) => ["HELD_FOR_ORDER", "SOURCE_UNKNOWN"].includes(String(row.availabilityStatus)));
+  return { create, change, unavailable: actualUnavailable, review, summary: { shopifyListings: create.length, shopifyVariationListings: createGroups.length, shopifySingleListings: createSingles.length, shopifyOptions: unlinked.length, unavailableOptions: actualUnavailable.filter((row) => row.listingType === "VARIATION").length, unavailableSingles: actualUnavailable.filter((row) => row.listingType === "SINGLE").length, sourceReview: review.filter((row) => row.actionable === false).length, heldForOrder: review.filter((row) => row.availabilityStatus === "HELD_FOR_ORDER").length }, limits: { createBatch: 50, reviseBatch: 100 } };
 }
