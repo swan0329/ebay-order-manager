@@ -14,6 +14,10 @@ describe("채널 판매 가능 수량", () => {
     expect(resolveChannelAvailability({ ...base, isSoldOut: false, pocamarketAvailableCount: 7 }, now)).toMatchObject({ availabilityStatus: "AVAILABLE", quantity: 1, pocamarketListingQuantity: 1 });
   });
 
+  it("내부 품절 표시는 포카마켓 조달 가능 상품을 판매중지시키지 않는다", () => {
+    expect(resolveChannelAvailability({ ...base, status: "sold_out", isSoldOut: false, pocamarketAvailableCount: 2 }, now)).toMatchObject({ availabilityStatus: "AVAILABLE", quantity: 1, actionable: true });
+  });
+
   it("내 재고가 예약 또는 안전재고로 막힌 것은 품절이 아니라 판매 보류다", () => {
     expect(resolveChannelAvailability({ ...base, stockQuantity: 2, reservedQuantity: 1, safetyStock: 1 }, now)).toMatchObject({ availabilityStatus: "HELD_FOR_ORDER", quantity: 0, actionable: true });
   });
@@ -25,5 +29,9 @@ describe("채널 판매 가능 수량", () => {
 
   it("비활성 상품은 재고와 무관하게 판매중지다", () => {
     expect(resolveChannelAvailability({ ...base, status: "inactive", stockQuantity: 3 }, now)).toMatchObject({ availabilityStatus: "DISCONTINUED", quantity: 0, actionable: true });
+  });
+
+  it("내부 상태와 활성 리스팅이 모순되면 전송하지 않고 확인 대상으로 남긴다", () => {
+    expect(resolveChannelAvailability({ ...base, status: "unlisted", stockQuantity: 3 }, now)).toMatchObject({ availabilityStatus: "LISTING_STATUS_REVIEW", quantity: 0, actionable: false });
   });
 });

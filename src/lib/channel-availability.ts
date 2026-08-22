@@ -20,6 +20,7 @@ export type AvailabilityStatus =
   | "SOLD_OUT"
   | "HELD_FOR_ORDER"
   | "SOURCE_UNKNOWN"
+  | "LISTING_STATUS_REVIEW"
   | "DISCONTINUED";
 
 export type ChannelAvailability = {
@@ -37,6 +38,17 @@ export type ChannelAvailability = {
 
 function nonNegative(value: number | null | undefined) {
   return Math.max(0, Number(value) || 0);
+}
+
+function normalizedStatus(value: string) {
+  return value.trim().toLowerCase();
+}
+
+// `sold_out` is an internal stock display state, not a command to end a
+// marketplace listing.  A fresh PocaMarket procurement offer can still make
+// that card sellable.  Only explicit stop states may end a listing.
+function isExplicitlyDiscontinued(value: string) {
+  return ["inactive", "discontinued", "ended", "판매중지"].includes(normalizedStatus(value));
 }
 
 export function isFreshPocamarketObservation(
@@ -66,8 +78,14 @@ export function resolveChannelAvailability(
     ? Math.min(MAX_PROCUREMENT_LISTING_QUANTITY, observedSourceQuantity)
     : 0;
 
-  if (input.status !== "active") {
+  if (isExplicitlyDiscontinued(input.status)) {
     return { availabilityStatus: "DISCONTINUED", ownSellableQuantity, reservedQuantity, safetyStock, pocamarketAvailableCount: input.pocamarketAvailableCount, pocamarketListingQuantity, pocamarketSyncedAt: input.pocamarketSyncedAt, pocamarketFresh, quantity: 0, actionable: true };
+  }
+  // An active marketplace listing combined with an internal `unlisted` or an
+  // unknown status is contradictory data.  Never infer a zero quantity from
+  // it; leave it for reconciliation instead.
+  if (!["active", "sold_out"].includes(normalizedStatus(input.status))) {
+    return { availabilityStatus: "LISTING_STATUS_REVIEW", ownSellableQuantity, reservedQuantity, safetyStock, pocamarketAvailableCount: input.pocamarketAvailableCount, pocamarketListingQuantity, pocamarketSyncedAt: input.pocamarketSyncedAt, pocamarketFresh, quantity: 0, actionable: false };
   }
   if (ownSellableQuantity + pocamarketListingQuantity > 0) {
     return { availabilityStatus: "AVAILABLE", ownSellableQuantity, reservedQuantity, safetyStock, pocamarketAvailableCount: input.pocamarketAvailableCount, pocamarketListingQuantity, pocamarketSyncedAt: input.pocamarketSyncedAt, pocamarketFresh, quantity: ownSellableQuantity + pocamarketListingQuantity, actionable: true };
@@ -86,5 +104,6 @@ export function availabilityReason(status: AvailabilityStatus, variation = false
   if (status === "SOLD_OUT") return variation ? "옵션 품절" : "단품 품절";
   if (status === "HELD_FOR_ORDER") return "예약·안전재고 판매 보류";
   if (status === "SOURCE_UNKNOWN") return "포카마켓 재고 확인 필요 (자동 전송 제외)";
+  if (status === "LISTING_STATUS_REVIEW") return "내부 상품 상태와 활성 리스팅이 불일치함 (자동 전송 제외)";
   return "판매 가능";
 }

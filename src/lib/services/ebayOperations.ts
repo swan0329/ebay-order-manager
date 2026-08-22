@@ -71,7 +71,7 @@ export async function getEbayOperations(userId: string) {
     ["SOLD_OUT", "DISCONTINUED"].includes(row.availabilityStatus),
   );
   const review = inventory.rows.filter((row) =>
-    ["HELD_FOR_ORDER", "SOURCE_UNKNOWN"].includes(row.availabilityStatus),
+    ["HELD_FOR_ORDER", "SOURCE_UNKNOWN", "LISTING_STATUS_REVIEW"].includes(row.availabilityStatus),
   );
   const unavailableIds = new Set(unavailable.map((row) => row.productId));
   const change = inventory.rows.filter((row) =>
@@ -93,6 +93,7 @@ export async function getEbayOperations(userId: string) {
       unavailableSingles: unavailable.filter((row) => row.listingType === "SINGLE").length,
       sourceReview: review.filter((row) => row.availabilityStatus === "SOURCE_UNKNOWN").length,
       heldForOrder: review.filter((row) => row.availabilityStatus === "HELD_FOR_ORDER").length,
+      listingStatusReview: review.filter((row) => row.availabilityStatus === "LISTING_STATUS_REVIEW").length,
     },
     limits: { createBatch: 50, reviseBatch: 200 },
   };
@@ -172,6 +173,6 @@ export async function getShopifyOperations() {
     else if (changedMembers.length) change.push(groupedRow);
   }
   const actualUnavailable = unavailable.filter((row) => ["SOLD_OUT", "DISCONTINUED"].includes(String(row.availabilityStatus)));
-  const review = unavailable.filter((row) => ["HELD_FOR_ORDER", "SOURCE_UNKNOWN"].includes(String(row.availabilityStatus)));
-  return { create, change, unavailable: actualUnavailable, review, summary: { shopifyListings: create.length, shopifyVariationListings: createGroups.length, shopifySingleListings: createSingles.length, shopifyOptions: unlinked.length, unavailableOptions: actualUnavailable.filter((row) => row.listingType === "VARIATION").length, unavailableSingles: actualUnavailable.filter((row) => row.listingType === "SINGLE").length, sourceReview: review.filter((row) => row.actionable === false).length, heldForOrder: review.filter((row) => row.availabilityStatus === "HELD_FOR_ORDER").length }, limits: { createBatch: 50, reviseBatch: 100 } };
+  const review = unavailable.filter((row) => ["HELD_FOR_ORDER", "SOURCE_UNKNOWN", "LISTING_STATUS_REVIEW"].includes(String(row.availabilityStatus)));
+  return { create, change, unavailable: actualUnavailable, review, summary: { shopifyListings: create.length, shopifyVariationListings: createGroups.length, shopifySingleListings: createSingles.length, shopifyOptions: unlinked.length, unavailableOptions: actualUnavailable.filter((row) => row.listingType === "VARIATION").length, unavailableSingles: actualUnavailable.filter((row) => row.listingType === "SINGLE").length, sourceReview: review.filter((row) => row.availabilityStatus === "SOURCE_UNKNOWN").length, heldForOrder: review.filter((row) => row.availabilityStatus === "HELD_FOR_ORDER").length, listingStatusReview: review.filter((row) => row.availabilityStatus === "LISTING_STATUS_REVIEW").length }, limits: { createBatch: 50, reviseBatch: 100 } };
 }
