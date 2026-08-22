@@ -10,6 +10,7 @@ import {
 import { safeLog } from "@/lib/safe-log";
 import { resolveChannelAvailability } from "@/lib/channel-availability";
 import { getShopifyAccessToken } from "@/lib/services/shopifyToken";
+import { createHash } from "node:crypto";
 
 export class ShopifyApiError extends Error {
   status: number;
@@ -107,6 +108,74 @@ async function shopifyGraphqlRequest<T>(
   return body.data;
 }
 
+export type ShopifyImageSyncResult = {
+  requested: number;
+  attached: number;
+  alreadyAttached: number;
+  processing: number;
+};
+
+// Shopify는 외부 URL을 "파일"로만 저장해도 상품 미디어(스토어 카드의 썸네일)
+// 에 연결하지 않는다. productCreateMedia로 명시적으로 연결해야 한다.
+// alt에 원본 URL의 해시를 기록해, 보정 작업을 재시작해도 같은 사진을 중복으로
+// 추가하지 않는다.
+function shopifyImageMarker(url: string) {
+  return `managed-source:${createHash("sha256").update(url).digest("hex").slice(0, 20)}`;
+}
+
+export async function syncShopifyProductImages(
+  config: ShopifyConfig,
+  productId: string,
+  sourceUrls: string[],
+): Promise<ShopifyImageSyncResult> {
+  const urls = [...new Set(sourceUrls.map((url) => url.trim()).filter(Boolean))];
+  if (!urls.length) return { requested: 0, attached: 0, alreadyAttached: 0, processing: 0 };
+
+  const query = `query ProductMedia($id: ID!) {
+    product(id: $id) { media(first: 250) { nodes { alt } } }
+  }`;
+  const existing = await shopifyGraphqlRequest<{
+    product?: { media?: { nodes?: Array<{ alt?: string | null }> } | null } | null;
+  }>(config, query, { id: `gid://shopify/Product/${productId}` });
+  const existingMarkers = new Set(
+    (existing.product?.media?.nodes ?? []).flatMap((media) => media.alt?.startsWith("managed-source:") ? [media.alt] : []),
+  );
+  const missing = urls.filter((url) => !existingMarkers.has(shopifyImageMarker(url)));
+  if (!missing.length) return { requested: urls.length, attached: 0, alreadyAttached: urls.length, processing: 0 };
+
+  const mutation = `mutation ProductCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
+    productCreateMedia(productId: $productId, media: $media) {
+      media { alt status mediaContentType }
+      mediaUserErrors { field message }
+    }
+  }`;
+  const created = await shopifyGraphqlRequest<{
+    productCreateMedia?: {
+      media?: Array<{ alt?: string | null; status?: string | null }> | null;
+      mediaUserErrors?: ShopifyGraphqlError[];
+    };
+  }>(config, mutation, {
+    productId: `gid://shopify/Product/${productId}`,
+    media: missing.map((originalSource) => ({
+      alt: shopifyImageMarker(originalSource),
+      mediaContentType: "IMAGE",
+      originalSource,
+    })),
+  });
+  const errors = graphqlUserErrorMessage(created.productCreateMedia?.mediaUserErrors);
+  if (errors) throw new ShopifyApiError(errors, 422, created);
+  const media = created.productCreateMedia?.media ?? [];
+  if (media.length !== missing.length) {
+    throw new ShopifyApiError("Shopify가 모든 상품 이미지를 접수하지 않았습니다.", 502, created);
+  }
+  return {
+    requested: urls.length,
+    attached: media.length,
+    alreadyAttached: urls.length - missing.length,
+    processing: media.filter((item) => item.status !== "READY").length,
+  };
+}
+
 function gidNumber(value: string) {
   return value.split("/").at(-1) ?? value;
 }
@@ -169,7 +238,6 @@ async function createVariationProductWithGraphql(
   config: ShopifyConfig,
   title: string,
   items: ShopifyVariationUploadInput[],
-  images: string[],
 ): Promise<ShopifyProductResponse> {
   const query = `mutation ProductSet($input: ProductSetInput!, $synchronous: Boolean!) {
     productSet(input: $input, synchronous: $synchronous) {
@@ -189,9 +257,6 @@ async function createVariationProductWithGraphql(
       productType: "Photocard",
       tags: ["Kpop", "Photocard"],
       status: "ACTIVE",
-      // 외부 R2 공개 URL은 Shopify가 비동기로 가져온다. 실패해도 상품·옵션의
-      // 생성 결과는 보존되어 재시도 때 중복 상품을 만들지 않는다.
-      ...(images.length ? { files: images.map((originalSource) => ({ originalSource })) } : {}),
       productOptions: [{ name: "Card", position: 1, values: items.map((item) => ({ name: item.optionName })) }],
       variants: items.map((item) => ({
         sku: item.sku,
@@ -221,7 +286,7 @@ async function createVariationProductWithGraphql(
 
 async function createSingleProductWithGraphql(
   config: ShopifyConfig,
-  input: { title: string; descriptionHtml: string; vendor: string | null; tags: string[]; sku: string; price: string; images: string[] },
+  input: { title: string; descriptionHtml: string; vendor: string | null; tags: string[]; sku: string; price: string },
 ): Promise<ShopifyProductResponse> {
   const query = `mutation ProductSet($input: ProductSetInput!, $synchronous: Boolean!) {
     productSet(input: $input, synchronous: $synchronous) {
@@ -240,7 +305,6 @@ async function createSingleProductWithGraphql(
       productType: "Photocard",
       tags: input.tags,
       status: "ACTIVE",
-      ...(input.images.length ? { files: input.images.map((originalSource) => ({ originalSource })) } : {}),
       // Shopify의 단일 기본 옵션 이름을 사용해 구매 화면에 불필요한 선택지를
       // 만들지 않으면서 SKU·가격·재고 추적이 가능한 변형을 한 개 만든다.
       productOptions: [{ name: "Title", position: 1, values: [{ name: "Default Title" }] }],
@@ -278,6 +342,8 @@ export type ShopifyUploadResult = {
   action: "created" | "updated";
   inventorySynced: boolean;
   inventoryError: string | null;
+  imageSync: ShopifyImageSyncResult | null;
+  imageError: string | null;
 };
 
 export type ShopifyVariationUploadInput = {
@@ -292,6 +358,8 @@ export type ShopifyVariationUploadInput = {
 export type ShopifyVariationUploadResult = {
   productId: string;
   status: string | null;
+  imageSync: ShopifyImageSyncResult | null;
+  imageError: string | null;
   variants: Array<{
     sku: string;
     variantId: string;
@@ -311,6 +379,7 @@ export async function upsertShopifyVariationProduct(
   const config = getShopifyConfig();
   const images = [...new Set(items.flatMap((item) => item.imageUrls))];
   let response: ShopifyProductResponse;
+  let usedGraphqlFallback = false;
   try {
     response = await shopifyApiRequest(config, {
       method: existingProductId ? "PUT" : "POST",
@@ -337,7 +406,8 @@ export async function upsertShopifyVariationProduct(
     // 신규 묶음 생성에서만 GraphQL로 대체한다. 기존에 연결된 상품을 REST 오류
     // 만으로 새로 만들면 중복·분리된 옵션이 생길 수 있다.
     if (!existingProductId && error instanceof ShopifyApiError && error.status >= 500) {
-      response = await createVariationProductWithGraphql(config, title, items, images);
+      response = await createVariationProductWithGraphql(config, title, items);
+      usedGraphqlFallback = true;
     } else {
       throw error;
     }
@@ -373,8 +443,17 @@ export async function upsertShopifyVariationProduct(
     });
   }
   const productId = String(created.id);
+  let imageSync: ShopifyImageSyncResult | null = null;
+  let imageError: string | null = null;
+  if (usedGraphqlFallback) {
+    try {
+      imageSync = await syncShopifyProductImages(config, productId, images);
+    } catch (error) {
+      imageError = error instanceof Error ? error.message : String(error);
+    }
+  }
   await setShopifyProductCategory(config, productId, PHOTOCARD_TAXONOMY_CATEGORY);
-  return { productId, status: created.status ?? null, variants };
+  return { productId, status: created.status ?? null, variants, imageSync, imageError };
 }
 
 /**
@@ -577,22 +656,21 @@ export async function uploadProductToShopify(
 
   async function createProduct() {
     try {
-      return (await shopifyApiRequest(config, {
+      return { response: (await shopifyApiRequest(config, {
         method: "POST",
         path: "/products.json",
         body: { product: createPayload },
-      })) as ShopifyProductResponse;
+      })) as ShopifyProductResponse, usedGraphqlFallback: false };
     } catch (error) {
       if (error instanceof ShopifyApiError && error.status >= 500) {
-        return createSingleProductWithGraphql(config, {
+        return { response: await createSingleProductWithGraphql(config, {
           title,
           descriptionHtml: bodyHtml,
           vendor: product.brand,
           tags,
           sku: product.sku,
           price: price!,
-          images,
-        });
+        }), usedGraphqlFallback: true };
       }
       throw error;
     }
@@ -600,6 +678,7 @@ export async function uploadProductToShopify(
 
   let response: ShopifyProductResponse;
   let action: "created" | "updated";
+  let usedGraphqlFallback = false;
 
   if (isUpdate) {
     // Update in place; keep the existing variant id so we don't duplicate it.
@@ -630,7 +709,9 @@ export async function uploadProductToShopify(
       }
     }
   } else {
-    response = await createProduct();
+    const createResult = await createProduct();
+    response = createResult.response;
+    usedGraphqlFallback = createResult.usedGraphqlFallback;
     action = "created";
   }
 
@@ -644,6 +725,16 @@ export async function uploadProductToShopify(
   }
 
   const productId = String(created.id);
+
+  let imageSync: ShopifyImageSyncResult | null = null;
+  let imageError: string | null = null;
+  if (usedGraphqlFallback) {
+    try {
+      imageSync = await syncShopifyProductImages(config, productId, images);
+    } catch (error) {
+      imageError = error instanceof Error ? error.message : String(error);
+    }
+  }
 
   // Set the standard product category (GraphQL-only). Best-effort, non-fatal.
   await setShopifyProductCategory(config, productId, PHOTOCARD_TAXONOMY_CATEGORY);
@@ -683,5 +774,7 @@ export async function uploadProductToShopify(
     action,
     inventorySynced,
     inventoryError,
+    imageSync,
+    imageError,
   };
 }

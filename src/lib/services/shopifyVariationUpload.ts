@@ -51,17 +51,22 @@ export async function uploadShopifyVariationGroup(productIds: string[]) {
     // 재시도 때 같은 묶음을 중복 생성하지 않게 하고, 후자는 성공한 옵션만 실제
     // 수량으로 기록한다. 실패 옵션은 quantity=null로 남아 다음 변동 목록에 다시
     // 나타난다.
-    const metadata = { variantId: variant.variantId, inventoryItemId: variant.inventoryItemId, groupKey: group.key, optionName: product.variationName, source: "shopify_variation_upload", inventorySynced: variant.inventorySynced, inventoryError: variant.inventoryError };
+    const uploadError = variant.inventoryError ?? result.imageError;
+    const metadata = { variantId: variant.variantId, inventoryItemId: variant.inventoryItemId, groupKey: group.key, optionName: product.variationName, source: "shopify_variation_upload", inventorySynced: variant.inventorySynced, inventoryError: variant.inventoryError, imageSync: result.imageSync, imageError: result.imageError };
     return [
-      prisma.product.update({ where: { id: product.id }, data: { shopifyProductId: result.productId, shopifyVariantId: variant.variantId, shopifyInventoryItemId: variant.inventoryItemId, shopifyStatus: result.status, shopifyLastUploadedAt: new Date(), shopifyUploadError: variant.inventoryError } }),
+      prisma.product.update({ where: { id: product.id }, data: { shopifyProductId: result.productId, shopifyVariantId: variant.variantId, shopifyInventoryItemId: variant.inventoryItemId, shopifyStatus: result.status, shopifyLastUploadedAt: new Date(), shopifyUploadError: uploadError } }),
       prisma.productListing.upsert({ where: { productId_channel: { productId: product.id, channel: "SHOPIFY" } }, update: { externalId: result.productId, price: item.priceUsd, quantity: variant.inventorySynced ? item.quantity : null, status: result.status, metadata }, create: { productId: product.id, channel: "SHOPIFY", externalId: result.productId, price: item.priceUsd, quantity: variant.inventorySynced ? item.quantity : null, status: result.status, metadata } }),
     ];
   }));
+  const failed = [
+    ...result.variants
+      .filter((variant) => !variant.inventorySynced)
+      .map((variant) => ({ sku: variant.sku, reason: variant.inventoryError ?? "Shopify 재고 반영 실패" })),
+    ...(result.imageError ? [{ sku: group.title, reason: `상품 이미지·썸네일 연결 실패: ${result.imageError}` }] : []),
+  ];
   return {
     ...result,
     succeeded: result.variants.filter((variant) => variant.inventorySynced).length,
-    failed: result.variants
-      .filter((variant) => !variant.inventorySynced)
-      .map((variant) => ({ sku: variant.sku, reason: variant.inventoryError ?? "Shopify 재고 반영 실패" })),
+    failed,
   };
 }

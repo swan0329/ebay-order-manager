@@ -19,7 +19,7 @@ export async function uploadShopifyProduct(productId:string){
  if(!availability.actionable)throw new Error("포카마켓 재고가 확인되지 않아 Shopify 등록/수정을 시작하지 않습니다.");
  const settings=await prisma.pricingSettings.findUnique({where:{id:"default"}});if(!settings)throw new Error("가격 설정을 먼저 저장해 주세요.");const priceUsd=resolveListingPriceUsd(product,settings)?.priceUsd.toString();if(!priceUsd)throw new Error("USD 판매가를 계산할 수 없어 Shopify 등록/수정을 시작하지 않습니다.");
  const result=await uploadProductToShopify(listingProduct,extras,reserved,priceUsd);
- await prisma.product.update({where:{id:productId},data:{shopifyProductId:result.productId,shopifyVariantId:result.variantId,shopifyInventoryItemId:result.inventoryItemId,shopifyStatus:result.status,shopifyLastUploadedAt:new Date(),shopifyUploadError:result.inventoryError}});
- await upsertProductListing({productId,channel:"SHOPIFY",externalId:result.productId,price:priceUsd,quantity:result.inventorySynced?availability.quantity:null,status:result.status,metadata:{variantId:result.variantId,inventoryItemId:result.inventoryItemId,source:"shopify_upload",inventorySynced:result.inventorySynced,inventoryError:result.inventoryError}});
+ await prisma.product.update({where:{id:productId},data:{shopifyProductId:result.productId,shopifyVariantId:result.variantId,shopifyInventoryItemId:result.inventoryItemId,shopifyStatus:result.status,shopifyLastUploadedAt:new Date(),shopifyUploadError:result.inventoryError??result.imageError}});
+ await upsertProductListing({productId,channel:"SHOPIFY",externalId:result.productId,price:priceUsd,quantity:result.inventorySynced?availability.quantity:null,status:result.status,metadata:{variantId:result.variantId,inventoryItemId:result.inventoryItemId,source:"shopify_upload",inventorySynced:result.inventorySynced,inventoryError:result.inventoryError,imageSync:result.imageSync,imageError:result.imageError}});
  return result;
 }

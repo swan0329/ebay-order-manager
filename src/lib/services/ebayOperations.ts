@@ -84,6 +84,7 @@ export async function getEbayOperations(userId: string) {
     change,
     unavailable: unavailable.map((row) => ({ ...row, reason: availabilityReason(row.availabilityStatus, row.listingType === "VARIATION_OPTION") })),
     review: review.map((row) => ({ ...row, reason: availabilityReason(row.availabilityStatus, row.listingType === "VARIATION_OPTION") })),
+    imageRepair: [],
     summary: {
       createReady: create.length,
       createNeedsReview: preparationCount,
@@ -142,6 +143,28 @@ export async function getShopifyOperations() {
   const linked = mapped.filter((row) => row.linked);
   const linkedBuckets = new Map<string, typeof linked>();
   for (const row of linked) linkedBuckets.set(row.itemId, [...(linkedBuckets.get(row.itemId) ?? []), row]);
+  // 이전 GraphQL 대체 등록은 외부 파일만 만들고 상품 미디어를 연결하지 못했다.
+  // 기존 Shopify 상품을 다시 만들지 않고, 가격·재고 변경 없이 사진/대표 썸네일만
+  // 보정할 수 있도록 연결된 상품을 별도 작업 목록으로 만든다.
+  const imageRepair = [...linkedBuckets.entries()].map(([externalId, members]) => {
+    const actionable = members.every((row) => readyImageById.has(row.productId));
+    return {
+      productId: `shopify-image:${externalId}`,
+      productIds: members.map((row) => row.productId),
+      sku: members.length > 1 ? `묶음 ${members.length}옵션` : members[0].sku,
+      productName: members[0].productName,
+      itemId: externalId,
+      quantity: members.reduce((sum, row) => sum + row.quantity, 0),
+      price: Math.min(...members.flatMap((row) => row.price == null ? [] : [row.price])),
+      previousQuantity: null,
+      previousPrice: null,
+      listingType: members.length > 1 ? "VARIATION" : "SINGLE",
+      optionCount: members.length,
+      imageCount: members.filter((row) => readyImageById.has(row.productId)).length,
+      actionable,
+      reason: actionable ? "승인된 원본 사진을 Shopify 상품 미디어·대표 썸네일로 연결" : "최종 승인 이미지가 없는 옵션이 있어 보정 제외",
+    };
+  });
   const change: Array<Record<string, unknown>> = [];
   const unavailable: Array<Record<string, unknown>> = [];
   for (const [externalId, members] of linkedBuckets) {
@@ -172,5 +195,5 @@ export async function getShopifyOperations() {
   }
   const actualUnavailable = unavailable.filter((row) => ["SOLD_OUT", "DISCONTINUED"].includes(String(row.availabilityStatus)));
   const review = unavailable.filter((row) => ["HELD_FOR_ORDER", "SOURCE_UNKNOWN"].includes(String(row.availabilityStatus)));
-  return { create, change, unavailable: actualUnavailable, review, summary: { shopifyListings: create.length, shopifyVariationListings: createGroups.length, shopifySingleListings: createSingles.length, shopifyOptions: unlinked.length, unavailableOptions: actualUnavailable.filter((row) => row.listingType === "VARIATION").length, unavailableSingles: actualUnavailable.filter((row) => row.listingType === "SINGLE").length, sourceReview: review.filter((row) => row.availabilityStatus === "SOURCE_UNKNOWN").length, heldForOrder: review.filter((row) => row.availabilityStatus === "HELD_FOR_ORDER").length }, limits: { createBatch: 50, reviseBatch: 100 } };
+  return { create, change, unavailable: actualUnavailable, review, imageRepair, summary: { shopifyListings: create.length, shopifyVariationListings: createGroups.length, shopifySingleListings: createSingles.length, shopifyOptions: unlinked.length, imageRepairListings: imageRepair.filter((row) => row.actionable).length, unavailableOptions: actualUnavailable.filter((row) => row.listingType === "VARIATION").length, unavailableSingles: actualUnavailable.filter((row) => row.listingType === "SINGLE").length, sourceReview: review.filter((row) => row.availabilityStatus === "SOURCE_UNKNOWN").length, heldForOrder: review.filter((row) => row.availabilityStatus === "HELD_FOR_ORDER").length }, limits: { createBatch: 50, reviseBatch: 100 } };
 }
