@@ -124,7 +124,7 @@ export async function getShopifyOperations() {
     const listing = product.productListings[0];
     const availability = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: reserved.get(product.id) ?? 0, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
     const price = settings ? Number(resolveListingPriceUsd(product, settings)?.priceUsd ?? 0) || null : null;
-    return { productId: product.id, sku: product.sku, productName: product.productName, itemId: listing?.externalId ?? product.shopifyProductId ?? "-", price, previousQuantity: listing?.quantity ?? null, previousPrice: listing?.price == null ? null : Number(listing.price), productStatus: product.status, linked: Boolean(listing?.externalId ?? product.shopifyProductId), product: readyImageById.has(product.id) ? { ...product, imageUrl: readyImageById.get(product.id)! } : product, ...availability };
+    return { productId: product.id, sku: product.sku, productName: product.productName, itemId: listing?.externalId ?? product.shopifyProductId ?? "-", price, previousQuantity: listing?.quantity ?? null, previousPrice: listing?.price == null ? null : Number(listing.price), productStatus: product.status, linked: Boolean(listing?.externalId ?? product.shopifyProductId), imageSync: listing?.metadata, product: readyImageById.has(product.id) ? { ...product, imageUrl: readyImageById.get(product.id)! } : product, ...availability };
   });
   const unlinked = mapped.filter((row) => !row.linked && row.availabilityStatus === "AVAILABLE" && row.price !== null);
   const byId = new Map(unlinked.map((row) => [row.productId, row]));
@@ -146,9 +146,18 @@ export async function getShopifyOperations() {
   // 이전 GraphQL 대체 등록은 외부 파일만 만들고 상품 미디어를 연결하지 못했다.
   // 기존 Shopify 상품을 다시 만들지 않고, 가격·재고 변경 없이 사진/대표 썸네일만
   // 보정할 수 있도록 연결된 상품을 별도 작업 목록으로 만든다.
-  const imageRepair = [...linkedBuckets.entries()].map(([externalId, members]) => {
+  const imageRepair = [...linkedBuckets.entries()].flatMap(([externalId, members]) => {
     const actionable = members.every((row) => readyImageById.has(row.productId));
-    return {
+    const alreadyCurrent = actionable && members.every((row) => {
+      const metadata = row.imageSync;
+      if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
+      const imageSync = (metadata as Record<string, unknown>).imageSync;
+      return Boolean(imageSync && typeof imageSync === "object" && !Array.isArray(imageSync)
+        && (imageSync as Record<string, unknown>).status === "READY"
+        && (imageSync as Record<string, unknown>).sourceImageUrl === readyImageById.get(row.productId));
+    });
+    if (alreadyCurrent) return [];
+    return [{
       productId: `shopify-image:${externalId}`,
       productIds: members.map((row) => row.productId),
       sku: members.length > 1 ? `묶음 ${members.length}옵션` : members[0].sku,
@@ -162,8 +171,8 @@ export async function getShopifyOperations() {
       optionCount: members.length,
       imageCount: members.filter((row) => readyImageById.has(row.productId)).length,
       actionable,
-      reason: actionable ? "승인된 최종 사진으로 Shopify 기존 사진·대표 썸네일을 교체" : "최종 승인 이미지가 없는 옵션이 있어 교체 제외",
-    };
+      reason: actionable ? "승인된 최종 사진 또는 제작 썸네일이 바뀌어 Shopify 교체 필요" : "최종 승인 이미지가 없는 옵션이 있어 교체 제외",
+    }];
   });
   const change: Array<Record<string, unknown>> = [];
   const unavailable: Array<Record<string, unknown>> = [];

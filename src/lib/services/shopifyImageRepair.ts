@@ -62,9 +62,23 @@ export async function repairShopifyProductImages(productIds: string[], userId: s
     return { variantId, sourceUrl, mediaId };
   });
   const variantsUpdated = await attachShopifyVariantImages(getShopifyConfig(), externalIds[0], assignments);
-  await prisma.product.updateMany({
-    where: { id: { in: products.map((product) => product.id) } },
-    data: { shopifyLastUploadedAt: new Date(), shopifyUploadError: null },
-  });
+  const completedAt = new Date();
+  await prisma.$transaction([
+    prisma.product.updateMany({
+      where: { id: { in: products.map((product) => product.id) } },
+      data: { shopifyLastUploadedAt: completedAt, shopifyUploadError: null },
+    }),
+    ...products.flatMap((product) => {
+      const listing = product.productListings[0];
+      if (!listing) return [];
+      const previous = listing.metadata && typeof listing.metadata === "object" && !Array.isArray(listing.metadata)
+        ? listing.metadata as Record<string, unknown>
+        : {};
+      return [prisma.productListing.update({
+        where: { id: listing.id },
+        data: { metadata: { ...previous, imageSync: { status: "READY", sourceImageUrl: imageByProductId.get(product.id), thumbnailUrl, completedAt: completedAt.toISOString() } } },
+      })];
+    }),
+  ]);
   return { productId: externalIds[0], thumbnailUrl, variantsUpdated, ...result };
 }
