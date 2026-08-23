@@ -284,6 +284,38 @@ export async function attachShopifyVariantImages(
   return assignments.length;
 }
 
+/** Shopify 상품 카드가 사용하는 첫 번째 미디어를 제작된 묶음 썸네일로 고정한다. */
+export async function moveShopifyProductMediaToFirst(
+  config: ShopifyConfig,
+  productId: string,
+  mediaId: string,
+) {
+  const mutation = `mutation ProductReorderMedia($id: ID!, $moves: [MoveInput!]!) {
+    productReorderMedia(id: $id, moves: $moves) {
+      job { id }
+      mediaUserErrors { field message }
+    }
+  }`;
+  const result = await shopifyGraphqlRequest<{
+    productReorderMedia?: { job?: { id: string } | null; mediaUserErrors?: ShopifyGraphqlError[] };
+  }>(config, mutation, {
+    id: `gid://shopify/Product/${productId}`,
+    moves: [{ id: mediaId, newPosition: "0" }],
+  });
+  const errors = graphqlUserErrorMessage(result.productReorderMedia?.mediaUserErrors);
+  if (errors || !result.productReorderMedia?.job?.id) throw new ShopifyApiError(errors || "Shopify가 미디어 순서 변경 작업을 시작하지 못했습니다.", 422, result);
+
+  const query = `query VerifyProductMediaOrder($id: ID!) {
+    product(id: $id) { media(first: 1) { nodes { id } } }
+  }`;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const check = await shopifyGraphqlRequest<{ product?: { media?: { nodes?: Array<{ id: string }> } | null } | null }>(config, query, { id: `gid://shopify/Product/${productId}` });
+    if (check.product?.media?.nodes?.[0]?.id === mediaId) return;
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+  }
+  throw new ShopifyApiError("Shopify가 제작 썸네일을 대표 이미지(첫 번째 사진)로 반영하지 않았습니다.", 502, result);
+}
+
 function gidNumber(value: string) {
   return value.split("/").at(-1) ?? value;
 }

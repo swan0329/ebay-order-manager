@@ -2,7 +2,7 @@ import "server-only";
 
 import { getShopifyConfig } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
-import { attachShopifyVariantImages, replaceShopifyProductImages } from "@/lib/services/shopifyService";
+import { attachShopifyVariantImages, moveShopifyProductMediaToFirst, replaceShopifyProductImages } from "@/lib/services/shopifyService";
 import { ensureShopifyVariationThumbnail } from "@/lib/services/shopifyVariationMedia";
 import { buildVariationListingGroups } from "@/lib/variation-listing-groups";
 import { getVariationListingReadyImages, promoteVariationListingImagesToR2 } from "@/lib/variation-listing-products";
@@ -43,6 +43,11 @@ export async function repairShopifyProductImages(productIds: string[], userId: s
   // 옵션은 이 경로에서 변경하지 않는다.
   const result = await replaceShopifyProductImages(getShopifyConfig(), externalIds[0], urls);
   const mediaIdByUrl = new Map(result.media.map((media) => [media.sourceUrl, media.mediaId]));
+  if (thumbnailUrl) {
+    const thumbnailMediaId = mediaIdByUrl.get(thumbnailUrl);
+    if (!thumbnailMediaId) throw new Error("Shopify가 제작된 묶음 썸네일의 미디어 ID를 반환하지 않았습니다.");
+    await moveShopifyProductMediaToFirst(getShopifyConfig(), externalIds[0], thumbnailMediaId);
+  }
   const assignments = products.map((product) => {
     const metadata = product.productListings[0]?.metadata;
     const variantId = product.shopifyVariantId ?? (
