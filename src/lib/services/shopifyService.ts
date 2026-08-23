@@ -117,6 +117,7 @@ export type ShopifyImageSyncResult = {
 
 export type ShopifyImageReplaceResult = ShopifyImageSyncResult & {
   removed: number;
+  media: Array<{ sourceUrl: string; mediaId: string }>;
 };
 
 // Shopify는 외부 URL을 "파일"로만 저장해도 상품 미디어(스토어 카드의 썸네일)
@@ -192,19 +193,33 @@ export async function replaceShopifyProductImages(
   sourceUrls: string[],
 ): Promise<ShopifyImageReplaceResult> {
   const synced = await syncShopifyProductImages(config, productId, sourceUrls);
+  const urls = [...new Set(sourceUrls.map((url) => url.trim()).filter(Boolean))];
   const wantedMarkers = new Set(
-    sourceUrls.map((url) => url.trim()).filter(Boolean).map(shopifyImageMarker),
+    urls.map(shopifyImageMarker),
   );
   const query = `query ProductMediaForReplacement($id: ID!) {
-    product(id: $id) { media(first: 250) { nodes { id alt mediaContentType } } }
+    product(id: $id) { media(first: 250) { nodes { id alt mediaContentType status } } }
   }`;
   const current = await shopifyGraphqlRequest<{
-    product?: { media?: { nodes?: Array<{ id: string; alt?: string | null; mediaContentType?: string | null }> } | null } | null;
+    product?: { media?: { nodes?: Array<{ id: string; alt?: string | null; mediaContentType?: string | null; status?: string | null }> } | null } | null;
   }>(config, query, { id: `gid://shopify/Product/${productId}` });
+  const mediaByMarker = new Map(
+    (current.product?.media?.nodes ?? [])
+      .filter((media) => media.mediaContentType === "IMAGE" && media.alt?.startsWith("managed-source:"))
+      .map((media) => [media.alt!, media] as const),
+  );
+  const requestedMedia = urls.map((url) => ({ sourceUrl: url, media: mediaByMarker.get(shopifyImageMarker(url)) }));
+  const failed = requestedMedia.find((entry) => entry.media?.status === "FAILED");
+  if (failed) throw new ShopifyApiError("Shopify가 이미지를 처리하지 못했습니다. 원본 URL과 이미지 형식을 확인해 주세요.", 422, failed);
+  const pending = requestedMedia.find((entry) => !entry.media || entry.media.status !== "READY");
+  // productCreateMedia 응답은 접수 성공일 뿐 CDN 처리 완료가 아니다. 완료 전에는
+  // 기존 사진을 삭제하거나 옵션에 연결했다고 성공으로 기록하면 안 된다.
+  if (pending) throw new ShopifyApiError("Shopify 이미지 처리 중입니다. 잠시 후 이미지·썸네일 교체를 다시 실행해 주세요.", 409, pending);
   const staleImageIds = (current.product?.media?.nodes ?? [])
     .filter((media) => media.mediaContentType === "IMAGE" && !wantedMarkers.has(media.alt ?? ""))
     .map((media) => media.id);
-  if (!staleImageIds.length) return { ...synced, removed: 0 };
+  const media = requestedMedia.map((entry) => ({ sourceUrl: entry.sourceUrl, mediaId: entry.media!.id }));
+  if (!staleImageIds.length) return { ...synced, removed: 0, media };
 
   const mutation = `mutation ProductDeleteMedia($productId: ID!, $mediaIds: [ID!]!) {
     productDeleteMedia(productId: $productId, mediaIds: $mediaIds) {
@@ -224,7 +239,44 @@ export async function replaceShopifyProductImages(
   if (removed !== staleImageIds.length) {
     throw new ShopifyApiError("Shopify가 기존 사진을 모두 삭제했다고 확인하지 못했습니다.", 502, deleted);
   }
-  return { ...synced, removed };
+  return { ...synced, removed, media };
+}
+
+/** 연결된 묶음상품의 각 옵션이 자기 카드 사진만 표시하도록 Shopify variant media를 연결한다. */
+export async function attachShopifyVariantImages(
+  config: ShopifyConfig,
+  productId: string,
+  assignments: Array<{ variantId: string; sourceUrl: string; mediaId: string }>,
+) {
+  if (!assignments.length) return 0;
+  const mutation = `mutation ProductVariantAppendMedia($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+    productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+      product { id }
+      userErrors { field message }
+    }
+  }`;
+  const data = await shopifyGraphqlRequest<{
+    productVariantAppendMedia?: { userErrors?: ShopifyGraphqlError[] };
+  }>(config, mutation, {
+    productId: `gid://shopify/Product/${productId}`,
+    variantMedia: assignments.map((assignment) => ({
+      variantId: `gid://shopify/ProductVariant/${assignment.variantId}`,
+      mediaIds: [assignment.mediaId],
+    })),
+  });
+  const errors = graphqlUserErrorMessage(data.productVariantAppendMedia?.userErrors);
+  if (errors) throw new ShopifyApiError(errors, 422, data);
+  const verification = await shopifyGraphqlRequest<{
+    product?: { variants?: { nodes?: Array<{ id: string; media?: { nodes?: Array<{ id: string }> } | null }> } | null } | null;
+  }>(config, `query VerifyVariantMedia($id: ID!) {
+    product(id: $id) { variants(first: 250) { nodes { id media(first: 250) { nodes { id } } } }
+  }`, { id: `gid://shopify/Product/${productId}` });
+  const mediaIdsByVariant = new Map(
+    (verification.product?.variants?.nodes ?? []).map((variant) => [variant.id, new Set((variant.media?.nodes ?? []).map((media) => media.id))]),
+  );
+  const missing = assignments.find((assignment) => !mediaIdsByVariant.get(`gid://shopify/ProductVariant/${assignment.variantId}`)?.has(assignment.mediaId));
+  if (missing) throw new ShopifyApiError("Shopify가 옵션별 사진 연결을 확인해 주지 않았습니다.", 502, missing);
+  return assignments.length;
 }
 
 function gidNumber(value: string) {
