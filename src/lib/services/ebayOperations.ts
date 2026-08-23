@@ -162,7 +162,7 @@ export async function getShopifyOperations() {
       optionCount: members.length,
       imageCount: members.filter((row) => readyImageById.has(row.productId)).length,
       actionable,
-      reason: actionable ? "승인된 원본 사진을 Shopify 상품 미디어·대표 썸네일로 연결" : "최종 승인 이미지가 없는 옵션이 있어 보정 제외",
+      reason: actionable ? "승인된 최종 사진으로 Shopify 기존 사진·대표 썸네일을 교체" : "최종 승인 이미지가 없는 옵션이 있어 교체 제외",
     };
   });
   const change: Array<Record<string, unknown>> = [];

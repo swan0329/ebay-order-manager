@@ -2,7 +2,7 @@ import "server-only";
 
 import { getShopifyConfig } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
-import { syncShopifyProductImages } from "@/lib/services/shopifyService";
+import { replaceShopifyProductImages } from "@/lib/services/shopifyService";
 import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
 
 /**
@@ -25,7 +25,9 @@ export async function repairShopifyProductImages(productIds: string[]) {
     ...(product.ebayImageUrls ?? []),
     readyImageById.get(product.id) ?? "",
   ].filter(Boolean)))];
-  const result = await syncShopifyProductImages(getShopifyConfig(), externalIds[0], urls);
+  // 새 승인 이미지를 먼저 접수한 뒤에 기존 Shopify 사진을 지운다. 가격, 재고,
+  // 옵션은 이 경로에서 변경하지 않는다.
+  const result = await replaceShopifyProductImages(getShopifyConfig(), externalIds[0], urls);
   await prisma.product.updateMany({
     where: { id: { in: products.map((product) => product.id) } },
     data: { shopifyLastUploadedAt: new Date(), shopifyUploadError: null },

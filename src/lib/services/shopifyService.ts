@@ -115,6 +115,10 @@ export type ShopifyImageSyncResult = {
   processing: number;
 };
 
+export type ShopifyImageReplaceResult = ShopifyImageSyncResult & {
+  removed: number;
+};
+
 // Shopify는 외부 URL을 "파일"로만 저장해도 상품 미디어(스토어 카드의 썸네일)
 // 에 연결하지 않는다. productCreateMedia로 명시적으로 연결해야 한다.
 // alt에 원본 URL의 해시를 기록해, 보정 작업을 재시작해도 같은 사진을 중복으로
@@ -174,6 +178,53 @@ export async function syncShopifyProductImages(
     alreadyAttached: urls.length - missing.length,
     processing: media.filter((item) => item.status !== "READY").length,
   };
+}
+
+/**
+ * 현재 관리 시스템의 최종 승인 사진으로 Shopify 상품 사진을 교체한다.
+ * 먼저 새 사진을 Shopify가 접수한 뒤에만 이전 IMAGE 미디어를 지우므로, 업로드
+ * 실패 때문에 사진이 전혀 없는 상품이 되는 일을 막는다. 동영상·3D 미디어는
+ * 건드리지 않는다.
+ */
+export async function replaceShopifyProductImages(
+  config: ShopifyConfig,
+  productId: string,
+  sourceUrls: string[],
+): Promise<ShopifyImageReplaceResult> {
+  const synced = await syncShopifyProductImages(config, productId, sourceUrls);
+  const wantedMarkers = new Set(
+    sourceUrls.map((url) => url.trim()).filter(Boolean).map(shopifyImageMarker),
+  );
+  const query = `query ProductMediaForReplacement($id: ID!) {
+    product(id: $id) { media(first: 250) { nodes { id alt mediaContentType } } }
+  }`;
+  const current = await shopifyGraphqlRequest<{
+    product?: { media?: { nodes?: Array<{ id: string; alt?: string | null; mediaContentType?: string | null }> } | null } | null;
+  }>(config, query, { id: `gid://shopify/Product/${productId}` });
+  const staleImageIds = (current.product?.media?.nodes ?? [])
+    .filter((media) => media.mediaContentType === "IMAGE" && !wantedMarkers.has(media.alt ?? ""))
+    .map((media) => media.id);
+  if (!staleImageIds.length) return { ...synced, removed: 0 };
+
+  const mutation = `mutation ProductDeleteMedia($productId: ID!, $mediaIds: [ID!]!) {
+    productDeleteMedia(productId: $productId, mediaIds: $mediaIds) {
+      deletedMediaIds
+      mediaUserErrors { field message }
+    }
+  }`;
+  const deleted = await shopifyGraphqlRequest<{
+    productDeleteMedia?: { deletedMediaIds?: string[] | null; mediaUserErrors?: ShopifyGraphqlError[] };
+  }>(config, mutation, {
+    productId: `gid://shopify/Product/${productId}`,
+    mediaIds: staleImageIds,
+  });
+  const errors = graphqlUserErrorMessage(deleted.productDeleteMedia?.mediaUserErrors);
+  if (errors) throw new ShopifyApiError(errors, 422, deleted);
+  const removed = deleted.productDeleteMedia?.deletedMediaIds?.length ?? 0;
+  if (removed !== staleImageIds.length) {
+    throw new ShopifyApiError("Shopify가 기존 사진을 모두 삭제했다고 확인하지 못했습니다.", 502, deleted);
+  }
+  return { ...synced, removed };
 }
 
 function gidNumber(value: string) {
