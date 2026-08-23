@@ -200,22 +200,27 @@ export async function replaceShopifyProductImages(
   const query = `query ProductMediaForReplacement($id: ID!) {
     product(id: $id) { media(first: 250) { nodes { id alt mediaContentType status } } }
   }`;
-  const current = await shopifyGraphqlRequest<{
+  type ProductMediaResponse = {
     product?: { media?: { nodes?: Array<{ id: string; alt?: string | null; mediaContentType?: string | null; status?: string | null }> } | null } | null;
-  }>(config, query, { id: `gid://shopify/Product/${productId}` });
-  const mediaByMarker = new Map(
-    (current.product?.media?.nodes ?? [])
-      .filter((media) => media.mediaContentType === "IMAGE" && media.alt?.startsWith("managed-source:"))
-      .map((media) => [media.alt!, media] as const),
-  );
-  const requestedMedia = urls.map((url) => ({ sourceUrl: url, media: mediaByMarker.get(shopifyImageMarker(url)) }));
-  const failed = requestedMedia.find((entry) => entry.media?.status === "FAILED");
-  if (failed) throw new ShopifyApiError("Shopify가 이미지를 처리하지 못했습니다. 원본 URL과 이미지 형식을 확인해 주세요.", 422, failed);
-  const pending = requestedMedia.find((entry) => !entry.media || entry.media.status !== "READY");
-  // productCreateMedia 응답은 접수 성공일 뿐 CDN 처리 완료가 아니다. 완료 전에는
-  // 기존 사진을 삭제하거나 옵션에 연결했다고 성공으로 기록하면 안 된다.
-  if (pending) throw new ShopifyApiError("Shopify 이미지 처리 중입니다. 잠시 후 이미지·썸네일 교체를 다시 실행해 주세요.", 409, pending);
-  const staleImageIds = (current.product?.media?.nodes ?? [])
+  };
+  let current: ProductMediaResponse | null = null;
+  let mediaByMarker = new Map<string, { id: string; alt?: string | null; mediaContentType?: string | null; status?: string | null }>();
+  let requestedMedia: Array<{ sourceUrl: string; media: { id: string; alt?: string | null; mediaContentType?: string | null; status?: string | null } | undefined }> = [];
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    current = await shopifyGraphqlRequest<ProductMediaResponse>(config, query, { id: `gid://shopify/Product/${productId}` });
+    mediaByMarker = new Map(
+      (current.product?.media?.nodes ?? [])
+        .filter((media) => media.mediaContentType === "IMAGE" && media.alt?.startsWith("managed-source:"))
+        .map((media) => [media.alt!, media] as const),
+    );
+    requestedMedia = urls.map((url) => ({ sourceUrl: url, media: mediaByMarker.get(shopifyImageMarker(url)) }));
+    const failed = requestedMedia.find((entry) => entry.media?.status === "FAILED");
+    if (failed) throw new ShopifyApiError("Shopify가 이미지를 처리하지 못했습니다. 원본 URL과 이미지 형식을 확인해 주세요.", 422, failed);
+    if (!requestedMedia.some((entry) => !entry.media || entry.media.status !== "READY")) break;
+    if (attempt === 9) throw new ShopifyApiError("Shopify 이미지 처리 시간이 초과되었습니다. 기존 사진은 유지했습니다. 잠시 후 다시 실행해 주세요.", 409, requestedMedia);
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+  const staleImageIds = (current?.product?.media?.nodes ?? [])
     .filter((media) => media.mediaContentType === "IMAGE" && !wantedMarkers.has(media.alt ?? ""))
     .map((media) => media.id);
   const media = requestedMedia.map((entry) => ({ sourceUrl: entry.sourceUrl, mediaId: entry.media!.id }));
