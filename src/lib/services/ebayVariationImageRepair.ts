@@ -185,6 +185,38 @@ export async function processEbayVariationImageRepairJobs(userId: string, limit 
       }
     }
   }
+  // 작업 이력이 아예 남지 않은 과거 전송도 현재 활성 Item ID를 기준으로 직접
+  // 확인한다. 현재 설정으로 목표 썸네일을 준비한 뒤 eBay 실제 대표사진과 같으면
+  // verified 완료 기록을 새로 만들고, 다르면 미확인 기록을 남겨 재검사를 반복하지
+  // 않는다. 이 경로는 eBay에 사진을 다시 전송하지 않는다.
+  const reconciliationCapacity = Math.max(0, Math.min(20, limit) - legacySuccesses.length);
+  if (reconciliationCapacity) {
+    const [rows, watermark, account, previousJobs] = await Promise.all([
+      groupsForStates(userId),
+      resolveListingWatermark(userId),
+      prisma.ebayAccount.findFirst({ where: { userId, environment: getEbayConfig().environment === "production" ? "PRODUCTION" : "SANDBOX" }, orderBy: { updatedAt: "desc" } }),
+      prisma.productUploadJob.findMany({ where: { userId, source: JOB_SOURCE }, select: { sku: true, rawJson: true } }),
+    ]);
+    const attempted = new Set(previousJobs.filter((job) => jobVerificationAttempted(job.rawJson)).map((job) => `${job.sku}:${jobHash(job.rawJson) ?? ""}`));
+    const candidates = rows.flatMap((row) => {
+      if (!row.state.ebayItemId || !row.group || row.imageCount !== row.productIds.length) return [];
+      const id = `ebay-image:${row.state.ebayItemId}`;
+      const hash = variationThumbnailHash(row.group, watermark.signature);
+      return attempted.has(`${id}:${hash}`) ? [] : [{ ...row, id, hash }];
+    }).slice(0, reconciliationCapacity);
+    for (const candidate of candidates) {
+      let expectedUrl: string | null = null;
+      try {
+        if (!account) throw new Error("eBay 계정이 연결되어 있지 않습니다.");
+        expectedUrl = await ensureVariationThumbnail(userId, candidate.group as VariationListingGroup);
+        await verifyEbayRepresentativePicture(account, candidate.state.ebayItemId!, expectedUrl);
+        await prisma.productUploadJob.create({ data: { userId, source: JOB_SOURCE, sku: candidate.id, status: "success", message: "eBay 재조회로 대표사진 반영 확인 완료", rawJson: verifiedJobJson({ thumbnailHash: candidate.hash }), startedAt: new Date(), finishedAt: new Date() } });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "eBay 대표사진 실제 반영 미확인";
+        await prisma.productUploadJob.create({ data: { userId, source: JOB_SOURCE, sku: candidate.id, status: "failed", message: "현재 eBay 대표사진 실제 반영 미확인", error: message, errorSummary: message, rawJson: failedVerificationJobJson({ thumbnailHash: candidate.hash, expectedUrl }), startedAt: new Date(), finishedAt: new Date() } });
+      }
+    }
+  }
   const jobs = await prisma.productUploadJob.findMany({
     where: { userId, source: JOB_SOURCE, status: "pending" }, orderBy: { createdAt: "asc" }, take: limit,
   });
