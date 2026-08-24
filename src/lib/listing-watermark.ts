@@ -42,10 +42,13 @@ async function watermarkTile(settings: ResolvedWatermark) {
   const opacity = Math.max(0.03, Math.min(0.3, settings.watermarkOpacity));
   if (settings.logo?.length) {
     const size = Math.max(35, Math.min(220, settings.watermarkLogoSize));
-    return sharp(settings.logo, { failOn: "none" })
+    const resized = await sharp(settings.logo, { failOn: "none" })
       .resize({ width: size, height: size, fit: "inside", withoutEnlargement: true })
-      .greyscale().ensureAlpha().linear([1, opacity], [0, 0])
-      .rotate(-18, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
+      .greyscale().ensureAlpha().png().toBuffer();
+    const rendered = await sharp(resized, { failOn: "none" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    for (let index = 3; index < rendered.data.length; index += rendered.info.channels) rendered.data[index] = Math.round(rendered.data[index]! * opacity);
+    const alphaAdjusted = await sharp(rendered.data, { raw: { width: rendered.info.width, height: rendered.info.height, channels: rendered.info.channels } }).png().toBuffer();
+    return sharp(alphaAdjusted).rotate(-18, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
   }
   if (!settings.watermarkText?.trim()) return null;
   return Buffer.from(`<svg width="190" height="90" xmlns="http://www.w3.org/2000/svg"><text x="95" y="52" text-anchor="middle" transform="rotate(-18 95 45)" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#111" fill-opacity="${opacity}">${escapeXml(settings.watermarkText.trim())}</text></svg>`);

@@ -99,16 +99,14 @@ async function watermarkLayer(input: VariationThumbnailInput) {
   let tile: Buffer | null = null;
   if (input.watermarkLogo?.length) {
     const logoSize = Math.max(35, Math.min(220, input.watermarkLogoSize ?? DEFAULT_WATERMARK_LOGO_SIZE));
-    tile = await sharp(input.watermarkLogo, { failOn: "none" })
+    const resized = await sharp(input.watermarkLogo, { failOn: "none" })
       .resize({ width: logoSize, height: logoSize, fit: "inside", withoutEnlargement: true })
       .greyscale()
       .ensureAlpha()
-      // greyscale 뒤 ensureAlpha()는 회색·알파 2개 밴드다. 현재 Sharp에서는
-      // 4개 밴드 배열 확장을 지원하지 않으므로 알파 밴드만 투명도로 조절한다.
-      .linear([1, opacity], [0, 0])
-      .rotate(-18, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
+    tile = await applyAlphaOpacity(resized, opacity);
+    tile = await sharp(tile).rotate(-18, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
   } else if (input.watermarkText?.trim()) {
     tile = Buffer.from(watermarkTextSvg(input.watermarkText.trim(), opacity));
   }
@@ -133,6 +131,15 @@ async function watermarkLayer(input: VariationThumbnailInput) {
     .composite(placements)
     .png()
     .toBuffer();
+}
+
+/** Sharp's linear() cannot safely expand all PNG band layouts. Adjust alpha bytes directly. */
+async function applyAlphaOpacity(input: Buffer, opacity: number) {
+  const rendered = await sharp(input, { failOn: "none" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  for (let index = 3; index < rendered.data.length; index += rendered.info.channels) {
+    rendered.data[index] = Math.round(rendered.data[index]! * opacity);
+  }
+  return sharp(rendered.data, { raw: { width: rendered.info.width, height: rendered.info.height, channels: rendered.info.channels } }).png().toBuffer();
 }
 
 async function headerLayer(groupName: string, albumName: string) {
