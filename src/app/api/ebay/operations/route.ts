@@ -207,8 +207,11 @@ export async function POST(request: Request) {
       );
     if (input.dryRun) {
       const result = await pushEbayInventory({ userId: user.id, productIds, dryRun: true, limit: 200 });
+      if (result.rows.length !== productIds.length) return jsonError("자동 검증 중 재고·연결 상태가 바뀐 항목이 있습니다. 목록을 새로고침한 뒤 다시 시작해 주세요.", 409);
       return Response.json({ ...result, previewToken: issueListingPreviewToken(productIds) });
     }
+    const existingJob = await getEbayInventoryJobSummary(user.id);
+    if (existingJob.active) return jsonError(`이미 eBay 가격·재고 작업 ${existingJob.active}건이 진행 중입니다. 완료된 뒤 다음 작업을 시작해 주세요.`, 409);
     const job = await enqueueEbayInventoryJobs({ userId: user.id, productIds, action: input.action === "UNAVAILABLE" ? "UNAVAILABLE" : "CHANGE" });
     after(() => processEbayInventoryJobs(user.id));
     return Response.json({ queued: true, jobType: "inventory", succeeded: 0, failed: 0, job });

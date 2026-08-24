@@ -5,7 +5,7 @@ import { getEbayConfig } from "@/lib/env";
 import { hasListingPrice, resolveListingPriceUsd } from "@/lib/listing-price";
 import { reservedByProduct } from "@/lib/stock-reservation";
 import { resolveChannelAvailability, type AvailabilityStatus } from "@/lib/channel-availability";
-import { reviseEbayPriceQuantity, reviseTargetKey, type ReviseTarget } from "@/lib/services/ebayRevise";
+import { listingReviseTarget, reviseEbayPriceQuantity, reviseTargetKey, type ReviseTarget } from "@/lib/services/ebayRevise";
 import { getActiveVariationProductListings } from "@/lib/variation-selling-state";
 
 // eBay에 올려 둔 가격과 수량을 우리 값으로 맞춘다.
@@ -163,16 +163,23 @@ export async function pushEbayInventory(input: {
   });
   if (!account) throw new Error("eBay 계정이 연결되어 있지 않습니다.");
 
-  const targets: ReviseTarget[] = rows.map((row) => ({
+  const targets: ReviseTarget[] = rows.map((row) => listingReviseTarget({
     itemId: row.itemId,
     sku: row.sku,
+    listingType: row.listingType,
     quantity: row.quantity,
     price: input.quantityOnly ? null : row.price,
   }));
   const result = await reviseEbayPriceQuantity(account, targets);
 
   const succeeded = new Set(result.succeeded);
-  const successfulRows = rows.filter((row) => succeeded.has(reviseTargetKey({ itemId: row.itemId, sku: row.sku })));
+  const successfulRows = rows.filter((row) => succeeded.has(reviseTargetKey(listingReviseTarget({
+    itemId: row.itemId,
+    sku: row.sku,
+    listingType: row.listingType,
+    quantity: row.quantity,
+    price: input.quantityOnly ? null : row.price,
+  }))));
   // 운영 DB는 서버리스 인스턴스당 연결 1개를 사용한다. 성공 건마다 Promise.all로
   // 연결을 경쟁시키면 eBay 반영 후 내부 기록에서 pool timeout이 날 수 있다.
   if (successfulRows.length) await prisma.$transaction(successfulRows.map((row) =>

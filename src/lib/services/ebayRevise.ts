@@ -37,6 +37,23 @@ export type ReviseResult = {
   failed: Array<{ itemId: string; targetKey: string; reason: string }>;
 };
 
+export function listingReviseTarget(input: {
+  itemId: string;
+  sku: string;
+  listingType: "SINGLE" | "VARIATION_OPTION";
+  quantity: number;
+  price: number | null;
+}): ReviseTarget {
+  return {
+    itemId: input.itemId,
+    // 단품에도 내부 SKU는 있지만 GetItem의 Variations에는 존재하지 않는다.
+    // 옵션 리스팅일 때만 SKU를 전송·검증 키로 사용해야 단품을 옵션으로 오판하지 않는다.
+    sku: input.listingType === "VARIATION_OPTION" ? input.sku : null,
+    quantity: input.quantity,
+    price: input.price,
+  };
+}
+
 export function reviseTargetKey(target: Pick<ReviseTarget, "itemId" | "sku">) {
   return target.sku ? `${target.itemId}:${target.sku}` : target.itemId;
 }

@@ -9,10 +9,9 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const user = await requireApiUser();
-    const summary = await getEbayInventoryJobSummary(user.id);
-    // 서버리스 실행이 중단된 작업도 화면을 다시 열면 자동으로 이어진다.
-    if (summary.active) after(() => processEbayInventoryJobs(user.id));
-    return Response.json(summary);
+    // 상태 조회는 읽기 전용이다. 3~5초 폴링마다 새 처리기를 띄우면 연결 제한 1인
+    // 운영 DB에 불필요한 경쟁이 생기므로 재개는 POST와 30분 cron에서만 수행한다.
+    return Response.json(await getEbayInventoryJobSummary(user.id));
   } catch (error) {
     if (error instanceof UnauthorizedError) return jsonError("Unauthorized", 401);
     return jsonError(asErrorMessage(error), 500);

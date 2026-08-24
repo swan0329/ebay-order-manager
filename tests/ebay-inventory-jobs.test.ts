@@ -38,14 +38,14 @@ describe("eBay inventory background jobs", () => {
       .mockResolvedValueOnce([queued])
       .mockResolvedValueOnce([{ ...queued, status: "success", message: "완료", errorSummary: null, action: "CHANGE", createdAt: new Date(), startedAt: new Date(), finishedAt: new Date() }]);
     pushMock.mockResolvedValue({
-      rows: [{ productId: "p1", itemId: "item-1", sku: "S1", price: 9.5, quantity: 8 }],
+      rows: [{ productId: "p1", itemId: "item-1", sku: "S1", price: 9.5, quantity: 8, listingType: "VARIATION_OPTION" }],
       succeededKeys: ["item-1:S1"],
       failed: [],
     });
 
     const result = await processEbayInventoryJobs("u1");
 
-    expect(pushMock).toHaveBeenCalledWith({ userId: "u1", productIds: ["p1"], dryRun: false, limit: 200 });
+    expect(pushMock).toHaveBeenCalledWith({ userId: "u1", productIds: ["p1"], dryRun: false, limit: 24 });
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ succeeded: 1, failed: 0, total: 1 });
   });

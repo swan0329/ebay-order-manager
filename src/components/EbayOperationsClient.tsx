@@ -11,15 +11,21 @@ type ReviseRow = { productId: string; productIds?: string[]; sku: string; produc
 type UnavailableRow = ReviseRow & { reason: string };
 type Summary = { createReady?: number; createNeedsReview?: number; createCountMeaning?: string; unavailableOptions?: number; unavailableSingles?: number; sourceReview?: number; heldForOrder?: number; shopifyListings?: number; shopifyVariationListings?: number; shopifySingleListings?: number; shopifyOptions?: number; imageRepairListings?: number };
 type ImageRepairJob = { active: number; pending: number; running: number; succeeded: number; failed: number; total: number };
-type InventoryJob = { kind: "inventory"; batchId: string | null; active: number; pending: number; running: number; succeeded: number; failed: number; completed: number; total: number; jobs: Array<{ id: string; productId: string | null; sku: string; action: string | null; status: string; message: string | null; errorSummary: string | null }> };
+type InventoryJob = { kind: "inventory"; batchId: string | null; active: number; pending: number; running: number; succeeded: number; failed: number; completed: number; total: number; jobs: Array<{ id: string; productId: string | null; sku: string; action: string | null; status: string; message: string | null; errorSummary: string | null; createdAt?: string | Date; startedAt?: string | Date | null; finishedAt?: string | Date | null }> };
 export type OperationsClientData = { create: CreateRow[]; change: ReviseRow[]; unavailable: UnavailableRow[]; review: UnavailableRow[]; imageRepair: UnavailableRow[]; limits: { createBatch: number; reviseBatch: number }; summary?: Summary; imageRepairJob?: ImageRepairJob; inventoryJob?: InventoryJob };
 type PreviewRow = { id?: string; productId?: string | null; sku: string; title?: string; name?: string; productName?: string; itemId?: string; price: number | null; priceMax?: number | null; previousPrice?: number | null; quantity: number | null; previousQuantity?: number | null; imageCount?: number; optionCount?: number; listingType?: "SINGLE" | "VARIATION_OPTION" | "VARIATION"; parentTitle?: string | null; options?: OptionChange[]; affectedOptions?: OptionChange[]; valid?: boolean; issues?: Array<{ field: string; message: string }> };
 type Preview = { token?: string; rows: PreviewRow[]; action: Tab; valid: boolean; estimateSeconds?: { minimum: number; maximum: number } };
-type Result = { succeeded: number; failed: number; rows: Array<{ sku: string; status: "성공" | "실패"; message: string; productId?: string }> };
+type Result = { succeeded: number; failed: number; rows: Array<{ sku: string; status: "성공" | "실패"; message: string; productId?: string; action?: Tab }> };
 type WorkLog = { id: string; startedAt: Date; channel: Channel; action: Tab; requested: number; succeeded: number; failed: number; message: string };
 
 const money = (value: number | null | undefined) => value == null ? "-" : `$${value.toFixed(2)}`;
 const actionName = (tab: Tab) => tab === "create" ? "신규등록" : tab === "change" ? "가격·재고 변경" : tab === "unavailable" ? "품절·판매중지" : tab === "imageRepair" ? "이미지·썸네일 교체" : "주문 예약·수집 필요";
+const jobAction = (action: string | null): Tab | undefined => action === "CHANGE" ? "change" : action === "UNAVAILABLE" ? "unavailable" : undefined;
+const resultFromJob = (job?: InventoryJob): Result | null => !job?.total || job.active ? null : ({
+  succeeded: job.succeeded,
+  failed: job.failed,
+  rows: job.jobs.map((item) => ({ productId: item.productId ?? undefined, sku: item.sku, action: jobAction(item.action), status: item.status === "success" ? "성공" as const : "실패" as const, message: item.status === "success" ? item.message ?? "eBay 실제 반영 확인 완료" : item.errorSummary ?? item.message ?? "eBay 실제 반영 미확인" })),
+});
 
 export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { initial: OperationsClientData; initialChannel?: Channel }) {
   const [data, setData] = useState(initial);
@@ -31,9 +37,11 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
   const [elapsed, setElapsed] = useState(0);
   const [message, setMessage] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [result, setResult] = useState<Result | null>(null);
+  const [result, setResult] = useState<Result | null>(() => resultFromJob(initial.inventoryJob));
   const [history, setHistory] = useState<WorkLog[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+  const lastInventoryKickAt = useRef(0);
+  const [jobClock, setJobClock] = useState(() => Date.now());
   const rows = tab === "create" ? data.create : tab === "change" ? data.change : tab === "unavailable" ? data.unavailable : tab === "imageRepair" ? data.imageRepair : data.review;
   const ids = useMemo(() => rows.flatMap((row) => {
     if (tab === "create") return (row as CreateRow).productId ? [(row as CreateRow).productId!] : [];
@@ -76,9 +84,12 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
       if (!mounted || !response?.ok) return;
       const job = await response.json() as InventoryJob;
       setData((current) => ({ ...current, inventoryJob: job }));
+      if (job.active && Date.now() - lastInventoryKickAt.current >= 30_000) {
+        lastInventoryKickAt.current = Date.now();
+        void fetch("/api/ebay/operations/inventory-jobs", { method: "POST" });
+      }
       if (!job.active) {
-        const rows = job.jobs.map((item) => ({ productId: item.productId ?? undefined, sku: item.sku, status: item.status === "success" ? "성공" as const : "실패" as const, message: item.status === "success" ? item.message ?? "eBay 실제 반영 확인 완료" : item.errorSummary ?? item.message ?? "eBay 실제 반영 미확인" }));
-        setResult({ succeeded: job.succeeded, failed: job.failed, rows });
+        setResult(resultFromJob(job));
         setMessage(`eBay 실제 반영 확인 완료: 성공 ${job.succeeded}건 · 실패·미확인 ${job.failed}건`);
         const operations = await fetch("/api/ebay/operations?channel=EBAY", { cache: "no-store" }).catch(() => null);
         if (mounted && operations?.ok) setData(await operations.json());
@@ -88,6 +99,22 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
     const timer = window.setInterval(() => void poll(), 3_000);
     return () => { mounted = false; window.clearInterval(timer); };
   }, [channel, data.inventoryJob?.active, data.inventoryJob?.batchId]);
+
+  useEffect(() => {
+    if (!data.inventoryJob?.active) return;
+    const timer = window.setInterval(() => setJobClock(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [data.inventoryJob?.active]);
+
+  const inventoryTiming = useMemo(() => {
+    const job = data.inventoryJob;
+    const started = job?.jobs.map((item) => item.startedAt ?? item.createdAt).filter(Boolean).map((value) => new Date(value!).getTime()).filter(Number.isFinite).sort((a, b) => a - b)[0];
+    if (!job || !started) return { elapsed: 0, eta: null as number | null };
+    const elapsedSeconds = Math.max(1, Math.round((jobClock - started) / 1_000));
+    const eta = job.completed > 0 && job.completed < job.total ? Math.ceil((elapsedSeconds / job.completed) * (job.total - job.completed)) : null;
+    return { elapsed: elapsedSeconds, eta };
+  }, [data.inventoryJob, jobClock]);
+  const serverJobActive = channel === "EBAY" && Boolean(data.inventoryJob?.active);
 
   function resetReview() { setPreview(null); setResult(null); setMessage(""); }
   function choose(next: Tab) { setTab(next); setSelected([]); resetReview(); }
@@ -138,12 +165,12 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
     }
   }
 
-  async function send(previewData: Preview, targetIds: string[]) {
+  async function send(previewData: Preview, targetIds: string[], actionTab: Tab) {
     if (!previewData.token || !previewData.valid) return;
     try {
-      const ebayCreate = channel === "EBAY" && tab === "create";
+      const ebayCreate = channel === "EBAY" && actionTab === "create";
       const url = ebayCreate ? "/api/listing-upload/drafts/upload" : "/api/ebay/operations";
-      const body = ebayCreate ? { ids: previewData.rows.flatMap((row) => row.id ? [row.id] : []), dryRun: false, confirmed: true, previewToken: previewData.token } : { action: tab === "create" ? "CREATE" : tab === "change" ? "CHANGE" : tab === "unavailable" ? "UNAVAILABLE" : tab === "imageRepair" ? "IMAGE_REPAIR" : "REVIEW", productIds: targetIds, dryRun: false, confirmed: true, previewToken: previewData.token, channel };
+      const body = ebayCreate ? { ids: previewData.rows.flatMap((row) => row.id ? [row.id] : []), dryRun: false, confirmed: true, previewToken: previewData.token } : { action: actionTab === "create" ? "CREATE" : actionTab === "change" ? "CHANGE" : actionTab === "unavailable" ? "UNAVAILABLE" : actionTab === "imageRepair" ? "IMAGE_REPAIR" : "REVIEW", productIds: targetIds, dryRun: false, confirmed: true, previewToken: previewData.token, channel };
       const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const output = await response.json();
       if (!response.ok) throw new Error(output.error ?? "전송 실패");
@@ -162,7 +189,7 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
       });
       setResult({ succeeded, failed: failedCount, rows: resultRows });
       setMessage(`마켓 실제 반영 확인 완료: 성공 ${succeeded}건 · 실패·미확인 ${failedCount}건`);
-      setHistory((current) => [{ id: crypto.randomUUID(), startedAt: new Date(), channel, action: tab, requested: previewData.rows.length, succeeded, failed: failedCount, message: failedCount ? "일부 실패 — 실패 건만 재검증 후 재시작 가능" : "완료" }, ...current].slice(0, 10));
+      setHistory((current) => [{ id: crypto.randomUUID(), startedAt: new Date(), channel, action: actionTab, requested: previewData.rows.length, succeeded, failed: failedCount, message: failedCount ? "일부 실패 — 실패 건만 재검증 후 재시작 가능" : "완료" }, ...current].slice(0, 10));
       setPreview(null); setSelected([]); await refresh();
     } catch (error) { setMessage(error instanceof Error ? error.message : "전송 실패"); }
   }
@@ -170,22 +197,22 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
   // 사용자가 "작업 시작"을 누르는 것이 실제 적용 승인이다. 화면에 긴 검토표를
   // 띄우지는 않지만, 서버에서는 항상 같은 최신 대상과 토큰을 먼저 검증한 뒤에만
   // 외부 마켓 쓰기를 시작한다. 검증에서 빠진 항목은 전송하지 않고 결과로 남긴다.
-  async function startAutomatically(targetIds = selected) {
+  async function startAutomatically(targetIds = selected, actionTab: Tab = tab) {
     if (!targetIds.length) return;
     setElapsed(0); setBusy(true); setPhase("preview"); setMessage(""); setResult(null); setPreview(null);
     const controller = new AbortController(); abortRef.current = controller;
     try {
-      const response = await fetch("/api/ebay/operations", { method: "POST", headers: { "content-type": "application/json" }, signal: controller.signal, body: JSON.stringify({ action: tab === "create" ? "CREATE" : tab === "change" ? "CHANGE" : tab === "unavailable" ? "UNAVAILABLE" : tab === "imageRepair" ? "IMAGE_REPAIR" : "REVIEW", productIds: targetIds, dryRun: true, channel }) });
+      const response = await fetch("/api/ebay/operations", { method: "POST", headers: { "content-type": "application/json" }, signal: controller.signal, body: JSON.stringify({ action: actionTab === "create" ? "CREATE" : actionTab === "change" ? "CHANGE" : actionTab === "unavailable" ? "UNAVAILABLE" : actionTab === "imageRepair" ? "IMAGE_REPAIR" : "REVIEW", productIds: targetIds, dryRun: true, channel }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? "자동 검증 실패");
-      const candidate: Preview = { token: body.previewToken, rows: body.rows ?? body.drafts ?? [], action: tab, valid: body.valid !== false && Boolean(body.previewToken), estimateSeconds: body.estimateSeconds };
+      const candidate: Preview = { token: body.previewToken, rows: body.rows ?? body.drafts ?? [], action: actionTab, valid: body.valid !== false && Boolean(body.previewToken), estimateSeconds: body.estimateSeconds };
       if (!candidate.valid) {
         setPreview(candidate);
         setMessage("자동 검증에서 제외된 항목이 있습니다. 이 항목들은 마켓에 전송하지 않았습니다.");
         return;
       }
       setPhase("sending");
-      await send(candidate, targetIds);
+      await send(candidate, targetIds, actionTab);
     } catch (error) { setMessage(error instanceof DOMException && error.name === "AbortError" ? "작업 시작 전 자동 검증을 중지했습니다." : error instanceof Error ? error.message : "자동 적용 실패"); }
     finally { if (abortRef.current === controller) abortRef.current = null; setBusy(false); setPhase("idle"); }
   }
@@ -210,8 +237,9 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
   async function retryFailures() {
     const failedIds = [...new Set(result?.rows.filter((row) => row.status === "실패").flatMap((row) => row.productId ? [row.productId] : []) ?? [])];
     if (!failedIds.length) { setMessage("재시작할 실패 항목이 없습니다."); return; }
-    setSelected(failedIds); setPreview(null); setMessage(`실패 ${failedIds.length}건을 다시 검증하고 적용합니다.`);
-    await startAutomatically(failedIds);
+    const retryTab = result?.rows.find((row) => row.status === "실패" && row.action)?.action ?? tab;
+    setTab(retryTab); setSelected(failedIds); setPreview(null); setMessage(`실패·미확인 ${failedIds.length}건을 최신 값으로 다시 검증하고 적용합니다.`);
+    await startAutomatically(failedIds, retryTab);
   }
 
   function stopCurrentWork() {
@@ -229,23 +257,23 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
     {channel === "SHOPIFY" && data.summary && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950"><b>Shopify 등록 단위:</b> 카드 {data.summary.shopifyOptions ?? 0}장을 묶음상품 {data.summary.shopifyVariationListings ?? 0}개와 단품 {data.summary.shopifySingleListings ?? 0}개, 총 {data.summary.shopifyListings ?? 0}개 리스팅으로 계산합니다.<span className="ml-3 font-bold">이미지·썸네일 교체 가능 {data.summary.imageRepairListings ?? 0}개</span></div>}
     {channel === "EBAY" && data.summary && <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950"><b>eBay 묶음 대표사진:</b> 최신 활성상품 보고서에서 확인되고 옵션 이미지가 모두 준비된 묶음 {data.summary.imageRepairListings ?? 0}개를 현재 워터마크 설정으로 교체할 수 있습니다.</div>}
     {channel === "EBAY" && data.imageRepairJob && data.imageRepairJob.total > 0 && <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950"><b>최근 대표사진 작업:</b> 전체 {data.imageRepairJob.total}건 · 실제 반영 확인 {data.imageRepairJob.succeeded}건 · 실패·미확인 {data.imageRepairJob.failed}건 · 처리 중/대기 {data.imageRepairJob.active}건. eBay 재조회까지 통과한 항목만 목록과 숫자에서 자동으로 제외됩니다.</div>}
-    {channel === "EBAY" && data.inventoryJob && data.inventoryJob.total > 0 && <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950"><div className="flex flex-wrap items-center justify-between gap-2"><b>eBay 가격·재고 서버 작업</b><span>완료 {data.inventoryJob.completed}/{data.inventoryJob.total} · 성공 {data.inventoryJob.succeeded} · 실패·미확인 {data.inventoryJob.failed} · 처리 중 {data.inventoryJob.running} · 대기 {data.inventoryJob.pending}</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-sky-100"><div className="h-full rounded-full bg-sky-600 transition-[width]" style={{width:`${data.inventoryJob.total ? Math.round((data.inventoryJob.completed / data.inventoryJob.total) * 100) : 0}%`}}/></div><p className="mt-2 text-xs">4개 옵션 단위 전송을 제한 병렬로 처리한 뒤 eBay 실제 가격·수량을 다시 조회합니다. 메뉴를 이동하거나 창을 닫아도 계속되며, 중단되면 자동 재개됩니다.</p></div>}
+    {channel === "EBAY" && data.inventoryJob && data.inventoryJob.total > 0 && <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950"><div className="flex flex-wrap items-center justify-between gap-2"><b>eBay 가격·재고 서버 작업 {data.inventoryJob.active ? "진행 중" : "완료"}</b><span>완료 {data.inventoryJob.completed}/{data.inventoryJob.total} · 성공 {data.inventoryJob.succeeded} · 실패·미확인 {data.inventoryJob.failed} · 처리 중 {data.inventoryJob.running} · 대기 {data.inventoryJob.pending}</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-sky-100"><div className="h-full rounded-full bg-sky-600 transition-[width]" style={{width:`${data.inventoryJob.total ? Math.round((data.inventoryJob.completed / data.inventoryJob.total) * 100) : 0}%`}}/></div><p className="mt-2 text-xs">{data.inventoryJob.active ? `${inventoryTiming.elapsed}초 경과 · ${inventoryTiming.eta == null ? "첫 처리 묶음의 eBay 재조회 중" : `현재 속도 기준 약 ${inventoryTiming.eta}초 남음`}. ` : ""}24개 상품 묶음마다 결과를 저장하고, eBay 실제 가격·판매 가능 수량을 다시 확인한 항목만 성공 처리합니다. 메뉴를 이동하거나 창을 닫아도 계속됩니다.</p>{!data.inventoryJob.active && data.inventoryJob.failed > 0 && <p className="mt-2 font-semibold text-amber-900">실패·미확인 항목은 아래 결과에 이유가 남아 있으며, ‘실패·미확인 재시작’으로 해당 항목만 다시 처리할 수 있습니다.</p>}</div>}
     <div className="grid gap-3 sm:grid-cols-5">{([['create', '신규등록', data.create.length], ['change', '가격·재고 변동', data.change.length], ['unavailable', '품절·판매중지', data.unavailable.length], ['review', '주문 예약·수집 필요', data.review.length], ['imageRepair', channel === "EBAY" ? '묶음 대표사진 교체' : '이미지·썸네일 교체', data.imageRepair.length] as const] as const).map(([key, label, count]) => <button key={key} disabled={busy} onClick={() => choose(key)} className={`rounded-2xl border p-4 text-left disabled:opacity-50 ${tab === key ? "border-violet-600 bg-violet-50" : "bg-white"}`}><span className="text-sm text-zinc-500">{label}</span><strong className="mt-1 block text-2xl">{count.toLocaleString()}건</strong></button>)}</div>
     <section className="overflow-hidden rounded-2xl border border-zinc-300 bg-white shadow-sm">
       <div className="flex flex-wrap items-center gap-2 border-b bg-zinc-50 p-3">
         <button onClick={() => void startAutomatically()} disabled={busy || !selected.length || (channel === "EBAY" && Boolean(data.inventoryJob?.active))} className="rounded-lg border border-violet-700 bg-white px-4 py-2 text-sm font-bold text-violet-800 disabled:opacity-40">작업 시작 · 자동 검증 후 적용</button>
-        <button onClick={() => void retryFailures()} disabled={busy || !result?.failed} className="rounded-lg border bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">실패건 재시작</button>
+        <button onClick={() => void retryFailures()} disabled={busy || !result?.failed || Boolean(data.inventoryJob?.active)} className="rounded-lg border bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">실패·미확인 {result?.failed ?? 0}건 재시작</button>
         <button onClick={() => { setResult(null); setPreview(null); setMessage(""); }} disabled={busy || (!result && !preview)} className="rounded-lg border bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">완료작업 지우기</button>
         <button onClick={() => { setSelected([]); resetReview(); }} disabled={busy || !selected.length} className="rounded-lg border bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">선택 해제</button>
         <button onClick={stopCurrentWork} disabled={!busy} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40">작업 중지</button>
         <div className="ml-auto flex gap-2"><button onClick={downloadResult} disabled={!result} className="rounded-lg border bg-white px-3 py-2 text-sm disabled:opacity-40">결과 CSV</button><button onClick={downloadFailures} disabled={!result?.failed} className="rounded-lg border bg-white px-3 py-2 text-sm disabled:opacity-40">오류 CSV</button></div>
       </div>
       <div className="grid gap-3 p-4 lg:grid-cols-[1.3fr_1fr]">
-        <div className="rounded-xl border bg-zinc-50 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold text-zinc-500">작업 상태</p><p className="mt-1 font-bold">{busy ? phase === "sending" ? `${channel === "EBAY" ? "eBay" : "Shopify"} 전송 진행 중` : "대상 검증·미리보기 중" : preview ? "사람의 최종 확인 대기" : result ? result.failed ? "일부 실패 — 재시작 가능" : "작업 완료" : "대기"}</p></div><span className={`rounded-full px-3 py-1 text-sm font-bold ${busy ? "bg-blue-100 text-blue-800" : result?.failed ? "bg-amber-100 text-amber-800" : result ? "bg-emerald-100 text-emerald-800" : "bg-zinc-200 text-zinc-700"}`}>{busy ? `${elapsed}초` : result ? `성공 ${result.succeeded} · 실패 ${result.failed}` : `선택 ${selected.length}건`}</span></div>
+        <div className="rounded-xl border bg-zinc-50 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold text-zinc-500">작업 상태</p><p className="mt-1 font-bold">{busy ? phase === "sending" ? `${channel === "EBAY" ? "eBay" : "Shopify"} 작업 등록 중` : "대상 자동 검증 중" : serverJobActive ? "eBay 서버 작업 진행 중 — 메뉴 이동 가능" : preview ? "자동 검증 제외 항목 확인" : result ? result.failed ? "일부 실패 — 해당 항목만 재시작 가능" : "작업 완료" : "대기"}</p></div><span className={`rounded-full px-3 py-1 text-sm font-bold ${busy || serverJobActive ? "bg-blue-100 text-blue-800" : result?.failed ? "bg-amber-100 text-amber-800" : result ? "bg-emerald-100 text-emerald-800" : "bg-zinc-200 text-zinc-700"}`}>{busy ? `${elapsed}초` : serverJobActive ? `${data.inventoryJob?.completed ?? 0}/${data.inventoryJob?.total ?? 0}` : result ? `성공 ${result.succeeded} · 실패 ${result.failed}` : `선택 ${selected.length}건`}</span></div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-200"><div style={{ width: `${progress}%` }} className={`h-full rounded-full transition-[width] duration-500 ${busy ? "animate-pulse bg-violet-600" : result ? "bg-emerald-600" : "bg-zinc-500"}`} /></div>
-          <p className="mt-3 text-sm text-zinc-600">{busy ? phase === "sending" ? `선택 ${selected.length}건 처리 중 · ${elapsed}초 경과 · ${estimatedText}. ${channel === "EBAY" ? "현재 설정으로 썸네일을 만들고 eBay 대표사진만 교체합니다." : "Shopify 이미지 생성·순서 변경·옵션 연결 확인을 차례로 수행합니다."}` : `현재 대상 검증 중 · ${elapsed}초 경과 · ${estimatedText}` : preview ? `${preview.rows.length}개 항목은 자동 검증에서 제외되어 마켓에 전송하지 않았습니다.` : result ? message : tab === "imageRepair" ? channel === "EBAY" ? `옵션 구성과 옵션별 사진은 유지하고 묶음 대표사진만 교체합니다. ${estimatedText}` : `묶음은 제작 썸네일을 첫 사진으로, 옵션은 개별 카드 사진으로 연결합니다. ${estimatedText}` : "목록에서 항목을 선택한 뒤 ‘작업 시작’을 누르면 자동 검증을 통과한 항목만 바로 적용합니다."}</p>
+          <p className="mt-3 text-sm text-zinc-600">{busy ? phase === "sending" ? `선택 ${selected.length}건을 서버 작업으로 안전하게 등록 중입니다.` : `현재 대상 검증 중 · ${elapsed}초 경과 · ${estimatedText}` : serverJobActive ? `${inventoryTiming.elapsed}초 경과 · ${inventoryTiming.eta == null ? "첫 묶음 확인 중" : `약 ${inventoryTiming.eta}초 남음`} · 완료 수는 eBay 재조회까지 끝난 항목만 올라갑니다.` : preview ? `${preview.rows.length}개 항목은 자동 검증에서 제외되어 마켓에 전송하지 않았습니다.` : result ? message : tab === "imageRepair" ? channel === "EBAY" ? `옵션 구성과 옵션별 사진은 유지하고 묶음 대표사진만 교체합니다. ${estimatedText}` : `묶음은 제작 썸네일을 첫 사진으로, 옵션은 개별 카드 사진으로 연결합니다. ${estimatedText}` : "목록에서 항목을 선택한 뒤 ‘작업 시작’을 누르면 자동 검증을 통과한 항목만 바로 적용합니다."}</p>
         </div>
-        <div className="rounded-xl border p-4"><p className="text-xs font-semibold text-zinc-500">처리 집계</p><div className="mt-2 grid grid-cols-3 gap-2 text-center"><div className="rounded-lg bg-zinc-100 p-2"><b className="block text-lg">{selected.length}</b><span className="text-xs text-zinc-600">선택</span></div><div className="rounded-lg bg-emerald-50 p-2"><b className="block text-lg text-emerald-800">{result?.succeeded ?? 0}</b><span className="text-xs text-zinc-600">성공</span></div><div className="rounded-lg bg-red-50 p-2"><b className="block text-lg text-red-800">{result?.failed ?? 0}</b><span className="text-xs text-zinc-600">실패</span></div></div><p className="mt-3 text-xs text-zinc-500">전송 중에는 안전상 강제 취소하지 않습니다. 응답 후 실패한 항목만 다시 검증해 재시작합니다.</p></div>
+        <div className="rounded-xl border p-4"><p className="text-xs font-semibold text-zinc-500">처리 집계</p><div className="mt-2 grid grid-cols-3 gap-2 text-center"><div className="rounded-lg bg-zinc-100 p-2"><b className="block text-lg">{serverJobActive ? data.inventoryJob?.total : selected.length}</b><span className="text-xs text-zinc-600">{serverJobActive ? "전체" : "선택"}</span></div><div className="rounded-lg bg-emerald-50 p-2"><b className="block text-lg text-emerald-800">{serverJobActive ? data.inventoryJob?.succeeded : result?.succeeded ?? 0}</b><span className="text-xs text-zinc-600">성공</span></div><div className="rounded-lg bg-red-50 p-2"><b className="block text-lg text-red-800">{serverJobActive ? data.inventoryJob?.failed : result?.failed ?? 0}</b><span className="text-xs text-zinc-600">실패</span></div></div><p className="mt-3 text-xs text-zinc-500">서버 작업은 강제 취소하지 않고 안전하게 끝냅니다. 실패한 항목은 원인이 저장되며 해당 항목만 다시 검증해 재시작할 수 있습니다.</p></div>
       </div>
     </section>
     <section className="overflow-hidden rounded-2xl border bg-white">

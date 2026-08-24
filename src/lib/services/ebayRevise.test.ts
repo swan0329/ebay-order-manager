@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { buildReviseInventoryRequest, buildRevisePictureRequest, mapWithConcurrency } from "./ebayRevise";
+import { buildReviseInventoryRequest, buildRevisePictureRequest, listingReviseTarget, mapWithConcurrency, reviseTargetKey } from "./ebayRevise";
 
 describe("buildRevisePictureRequest", () => {
   it("changes only the shared representative picture and does not submit variations", () => {
@@ -23,6 +23,17 @@ describe("buildReviseInventoryRequest", () => {
 
     expect(xml).toContain("<SKU>CARD-A</SKU><Quantity>1</Quantity><StartPrice>4.90</StartPrice>");
     expect(xml).toContain("<SKU>CARD-B</SKU><Quantity>2</Quantity><StartPrice>12.30</StartPrice>");
+  });
+
+  it("does not verify a single listing as if it were a variation", () => {
+    const single = listingReviseTarget({ itemId: "10001", sku: "CARD-SINGLE", listingType: "SINGLE", quantity: 3, price: 7.5 });
+    const variation = listingReviseTarget({ itemId: "20001", sku: "CARD-OPTION", listingType: "VARIATION_OPTION", quantity: 2, price: 9.5 });
+
+    expect(single.sku).toBeNull();
+    expect(reviseTargetKey(single)).toBe("10001");
+    expect(buildReviseInventoryRequest([single])).not.toContain("<SKU>");
+    expect(variation.sku).toBe("CARD-OPTION");
+    expect(reviseTargetKey(variation)).toBe("20001:CARD-OPTION");
   });
 });
 

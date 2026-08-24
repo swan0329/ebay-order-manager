@@ -3,12 +3,13 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { pushEbayInventory } from "@/lib/services/ebayInventoryPush";
-import { reviseTargetKey } from "@/lib/services/ebayRevise";
+import { listingReviseTarget, reviseTargetKey } from "@/lib/services/ebayRevise";
 import type { Prisma } from "@/generated/prisma";
 
 const JOB_SOURCE = "ebay_inventory_change";
 const ACTIVE = ["pending", "running"];
 const STALE_AFTER_MS = 5 * 60_000;
+const PROCESS_CHUNK_SIZE = 24;
 
 type JobPayload = {
   batchId: string;
@@ -96,35 +97,50 @@ export async function processEbayInventoryJobs(userId: string, limit = 200) {
     data: { status: "failed", message: "작업 데이터 손상", error: "저장된 eBay 작업 대상을 읽지 못했습니다.", errorSummary: "저장된 eBay 작업 대상을 읽지 못했습니다.", finishedAt: new Date() },
   });
   if (!claimedPayloads.length) return getEbayInventoryJobSummary(userId);
-  const productIds = claimedPayloads.map(({ value }) => value.productId);
-  try {
-    // 큐에 넣은 값이 아니라 실행 시점의 최신 가격·재고를 다시 계산한다.
-    const result = await pushEbayInventory({ userId, productIds, dryRun: false, limit: 200 });
-    const rowByProduct = new Map(result.rows.map((row) => [row.productId, row]));
-    const succeeded = new Set(result.succeededKeys);
-    const failureByKey = new Map(result.failed.map((failure) => [failure.targetKey, failure.reason]));
+  for (let offset = 0; offset < claimedPayloads.length; offset += PROCESS_CHUNK_SIZE) {
+    const chunk = claimedPayloads.slice(offset, offset + PROCESS_CHUNK_SIZE);
+    const productIds = chunk.map(({ value }) => value.productId);
+    try {
+      // 큐에 넣은 값이 아니라 실행 시점의 최신 가격·재고를 다시 계산한다.
+      // 작은 묶음마다 결과를 저장해 화면의 진행률이 실제 처리 상황을 반영한다.
+      const result = await pushEbayInventory({ userId, productIds, dryRun: false, limit: PROCESS_CHUNK_SIZE });
+      const rowByProduct = new Map(result.rows.map((row) => [row.productId, row]));
+      const succeeded = new Set(result.succeededKeys);
+      const failureByKey = new Map(result.failed.map((failure) => [failure.targetKey, failure.reason]));
 
-    const updates = [];
-    for (const { job, value } of claimedPayloads) {
-      const row = rowByProduct.get(value.productId);
-      const key = row ? reviseTargetKey({ itemId: row.itemId, sku: row.sku }) : null;
-      if (key && succeeded.has(key)) {
-        updates.push(prisma.productUploadJob.update({ where: { id: job.id }, data: {
-          status: "success",
-          message: "eBay 재조회로 가격·재고 실제 반영 확인 완료",
-          finishedAt: new Date(),
-          finalPayloadJson: { itemId: row!.itemId, sku: row!.sku, price: row!.price, quantity: row!.quantity },
-        } }));
-      } else {
-        const reason = key ? failureByKey.get(key) : null;
-        const message = reason ?? "실행 시점에 활성 eBay 연결 대상을 찾지 못했습니다.";
-        updates.push(prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "failed", message: "eBay 가격·재고 반영 실패", error: message, errorSummary: message, finishedAt: new Date() } }));
+      const updates = [];
+      for (const { job, value } of chunk) {
+        const row = rowByProduct.get(value.productId);
+        const key = row ? reviseTargetKey(listingReviseTarget({ itemId: row.itemId, sku: row.sku, listingType: row.listingType, quantity: row.quantity, price: row.price })) : null;
+        if (key && succeeded.has(key)) {
+          updates.push(prisma.productUploadJob.update({ where: { id: job.id }, data: {
+            status: "success",
+            message: "eBay 재조회로 가격·재고 실제 반영 확인 완료",
+            finishedAt: new Date(),
+            finalPayloadJson: { itemId: row!.itemId, sku: row!.sku, price: row!.price, quantity: row!.quantity },
+          } }));
+        } else {
+          const reason = key ? failureByKey.get(key) : null;
+          const message = reason ?? "실행 시점에 활성 eBay 연결 대상을 찾지 못했습니다.";
+          updates.push(prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "failed", message: "eBay 가격·재고 반영 실패", error: message, errorSummary: message, finishedAt: new Date() } }));
+        }
       }
+      if (updates.length) await prisma.$transaction(updates);
+      const rateLimited = result.failed.some((failure) => /호출 한도|rate|limit|temporarily blocked/iu.test(failure.reason));
+      if (rateLimited && offset + PROCESS_CHUNK_SIZE < claimedPayloads.length) {
+        const remainingIds = claimedPayloads.slice(offset + PROCESS_CHUNK_SIZE).map(({ job }) => job.id);
+        const message = "eBay 호출 제한을 감지해 아직 보내지 않은 항목을 중지했습니다. 잠시 뒤 실패건 재시작을 눌러 주세요.";
+        await prisma.productUploadJob.updateMany({ where: { id: { in: remainingIds }, status: "running" }, data: { status: "failed", message: "eBay 보호를 위해 미전송 중지", error: message, errorSummary: message, finishedAt: new Date() } });
+        break;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "eBay 가격·재고 작업 실패";
+      const currentIds = chunk.map(({ job }) => job.id);
+      await prisma.productUploadJob.updateMany({ where: { id: { in: currentIds }, status: "running" }, data: { status: "failed", message: "eBay 반영 여부 재확인 필요", error: message, errorSummary: `${message} 다시 실행하면 최신 목표값으로 안전하게 재검증합니다.`, finishedAt: new Date() } });
+      const remainingIds = claimedPayloads.slice(offset + PROCESS_CHUNK_SIZE).map(({ job }) => job.id);
+      if (remainingIds.length) await prisma.productUploadJob.updateMany({ where: { id: { in: remainingIds }, status: "running" }, data: { status: "pending", message: "앞 묶음 오류로 대기 후 자동 재개", startedAt: null } });
+      break;
     }
-    if (updates.length) await prisma.$transaction(updates);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "eBay 가격·재고 작업 실패";
-    await prisma.productUploadJob.updateMany({ where: { id: { in: claimed.map((job) => job.id) }, status: "running" }, data: { status: "failed", message: "eBay 가격·재고 반영 실패", error: message, errorSummary: message, finishedAt: new Date() } });
   }
   return getEbayInventoryJobSummary(userId);
 }
@@ -137,7 +153,7 @@ export async function getEbayInventoryJobSummary(userId: string, requestedBatchI
     select: { id: true, productId: true, sku: true, action: true, status: true, message: true, errorSummary: true, rawJson: true, createdAt: true, startedAt: true, finishedAt: true },
   });
   const active = jobs.filter((job) => ACTIVE.includes(job.status));
-  const latestBatchId = requestedBatchId ?? jobs.map((job) => payload(job.rawJson)?.batchId).find(Boolean) ?? null;
+  const latestBatchId = requestedBatchId ?? active.map((job) => payload(job.rawJson)?.batchId).find(Boolean) ?? jobs.map((job) => payload(job.rawJson)?.batchId).find(Boolean) ?? null;
   const batch = latestBatchId ? jobs.filter((job) => payload(job.rawJson)?.batchId === latestBatchId) : [];
   const succeeded = batch.filter((job) => job.status === "success").length;
   const failed = batch.filter((job) => job.status === "failed").length;
