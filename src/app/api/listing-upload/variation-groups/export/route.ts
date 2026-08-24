@@ -19,6 +19,8 @@ import {
 import { EBAY_END_LISTING_REASON } from "@/lib/ebay-end-listing-csv";
 import { getVariationListingReadyImages, isPublicListingImageUrl } from "@/lib/variation-listing-products";
 import { thumbnailIsCurrent, variationThumbnailHash } from "@/lib/variation-thumbnail-state";
+import { getListingWatermarkSettings } from "@/lib/variation-thumbnail-settings";
+import { listingWatermarkSignature } from "@/lib/listing-watermark";
 import {
   renderListingDescriptionTemplate,
   resolveListingTemplateDefaults,
@@ -67,10 +69,11 @@ export async function POST(request: Request) {
     });
     if (!latestReport) return jsonError("먼저 eBay 전체 활성상품 보고서를 가져와 주세요.", 409);
 
-    const [readyImages, pricingSettings, templateResult] = await Promise.all([
+    const [readyImages, pricingSettings, templateResult, watermarkSettings] = await Promise.all([
       getVariationListingReadyImages(),
       prisma.pricingSettings.findUnique({ where: { id: "default" } }),
       resolveListingTemplateDefaults(user.id, input.templateId),
+      getListingWatermarkSettings(user.id),
     ]);
     if (!pricingSettings) return jsonError("가격 설정을 먼저 저장해 주세요.", 422);
     if (!templateResult.template?.descriptionTemplateHtml?.trim()) {
@@ -95,7 +98,7 @@ export async function POST(request: Request) {
     const rows: Record<string, unknown>[] = [];
     for (const group of selected) {
       const state = await prisma.variationListingState.findUnique({ where: { userId_groupKey: { userId: user.id, groupKey: group.key } } });
-      const thumbnailHash = variationThumbnailHash(group);
+      const thumbnailHash = variationThumbnailHash(group, listingWatermarkSignature(watermarkSettings));
       if (!thumbnailIsCurrent(state, thumbnailHash) || !state?.thumbnailUrl) {
         return jsonError(`${group.title}: 현재 카드 구성의 썸네일을 먼저 만들어 주세요.`, 409);
       }

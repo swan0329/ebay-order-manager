@@ -5,6 +5,8 @@ import { hasListingPrice, resolveListingPriceUsd } from "@/lib/listing-price";
 import { buildVariationListingGroups, variationEbayTitle } from "@/lib/variation-listing-groups";
 import { getVariationListingReadyImages, isPublicListingImageUrl } from "@/lib/variation-listing-products";
 import { thumbnailIsCurrent, variationThumbnailHash } from "@/lib/variation-thumbnail-state";
+import { getListingWatermarkSettings } from "@/lib/variation-thumbnail-settings";
+import { listingWatermarkSignature } from "@/lib/listing-watermark";
 
 function jsonIds(value: unknown) {
   return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
@@ -13,7 +15,7 @@ function jsonIds(value: unknown) {
 export async function GET() {
   try {
     const user = await requireApiUser();
-    const [readyImages, pricingSettings, latestReport] = await Promise.all([
+    const [readyImages, pricingSettings, latestReport, watermarkSettings] = await Promise.all([
       getVariationListingReadyImages(),
       prisma.pricingSettings.findUnique({ where: { id: "default" } }),
       prisma.ebayReportImport.findFirst({
@@ -21,6 +23,7 @@ export async function GET() {
         orderBy: { createdAt: "desc" },
         select: { createdAt: true },
       }),
+      getListingWatermarkSettings(user.id),
     ]);
     const products = await prisma.product.findMany({
       where: { id: { in: readyImages.map((row) => row.id) } },
@@ -37,7 +40,7 @@ export async function GET() {
     return Response.json({
       groups: groups.slice(0, 1000).map((group) => {
         const state = stateByKey.get(group.key);
-        const thumbnailHash = variationThumbnailHash(group);
+        const thumbnailHash = variationThumbnailHash(group, listingWatermarkSignature(watermarkSettings));
         const thumbnailReady = thumbnailIsCurrent(state, thumbnailHash);
         return ({
         ...group,

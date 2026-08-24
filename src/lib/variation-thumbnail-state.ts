@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { VariationListingGroup } from "@/lib/variation-listing-groups";
 
-export function variationThumbnailHash(group: VariationListingGroup) {
+export function variationThumbnailHash(group: VariationListingGroup, watermarkSignature = "") {
   const snapshot = {
     key: group.key,
     title: group.title,
@@ -10,6 +10,7 @@ export function variationThumbnailHash(group: VariationListingGroup) {
       imageUrl: product.imageUrl || product.ebayImageUrls?.[0] || null,
       variationName: product.variationName,
     })),
+    watermarkSignature,
   };
   return createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
 }

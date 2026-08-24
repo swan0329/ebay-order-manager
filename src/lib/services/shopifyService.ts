@@ -519,7 +519,6 @@ export async function upsertShopifyVariationProduct(
   const config = getShopifyConfig();
   const images = [...new Set(items.flatMap((item) => item.imageUrls))];
   let response: ShopifyProductResponse;
-  let usedGraphqlFallback = false;
   try {
     response = await shopifyApiRequest(config, {
       method: existingProductId ? "PUT" : "POST",
@@ -547,7 +546,6 @@ export async function upsertShopifyVariationProduct(
     // 만으로 새로 만들면 중복·분리된 옵션이 생길 수 있다.
     if (!existingProductId && error instanceof ShopifyApiError && error.status >= 500) {
       response = await createVariationProductWithGraphql(config, title, items);
-      usedGraphqlFallback = true;
     } else {
       throw error;
     }
@@ -585,12 +583,29 @@ export async function upsertShopifyVariationProduct(
   const productId = String(created.id);
   let imageSync: ShopifyImageSyncResult | null = null;
   let imageError: string | null = null;
-  if (usedGraphqlFallback) {
-    try {
-      imageSync = await syncShopifyProductImages(config, productId, images);
-    } catch (error) {
-      imageError = error instanceof Error ? error.message : String(error);
+  // REST 생성 결과의 사진은 source marker가 없어 옵션 연결을 검증할 수 없다.
+  // 따라서 생성 방식과 상관없이 관리 이미지로 한 번 정리해 대표/옵션 사진을
+  // 같은 기준으로 잡는다. 실패해도 상품·재고 생성 사실은 호출자에게 남긴다.
+  if (images.length) try {
+    const replaced = await replaceShopifyProductImages(config, productId, images);
+    imageSync = replaced;
+    const mediaBySource = new Map(replaced.media.map((media) => [media.sourceUrl, media.mediaId]));
+    const assignments = variants.map((variant, index) => {
+      const optionImage = items[index]?.imageUrls.at(-1);
+      const mediaId = optionImage ? mediaBySource.get(optionImage) : null;
+      if (!optionImage || !mediaId) throw new Error(`${items[index]?.sku ?? variant.sku}: 옵션 사진 미디어를 확인하지 못했습니다.`);
+      return { variantId: variant.variantId, sourceUrl: optionImage, mediaId };
+    });
+    await attachShopifyVariantImages(config, productId, assignments);
+    const representative = items[0]?.imageUrls[0];
+    const firstOptionImage = items[0]?.imageUrls.at(-1);
+    if (representative && representative !== firstOptionImage) {
+      const thumbnailMediaId = mediaBySource.get(representative);
+      if (!thumbnailMediaId) throw new Error("제작된 묶음 썸네일 미디어를 확인하지 못했습니다.");
+      await moveShopifyProductMediaToFirst(config, productId, thumbnailMediaId);
     }
+  } catch (error) {
+    imageError = error instanceof Error ? error.message : String(error);
   }
   await setShopifyProductCategory(config, productId, PHOTOCARD_TAXONOMY_CATEGORY);
   return { productId, status: created.status ?? null, variants, imageSync, imageError };

@@ -26,6 +26,13 @@ describe("variation thumbnail state", () => {
     expect(thumbnailIsCurrent({ thumbnailStatus: "READY", thumbnailUrl: "https://img/thumb.jpg", thumbnailHash: hash }, variationThumbnailHash(changed))).toBe(false);
   });
 
+  it("invalidates a thumbnail when the saved watermark changes", () => {
+    const before = variationThumbnailHash(group, "watermark-a");
+    const after = variationThumbnailHash(group, "watermark-b");
+    expect(after).not.toBe(before);
+    expect(thumbnailIsCurrent({ thumbnailStatus: "READY", thumbnailUrl: "https://img/thumb.jpg", thumbnailHash: before }, after)).toBe(false);
+  });
+
   it("requires ready status, URL, and matching hash", () => {
     const hash = variationThumbnailHash(group);
     expect(thumbnailIsCurrent({ thumbnailStatus: "READY", thumbnailUrl: "https://img/thumb.jpg", thumbnailHash: hash }, hash)).toBe(true);

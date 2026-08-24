@@ -4,7 +4,7 @@ import type { VariationListingGroup } from "@/lib/variation-listing-groups";
 import { variationParentSku } from "@/lib/variation-listing-groups";
 import { createVariationThumbnail } from "@/lib/variation-thumbnail";
 import { variationThumbnailHash, thumbnailIsCurrent } from "@/lib/variation-thumbnail-state";
-import { getVariationThumbnailLogo } from "@/lib/variation-thumbnail-settings";
+import { resolveListingWatermark } from "@/lib/listing-watermark";
 import { prisma } from "@/lib/prisma";
 import { uploadBufferToR2 } from "@/lib/r2";
 
@@ -16,7 +16,8 @@ export async function ensureShopifyVariationThumbnail(
   userId: string,
   group: VariationListingGroup,
 ) {
-  const hash = variationThumbnailHash(group);
+  const watermark = await resolveListingWatermark(userId);
+  const hash = variationThumbnailHash(group, watermark.signature);
   const existing = await prisma.variationListingState.findUnique({
     where: { userId_groupKey: { userId, groupKey: group.key } },
   });
@@ -29,20 +30,17 @@ export async function ensureShopifyVariationThumbnail(
     update: { title: group.title, thumbnailStatus: "GENERATING", thumbnailHash: hash, thumbnailProductIds: group.products.map((product) => product.id), thumbnailError: null },
   });
   try {
-    const savedLogo = await getVariationThumbnailLogo(userId);
-    let logo: Buffer | null = null;
-    if (savedLogo.logoUrl) {
-      const response = await fetch(savedLogo.logoUrl, { signal: AbortSignal.timeout(10_000) });
-      if (!response.ok) throw new Error("저장된 썸네일 로고를 불러오지 못했습니다.");
-      logo = Buffer.from(await response.arrayBuffer());
-    }
     const imageUrls = group.products.map((product) => product.imageUrl).filter((url): url is string => Boolean(url));
     if (imageUrls.length !== group.products.length) throw new Error("묶음 옵션의 최종 이미지가 모두 준비되지 않았습니다.");
     const buffer = await createVariationThumbnail({
       groupName: group.groupName,
       albumName: `${group.albumName} · ${group.versionName}`,
       imageUrls,
-      watermarkLogo: logo,
+      watermarkLogo: watermark.logo,
+      watermarkText: watermark.watermarkText ?? undefined,
+      watermarkOpacity: watermark.watermarkOpacity,
+      watermarkLogoSize: watermark.watermarkLogoSize,
+      watermarkGap: watermark.watermarkGap,
     });
     const uploaded = await uploadBufferToR2({ buffer, key: `products/variation-thumbnails/${hash}.jpg`, contentType: "image/jpeg" });
     await prisma.variationListingState.update({

@@ -9,7 +9,7 @@ import {
 import { buildVariationListingGroups, variationParentSku } from "@/lib/variation-listing-groups";
 import { variationThumbnailHash } from "@/lib/variation-thumbnail-state";
 import { createVariationThumbnail } from "@/lib/variation-thumbnail";
-import { getVariationThumbnailLogo } from "@/lib/variation-thumbnail-settings";
+import { resolveListingWatermark } from "@/lib/listing-watermark";
 import { uploadBufferToR2 } from "@/lib/r2";
 import { hasListingPrice } from "@/lib/listing-price";
 
@@ -36,7 +36,8 @@ export async function POST(request: Request) {
       if (!group) return jsonError("이미지를 R2에 저장한 뒤 묶음 구성이 변경되었습니다. 화면을 새로고침해 주세요.", 409);
     }
     if (group.products.length > 40) return jsonError("옵션은 최대 40장까지 지원합니다.", 422);
-    const hash = variationThumbnailHash(group);
+    const watermark = await resolveListingWatermark(user.id);
+    const hash = variationThumbnailHash(group, watermark.signature);
     const existing = await prisma.variationListingState.findUnique({ where: { userId_groupKey: { userId: user.id, groupKey } } });
     if (existing?.thumbnailStatus === "READY" && existing.thumbnailHash === hash && existing.thumbnailUrl) {
       return Response.json({ status: "READY", url: existing.thumbnailUrl, hash, reused: true, generatedAt: existing.thumbnailGeneratedAt });
@@ -48,15 +49,8 @@ export async function POST(request: Request) {
       update: { title: group.title, thumbnailStatus: "GENERATING", thumbnailHash: hash, thumbnailProductIds: group.products.map((product) => product.id), thumbnailError: null },
     });
     try {
-      const savedLogo = await getVariationThumbnailLogo(user.id);
-      let logo: Buffer | null = null;
-      if (savedLogo.logoUrl) {
-        const response = await fetch(savedLogo.logoUrl, { signal: AbortSignal.timeout(10_000) });
-        if (!response.ok) throw new Error("저장된 썸네일 로고를 불러오지 못했습니다.");
-        logo = Buffer.from(await response.arrayBuffer());
-      }
       const imageUrls = group.products.map((product) => product.imageUrl!).filter(Boolean);
-      const buffer = await createVariationThumbnail({ groupName: group.groupName, albumName: `${group.albumName} · ${group.versionName}`, imageUrls, watermarkLogo: logo });
+      const buffer = await createVariationThumbnail({ groupName: group.groupName, albumName: `${group.albumName} · ${group.versionName}`, imageUrls, watermarkLogo: watermark.logo, watermarkText: watermark.watermarkText ?? undefined, watermarkOpacity: watermark.watermarkOpacity, watermarkLogoSize: watermark.watermarkLogoSize, watermarkGap: watermark.watermarkGap });
       const uploaded = await uploadBufferToR2({ buffer, key: `products/variation-thumbnails/${hash}.jpg`, contentType: "image/jpeg" });
       const generatedAt = new Date();
       await prisma.variationListingState.update({ where: { userId_groupKey: { userId: user.id, groupKey } }, data: { thumbnailStatus: "READY", thumbnailUrl: uploaded.url, thumbnailKey: uploaded.key, thumbnailHash: hash, thumbnailProductIds: group.products.map((product) => product.id), thumbnailGeneratedAt: generatedAt, thumbnailError: null } });

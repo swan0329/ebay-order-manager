@@ -7,6 +7,8 @@ import { reservedByProduct } from "@/lib/stock-reservation";
 import { availabilityReason, resolveChannelAvailability } from "@/lib/channel-availability";
 import { buildVariationListingGroups, variationParentSku } from "@/lib/variation-listing-groups";
 import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
+import { getListingWatermarkSettings } from "@/lib/variation-thumbnail-settings";
+import { listingWatermarkSignature } from "@/lib/listing-watermark";
 
 const ACTIVE = ["ACTIVE", "PUBLISHED", "LISTED"];
 
@@ -98,10 +100,10 @@ export async function getEbayOperations(userId: string) {
   };
 }
 
-export async function getShopifyOperations() {
+export async function getShopifyOperations(userId?: string) {
   const readyImages = await getVariationListingReadyImages();
   const readyImageById = new Map(readyImages.map((row) => [row.id, row.listingImageUrl]));
-  const [products, settings] = await Promise.all([
+  const [products, settings, watermarkSettings] = await Promise.all([
     prisma.product.findMany({
       where: { OR: [
         { shopifyProductId: { not: null } },
@@ -116,7 +118,9 @@ export async function getShopifyOperations() {
       orderBy: { updatedAt: "desc" },
     }),
     prisma.pricingSettings.findUnique({ where: { id: "default" } }),
+    userId ? getListingWatermarkSettings(userId) : null,
   ]);
+  const watermarkSignature = watermarkSettings ? listingWatermarkSignature(watermarkSettings) : null;
   const lines = await prisma.orderItem.findMany({ where: { productId: { in: products.map((product) => product.id) }, stockDeducted: false }, select: { productId: true, quantity: true, stockDeducted: true, order: { select: { orderStatus: true, fulfillmentStatus: true } } } });
   const cancelled = ["CANCELLED", "CANCELED", "CANCELLED_BY_SELLER"];
   const reserved = reservedByProduct(lines.map((line) => ({ productId: line.productId as string, quantity: line.quantity, stockDeducted: line.stockDeducted, orderCancelled: cancelled.includes(line.order.orderStatus) || cancelled.includes(line.order.fulfillmentStatus) })));
@@ -154,7 +158,8 @@ export async function getShopifyOperations() {
       const imageSync = (metadata as Record<string, unknown>).imageSync;
       return Boolean(imageSync && typeof imageSync === "object" && !Array.isArray(imageSync)
         && (imageSync as Record<string, unknown>).status === "READY"
-        && (imageSync as Record<string, unknown>).sourceImageUrl === readyImageById.get(row.productId));
+        && (imageSync as Record<string, unknown>).sourceImageUrl === readyImageById.get(row.productId)
+        && (!watermarkSignature || (imageSync as Record<string, unknown>).watermarkSignature === watermarkSignature));
     });
     if (alreadyCurrent) return [];
     return [{
@@ -171,7 +176,7 @@ export async function getShopifyOperations() {
       optionCount: members.length,
       imageCount: members.filter((row) => readyImageById.has(row.productId)).length,
       actionable,
-      reason: actionable ? "승인된 최종 사진 또는 제작 썸네일이 바뀌어 Shopify 교체 필요" : "최종 승인 이미지가 없는 옵션이 있어 교체 제외",
+      reason: actionable ? "승인된 최종 사진·워터마크 또는 제작 썸네일이 바뀌어 Shopify 교체 필요" : "최종 승인 이미지가 없는 옵션이 있어 교체 제외",
     }];
   });
   const change: Array<Record<string, unknown>> = [];

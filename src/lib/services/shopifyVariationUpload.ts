@@ -7,8 +7,10 @@ import { resolveChannelAvailability } from "@/lib/channel-availability";
 import { buildVariationListingGroups } from "@/lib/variation-listing-groups";
 import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
 import { upsertShopifyVariationProduct } from "@/lib/services/shopifyService";
+import { createWatermarkedListingImage, resolveListingWatermark } from "@/lib/listing-watermark";
+import { ensureShopifyVariationThumbnail } from "@/lib/services/shopifyVariationMedia";
 
-export async function uploadShopifyVariationGroup(productIds: string[]) {
+export async function uploadShopifyVariationGroup(productIds: string[], userId: string) {
   const [storedProducts, readyImages] = await Promise.all([
     prisma.product.findMany({ where: { id: { in: productIds } } }),
     getVariationListingReadyImages(),
@@ -19,6 +21,12 @@ export async function uploadShopifyVariationGroup(productIds: string[]) {
   const groups = buildVariationListingGroups(products).groups;
   if (groups.length !== 1 || groups[0].products.length !== productIds.length) throw new Error("Shopify 묶음 구성이 변경되었습니다. 목록을 새로고침해 주세요.");
   const group = groups[0];
+  const watermark = await resolveListingWatermark(userId);
+  const salesImageById = new Map(await Promise.all(group.products.map(async (product) => [
+    product.id,
+    await createWatermarkedListingImage(product.imageUrl!, watermark),
+  ] as const)));
+  const thumbnailUrl = await ensureShopifyVariationThumbnail(userId, group);
   const [settings, orderItems] = await Promise.all([
     prisma.pricingSettings.findUnique({ where: { id: "default" } }),
     prisma.orderItem.findMany({ where: { productId: { in: productIds }, stockDeducted: false }, select: { productId: true, quantity: true, stockDeducted: true, order: { select: { orderStatus: true, fulfillmentStatus: true } } } }),
@@ -36,7 +44,9 @@ export async function uploadShopifyVariationGroup(productIds: string[]) {
       optionName: product.variationName,
       priceUsd: price.priceUsd.toString(),
       quantity: availability.quantity,
-      imageUrls: [...new Set([...(product.ebayImageUrls ?? []), product.imageUrl ?? ""].filter(Boolean))],
+      imageUrls: product.id === group.products[0]?.id
+        ? [thumbnailUrl, salesImageById.get(product.id)!.url]
+        : [salesImageById.get(product.id)!.url],
       variantId: product.shopifyVariantId,
     };
   });
@@ -52,7 +62,8 @@ export async function uploadShopifyVariationGroup(productIds: string[]) {
     // 수량으로 기록한다. 실패 옵션은 quantity=null로 남아 다음 변동 목록에 다시
     // 나타난다.
     const uploadError = variant.inventoryError ?? result.imageError;
-    const metadata = { variantId: variant.variantId, inventoryItemId: variant.inventoryItemId, groupKey: group.key, optionName: product.variationName, source: "shopify_variation_upload", inventorySynced: variant.inventorySynced, inventoryError: variant.inventoryError, imageSync: result.imageSync, imageError: result.imageError };
+    const salesImage = salesImageById.get(product.id)!;
+    const metadata = { variantId: variant.variantId, inventoryItemId: variant.inventoryItemId, groupKey: group.key, optionName: product.variationName, source: "shopify_variation_upload", inventorySynced: variant.inventorySynced, inventoryError: variant.inventoryError, imageSync: { status: result.imageError ? "FAILED" : "READY", sourceImageUrl: product.imageUrl, salesImageUrl: salesImage.url, watermarkSignature: watermark.signature, watermarkApplied: salesImage.applied }, imageError: result.imageError };
     return [
       prisma.product.update({ where: { id: product.id }, data: { shopifyProductId: result.productId, shopifyVariantId: variant.variantId, shopifyInventoryItemId: variant.inventoryItemId, shopifyStatus: result.status, shopifyLastUploadedAt: new Date(), shopifyUploadError: uploadError } }),
       prisma.productListing.upsert({ where: { productId_channel: { productId: product.id, channel: "SHOPIFY" } }, update: { externalId: result.productId, price: item.priceUsd, quantity: variant.inventorySynced ? item.quantity : null, status: result.status, metadata }, create: { productId: product.id, channel: "SHOPIFY", externalId: result.productId, price: item.priceUsd, quantity: variant.inventorySynced ? item.quantity : null, status: result.status, metadata } }),

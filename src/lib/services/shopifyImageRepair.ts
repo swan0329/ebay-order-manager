@@ -6,6 +6,7 @@ import { attachShopifyVariantImages, moveShopifyProductMediaToFirst, replaceShop
 import { ensureShopifyVariationThumbnail } from "@/lib/services/shopifyVariationMedia";
 import { buildVariationListingGroups } from "@/lib/variation-listing-groups";
 import { getVariationListingReadyImages, promoteVariationListingImagesToR2 } from "@/lib/variation-listing-products";
+import { createWatermarkedListingImage, resolveListingWatermark } from "@/lib/listing-watermark";
 
 /**
  * 이미 생성된 Shopify 상품에 승인된 원본 사진을 다시 연결한다.
@@ -32,7 +33,12 @@ export async function repairShopifyProductImages(productIds: string[], userId: s
 
   // Shopify의 옵션 사진은 상품 이미지와 별개다. eBay 보조 이미지 배열을 섞지
   // 않고, 각 카드의 승인된 최종 이미지 하나를 옵션 사진의 기준으로 삼는다.
-  const imageByProductId = new Map(products.map((product) => [product.id, readyImageById.get(product.id)!]));
+  const watermark = await resolveListingWatermark(userId);
+  const individualImages = await Promise.all(products.map(async (product) => [
+    product.id,
+    await createWatermarkedListingImage(readyImageById.get(product.id)!, watermark),
+  ] as const));
+  const imageByProductId = new Map(individualImages.map(([productId, image]) => [productId, image.url]));
   const grouped = buildVariationListingGroups(products.map((product) => ({ ...product, imageUrl: imageByProductId.get(product.id)!, ebayImageUrls: [] }))).groups;
   const group = grouped.length === 1 && grouped[0].products.length === products.length ? grouped[0] : null;
   // 묶음은 제작한 콜라주 썸네일을 항상 첫 상품 미디어로 둔다. 옵션 이미지는
@@ -76,7 +82,7 @@ export async function repairShopifyProductImages(productIds: string[], userId: s
         : {};
       return [prisma.productListing.update({
         where: { id: listing.id },
-        data: { metadata: { ...previous, imageSync: { status: "READY", sourceImageUrl: imageByProductId.get(product.id), thumbnailUrl, completedAt: completedAt.toISOString() } } },
+        data: { metadata: { ...previous, imageSync: { status: "READY", sourceImageUrl: readyImageById.get(product.id), salesImageUrl: imageByProductId.get(product.id), watermarkSignature: watermark.signature, watermarkApplied: watermark.applyToIndividualCards, thumbnailUrl, completedAt: completedAt.toISOString() } } },
       })];
     }),
   ]);

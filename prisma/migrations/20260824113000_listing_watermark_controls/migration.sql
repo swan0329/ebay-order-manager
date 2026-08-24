@@ -1,0 +1,6 @@
+ALTER TABLE "variation_thumbnail_settings"
+  ADD COLUMN IF NOT EXISTS "watermark_text" TEXT,
+  ADD COLUMN IF NOT EXISTS "watermark_opacity" DOUBLE PRECISION NOT NULL DEFAULT 0.06,
+  ADD COLUMN IF NOT EXISTS "watermark_logo_size" INTEGER NOT NULL DEFAULT 50,
+  ADD COLUMN IF NOT EXISTS "watermark_gap" INTEGER NOT NULL DEFAULT 25,
+  ADD COLUMN IF NOT EXISTS "apply_to_individual_cards" BOOLEAN NOT NULL DEFAULT true;

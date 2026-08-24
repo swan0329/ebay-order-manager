@@ -380,10 +380,15 @@ model VariationListingState {
 }
 
 model VariationThumbnailSetting {
-  userId    String   @id @map("user_id")
-  logoUrl   String?  @map("logo_url")
-  logoKey   String?  @map("logo_key")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  userId                 String   @id @map("user_id")
+  logoUrl                String?  @map("logo_url")
+  logoKey                String?  @map("logo_key")
+  watermarkText          String?  @map("watermark_text")
+  watermarkOpacity       Float    @default(0.06) @map("watermark_opacity")
+  watermarkLogoSize      Int      @default(50) @map("watermark_logo_size")
+  watermarkGap           Int      @default(25) @map("watermark_gap")
+  applyToIndividualCards Boolean  @default(true) @map("apply_to_individual_cards")
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
   @@map("variation_thumbnail_settings")
 }
