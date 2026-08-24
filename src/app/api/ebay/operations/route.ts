@@ -16,6 +16,7 @@ import { uploadShopifyProduct } from "@/lib/services/shopifyProductUpload";
 import { uploadShopifyVariationGroup } from "@/lib/services/shopifyVariationUpload";
 import { repairShopifyProductImages } from "@/lib/services/shopifyImageRepair";
 import { enqueueEbayVariationImageRepairs, getEbayVariationImageRepairJobs, processEbayVariationImageRepairJobs } from "@/lib/services/ebayVariationImageRepair";
+import { enqueueEbayInventoryJobs, getEbayInventoryJobSummary, processEbayInventoryJobs } from "@/lib/services/ebayInventoryJobs";
 
 const executeSchema = z.object({
   action: z.enum(["CREATE", "CHANGE", "UNAVAILABLE", "REVIEW", "IMAGE_REPAIR"]),
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
     const user = await requireApiUser();
     const shopify = new URL(request.url).searchParams.get("channel") === "SHOPIFY";
     const operations = shopify ? await getShopifyOperations() : await getEbayOperations(user.id);
-    return Response.json(shopify ? operations : { ...operations, imageRepairJob: await getEbayVariationImageRepairJobs(user.id) });
+    return Response.json(shopify ? operations : { ...operations, imageRepairJob: await getEbayVariationImageRepairJobs(user.id), inventoryJob: await getEbayInventoryJobSummary(user.id) });
   } catch (error) {
     if (error instanceof UnauthorizedError)
       return jsonError("Unauthorized", 401);
@@ -204,17 +205,13 @@ export async function POST(request: Request) {
         "현재 대상이 아닌 상품이 포함되어 있습니다. 목록을 새로고침해 주세요.",
         409,
       );
-    const result = await pushEbayInventory({
-      userId: user.id,
-      productIds,
-      dryRun: input.dryRun,
-      limit: 200,
-    });
-    return Response.json(
-      input.dryRun
-        ? { ...result, previewToken: issueListingPreviewToken(productIds) }
-        : result,
-    );
+    if (input.dryRun) {
+      const result = await pushEbayInventory({ userId: user.id, productIds, dryRun: true, limit: 200 });
+      return Response.json({ ...result, previewToken: issueListingPreviewToken(productIds) });
+    }
+    const job = await enqueueEbayInventoryJobs({ userId: user.id, productIds, action: input.action === "UNAVAILABLE" ? "UNAVAILABLE" : "CHANGE" });
+    after(() => processEbayInventoryJobs(user.id));
+    return Response.json({ queued: true, jobType: "inventory", succeeded: 0, failed: 0, job });
   } catch (error) {
     if (error instanceof UnauthorizedError)
       return jsonError("Unauthorized", 401);

@@ -151,7 +151,8 @@ export async function pushEbayInventory(input: {
       rows,
       missingPrice: plan.missingPrice,
       succeeded: 0,
-      failed: [] as Array<{ itemId: string; reason: string }>,
+      succeededKeys: [] as string[],
+      failed: [] as Array<{ itemId: string; targetKey: string; reason: string }>,
     };
   }
 
@@ -171,7 +172,10 @@ export async function pushEbayInventory(input: {
   const result = await reviseEbayPriceQuantity(account, targets);
 
   const succeeded = new Set(result.succeeded);
-  await Promise.all(rows.filter((row) => succeeded.has(reviseTargetKey({ itemId: row.itemId, sku: row.sku }))).map((row) =>
+  const successfulRows = rows.filter((row) => succeeded.has(reviseTargetKey({ itemId: row.itemId, sku: row.sku })));
+  // 운영 DB는 서버리스 인스턴스당 연결 1개를 사용한다. 성공 건마다 Promise.all로
+  // 연결을 경쟁시키면 eBay 반영 후 내부 기록에서 pool timeout이 날 수 있다.
+  if (successfulRows.length) await prisma.$transaction(successfulRows.map((row) =>
     prisma.productListing.upsert({
       where: { productId_channel: { productId: row.productId, channel: "EBAY" } },
       update: {
@@ -190,6 +194,7 @@ export async function pushEbayInventory(input: {
     rows,
     missingPrice: plan.missingPrice,
     succeeded: result.succeeded.length,
+    succeededKeys: result.succeeded,
     failed: result.failed,
   };
 }

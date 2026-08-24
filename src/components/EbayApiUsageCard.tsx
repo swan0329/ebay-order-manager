@@ -68,7 +68,9 @@ export function EbayApiUsageCard() {
           <h2 className="text-base font-semibold text-zinc-950">eBay API 사용량</h2>
           <p className="mt-0.5 text-xs text-zinc-500">
             한도를 넘으면 계정이 정지되는 것이 아니라 호출이 잠시 거부됩니다. 남은 여유를
-            보고 자동화 주기를 정하시면 됩니다.
+            보고 자동화 주기를 정하시면 됩니다. eBay 공식 기본 Trading API 한도는 하루
+            5,000회이고, 가격·재고 변경 호출의 순간 제한은 판매자별 15초에 6,000회입니다.
+            이 프로그램은 한 요청에 최대 4개 옵션, 동시 3개 요청만 사용합니다.
           </p>
         </div>
         <button

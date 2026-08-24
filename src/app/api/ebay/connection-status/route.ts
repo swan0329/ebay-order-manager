@@ -1,5 +1,5 @@
 import { currentEbayEnvironment } from "@/lib/ebay-environment";
-import { EbayApiError, getOrdersFromEbay, getValidAccessToken } from "@/lib/ebay";
+import { EbayApiError, getEbayTradingUserStatus, getOrdersFromEbay, getValidAccessToken } from "@/lib/ebay";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { safeLog } from "@/lib/safe-log";
@@ -45,13 +45,24 @@ export async function GET() {
     await getValidAccessToken(account, true);
     // Confirm the token actually works against the Fulfillment API.
     await getOrdersFromEbay(account, {}, 1, 0);
+    // 가격·재고 변경이 사용하는 Trading API도 읽기 호출로 별도 확인한다.
+    const trading = await getEbayTradingUserStatus(account);
+    if (trading.userStatus && trading.userStatus.toLowerCase() !== "confirmed") {
+      return Response.json({
+        ok: false,
+        reason: "seller_status",
+        message: `eBay API 연결은 되었지만 판매자 상태가 ${trading.userStatus}입니다. Seller Hub의 계정 알림과 제한 내역을 확인해 주세요.`,
+        account: { username: account.username ?? account.ebayUserId ?? null, environment: account.environment, trading },
+      });
+    }
 
     return Response.json({
       ok: true,
-      message: "eBay 연결이 정상입니다. 주문을 불러올 수 있습니다.",
+      message: `eBay 연결이 정상입니다. 주문 조회와 가격·재고 관리 API를 모두 사용할 수 있습니다.${trading.userStatus ? ` 판매자 상태: ${trading.userStatus}.` : ""}`,
       account: {
         username: account.username ?? account.ebayUserId ?? null,
         environment: account.environment,
+        trading,
       },
     });
   } catch (error) {

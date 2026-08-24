@@ -93,7 +93,7 @@ describe("eBay 가격·수량 변경", () => {
   it("단품도 전송 응답이 아니라 eBay 재조회 값이 일치해야 완료로 본다", async () => {
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce(new Response(ok, { status: 200 }))
-      .mockResolvedValueOnce(new Response(`<GetItemResponse><Ack>Success</Ack><Item><StartPrice>9.00</StartPrice><Quantity>1</Quantity><SellingStatus><QuantitySold>0</QuantitySold></SellingStatus></Item></GetItemResponse>`, { status: 200 })));
+      .mockImplementation(async () => new Response(`<GetItemResponse><Ack>Success</Ack><Item><StartPrice>9.00</StartPrice><Quantity>1</Quantity><SellingStatus><QuantitySold>0</QuantitySold></SellingStatus></Item></GetItemResponse>`, { status: 200 })));
     const result = await reviseEbayPriceQuantity(account, [{ itemId: "1", quantity: 2, price: 8.4 }]);
     expect(result.succeeded).toEqual([]);
     expect(result.failed[0].reason).toContain("실제 가격 9");
@@ -103,7 +103,7 @@ describe("eBay 가격·수량 변경", () => {
     const getItem = `<GetItemResponse><Ack>Success</Ack><Item><Variations><Variation><SKU>A</SKU><StartPrice>8.40</StartPrice><Quantity>2</Quantity></Variation></Variations></Item></GetItemResponse>`;
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce(new Response(ok, { status: 200 }))
-      .mockResolvedValueOnce(new Response(getItem, { status: 200 })));
+      .mockImplementation(async () => new Response(getItem, { status: 200 })));
     const result = await reviseEbayPriceQuantity(account, [{ itemId: "1", sku: "A", quantity: 2, price: 8.4 }]);
     expect(result.succeeded).toEqual(["1:A"]);
     expect(result.failed).toEqual([]);
@@ -123,7 +123,7 @@ describe("eBay 가격·수량 변경", () => {
     const getItem = `<GetItemResponse><Ack>Success</Ack><Item><Variations><Variation><SKU>A</SKU><StartPrice>5.00</StartPrice><Quantity>2</Quantity></Variation></Variations></Item></GetItemResponse>`;
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce(new Response(ok, { status: 200 }))
-      .mockResolvedValueOnce(new Response(getItem, { status: 200 })));
+      .mockImplementation(async () => new Response(getItem, { status: 200 })));
     const result = await reviseEbayPriceQuantity(account, [{ itemId: "1", sku: "A", quantity: 2, price: 8.4 }]);
     expect(result.succeeded).toEqual([]);
     expect(result.failed[0].reason).toContain("실제 가격 5");

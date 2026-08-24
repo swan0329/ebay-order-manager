@@ -539,6 +539,36 @@ export async function getEbayUserProfile(accessToken: string) {
   return body as EbayUserProfile;
 }
 
+/** 읽기 전용 Trading API 호출로 리스팅 관리 권한과 판매자 상태를 확인한다. */
+export async function getEbayTradingUserStatus(account: EbayAccount) {
+  const config = getEbayConfig();
+  const token = await getValidAccessToken(account);
+  const response = await fetch(`${config.hosts.api}/ws/api.dll`, {
+    method: "POST",
+    headers: {
+      "content-type": "text/xml;charset=UTF-8",
+      "X-EBAY-API-COMPATIBILITY-LEVEL": "1193",
+      "X-EBAY-API-CALL-NAME": "GetUser",
+      "X-EBAY-API-SITEID": "0",
+      "X-EBAY-API-IAF-TOKEN": token,
+    },
+    body: `<?xml version="1.0" encoding="utf-8"?><GetUserRequest xmlns="urn:ebay:apis:eBLBaseComponents"><DetailLevel>ReturnAll</DetailLevel></GetUserRequest>`,
+  });
+  const xml = await response.text();
+  const value = (tag: string) => new RegExp(`<(?:[\\w-]+:)?${tag}\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w-]+:)?${tag}>`, "i").exec(xml)?.[1]?.trim() ?? "";
+  const ack = value("Ack");
+  if (!response.ok || ack === "Failure") {
+    const message = value("LongMessage") || value("ShortMessage") || `HTTP ${response.status}`;
+    throw new EbayApiError("eBay Trading API connection failed.", response.status, { message });
+  }
+  return {
+    ack,
+    userStatus: value("Status") || null,
+    sellerLevel: value("SellerLevel") || null,
+    storeOwner: value("StoreOwner").toLowerCase() === "true",
+  };
+}
+
 export function tokenExpiryDate(token: EbayTokenResponse) {
   return addHours(token.expires_in);
 }
