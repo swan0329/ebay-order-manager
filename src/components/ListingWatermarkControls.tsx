@@ -178,7 +178,7 @@ export function ListingWatermarkControls() {
           반복 간격 {gap}px
           <input
             type="range"
-            min="10"
+            min="0"
             max="180"
             step="5"
             value={gap}

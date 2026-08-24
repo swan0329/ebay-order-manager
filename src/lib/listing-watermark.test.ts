@@ -42,4 +42,14 @@ describe("individual listing watermark", () => {
     expect(individualCoverage / collectionCoverage).toBeGreaterThan(0.9);
     expect(individualCoverage / collectionCoverage).toBeLessThan(1.1);
   });
+
+  it("allows a true zero gap for a denser repeated watermark", async () => {
+    const logo = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect x="20" y="20" width="60" height="60" fill="#000000"/></svg>');
+    const base = { logo, watermarkText: null, watermarkOpacity: 0.1, watermarkLogoSize: 100 };
+    const dense = await createWatermarkOverlay(1000, 1000, { ...base, watermarkGap: 0 });
+    const spaced = await createWatermarkOverlay(1000, 1000, { ...base, watermarkGap: 50 });
+    const denseAlpha = await sharp(dense!).extractChannel("alpha").raw().toBuffer();
+    const spacedAlpha = await sharp(spaced!).extractChannel("alpha").raw().toBuffer();
+    expect(denseAlpha.filter((value) => value > 0).length).toBeGreaterThan(spacedAlpha.filter((value) => value > 0).length);
+  });
 });

@@ -14,7 +14,7 @@ const schema = z.object({
   watermarkLogoDataUrl: z.string().max(3_000_000).optional(),
   watermarkOpacity: z.number().min(0.03).max(0.3).default(0.06),
   watermarkLogoSize: z.number().min(35).max(220).default(50),
-  watermarkGap: z.number().min(10).max(180).default(25),
+  watermarkGap: z.number().min(0).max(180).default(25),
   previewOnly: z.boolean().default(false),
 });
 
