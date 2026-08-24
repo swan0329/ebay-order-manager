@@ -136,7 +136,8 @@ async function watermarkLayer(input: VariationThumbnailInput) {
 /** Sharp's linear() cannot safely expand all PNG band layouts. Adjust alpha bytes directly. */
 async function applyAlphaOpacity(input: Buffer, opacity: number) {
   const rendered = await sharp(input, { failOn: "none" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  for (let index = 3; index < rendered.data.length; index += rendered.info.channels) {
+  const alphaChannel = rendered.info.channels - 1;
+  for (let index = alphaChannel; index < rendered.data.length; index += rendered.info.channels) {
     rendered.data[index] = Math.round(rendered.data[index]! * opacity);
   }
   return sharp(rendered.data, { raw: { width: rendered.info.width, height: rendered.info.height, channels: rendered.info.channels } }).png().toBuffer();

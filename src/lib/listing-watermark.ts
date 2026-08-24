@@ -46,7 +46,8 @@ async function watermarkTile(settings: ResolvedWatermark) {
       .resize({ width: size, height: size, fit: "inside", withoutEnlargement: true })
       .greyscale().ensureAlpha().png().toBuffer();
     const rendered = await sharp(resized, { failOn: "none" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    for (let index = 3; index < rendered.data.length; index += rendered.info.channels) rendered.data[index] = Math.round(rendered.data[index]! * opacity);
+    const alphaChannel = rendered.info.channels - 1;
+    for (let index = alphaChannel; index < rendered.data.length; index += rendered.info.channels) rendered.data[index] = Math.round(rendered.data[index]! * opacity);
     const alphaAdjusted = await sharp(rendered.data, { raw: { width: rendered.info.width, height: rendered.info.height, channels: rendered.info.channels } }).png().toBuffer();
     return sharp(alphaAdjusted).rotate(-18, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
   }
