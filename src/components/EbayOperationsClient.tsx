@@ -9,7 +9,8 @@ type CreateRow = { id: string; productId: string | null; productIds?: string[]; 
 type ReviseRow = { productId: string; productIds?: string[]; sku: string; productName: string; itemId: string; quantity: number; price: number | null; previousQuantity: number | null; previousPrice: number | null; listingType?: "SINGLE" | "VARIATION_OPTION" | "VARIATION"; parentTitle?: string | null; optionCount?: number; affectedOptions?: OptionChange[]; stock?: number; reserved?: number; ownSellableQuantity?: number; pocamarketAvailableCount?: number | null; pocamarketListingQuantity?: number; availabilityStatus?: string; actionable?: boolean };
 type UnavailableRow = ReviseRow & { reason: string };
 type Summary = { createReady?: number; createNeedsReview?: number; createCountMeaning?: string; unavailableOptions?: number; unavailableSingles?: number; sourceReview?: number; heldForOrder?: number; shopifyListings?: number; shopifyVariationListings?: number; shopifySingleListings?: number; shopifyOptions?: number; imageRepairListings?: number };
-export type OperationsClientData = { create: CreateRow[]; change: ReviseRow[]; unavailable: UnavailableRow[]; review: UnavailableRow[]; imageRepair: UnavailableRow[]; limits: { createBatch: number; reviseBatch: number }; summary?: Summary };
+type ImageRepairJob = { active: number; pending: number; running: number; succeeded: number; failed: number; total: number };
+export type OperationsClientData = { create: CreateRow[]; change: ReviseRow[]; unavailable: UnavailableRow[]; review: UnavailableRow[]; imageRepair: UnavailableRow[]; limits: { createBatch: number; reviseBatch: number }; summary?: Summary; imageRepairJob?: ImageRepairJob };
 type PreviewRow = { id?: string; productId?: string | null; sku: string; title?: string; name?: string; productName?: string; itemId?: string; price: number | null; priceMax?: number | null; previousPrice?: number | null; quantity: number | null; previousQuantity?: number | null; imageCount?: number; optionCount?: number; listingType?: "SINGLE" | "VARIATION_OPTION" | "VARIATION"; parentTitle?: string | null; options?: OptionChange[]; affectedOptions?: OptionChange[]; valid?: boolean; issues?: Array<{ field: string; message: string }> };
 type Preview = { token?: string; rows: PreviewRow[]; action: Tab; valid: boolean; estimateSeconds?: { minimum: number; maximum: number } };
 type Result = { succeeded: number; failed: number; rows: Array<{ sku: string; status: "성공" | "실패"; message: string; productId?: string }> };
@@ -52,6 +53,19 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
     return () => window.clearInterval(timer);
   }, [busy]);
 
+  useEffect(() => {
+    if (channel !== "EBAY" || !data.imageRepairJob?.active) return;
+    let active = true;
+    const timer = window.setInterval(async () => {
+      const response = await fetch("/api/ebay/operations?channel=EBAY", { cache: "no-store" }).catch(() => null);
+      if (!active || !response?.ok) return;
+      const next = await response.json() as OperationsClientData;
+      setData(next);
+      if (!next.imageRepairJob?.active) setMessage(`대표사진 교체 완료: 성공 ${next.imageRepairJob?.succeeded ?? 0}건 · 실패 ${next.imageRepairJob?.failed ?? 0}건`);
+    }, 5_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [channel, data.imageRepairJob?.active]);
+
   function resetReview() { setPreview(null); setResult(null); setMessage(""); }
   function choose(next: Tab) { setTab(next); setSelected([]); resetReview(); }
   function toggleAll() { setSelected(all ? [] : selectableIds); setPreview(null); }
@@ -86,6 +100,12 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
       const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const output = await response.json();
       if (!response.ok) throw new Error(output.error ?? "전송 실패");
+      if (output.queued) {
+        setData((current) => ({ ...current, imageRepairJob: output.job }));
+        setMessage(`서버 작업을 시작했습니다. 메뉴를 이동해도 계속 처리됩니다. 대기·처리 중 ${output.job.active}건`);
+        setPreview(null); setSelected([]); await refresh();
+        return;
+      }
       const failedRows = Array.isArray(output.failed) ? output.failed : Array.isArray(output.results) ? output.results.filter((item: { error?: string }) => item.error) : [];
       const failedCount = failedRows.length || Number(output.failed ?? 0);
       const succeeded = output.uploaded ?? output.succeeded ?? Math.max(0, targetIds.length - failedCount);
@@ -160,6 +180,7 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
     {channel === "EBAY" && data.summary && <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950"><b>신규등록 숫자의 의미:</b> {data.summary.createCountMeaning}. 검증 전·실패 초안 {(data.summary.createNeedsReview ?? 0).toLocaleString()}건은 신규등록 수에 포함하지 않습니다.<span className="ml-3">실제 품절·중지: 묶음 옵션 {data.summary.unavailableOptions ?? 0}건 / 단품 {data.summary.unavailableSingles ?? 0}건</span>{(data.summary.heldForOrder ?? 0) > 0 && <span className="ml-3">주문 예약 보류 {data.summary.heldForOrder}건</span>}{(data.summary.sourceReview ?? 0) > 0 && <span className="ml-3 font-bold text-amber-800">포카마켓 수집값 없음 {data.summary.sourceReview}건 — 자동 전송 제외</span>}</div>}
     {channel === "SHOPIFY" && data.summary && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950"><b>Shopify 등록 단위:</b> 카드 {data.summary.shopifyOptions ?? 0}장을 묶음상품 {data.summary.shopifyVariationListings ?? 0}개와 단품 {data.summary.shopifySingleListings ?? 0}개, 총 {data.summary.shopifyListings ?? 0}개 리스팅으로 계산합니다.<span className="ml-3 font-bold">이미지·썸네일 교체 가능 {data.summary.imageRepairListings ?? 0}개</span></div>}
     {channel === "EBAY" && data.summary && <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950"><b>eBay 묶음 대표사진:</b> 최신 활성상품 보고서에서 확인되고 옵션 이미지가 모두 준비된 묶음 {data.summary.imageRepairListings ?? 0}개를 현재 워터마크 설정으로 교체할 수 있습니다.</div>}
+    {channel === "EBAY" && data.imageRepairJob && data.imageRepairJob.total > 0 && <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950"><b>최근 대표사진 작업:</b> 전체 {data.imageRepairJob.total}건 · 성공 {data.imageRepairJob.succeeded}건 · 실패 {data.imageRepairJob.failed}건 · 처리 중/대기 {data.imageRepairJob.active}건. 성공한 항목은 현재 워터마크 설정이 바뀌기 전까지 목록에서 자동으로 제외됩니다.</div>}
     <div className="grid gap-3 sm:grid-cols-5">{([['create', '신규등록', data.create.length], ['change', '가격·재고 변동', data.change.length], ['unavailable', '품절·판매중지', data.unavailable.length], ['review', '주문 예약·수집 필요', data.review.length], ['imageRepair', channel === "EBAY" ? '묶음 대표사진 교체' : '이미지·썸네일 교체', data.imageRepair.length] as const] as const).map(([key, label, count]) => <button key={key} disabled={busy} onClick={() => choose(key)} className={`rounded-2xl border p-4 text-left disabled:opacity-50 ${tab === key ? "border-violet-600 bg-violet-50" : "bg-white"}`}><span className="text-sm text-zinc-500">{label}</span><strong className="mt-1 block text-2xl">{count.toLocaleString()}건</strong></button>)}</div>
     <section className="overflow-hidden rounded-2xl border border-zinc-300 bg-white shadow-sm">
       <div className="flex flex-wrap items-center gap-2 border-b bg-zinc-50 p-3">

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { after } from "next/server";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 import {
@@ -14,7 +15,7 @@ import {
 import { uploadShopifyProduct } from "@/lib/services/shopifyProductUpload";
 import { uploadShopifyVariationGroup } from "@/lib/services/shopifyVariationUpload";
 import { repairShopifyProductImages } from "@/lib/services/shopifyImageRepair";
-import { repairEbayVariationImage } from "@/lib/services/ebayVariationImageRepair";
+import { enqueueEbayVariationImageRepairs, getEbayVariationImageRepairJobs, processEbayVariationImageRepairJobs } from "@/lib/services/ebayVariationImageRepair";
 
 const executeSchema = z.object({
   action: z.enum(["CREATE", "CHANGE", "UNAVAILABLE", "REVIEW", "IMAGE_REPAIR"]),
@@ -30,11 +31,9 @@ export const maxDuration = 300;
 export async function GET(request: Request) {
   try {
     const user = await requireApiUser();
-    return Response.json(
-      new URL(request.url).searchParams.get("channel") === "SHOPIFY"
-        ? await getShopifyOperations()
-        : await getEbayOperations(user.id),
-    );
+    const shopify = new URL(request.url).searchParams.get("channel") === "SHOPIFY";
+    const operations = shopify ? await getShopifyOperations() : await getEbayOperations(user.id);
+    return Response.json(shopify ? operations : { ...operations, imageRepairJob: await getEbayVariationImageRepairJobs(user.id) });
   } catch (error) {
     if (error instanceof UnauthorizedError)
       return jsonError("Unauthorized", 401);
@@ -174,12 +173,9 @@ export async function POST(request: Request) {
       if (productIds.some((id) => !allowed.has(id))) return jsonError("현재 활성 상태이거나 최종 승인 이미지가 모두 준비된 eBay 묶음상품이 아닙니다.", 409);
       if (input.dryRun) return Response.json({ dryRun: true, planned: productIds.length, rows: current.imageRepair.filter((row) => productIds.includes(row.productId)), previewToken: issueListingPreviewToken(productIds) });
       if (!input.confirmed || !input.previewToken || !verifyListingPreviewToken(input.previewToken, productIds)) return jsonError("유효한 eBay 이미지 교체 미리보기 후 최종 확인이 필요합니다.", 409);
-      const results = [];
-      for (const productId of productIds) {
-        try { results.push({ productId, result: await repairEbayVariationImage(user.id, productId) }); }
-        catch (error) { results.push({ productId, error: error instanceof Error ? error.message : "eBay 대표사진 교체 실패" }); }
-      }
-      return Response.json({ succeeded: results.filter((row) => "result" in row).length, failed: results.filter((row) => "error" in row).length, results });
+      const job = await enqueueEbayVariationImageRepairs(user.id, productIds);
+      after(() => processEbayVariationImageRepairJobs(user.id));
+      return Response.json({ queued: true, succeeded: 0, failed: 0, job });
     }
     if (
       !input.dryRun &&

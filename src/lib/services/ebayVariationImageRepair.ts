@@ -6,6 +6,11 @@ import { buildVariationListingGroups, type VariationListingGroup } from "@/lib/v
 import { getVariationListingImagesByIds } from "@/lib/variation-listing-products";
 import { ensureVariationThumbnail } from "@/lib/services/shopifyVariationMedia";
 import { reviseEbayRepresentativePicture } from "@/lib/services/ebayRevise";
+import { resolveListingWatermark } from "@/lib/listing-watermark";
+import { variationThumbnailHash } from "@/lib/variation-thumbnail-state";
+import { Prisma } from "@/generated/prisma";
+
+const JOB_SOURCE = "ebay_variation_image_repair";
 
 export type EbayVariationImageRepairRow = {
   productId: string;
@@ -58,9 +63,26 @@ async function groupsForStates(userId: string) {
   });
 }
 
+function jobHash(raw: Prisma.JsonValue | null) {
+  return raw && typeof raw === "object" && !Array.isArray(raw) && typeof (raw as Record<string, unknown>).thumbnailHash === "string"
+    ? String((raw as Record<string, unknown>).thumbnailHash)
+    : null;
+}
+
 export async function listEbayVariationImageRepairs(userId: string): Promise<EbayVariationImageRepairRow[]> {
   const rows = await groupsForStates(userId);
-  return rows.flatMap(({ state, productIds, group, imageCount }) => state.ebayItemId ? [{
+  const watermark = await resolveListingWatermark(userId);
+  const successful = await prisma.productUploadJob.findMany({
+    where: { userId, source: JOB_SOURCE, status: "success" },
+    orderBy: { finishedAt: "desc" },
+    select: { sku: true, rawJson: true },
+  });
+  const completed = new Set(successful.map((job) => `${job.sku}:${jobHash(job.rawJson) ?? ""}`));
+  return rows.flatMap(({ state, productIds, group, imageCount }) => {
+    if (!state.ebayItemId) return [];
+    const targetHash = group ? variationThumbnailHash(group, watermark.signature) : null;
+    if (targetHash && completed.has(`ebay-image:${state.ebayItemId}:${targetHash}`)) return [];
+    return [{
     productId: `ebay-image:${state.ebayItemId}`,
     productIds,
     groupKey: state.groupKey,
@@ -76,7 +98,8 @@ export async function listEbayVariationImageRepairs(userId: string): Promise<Eba
     imageCount,
     actionable: Boolean(group && imageCount === productIds.length && productIds.length >= 2),
     reason: group && imageCount === productIds.length ? "현재 워터마크 설정으로 eBay 묶음 대표사진 교체 가능" : `최종 승인 이미지 ${imageCount}/${productIds.length}장 · 누락 이미지를 준비해야 교체 가능`,
-  }] : []);
+    }];
+  });
 }
 
 export async function repairEbayVariationImage(userId: string, targetId: string) {
@@ -88,4 +111,56 @@ export async function repairEbayVariationImage(userId: string, targetId: string)
   const account = await prisma.ebayAccount.findFirst({ where: { userId, environment: config.environment === "production" ? "PRODUCTION" : "SANDBOX" }, orderBy: { updatedAt: "desc" } });
   if (!account) throw new Error("eBay 계정이 연결되어 있지 않습니다.");
   return reviseEbayRepresentativePicture(account, target.state.ebayItemId, thumbnailUrl);
+}
+
+export async function enqueueEbayVariationImageRepairs(userId: string, targetIds: string[]) {
+  const rows = await groupsForStates(userId);
+  const watermark = await resolveListingWatermark(userId);
+  const targets = rows.flatMap((target) => {
+    const id = target.state.ebayItemId ? `ebay-image:${target.state.ebayItemId}` : null;
+    return id && targetIds.includes(id) && target.group
+      ? [{ id, hash: variationThumbnailHash(target.group, watermark.signature) }]
+      : [];
+  });
+  const existing = await prisma.productUploadJob.findMany({
+    where: { userId, source: JOB_SOURCE, sku: { in: targets.map((target) => target.id) }, status: { in: ["pending", "running"] } },
+    select: { sku: true },
+  });
+  const queued = new Set(existing.map((job) => job.sku));
+  if (targets.some((target) => !queued.has(target.id))) {
+    await prisma.productUploadJob.createMany({ data: targets.filter((target) => !queued.has(target.id)).map((target) => ({
+      userId, sku: target.id, source: JOB_SOURCE, status: "pending", rawJson: { thumbnailHash: target.hash },
+    })) });
+  }
+  return getEbayVariationImageRepairJobs(userId);
+}
+
+export async function processEbayVariationImageRepairJobs(userId: string, limit = 200) {
+  await prisma.productUploadJob.updateMany({
+    where: { userId, source: JOB_SOURCE, status: "running", startedAt: { lt: new Date(Date.now() - 5 * 60_000) } },
+    data: { status: "pending", message: "중단된 서버 작업 자동 재개" },
+  });
+  const jobs = await prisma.productUploadJob.findMany({
+    where: { userId, source: JOB_SOURCE, status: "pending" }, orderBy: { createdAt: "asc" }, take: limit,
+  });
+  for (const job of jobs) {
+    const claimed = await prisma.productUploadJob.updateMany({ where: { id: job.id, status: "pending" }, data: { status: "running", startedAt: new Date(), error: null, errorSummary: null } });
+    if (!claimed.count) continue;
+    try {
+      await repairEbayVariationImage(userId, job.sku);
+      await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "success", message: "eBay 묶음 대표사진 교체 완료", finishedAt: new Date() } });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "eBay 대표사진 교체 실패";
+      await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "failed", error: message, errorSummary: message, finishedAt: new Date() } });
+    }
+  }
+  return getEbayVariationImageRepairJobs(userId);
+}
+
+export async function getEbayVariationImageRepairJobs(userId: string) {
+  const jobs = await prisma.productUploadJob.findMany({ where: { userId, source: JOB_SOURCE }, orderBy: { createdAt: "desc" }, take: 200, select: { id: true, sku: true, status: true, message: true, errorSummary: true, createdAt: true, startedAt: true, finishedAt: true } });
+  const active = jobs.filter((job) => ["pending", "running"].includes(job.status));
+  const latestStart = jobs[0]?.createdAt;
+  const batch = latestStart ? jobs.filter((job) => Math.abs(job.createdAt.getTime() - latestStart.getTime()) < 10_000) : [];
+  return { active: active.length, pending: active.filter((job) => job.status === "pending").length, running: active.filter((job) => job.status === "running").length, succeeded: batch.filter((job) => job.status === "success").length, failed: batch.filter((job) => job.status === "failed").length, total: batch.length, jobs: jobs.slice(0, 50) };
 }
