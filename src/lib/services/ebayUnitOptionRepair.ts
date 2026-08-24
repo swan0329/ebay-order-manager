@@ -11,9 +11,11 @@ export type UnitRepair = { itemId: string; sku: string; currentName: string; des
 
 const esc = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const unesc = (value: string) => value.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&");
-const rawValue = (xml: string, tag: string) => new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`).exec(xml)?.[1]?.trim() ?? "";
+// eBay 응답은 <StartPrice currencyID="USD">처럼 속성이 붙거나 namespace
+// prefix가 붙을 수 있다. 두 형식을 모두 읽는다.
+const rawValue = (xml: string, tag: string) => new RegExp(`<(?:[\\w-]+:)?${tag}\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w-]+:)?${tag}>`, "i").exec(xml)?.[1]?.trim() ?? "";
 const value = (xml: string, tag: string) => unesc(rawValue(xml, tag));
-const blocks = (xml: string, tag: string) => [...xml.matchAll(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, "g"))].map((match) => match[1]);
+const blocks = (xml: string, tag: string) => [...xml.matchAll(new RegExp(`<(?:[\\w-]+:)?${tag}\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w-]+:)?${tag}>`, "gi"))].map((match) => match[1]);
 const unitValue = (name: string) => /^(?:unit|유닛)(?:\s+\d+)?$/iu.test(name.trim());
 
 async function trading(account: EbayAccount, call: string, body: string) {
@@ -27,8 +29,12 @@ async function trading(account: EbayAccount, call: string, body: string) {
 
 async function getItem(account: EbayAccount, itemId: string) {
   const xml = await trading(account, "GetItem", `<?xml version="1.0" encoding="utf-8"?><GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents"><ItemID>${esc(itemId)}</ItemID><IncludeItemSpecifics>true</IncludeItemSpecifics><IncludeWatchCount>false</IncludeWatchCount></GetItemRequest>`);
+  return { xml, ...parseEbayUnitItem(xml) };
+}
+
+export function parseEbayUnitItem(xml: string) {
   const variations = blocks(rawValue(xml, "Variations"), "Variation").map((block) => ({ sku: value(block, "SKU"), price: value(block, "StartPrice"), quantity: value(block, "Quantity"), quantitySold: Number(value(block, "QuantitySold") || 0), specifics: blocks(rawValue(block, "VariationSpecifics"), "NameValueList").map((specific) => ({ name: value(specific, "Name"), value: value(specific, "Value") })) }));
-  return { xml, variations, picturesXml: rawValue(xml, "Pictures") };
+  return { variations, picturesXml: rawValue(xml, "Pictures") };
 }
 
 async function accountFor(userId: string) {
@@ -92,7 +98,7 @@ export async function applyEbayUnitOptionRepairs(userId: string, requested: Unit
       });
       const variationXml = current.variations.flatMap((variation) => {
         const repair = bySku.get(variation.sku); if (!repair) return [];
-        if (!variation.price || !variation.quantity) throw new Error(`${variation.sku}: eBay 현재 가격 또는 수량을 확인하지 못했습니다.`);
+        if (!variation.price || variation.quantity === "" || !Number.isFinite(Number(variation.quantity))) throw new Error(`${variation.sku}: eBay 현재 가격 또는 수량을 확인하지 못했습니다.`);
         if (variation.quantitySold > 0) throw new Error(`${variation.sku}: 이미 ${variation.quantitySold}개 판매된 옵션은 eBay가 삭제를 허용하지 않아 자동으로 이름을 바꾸지 않았습니다.`);
         const oldSpecifics = variation.specifics.map((specific) => `<NameValueList><Name>${esc(specific.name)}</Name><Value>${esc(specific.value)}</Value></NameValueList>`).join("");
         const newSpecifics = variation.specifics.map((specific) => ({ ...specific, value: unitValue(specific.value) ? repair.desiredName : specific.value })).map((specific) => `<NameValueList><Name>${esc(specific.name)}</Name><Value>${esc(specific.value)}</Value></NameValueList>`).join("");
