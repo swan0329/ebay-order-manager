@@ -79,7 +79,9 @@ async function watermarkOverlay(width: number, height: number, settings: Resolve
  * copy to R2, so a changed logo/size/text automatically gets a new URL.
  */
 export async function createWatermarkedImageBuffer(sourceUrl: string, settings: ResolvedWatermark) {
-  if (!settings.applyToIndividualCards || (!settings.logo && !settings.watermarkText?.trim())) {
+  // 워터마크가 설정되어 있으면 개별 카드에도 반드시 적용한다. 과거에 저장된
+  // 선택값이 false여도 원본을 그대로 전송하지 않는다.
+  if (!settings.logo && !settings.watermarkText?.trim()) {
     const response = await fetch(sourceUrl, { signal: AbortSignal.timeout(20_000) });
     if (!response.ok) throw new Error(`개별 카드 이미지를 불러오지 못했습니다. (${response.status})`);
     return { buffer: Buffer.from(await response.arrayBuffer()), applied: false };
