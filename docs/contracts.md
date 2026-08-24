@@ -78,6 +78,8 @@ eBay 가격·재고 및 옵션 품절 전송은 승인된 상품 ID를 `product_
 
 Shopify 신규등록 수는 카드 수가 아니라 실제 생성할 리스팅 수다. 최종 승인 이미지와 가격·공급 조건을 만족한 카드를 같은 그룹·앨범·버전별로 묶어 하나의 Shopify 상품과 여러 옵션으로 만들고, 묶을 수 없는 카드만 단품으로 센다. 묶음의 각 상품은 같은 Shopify Product ID와 서로 다른 Variant/Inventory Item ID를 저장하며 이후 가격·재고·품절도 옵션 단위로 동기화한다.
 
+`GET /api/shopify/variant-card-theme`는 현재 공개 Shopify 테마에 포토카드 옵션 선택기가 설치됐는지 읽는다. `POST`는 `confirmed=true`인 관리자 요청만 받아 별도 Liquid 스니펫을 저장하고 `layout/theme.liquid`의 `</body>` 직전에 식별 가능한 render 블록을 한 번만 추가한다. 다른 테마 코드는 덮어쓰지 않으며, 설치 후 두 파일을 다시 읽어 확인한다. 상품 페이지에서는 `product_type=Photocard`인 묶음만 Shopify Variant의 실제 사진·가격·판매 가능 상태로 카드형 옵션을 표시한다.
+
 eBay `신규등록` 건수는 조회 상한이나 단순 상품 후보 수가 아니라 `ListingDraft.status=validated`이고 활성 eBay Item ID가 없는 최신 상품별 초안 수다. 초안·실패 상태는 별도 검토 수로만 보여 주며, 미리보기 요청이 초안을 자동 생성하거나 검증 실패 상품을 등록 대상으로 승격하지 않는다. 미리보기 응답은 SKU·제목·가격·수량·이미지 수·항목별 검증 사유와 예상 처리시간 범위를 반환한다.
 
 `GET/PUT /api/automation/rules`는 재고 0 리스팅 규칙과 최근 이벤트를 다룬다. 기본 모드는 `NOTIFY`이며 `AUTOMATIC` 저장은 현재 대상 미리보기와 명시적 확인을 요구한다.
