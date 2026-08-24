@@ -73,9 +73,12 @@ export async function scanEbayUnitOptionRepairs(userId: string) {
 
 export async function applyEbayUnitOptionRepairs(userId: string, requested: UnitRepair[]) {
   const account = await accountFor(userId); const grouped = new Map<string, UnitRepair[]>();
-  for (const repair of requested) grouped.set(repair.itemId, [...(grouped.get(repair.itemId) ?? []), repair]);
+  // 한 리스팅의 여러 옵션을 한 요청에 묶으면 하나의 제약 오류로 전부 실패한다.
+  // SKU 하나씩 독립 요청·재조회하여 성공과 실패를 정확히 분리한다.
+  for (const repair of requested) grouped.set(`${repair.itemId}:${repair.sku}`, [repair]);
   const results: Array<UnitRepair & { error?: string }> = [];
-  for (const [itemId, repairs] of grouped) {
+  for (const repairs of grouped.values()) {
+    const itemId = repairs[0].itemId;
     try {
       const current = await getItem(account, itemId); const bySku = new Map(repairs.map((repair) => [repair.sku, repair]));
       const revisedSpecifics = current.variations.map((variation) => {
@@ -88,7 +91,9 @@ export async function applyEbayUnitOptionRepairs(userId: string, requested: Unit
         if (variation.quantitySold > 0) throw new Error(`${variation.sku}: 이미 ${variation.quantitySold}개 판매된 옵션은 eBay가 삭제를 허용하지 않아 자동으로 이름을 바꾸지 않았습니다.`);
         const oldSpecifics = variation.specifics.map((specific) => `<NameValueList><Name>${esc(specific.name)}</Name><Value>${esc(specific.value)}</Value></NameValueList>`).join("");
         const newSpecifics = variation.specifics.map((specific) => ({ ...specific, value: unitValue(specific.value) ? repair.desiredName : specific.value })).map((specific) => `<NameValueList><Name>${esc(specific.name)}</Name><Value>${esc(specific.value)}</Value></NameValueList>`).join("");
-        return [`<Variation><Delete>true</Delete><SKU>${esc(variation.sku)}</SKU><StartPrice>${esc(variation.price)}</StartPrice><Quantity>${esc(variation.quantity)}</Quantity><VariationSpecifics>${oldSpecifics}</VariationSpecifics></Variation><Variation><SKU>${esc(variation.sku)}</SKU><StartPrice>${esc(variation.price)}</StartPrice><Quantity>${esc(variation.quantity)}</Quantity><VariationSpecifics>${newSpecifics}</VariationSpecifics></Variation>`];
+        // VariationType의 XML 요소 순서를 지킨다. Delete를 맨 앞에 두면 eBay가
+        // 요청을 거부하거나 variation 삭제를 적용하지 않는 사례가 있다.
+        return [`<Variation><SKU>${esc(variation.sku)}</SKU><StartPrice>${esc(variation.price)}</StartPrice><Quantity>${esc(variation.quantity)}</Quantity><VariationSpecifics>${oldSpecifics}</VariationSpecifics><Delete>true</Delete></Variation><Variation><SKU>${esc(variation.sku)}</SKU><StartPrice>${esc(variation.price)}</StartPrice><Quantity>${esc(variation.quantity)}</Quantity><VariationSpecifics>${newSpecifics}</VariationSpecifics></Variation>`];
       }).join("");
       if (!variationXml) throw new Error("eBay 현재 옵션에서 해당 SKU를 찾지 못했습니다.");
       const specificNames = [...new Set(revisedSpecifics.flat().map((specific) => specific.name))];

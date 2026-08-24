@@ -55,7 +55,7 @@ export async function POST(request: Request) {
           sku: input.sku,
           productName,
           stockQuantity,
-          // 현재 eBay 판매가를 그대로 둔다. 포카마켓 가격이 붙으면 계산가가 우선한다.
+          // 현재 eBay 판매가는 상품별 확정값으로 보존하며 이후 등록·변동에도 우선한다.
           ebayPrice: listing.price ?? null,
           imageUrl: listing.imageUrl,
           // 그룹·멤버·앨범은 제목만으로 확정할 수 없어 비워둔다. 사람이 채운다.

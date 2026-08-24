@@ -31,6 +31,10 @@ export type ReviseResult = {
   failed: Array<{ itemId: string; reason: string }>;
 };
 
+export function reviseTargetKey(target: Pick<ReviseTarget, "itemId" | "sku">) {
+  return target.sku ? `${target.itemId}:${target.sku}` : target.itemId;
+}
+
 function escapeXml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -127,6 +131,40 @@ async function reviseChunk(account: EbayAccount, targets: ReviseTarget[]) {
   return { ok: !parsed.hasError, message: parsed.message };
 }
 
+function xmlValue(xml: string, tag: string) {
+  return new RegExp(`<(?:[\\w-]+:)?${tag}\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w-]+:)?${tag}>`, "i").exec(xml)?.[1]?.trim() ?? "";
+}
+
+function xmlBlocks(xml: string, tag: string) {
+  return [...xml.matchAll(new RegExp(`<(?:[\\w-]+:)?${tag}\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w-]+:)?${tag}>`, "gi"))].map((match) => match[1]);
+}
+
+async function verifyVariationTargets(account: EbayAccount, targets: ReviseTarget[]) {
+  const config = getEbayConfig();
+  const token = await getValidAccessToken(account);
+  const failures = new Map<string, string>();
+  for (const itemId of [...new Set(targets.flatMap((target) => target.sku ? [target.itemId] : []))]) {
+    const response = await fetch(`${config.hosts.api}/ws/api.dll`, {
+      method: "POST",
+      headers: { "content-type": "text/xml;charset=UTF-8", "X-EBAY-API-COMPATIBILITY-LEVEL": "1193", "X-EBAY-API-CALL-NAME": "GetItem", "X-EBAY-API-SITEID": "0", "X-EBAY-API-IAF-TOKEN": token },
+      body: `<?xml version="1.0" encoding="utf-8"?><GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents"><ItemID>${escapeXml(itemId)}</ItemID></GetItemRequest>`,
+    });
+    const xml = await response.text();
+    if (!response.ok || xmlValue(xml, "Ack") === "Failure") {
+      for (const target of targets.filter((row) => row.itemId === itemId && row.sku)) failures.set(reviseTargetKey(target), "eBay 반영 후 실제 옵션을 다시 조회하지 못했습니다.");
+      continue;
+    }
+    const variations = xmlBlocks(xmlValue(xml, "Variations"), "Variation").map((block) => ({ sku: xmlValue(block, "SKU"), price: Number(xmlValue(block, "StartPrice")), quantity: Number(xmlValue(block, "Quantity")) }));
+    for (const target of targets.filter((row) => row.itemId === itemId && row.sku)) {
+      const actual = variations.find((row) => row.sku === target.sku);
+      if (!actual) failures.set(reviseTargetKey(target), `${target.sku}: eBay 재조회에서 옵션을 찾지 못했습니다.`);
+      else if (target.price != null && (!Number.isFinite(actual.price) || Math.abs(actual.price - target.price) >= 0.005)) failures.set(reviseTargetKey(target), `${target.sku}: eBay 실제 가격 ${actual.price || "확인 불가"} USD가 전송 가격 ${target.price.toFixed(2)} USD와 다릅니다.`);
+      else if (target.quantity != null && (!Number.isFinite(actual.quantity) || actual.quantity !== Math.max(0, Math.trunc(target.quantity)))) failures.set(reviseTargetKey(target), `${target.sku}: eBay 실제 수량 ${actual.quantity}개가 전송 수량 ${target.quantity}개와 다릅니다.`);
+    }
+  }
+  return failures;
+}
+
 export async function reviseEbayPriceQuantity(
   account: EbayAccount,
   targets: ReviseTarget[],
@@ -138,7 +176,7 @@ export async function reviseEbayPriceQuantity(
     try {
       const outcome = await reviseChunk(account, chunk);
       for (const target of chunk) {
-        if (outcome.ok) result.succeeded.push(target.itemId);
+        if (outcome.ok) result.succeeded.push(reviseTargetKey(target));
         // 한 번에 네 건을 함께 보내므로 어느 것이 실패했는지 eBay가 따로 알려 주지
         // 않을 수 있다. 그럴 때는 그 묶음 전체를 실패로 남겨 사람이 확인하게 한다.
         else result.failed.push({ itemId: target.itemId, reason: outcome.message });
@@ -150,6 +188,16 @@ export async function reviseEbayPriceQuantity(
           reason: error instanceof Error ? error.message : String(error),
         });
       }
+    }
+  }
+
+  const initiallySucceeded = targets.filter((target) => result.succeeded.includes(reviseTargetKey(target)));
+  const verificationFailures = await verifyVariationTargets(account, initiallySucceeded);
+  if (verificationFailures.size) {
+    result.succeeded = result.succeeded.filter((key) => !verificationFailures.has(key));
+    for (const target of initiallySucceeded) {
+      const reason = verificationFailures.get(reviseTargetKey(target));
+      if (reason) result.failed.push({ itemId: target.itemId, reason });
     }
   }
 

@@ -75,6 +75,26 @@ describe("eBay 가격·수량 변경", () => {
     expect(result.failed).toEqual([]);
   });
 
+  it("옵션은 전송 후 eBay 실제 가격과 수량이 일치해야 성공으로 본다", async () => {
+    const getItem = `<GetItemResponse><Ack>Success</Ack><Item><Variations><Variation><SKU>A</SKU><StartPrice>8.40</StartPrice><Quantity>2</Quantity></Variation></Variations></Item></GetItemResponse>`;
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(ok, { status: 200 }))
+      .mockResolvedValueOnce(new Response(getItem, { status: 200 })));
+    const result = await reviseEbayPriceQuantity(account, [{ itemId: "1", sku: "A", quantity: 2, price: 8.4 }]);
+    expect(result.succeeded).toEqual(["1:A"]);
+    expect(result.failed).toEqual([]);
+  });
+
+  it("eBay가 옵션 가격을 다르게 보관하면 성공으로 가장하지 않는다", async () => {
+    const getItem = `<GetItemResponse><Ack>Success</Ack><Item><Variations><Variation><SKU>A</SKU><StartPrice>5.00</StartPrice><Quantity>2</Quantity></Variation></Variations></Item></GetItemResponse>`;
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(ok, { status: 200 }))
+      .mockResolvedValueOnce(new Response(getItem, { status: 200 })));
+    const result = await reviseEbayPriceQuantity(account, [{ itemId: "1", sku: "A", quantity: 2, price: 8.4 }]);
+    expect(result.succeeded).toEqual([]);
+    expect(result.failed[0].reason).toContain("실제 가격 5");
+  });
+
   it("오류는 사유를 그대로 남긴다", async () => {
     mockXml(failed);
     const result = await reviseEbayPriceQuantity(account, [{ itemId: "1", quantity: 1 }]);

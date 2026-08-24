@@ -5,7 +5,7 @@ import { getEbayConfig } from "@/lib/env";
 import { hasListingPrice, resolveListingPriceUsd } from "@/lib/listing-price";
 import { reservedByProduct } from "@/lib/stock-reservation";
 import { resolveChannelAvailability, type AvailabilityStatus } from "@/lib/channel-availability";
-import { reviseEbayPriceQuantity, type ReviseTarget } from "@/lib/services/ebayRevise";
+import { reviseEbayPriceQuantity, reviseTargetKey, type ReviseTarget } from "@/lib/services/ebayRevise";
 import { getActiveVariationProductListings } from "@/lib/variation-selling-state";
 
 // eBay에 올려 둔 가격과 수량을 우리 값으로 맞춘다.
@@ -171,7 +171,7 @@ export async function pushEbayInventory(input: {
   const result = await reviseEbayPriceQuantity(account, targets);
 
   const succeeded = new Set(result.succeeded);
-  await Promise.all(rows.filter((row) => succeeded.has(row.itemId)).map((row) =>
+  await Promise.all(rows.filter((row) => succeeded.has(reviseTargetKey({ itemId: row.itemId, sku: row.sku }))).map((row) =>
     prisma.productListing.upsert({
       where: { productId_channel: { productId: row.productId, channel: "EBAY" } },
       update: {
