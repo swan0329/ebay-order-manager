@@ -39,7 +39,9 @@ export async function resolveListingWatermark(userId: string): Promise<ResolvedW
 }
 
 async function watermarkTile(settings: ResolvedWatermark) {
-  const opacity = Math.max(0.03, Math.min(0.3, settings.watermarkOpacity));
+  // 흰 배경의 묶음 썸네일과 달리 실사 카드 사진에서는 6%가 사실상 보이지
+  // 않는다. 개별 판매 사진은 최소 12%를 보장해 워터마크 역할을 하게 한다.
+  const opacity = Math.max(0.12, Math.min(0.3, settings.watermarkOpacity));
   if (settings.logo?.length) {
     const size = Math.max(35, Math.min(220, settings.watermarkLogoSize));
     const resized = await sharp(settings.logo, { failOn: "none" })
