@@ -78,7 +78,10 @@ export async function getEbayOperations(userId: string) {
   const unavailableIds = new Set(unavailable.map((row) => row.productId));
   const change = inventory.rows.filter((row) =>
     !unavailableIds.has(row.productId) &&
-    (row.listingType === "SINGLE" || row.previousQuantity !== null || row.previousPrice !== null) &&
+    // 활성 묶음에 포함된 옵션은 과거 CSV 등록 결과에 옵션별 가격/수량 이력이
+    // 저장되지 않은 경우가 있다. 그 행을 제외하면 잘못 등록된 동일 가격을 영원히
+    // 바로잡을 수 없다. 현재 활성 부모 Item ID와 SKU가 확인된 옵션은 최초 한 번
+    // 목표 가격·수량을 전송하고, 성공 후 ProductListing에 옵션별 값을 저장한다.
     (row.previousQuantity !== row.quantity || priceChanged(row.price, row.previousPrice)),
   );
 

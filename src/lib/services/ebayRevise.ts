@@ -52,7 +52,7 @@ function inventoryStatusXml(target: ReviseTarget) {
   return `<InventoryStatus>${parts.join("")}</InventoryStatus>`;
 }
 
-function buildRequest(targets: ReviseTarget[]) {
+export function buildReviseInventoryRequest(targets: ReviseTarget[]) {
   return `<?xml version="1.0" encoding="utf-8"?>
 <ReviseInventoryStatusRequest xmlns="urn:ebay:apis:eBLBaseComponents">
 ${targets.map(inventoryStatusXml).join("\n")}
@@ -117,7 +117,7 @@ async function reviseChunk(account: EbayAccount, targets: ReviseTarget[]) {
       // OAuth 토큰을 쓸 때는 이 헤더에 넣고 RequesterCredentials는 보내지 않는다.
       "X-EBAY-API-IAF-TOKEN": token,
     },
-    body: buildRequest(targets),
+    body: buildReviseInventoryRequest(targets),
   });
   const xml = await response.text();
   if (!response.ok) {

@@ -1,4 +1,5 @@
 import type { Product } from "@/generated/prisma";
+import { buildShopifyVariationVariants } from "@/lib/shopify-variation-pricing";
 import { getShopifyConfig, type ShopifyConfig } from "@/lib/env";
 import {
   buildEbayListingDescription,
@@ -364,14 +365,14 @@ type ShopifyProductResponse = {
   product?: {
     id: number;
     status?: string;
-    variants?: Array<{ id: number; inventory_item_id?: number; sku?: string }>;
+    variants?: Array<{ id: number; inventory_item_id?: number; sku?: string; price?: string }>;
   };
 };
 
 type ShopifyGraphqlProduct = {
   id: string;
   status?: string | null;
-  variants?: { nodes?: Array<{ id: string; sku?: string | null; inventoryItem?: { id: string } | null }> };
+  variants?: { nodes?: Array<{ id: string; sku?: string | null; price?: string | null; inventoryItem?: { id: string } | null }> };
 };
 
 async function createVariationProductWithGraphql(
@@ -383,7 +384,7 @@ async function createVariationProductWithGraphql(
     productSet(input: $input, synchronous: $synchronous) {
       product {
         id status
-        variants(first: 100) { nodes { id sku inventoryItem { id } } }
+        variants(first: 100) { nodes { id sku price inventoryItem { id } } }
       }
       userErrors { field message code }
     }
@@ -418,6 +419,7 @@ async function createVariationProductWithGraphql(
       variants: (payload.product.variants?.nodes ?? []).map((variant) => ({
         id: Number(gidNumber(variant.id)),
         sku: variant.sku ?? undefined,
+        price: variant.price ?? undefined,
         inventory_item_id: variant.inventoryItem ? Number(gidNumber(variant.inventoryItem.id)) : undefined,
       })),
     },
@@ -530,13 +532,7 @@ export async function upsertShopifyVariationProduct(
           tags: "Kpop, Photocard",
           status: "active",
           options: [{ name: "Card" }],
-          variants: items.map((item) => ({
-            ...(item.variantId ? { id: Number(item.variantId) } : {}),
-            sku: item.sku,
-            option1: item.optionName,
-            price: item.priceUsd,
-            inventory_management: "shopify",
-          })),
+          variants: buildShopifyVariationVariants(items),
           ...(!existingProductId && images.length ? { images: images.map((src) => ({ src })) } : {}),
         },
       },
@@ -557,6 +553,9 @@ export async function upsertShopifyVariationProduct(
   for (const item of items) {
     const variant = bySku.get(item.sku);
     if (!variant) throw new ShopifyApiError(`Shopify가 ${item.sku} 옵션 ID를 반환하지 않았습니다.`, 502, response);
+    if (variant.price !== undefined && Math.abs(Number(variant.price) - Number(item.priceUsd)) >= 0.005) {
+      throw new ShopifyApiError(`Shopify가 ${item.sku} 옵션 가격을 ${item.priceUsd} USD로 반영하지 않았습니다. 실제 응답: ${variant.price} USD`, 502, response);
+    }
     const inventoryItemId = variant.inventory_item_id ? String(variant.inventory_item_id) : null;
     let inventorySynced = false;
     let inventoryError: string | null = null;
