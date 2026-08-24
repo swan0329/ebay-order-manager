@@ -432,7 +432,7 @@ async function createSingleProductWithGraphql(
 ): Promise<ShopifyProductResponse> {
   const query = `mutation ProductSet($input: ProductSetInput!, $synchronous: Boolean!) {
     productSet(input: $input, synchronous: $synchronous) {
-      product { id status variants(first: 10) { nodes { id sku inventoryItem { id } } } }
+      product { id status variants(first: 10) { nodes { id sku price inventoryItem { id } } } }
       userErrors { field message code }
     }
   }`;
@@ -470,6 +470,7 @@ async function createSingleProductWithGraphql(
       variants: (payload.product.variants?.nodes ?? []).map((variant) => ({
         id: Number(gidNumber(variant.id)),
         sku: variant.sku ?? undefined,
+        price: variant.price ?? undefined,
         inventory_item_id: variant.inventoryItem ? Number(gidNumber(variant.inventoryItem.id)) : undefined,
       })),
     },
@@ -482,6 +483,8 @@ export type ShopifyUploadResult = {
   inventoryItemId: string | null;
   status: string | null;
   action: "created" | "updated";
+  priceSynced: boolean;
+  priceError: string | null;
   inventorySynced: boolean;
   inventoryError: string | null;
   imageSync: ShopifyImageSyncResult | null;
@@ -508,6 +511,8 @@ export type ShopifyVariationUploadResult = {
     inventoryItemId: string | null;
     inventorySynced: boolean;
     inventoryError: string | null;
+    priceSynced: boolean;
+    priceError: string | null;
   }>;
 };
 
@@ -553,9 +558,9 @@ export async function upsertShopifyVariationProduct(
   for (const item of items) {
     const variant = bySku.get(item.sku);
     if (!variant) throw new ShopifyApiError(`Shopify가 ${item.sku} 옵션 ID를 반환하지 않았습니다.`, 502, response);
-    if (variant.price !== undefined && Math.abs(Number(variant.price) - Number(item.priceUsd)) >= 0.005) {
-      throw new ShopifyApiError(`Shopify가 ${item.sku} 옵션 가격을 ${item.priceUsd} USD로 반영하지 않았습니다. 실제 응답: ${variant.price} USD`, 502, response);
-    }
+    const actualPrice = Number(variant.price);
+    const priceSynced = variant.price !== undefined && Number.isFinite(actualPrice) && Math.abs(actualPrice - Number(item.priceUsd)) < 0.005;
+    const priceError = priceSynced ? null : `Shopify가 ${item.sku} 옵션 가격 ${item.priceUsd} USD의 실제 반영을 확인해 주지 않았습니다.${variant.price === undefined ? "" : ` 실제 응답: ${variant.price} USD`}`;
     const inventoryItemId = variant.inventory_item_id ? String(variant.inventory_item_id) : null;
     let inventorySynced = false;
     let inventoryError: string | null = null;
@@ -577,6 +582,8 @@ export async function upsertShopifyVariationProduct(
       inventoryItemId,
       inventorySynced,
       inventoryError,
+      priceSynced,
+      priceError,
     });
   }
   const productId = String(created.id);
@@ -721,15 +728,26 @@ export async function setShopifyInventoryLevel(
   if (!locationId) {
     throw new Error("Shopify 재고 위치를 찾지 못했습니다.");
   }
+  const target = Math.max(0, Math.trunc(available));
   await shopifyApiRequest(config, {
     method: "POST",
     path: "/inventory_levels/set.json",
     body: {
       location_id: Number(locationId),
       inventory_item_id: Number(inventoryItemId),
-      available: Math.max(0, Math.trunc(available)),
+      available: target,
     },
   });
+  type InventoryLevelsResponse = { inventory_levels?: Array<{ inventory_item_id?: number; location_id?: number; available?: number | null }> };
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const checked = await shopifyApiRequest(config, {
+      path: `/inventory_levels.json?inventory_item_ids=${encodeURIComponent(inventoryItemId)}&location_ids=${encodeURIComponent(locationId)}`,
+    }) as InventoryLevelsResponse;
+    const level = checked.inventory_levels?.find((row) => String(row.inventory_item_id) === String(inventoryItemId) && String(row.location_id) === String(locationId));
+    if (level?.available === target) return;
+    if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  throw new ShopifyApiError(`Shopify 재조회에서 실제 재고 ${target}개 반영을 확인하지 못했습니다.`, 502, { inventoryItemId, locationId, target });
 }
 
 export async function uploadProductToShopify(
@@ -898,6 +916,9 @@ export async function uploadProductToShopify(
   const inventoryItemId = firstVariant?.inventory_item_id
     ? String(firstVariant.inventory_item_id)
     : product.shopifyInventoryItemId ?? null;
+  const actualPrice = Number(firstVariant?.price);
+  const priceSynced = firstVariant?.price !== undefined && Number.isFinite(actualPrice) && Math.abs(actualPrice - Number(price)) < 0.005;
+  const priceError = priceSynced ? null : `Shopify가 판매가 ${price} USD의 실제 반영을 확인해 주지 않았습니다.${firstVariant?.price === undefined ? "" : ` 실제 응답: ${firstVariant.price} USD`}`;
 
   let inventorySynced = false;
   let inventoryError: string | null = null;
@@ -926,6 +947,8 @@ export async function uploadProductToShopify(
     inventoryItemId,
     status: created.status ?? null,
     action,
+    priceSynced,
+    priceError,
     inventorySynced,
     inventoryError,
     imageSync,

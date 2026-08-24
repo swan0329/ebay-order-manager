@@ -5,7 +5,7 @@ import { getEbayConfig } from "@/lib/env";
 import { buildVariationListingGroups, type VariationListingGroup } from "@/lib/variation-listing-groups";
 import { getVariationListingImagesByIds, withVariationListingMetadata } from "@/lib/variation-listing-products";
 import { ensureVariationThumbnail } from "@/lib/services/shopifyVariationMedia";
-import { reviseEbayRepresentativePicture } from "@/lib/services/ebayRevise";
+import { reviseEbayRepresentativePicture, verifyEbayRepresentativePicture } from "@/lib/services/ebayRevise";
 import { resolveListingWatermark } from "@/lib/listing-watermark";
 import { variationThumbnailHash } from "@/lib/variation-thumbnail-state";
 import { Prisma } from "@/generated/prisma";
@@ -41,7 +41,7 @@ async function activeVariationStates(userId: string) {
   if (!activeItemIds.length) return [];
   return prisma.variationListingState.findMany({
     where: { userId, ebayItemId: { in: activeItemIds } },
-    select: { groupKey: true, parentSku: true, title: true, ebayItemId: true, includedProductIds: true },
+    select: { groupKey: true, parentSku: true, title: true, ebayItemId: true, includedProductIds: true, thumbnailUrl: true, thumbnailHash: true },
   });
 }
 
@@ -69,6 +69,15 @@ function jobHash(raw: Prisma.JsonValue | null) {
     : null;
 }
 
+function jobVerified(raw: Prisma.JsonValue | null) {
+  return raw && typeof raw === "object" && !Array.isArray(raw) && (raw as Record<string, unknown>).verification === "verified";
+}
+
+function verifiedJobJson(raw: Prisma.JsonValue | null) {
+  const previous = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, Prisma.JsonValue> : {};
+  return { ...previous, verification: "verified", verifiedAt: new Date().toISOString() };
+}
+
 export async function listEbayVariationImageRepairs(userId: string): Promise<EbayVariationImageRepairRow[]> {
   const rows = await groupsForStates(userId);
   const watermark = await resolveListingWatermark(userId);
@@ -77,7 +86,7 @@ export async function listEbayVariationImageRepairs(userId: string): Promise<Eba
     orderBy: { finishedAt: "desc" },
     select: { sku: true, rawJson: true },
   });
-  const completed = new Set(successful.map((job) => `${job.sku}:${jobHash(job.rawJson) ?? ""}`));
+  const completed = new Set(successful.filter((job) => jobVerified(job.rawJson)).map((job) => `${job.sku}:${jobHash(job.rawJson) ?? ""}`));
   return rows.flatMap(({ state, productIds, group, imageCount }) => {
     if (!state.ebayItemId) return [];
     const targetHash = group ? variationThumbnailHash(group, watermark.signature) : null;
@@ -140,6 +149,30 @@ export async function processEbayVariationImageRepairJobs(userId: string, limit 
     where: { userId, source: JOB_SOURCE, status: "running", startedAt: { lt: new Date(Date.now() - 5 * 60_000) } },
     data: { status: "pending", message: "중단된 서버 작업 자동 재개" },
   });
+  // 이전 버전은 eBay의 쓰기 응답만으로 success를 저장했다. 재전송하지 않고
+  // 현재 eBay 대표사진을 실제로 읽어 제작 썸네일과 같은지 확인해 완료 상태를
+  // 승격한다. 확인되지 않은 건은 숫자에서 제거하지 않는다.
+  const legacySuccesses = (await prisma.productUploadJob.findMany({
+    where: { userId, source: JOB_SOURCE, status: "success" }, orderBy: { finishedAt: "desc" }, take: 200,
+  })).filter((job) => !jobVerified(job.rawJson)).slice(0, Math.min(20, limit));
+  if (legacySuccesses.length) {
+    const [rows, account] = await Promise.all([
+      groupsForStates(userId),
+      prisma.ebayAccount.findFirst({ where: { userId, environment: getEbayConfig().environment === "production" ? "PRODUCTION" : "SANDBOX" }, orderBy: { updatedAt: "desc" } }),
+    ]);
+    for (const job of legacySuccesses) {
+      const itemId = job.sku.startsWith("ebay-image:") ? job.sku.slice("ebay-image:".length) : "";
+      const target = rows.find((row) => row.state.ebayItemId === itemId && row.state.thumbnailUrl && row.state.thumbnailHash === jobHash(job.rawJson));
+      try {
+        if (!account || !target?.state.thumbnailUrl) throw new Error("과거 대표사진 작업의 대상 썸네일을 확인하지 못했습니다.");
+        await verifyEbayRepresentativePicture(account, itemId, target.state.thumbnailUrl);
+        await prisma.productUploadJob.update({ where: { id: job.id }, data: { rawJson: verifiedJobJson(job.rawJson), message: "eBay 재조회로 과거 대표사진 반영 확인 완료" } });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "eBay 대표사진 실제 반영 미확인";
+        await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "failed", error: message, errorSummary: message, message: "과거 전송 결과 실제 반영 미확인" } });
+      }
+    }
+  }
   const jobs = await prisma.productUploadJob.findMany({
     where: { userId, source: JOB_SOURCE, status: "pending" }, orderBy: { createdAt: "asc" }, take: limit,
   });
@@ -148,7 +181,7 @@ export async function processEbayVariationImageRepairJobs(userId: string, limit 
     if (!claimed.count) continue;
     try {
       await repairEbayVariationImage(userId, job.sku);
-      await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "success", message: "eBay 묶음 대표사진 교체 완료", finishedAt: new Date() } });
+      await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "success", rawJson: verifiedJobJson(job.rawJson), message: "eBay 재조회로 묶음 대표사진 반영 확인 완료", finishedAt: new Date() } });
     } catch (error) {
       const message = error instanceof Error ? error.message : "eBay 대표사진 교체 실패";
       await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "failed", error: message, errorSummary: message, finishedAt: new Date() } });
@@ -158,9 +191,9 @@ export async function processEbayVariationImageRepairJobs(userId: string, limit 
 }
 
 export async function getEbayVariationImageRepairJobs(userId: string) {
-  const jobs = await prisma.productUploadJob.findMany({ where: { userId, source: JOB_SOURCE }, orderBy: { createdAt: "desc" }, take: 200, select: { id: true, sku: true, status: true, message: true, errorSummary: true, createdAt: true, startedAt: true, finishedAt: true } });
-  const active = jobs.filter((job) => ["pending", "running"].includes(job.status));
+  const jobs = await prisma.productUploadJob.findMany({ where: { userId, source: JOB_SOURCE }, orderBy: { createdAt: "desc" }, take: 200, select: { id: true, sku: true, status: true, message: true, errorSummary: true, rawJson: true, createdAt: true, startedAt: true, finishedAt: true } });
+  const active = jobs.filter((job) => ["pending", "running"].includes(job.status) || (job.status === "success" && !jobVerified(job.rawJson)));
   const latestStart = jobs[0]?.createdAt;
   const batch = latestStart ? jobs.filter((job) => Math.abs(job.createdAt.getTime() - latestStart.getTime()) < 10_000) : [];
-  return { active: active.length, pending: active.filter((job) => job.status === "pending").length, running: active.filter((job) => job.status === "running").length, succeeded: batch.filter((job) => job.status === "success").length, failed: batch.filter((job) => job.status === "failed").length, total: batch.length, jobs: jobs.slice(0, 50) };
+  return { active: active.length, pending: active.filter((job) => job.status === "pending" || job.status === "success").length, running: active.filter((job) => job.status === "running").length, succeeded: batch.filter((job) => job.status === "success" && jobVerified(job.rawJson)).length, failed: batch.filter((job) => job.status === "failed").length, total: batch.length, jobs: jobs.slice(0, 50).map((job) => ({ id: job.id, sku: job.sku, status: job.status, message: job.message, errorSummary: job.errorSummary, createdAt: job.createdAt, startedAt: job.startedAt, finishedAt: job.finishedAt })) };
 }

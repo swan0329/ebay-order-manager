@@ -69,8 +69,12 @@ export async function getEbayOperations(userId: string) {
   }));
   // 실제 품절/판매중지와 주문 예약 보류를 분리한다. 예약 보류는 수량 0 전송은
   // 가능하지만, 상품 자체가 품절된 것으로 집계하지 않는다.
+  // 이 화면의 숫자는 "현재 품절 상품 수"가 아니라 마켓에 아직 반영해야 할
+  // 작업 수다. 이미 실제 재조회까지 끝나 ProductListing 수량이 목표값(보통 0)과
+  // 같아진 행은 완료된 작업이므로 다시 노출하지 않는다.
   const unavailable = inventory.rows.filter((row) =>
-    ["SOLD_OUT", "DISCONTINUED"].includes(row.availabilityStatus),
+    ["SOLD_OUT", "DISCONTINUED"].includes(row.availabilityStatus) &&
+    row.previousQuantity !== row.quantity,
   );
   const review = inventory.rows.filter((row) =>
     ["HELD_FOR_ORDER", "SOURCE_UNKNOWN"].includes(row.availabilityStatus),
@@ -176,16 +180,19 @@ export async function getShopifyOperations() {
   });
   const change: Array<Record<string, unknown>> = [];
   const unavailable: Array<Record<string, unknown>> = [];
+  const review: Array<Record<string, unknown>> = [];
   for (const [externalId, members] of linkedBuckets) {
     if (members.length === 1) {
       const row = members[0];
-      if (row.availabilityStatus !== "AVAILABLE") unavailable.push({ ...row, reason: availabilityReason(row.availabilityStatus), listingType: "SINGLE", productIds: [row.productId] });
-      else if (row.previousQuantity !== row.quantity || priceChanged(row.price, row.previousPrice)) change.push({ ...row, listingType: "SINGLE", productIds: [row.productId] });
+      if (["SOLD_OUT", "DISCONTINUED"].includes(row.availabilityStatus) && row.previousQuantity !== row.quantity) unavailable.push({ ...row, reason: availabilityReason(row.availabilityStatus), listingType: "SINGLE", productIds: [row.productId] });
+      else if (["HELD_FOR_ORDER", "SOURCE_UNKNOWN"].includes(row.availabilityStatus)) review.push({ ...row, reason: availabilityReason(row.availabilityStatus), listingType: "SINGLE", productIds: [row.productId] });
+      else if (row.availabilityStatus === "AVAILABLE" && (row.previousQuantity !== row.quantity || priceChanged(row.price, row.previousPrice))) change.push({ ...row, listingType: "SINGLE", productIds: [row.productId] });
       continue;
     }
-    const unavailableMembers = members.filter((row) => row.availabilityStatus !== "AVAILABLE");
-    const changedMembers = members.filter((row) => row.previousQuantity !== row.quantity || priceChanged(row.price, row.previousPrice));
-    const groupedRow = {
+    const unavailableMembers = members.filter((row) => ["SOLD_OUT", "DISCONTINUED"].includes(row.availabilityStatus) && row.previousQuantity !== row.quantity);
+    const reviewMembers = members.filter((row) => ["HELD_FOR_ORDER", "SOURCE_UNKNOWN"].includes(row.availabilityStatus));
+    const changedMembers = members.filter((row) => row.availabilityStatus === "AVAILABLE" && (row.previousQuantity !== row.quantity || priceChanged(row.price, row.previousPrice)));
+    const groupedRow = (affectedOptions: typeof members) => ({
       productId: `shopify-listing:${externalId}`,
       productIds: members.map((row) => row.productId),
       sku: `묶음 ${members.length}옵션`,
@@ -197,12 +204,11 @@ export async function getShopifyOperations() {
       previousPrice: null,
       listingType: "VARIATION",
       optionCount: members.length,
-      affectedOptions: (unavailableMembers.length ? unavailableMembers : changedMembers).map((row) => ({ sku: row.sku, name: row.productName, previousQuantity: row.previousQuantity, quantity: row.quantity, previousPrice: row.previousPrice, price: row.price })),
-    };
-    if (unavailableMembers.length) unavailable.push({ ...groupedRow, actionable: unavailableMembers.every((row) => row.actionable), reason: unavailableMembers.map((row) => availabilityReason(row.availabilityStatus, true)).join(" / ") });
-    else if (changedMembers.length) change.push(groupedRow);
+      affectedOptions: affectedOptions.map((row) => ({ sku: row.sku, name: row.productName, previousQuantity: row.previousQuantity, quantity: row.quantity, previousPrice: row.previousPrice, price: row.price })),
+    });
+    if (unavailableMembers.length) unavailable.push({ ...groupedRow(unavailableMembers), actionable: unavailableMembers.every((row) => row.actionable), reason: unavailableMembers.map((row) => availabilityReason(row.availabilityStatus, true)).join(" / ") });
+    if (reviewMembers.length) review.push({ ...groupedRow(reviewMembers), actionable: false, reason: reviewMembers.map((row) => availabilityReason(row.availabilityStatus, true)).join(" / ") });
+    if (!unavailableMembers.length && changedMembers.length) change.push(groupedRow(changedMembers));
   }
-  const actualUnavailable = unavailable.filter((row) => ["SOLD_OUT", "DISCONTINUED"].includes(String(row.availabilityStatus)));
-  const review = unavailable.filter((row) => ["HELD_FOR_ORDER", "SOURCE_UNKNOWN"].includes(String(row.availabilityStatus)));
-  return { create, change, unavailable: actualUnavailable, review, imageRepair, summary: { shopifyListings: create.length, shopifyVariationListings: createGroups.length, shopifySingleListings: createSingles.length, shopifyOptions: unlinked.length, imageRepairListings: imageRepair.filter((row) => row.actionable).length, unavailableOptions: actualUnavailable.filter((row) => row.listingType === "VARIATION").length, unavailableSingles: actualUnavailable.filter((row) => row.listingType === "SINGLE").length, sourceReview: review.filter((row) => row.availabilityStatus === "SOURCE_UNKNOWN").length, heldForOrder: review.filter((row) => row.availabilityStatus === "HELD_FOR_ORDER").length }, limits: { createBatch: 50, reviseBatch: 100 } };
+  return { create, change, unavailable, review, imageRepair, summary: { shopifyListings: create.length, shopifyVariationListings: createGroups.length, shopifySingleListings: createSingles.length, shopifyOptions: unlinked.length, imageRepairListings: imageRepair.filter((row) => row.actionable).length, unavailableOptions: unavailable.filter((row) => row.listingType === "VARIATION").length, unavailableSingles: unavailable.filter((row) => row.listingType === "SINGLE").length, sourceReview: review.filter((row) => row.availabilityStatus === "SOURCE_UNKNOWN" || (Array.isArray(row.affectedOptions) && row.reason && String(row.reason).includes("수집"))).length, heldForOrder: review.filter((row) => row.availabilityStatus === "HELD_FOR_ORDER" || (Array.isArray(row.affectedOptions) && row.reason && String(row.reason).includes("예약"))).length }, limits: { createBatch: 50, reviseBatch: 100 } };
 }

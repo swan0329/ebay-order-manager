@@ -61,23 +61,23 @@ export async function uploadShopifyVariationGroup(productIds: string[], userId: 
     // 재시도 때 같은 묶음을 중복 생성하지 않게 하고, 후자는 성공한 옵션만 실제
     // 수량으로 기록한다. 실패 옵션은 quantity=null로 남아 다음 변동 목록에 다시
     // 나타난다.
-    const uploadError = variant.inventoryError ?? result.imageError;
+    const uploadError = variant.inventoryError ?? variant.priceError ?? result.imageError;
     const salesImage = salesImageById.get(product.id)!;
-    const metadata = { variantId: variant.variantId, inventoryItemId: variant.inventoryItemId, groupKey: group.key, optionName: product.variationName, source: "shopify_variation_upload", inventorySynced: variant.inventorySynced, inventoryError: variant.inventoryError, imageSync: { status: result.imageError ? "FAILED" : "READY", sourceImageUrl: product.imageUrl, salesImageUrl: salesImage.url, watermarkSignature: watermark.signature, watermarkApplied: salesImage.applied }, imageError: result.imageError };
+    const metadata = { variantId: variant.variantId, inventoryItemId: variant.inventoryItemId, groupKey: group.key, optionName: product.variationName, source: "shopify_variation_upload", inventorySynced: variant.inventorySynced, inventoryError: variant.inventoryError, priceSynced: variant.priceSynced, priceError: variant.priceError, imageSync: { status: result.imageError ? "FAILED" : "READY", sourceImageUrl: product.imageUrl, salesImageUrl: salesImage.url, watermarkSignature: watermark.signature, watermarkApplied: salesImage.applied }, imageError: result.imageError };
     return [
       prisma.product.update({ where: { id: product.id }, data: { shopifyProductId: result.productId, shopifyVariantId: variant.variantId, shopifyInventoryItemId: variant.inventoryItemId, shopifyStatus: result.status, shopifyLastUploadedAt: new Date(), shopifyUploadError: uploadError } }),
-      prisma.productListing.upsert({ where: { productId_channel: { productId: product.id, channel: "SHOPIFY" } }, update: { externalId: result.productId, price: item.priceUsd, quantity: variant.inventorySynced ? item.quantity : null, status: result.status, metadata }, create: { productId: product.id, channel: "SHOPIFY", externalId: result.productId, price: item.priceUsd, quantity: variant.inventorySynced ? item.quantity : null, status: result.status, metadata } }),
+      prisma.productListing.upsert({ where: { productId_channel: { productId: product.id, channel: "SHOPIFY" } }, update: { externalId: result.productId, price: variant.priceSynced ? item.priceUsd : null, quantity: variant.inventorySynced ? item.quantity : null, status: result.status, metadata }, create: { productId: product.id, channel: "SHOPIFY", externalId: result.productId, price: variant.priceSynced ? item.priceUsd : null, quantity: variant.inventorySynced ? item.quantity : null, status: result.status, metadata } }),
     ];
   }));
   const failed = [
     ...result.variants
-      .filter((variant) => !variant.inventorySynced)
-      .map((variant) => ({ sku: variant.sku, reason: variant.inventoryError ?? "Shopify 재고 반영 실패" })),
+      .filter((variant) => !variant.inventorySynced || !variant.priceSynced)
+      .map((variant) => ({ sku: variant.sku, reason: [variant.inventoryError, variant.priceError].filter(Boolean).join(" / ") || "Shopify 가격·재고 반영 실패" })),
     ...(result.imageError ? [{ sku: group.title, reason: `상품 이미지·썸네일 연결 실패: ${result.imageError}` }] : []),
   ];
   return {
     ...result,
-    succeeded: result.variants.filter((variant) => variant.inventorySynced).length,
+    succeeded: result.variants.filter((variant) => variant.inventorySynced && variant.priceSynced).length,
     failed,
   };
 }

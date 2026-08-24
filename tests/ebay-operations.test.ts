@@ -32,6 +32,15 @@ describe("eBay operations classification", () => {
     expect(result.summary).toMatchObject({ unavailableOptions: 0, unavailableSingles: 1 });
   });
 
+  it("removes a sold-out listing after the marketplace quantity is confirmed as zero", async () => {
+    planInventory.mockResolvedValue({ missingPrice: [], rows: [
+      { productId:"done",sku:"DONE",productName:"Done",productStatus:"active",itemId:"9",stock:0,reserved:0,quantity:0,price:10,previousQuantity:0,previousPrice:10,listingType:"SINGLE",parentTitle:null,availabilityStatus:"SOLD_OUT",actionable:true },
+    ] });
+    const result = await getEbayOperations("user");
+    expect(result.unavailable).toEqual([]);
+    expect(result.summary).toMatchObject({ unavailableOptions: 0, unavailableSingles: 0 });
+  });
+
   it("counts Shopify bundles as listings instead of counting every option as a product", async () => {
     const common = { imageUrl: "https://img.test/card.jpg", ebayImageUrls: [], stockQuantity: 1, safetyStock: 0, status: "active", isSoldOut: false, pocamarketAvailableCount: 0, pocamarketSyncedAt: new Date(), shopifyProductId: null, productListings: [], ebayPrice: 10 };
     findProducts.mockResolvedValue([
@@ -44,6 +53,19 @@ describe("eBay operations classification", () => {
     expect(result.create).toHaveLength(2);
     expect(result.summary).toMatchObject({ shopifyListings: 2, shopifyVariationListings: 1, shopifySingleListings: 1, shopifyOptions: 3 });
     expect(result.create[0]).toMatchObject({ listingType: "VARIATION", optionCount: 2, productIds: ["a", "b"] });
+  });
+
+  it("removes a Shopify sold-out task after Shopify quantity zero is confirmed", async () => {
+    findProducts.mockResolvedValue([{
+      id: "sold", sku: "SOLD", brand: null, category: null, productName: "Sold", optionName: null,
+      imageUrl: null, ebayImageUrls: [], stockQuantity: 0, safetyStock: 0, status: "active",
+      isSoldOut: true, pocamarketAvailableCount: 0, pocamarketSyncedAt: new Date(),
+      shopifyProductId: "100", shopifyVariantId: "200", ebayPrice: 10,
+      productListings: [{ id: "listing", externalId: "100", quantity: 0, price: 10, metadata: null }],
+    }]);
+    const result = await getShopifyOperations();
+    expect(result.unavailable).toEqual([]);
+    expect(result.summary).toMatchObject({ unavailableOptions: 0, unavailableSingles: 0 });
   });
 
   it("keeps a sold-out variation as an option update instead of ending its parent", async () => {

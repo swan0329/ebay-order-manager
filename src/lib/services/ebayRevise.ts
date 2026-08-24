@@ -4,6 +4,7 @@ import type { EbayAccount } from "@/generated/prisma";
 import { getValidAccessToken } from "@/lib/ebay";
 import { getEbayConfig } from "@/lib/env";
 import { safeLog } from "@/lib/safe-log";
+import sharp from "sharp";
 
 // 기존 eBay 리스팅의 가격과 수량을 바꾼다.
 //
@@ -91,8 +92,48 @@ export async function reviseEbayRepresentativePicture(account: EbayAccount, item
   if (!response.ok) throw new Error(`eBay 대표사진 수정 실패 (HTTP ${response.status})`);
   const parsed = parseResponse(xml);
   if (parsed.hasError) throw new Error(parsed.message);
+  await verifyEbayRepresentativePicture(account, itemId, imageUrl);
   safeLog("info", "ebay.revise.representative_picture", { itemId });
-  return { itemId, imageUrl, ack: parsed.ack };
+  return { itemId, imageUrl, ack: parsed.ack, verified: true };
+}
+
+async function visualFingerprint(url: string) {
+  const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+  if (!response.ok) throw new Error(`대표사진 확인용 이미지를 불러오지 못했습니다. (${response.status})`);
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (!bytes.length || bytes.length > 20 * 1024 * 1024) throw new Error("대표사진 확인용 이미지 크기가 올바르지 않습니다.");
+  return sharp(bytes, { failOn: "none" }).rotate().resize(32, 32, { fit: "fill" }).grayscale().raw().toBuffer();
+}
+
+export async function representativePicturesMatch(expectedUrl: string, actualUrl: string) {
+  if (expectedUrl === actualUrl) return true;
+  const [expected, actual] = await Promise.all([visualFingerprint(expectedUrl), visualFingerprint(actualUrl)]);
+  if (expected.length !== actual.length || !expected.length) return false;
+  let difference = 0;
+  for (let index = 0; index < expected.length; index += 1) difference += Math.abs(expected[index] - actual[index]);
+  // eBay가 JPEG를 다시 압축하고 크기를 바꾸므로 바이트 일치는 불가능하다.
+  // 0~255 밝기 기준 평균 차이 12 이하는 같은 대표사진의 재인코딩으로 본다.
+  return difference / expected.length <= 12;
+}
+
+export async function verifyEbayRepresentativePicture(account: EbayAccount, itemId: string, expectedUrl: string) {
+  const config = getEbayConfig();
+  const token = await getValidAccessToken(account);
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const response = await fetch(`${config.hosts.api}/ws/api.dll`, {
+      method: "POST",
+      headers: { "content-type": "text/xml;charset=UTF-8", "X-EBAY-API-COMPATIBILITY-LEVEL": "1193", "X-EBAY-API-CALL-NAME": "GetItem", "X-EBAY-API-SITEID": "0", "X-EBAY-API-IAF-TOKEN": token },
+      body: `<?xml version="1.0" encoding="utf-8"?><GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents"><ItemID>${escapeXml(itemId)}</ItemID></GetItemRequest>`,
+    });
+    const currentXml = await response.text();
+    if (response.ok && xmlValue(currentXml, "Ack") !== "Failure") {
+      const pictureDetails = xmlValue(currentXml, "PictureDetails");
+      const actualUrl = xmlValue(pictureDetails, "PictureURL") || xmlValue(pictureDetails, "ExternalPictureURL");
+      if (actualUrl && await representativePicturesMatch(expectedUrl, actualUrl)) return;
+    }
+    if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+  throw new Error(`${itemId}: eBay 재조회에서 새 대표사진의 실제 반영을 확인하지 못했습니다.`);
 }
 
 // eBay는 성공해도 경고를 함께 준다. Ack가 Failure일 때만 실패로 본다.
@@ -139,11 +180,11 @@ function xmlBlocks(xml: string, tag: string) {
   return [...xml.matchAll(new RegExp(`<(?:[\\w-]+:)?${tag}\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w-]+:)?${tag}>`, "gi"))].map((match) => match[1]);
 }
 
-async function verifyVariationTargets(account: EbayAccount, targets: ReviseTarget[]) {
+async function verifyTargets(account: EbayAccount, targets: ReviseTarget[]) {
   const config = getEbayConfig();
   const token = await getValidAccessToken(account);
   const failures = new Map<string, string>();
-  for (const itemId of [...new Set(targets.flatMap((target) => target.sku ? [target.itemId] : []))]) {
+  for (const itemId of [...new Set(targets.map((target) => target.itemId))]) {
     const response = await fetch(`${config.hosts.api}/ws/api.dll`, {
       method: "POST",
       headers: { "content-type": "text/xml;charset=UTF-8", "X-EBAY-API-COMPATIBILITY-LEVEL": "1193", "X-EBAY-API-CALL-NAME": "GetItem", "X-EBAY-API-SITEID": "0", "X-EBAY-API-IAF-TOKEN": token },
@@ -151,7 +192,7 @@ async function verifyVariationTargets(account: EbayAccount, targets: ReviseTarge
     });
     const xml = await response.text();
     if (!response.ok || xmlValue(xml, "Ack") === "Failure") {
-      for (const target of targets.filter((row) => row.itemId === itemId && row.sku)) failures.set(reviseTargetKey(target), "eBay 반영 후 실제 옵션을 다시 조회하지 못했습니다.");
+      for (const target of targets.filter((row) => row.itemId === itemId)) failures.set(reviseTargetKey(target), "eBay 반영 후 실제 상품을 다시 조회하지 못했습니다.");
       continue;
     }
     const variations = xmlBlocks(xmlValue(xml, "Variations"), "Variation").map((block) => {
@@ -165,8 +206,20 @@ async function verifyVariationTargets(account: EbayAccount, targets: ReviseTarge
       else if (target.price != null && (!Number.isFinite(actual.price) || Math.abs(actual.price - target.price) >= 0.005)) failures.set(reviseTargetKey(target), `${target.sku}: eBay 실제 가격 ${actual.price || "확인 불가"} USD가 전송 가격 ${target.price.toFixed(2)} USD와 다릅니다.`);
       else if (target.quantity != null && (!Number.isFinite(actual.availableQuantity) || actual.availableQuantity !== Math.max(0, Math.trunc(target.quantity)))) failures.set(reviseTargetKey(target), `${target.sku}: eBay 실제 판매 가능 수량 ${actual.availableQuantity}개(전체 ${actual.quantity} - 판매 ${actual.quantitySold})가 전송 수량 ${target.quantity}개와 다릅니다.`);
     }
+    for (const target of targets.filter((row) => row.itemId === itemId && !row.sku)) {
+      const price = Number(xmlValue(currentItemXml(xml), "StartPrice"));
+      const quantity = Number(xmlValue(currentItemXml(xml), "Quantity"));
+      const quantitySold = Number(xmlValue(currentItemXml(xml), "QuantitySold") || 0);
+      const availableQuantity = quantity - quantitySold;
+      if (target.price != null && (!Number.isFinite(price) || Math.abs(price - target.price) >= 0.005)) failures.set(reviseTargetKey(target), `${itemId}: eBay 실제 가격 ${price || "확인 불가"} USD가 전송 가격 ${target.price.toFixed(2)} USD와 다릅니다.`);
+      else if (target.quantity != null && (!Number.isFinite(availableQuantity) || availableQuantity !== Math.max(0, Math.trunc(target.quantity)))) failures.set(reviseTargetKey(target), `${itemId}: eBay 실제 판매 가능 수량 ${availableQuantity}개(전체 ${quantity} - 판매 ${quantitySold})가 전송 수량 ${target.quantity}개와 다릅니다.`);
+    }
   }
   return failures;
+}
+
+function currentItemXml(xml: string) {
+  return xmlValue(xml, "Item") || xml;
 }
 
 export async function reviseEbayPriceQuantity(
@@ -196,7 +249,7 @@ export async function reviseEbayPriceQuantity(
   }
 
   const initiallySucceeded = targets.filter((target) => result.succeeded.includes(reviseTargetKey(target)));
-  const verificationFailures = await verifyVariationTargets(account, initiallySucceeded);
+  const verificationFailures = await verifyTargets(account, initiallySucceeded);
   if (verificationFailures.size) {
     result.succeeded = result.succeeded.filter((key) => !verificationFailures.has(key));
     for (const target of initiallySucceeded) {

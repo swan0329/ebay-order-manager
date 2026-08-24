@@ -7,7 +7,7 @@ vi.mock("@/lib/env", () => ({
 vi.mock("@/lib/ebay", () => ({ getValidAccessToken: async () => "token-1" }));
 vi.mock("@/lib/safe-log", () => ({ safeLog: () => {} }));
 
-const { reviseEbayPriceQuantity } = await import("@/lib/services/ebayRevise");
+const { representativePicturesMatch, reviseEbayPriceQuantity } = await import("@/lib/services/ebayRevise");
 
 const account = { id: "a" } as never;
 const ok = `<?xml version="1.0"?><ReviseInventoryStatusResponse><Ack>Success</Ack></ReviseInventoryStatusResponse>`;
@@ -23,6 +23,12 @@ function mockXml(body: string, status = 200) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("eBay 가격·수량 변경", () => {
+  it("같은 대표사진의 재인코딩은 실제 반영으로 확인한다", async () => {
+    const sharp = (await import("sharp")).default;
+    const source = await sharp({ create: { width: 80, height: 120, channels: 3, background: { r: 30, g: 120, b: 220 } } }).png().toBuffer();
+    const reencoded = await sharp(source).resize(320, 480).jpeg({ quality: 72 }).toBuffer();
+    expect(await representativePicturesMatch(`data:image/png;base64,${source.toString("base64")}`, `data:image/jpeg;base64,${reencoded.toString("base64")}`)).toBe(true);
+  });
   it("OAuth 토큰을 전용 헤더로 보내고 자격 정보를 본문에 넣지 않는다", async () => {
     const fetchMock = mockXml(ok);
     await reviseEbayPriceQuantity(account, [{ itemId: "1", sku: "A", quantity: 2, price: 3.5 }]);
@@ -57,22 +63,40 @@ describe("eBay 가격·수량 변경", () => {
   });
 
   it("한 번에 네 건까지만 보낸다", async () => {
-    const fetchMock = mockXml(ok);
+    const fetchMock = vi.fn().mockImplementation(async (_url, init: RequestInit) => {
+      const call = (init.headers as Record<string, string>)["X-EBAY-API-CALL-NAME"];
+      return new Response(call === "GetItem"
+        ? `<GetItemResponse><Ack>Success</Ack><Item><StartPrice>1</StartPrice><Quantity>1</Quantity><SellingStatus><QuantitySold>0</QuantitySold></SellingStatus></Item></GetItemResponse>`
+        : ok, { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
     const targets = Array.from({ length: 9 }, (_, index) => ({
       itemId: String(index),
       quantity: 1,
     }));
     const result = await reviseEbayPriceQuantity(account, targets);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls.filter(([, init]) => ((init as RequestInit).headers as Record<string, string>)["X-EBAY-API-CALL-NAME"] === "ReviseInventoryStatus")).toHaveLength(3);
+    expect(fetchMock).toHaveBeenCalledTimes(12);
     expect(result.succeeded).toHaveLength(9);
   });
 
   it("경고만 있으면 성공으로 본다", async () => {
     // 경고를 실패로 처리하면 실제로 반영된 것을 실패라고 보고하게 된다.
-    mockXml(warned);
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(warned, { status: 200 }))
+      .mockResolvedValueOnce(new Response(`<GetItemResponse><Ack>Success</Ack><Item><Quantity>1</Quantity><SellingStatus><QuantitySold>0</QuantitySold></SellingStatus></Item></GetItemResponse>`, { status: 200 })));
     const result = await reviseEbayPriceQuantity(account, [{ itemId: "1", quantity: 1 }]);
     expect(result.succeeded).toEqual(["1"]);
     expect(result.failed).toEqual([]);
+  });
+
+  it("단품도 전송 응답이 아니라 eBay 재조회 값이 일치해야 완료로 본다", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(ok, { status: 200 }))
+      .mockResolvedValueOnce(new Response(`<GetItemResponse><Ack>Success</Ack><Item><StartPrice>9.00</StartPrice><Quantity>1</Quantity><SellingStatus><QuantitySold>0</QuantitySold></SellingStatus></Item></GetItemResponse>`, { status: 200 })));
+    const result = await reviseEbayPriceQuantity(account, [{ itemId: "1", quantity: 2, price: 8.4 }]);
+    expect(result.succeeded).toEqual([]);
+    expect(result.failed[0].reason).toContain("실제 가격 9");
   });
 
   it("옵션은 전송 후 eBay 실제 가격과 수량이 일치해야 성공으로 본다", async () => {

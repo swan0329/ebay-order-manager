@@ -39,12 +39,13 @@ describe("Shopify 묶음상품 부분 실패", () => {
           id: 100,
           status: "active",
           variants: [
-            { id: 11, sku: "CARD-A", inventory_item_id: 101 },
-            { id: 12, sku: "CARD-B", inventory_item_id: 102 },
+            { id: 11, sku: "CARD-A", price: "10.00", inventory_item_id: 101 },
+            { id: 12, sku: "CARD-B", price: "11.00", inventory_item_id: 102 },
           ],
         },
       }))
       .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValueOnce(jsonResponse({ inventory_levels: [{ inventory_item_id: 101, location_id: 1, available: 1 }] }))
       .mockResolvedValueOnce(jsonResponse({ error: "inventory unavailable" }, 500))
       .mockResolvedValueOnce(jsonResponse({ data: { productUpdate: { userErrors: [] } } }));
 
@@ -58,7 +59,7 @@ describe("Shopify 묶음상품 부분 실패", () => {
       expect.objectContaining({ sku: "CARD-A", inventorySynced: true, inventoryError: null }),
       expect.objectContaining({ sku: "CARD-B", inventorySynced: false, inventoryError: "Shopify Admin API request failed." }),
     ]);
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it("레거시 REST 상품 생성이 500이면 GraphQL 상품 생성으로 한 번만 대체한다", async () => {
@@ -72,8 +73,8 @@ describe("Shopify 묶음상품 부분 실패", () => {
               id: "gid://shopify/Product/200",
               status: "ACTIVE",
               variants: { nodes: [
-                { id: "gid://shopify/ProductVariant/21", sku: "CARD-A", inventoryItem: { id: "gid://shopify/InventoryItem/201" } },
-                { id: "gid://shopify/ProductVariant/22", sku: "CARD-B", inventoryItem: { id: "gid://shopify/InventoryItem/202" } },
+                { id: "gid://shopify/ProductVariant/21", sku: "CARD-A", price: "10.00", inventoryItem: { id: "gid://shopify/InventoryItem/201" } },
+                { id: "gid://shopify/ProductVariant/22", sku: "CARD-B", price: "11.00", inventoryItem: { id: "gid://shopify/InventoryItem/202" } },
               ] },
             },
             userErrors: [],
@@ -81,7 +82,9 @@ describe("Shopify 묶음상품 부분 실패", () => {
         },
       }))
       .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValueOnce(jsonResponse({ inventory_levels: [{ inventory_item_id: 201, location_id: 1, available: 1 }] }))
       .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValueOnce(jsonResponse({ inventory_levels: [{ inventory_item_id: 202, location_id: 1, available: 0 }] }))
       .mockResolvedValueOnce(jsonResponse({ data: { productUpdate: { userErrors: [] } } }));
 
     await expect(upsertShopifyVariationProduct("Fallback group", [
