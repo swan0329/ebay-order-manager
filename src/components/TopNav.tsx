@@ -27,6 +27,7 @@ const sections:NavSection[]=[
   ]},
   {label:"eBay 판매",items:[
     {href:"/ebay-operations",label:"변동·품단종 관리",icon:ListChecks,matchPrefixes:["/ebay-operations"]},
+    {href:"/products/unit-members",label:"유닛 멤버 지정",icon:Users,matchPrefixes:["/products/unit-members"]},
     {href:"/pricing",label:"가격 관리",icon:Calculator,matchPrefixes:["/pricing"]},
     {href:"/listing-upload/variation-groups",label:"옵션상품 구성",icon:Images,matchPrefixes:["/listing-upload/variation-groups"]},
     {href:"/pocamarket-sync",label:"포카마켓 최신화",icon:RefreshCw,matchPrefixes:["/pocamarket-sync"]},
