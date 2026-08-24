@@ -5,7 +5,7 @@ import { validatePricingSettings } from "@/lib/pricing";
 
 function serialize(settings: NonNullable<Awaited<ReturnType<typeof prisma.pricingSettings.findUnique>>>) {
   return Object.fromEntries(
-    Object.entries(settings).map(([key, value]) => [
+    Object.entries(settings).filter(([key]) => key !== "minimumSalePriceUsd").map(([key, value]) => [
       key,
       value && typeof value === "object" && "toFixed" in value
         ? String(value)
@@ -38,17 +38,13 @@ export async function PUT(request: Request) {
       targetMarginRate: String(body.targetMarginRate ?? ""),
       ebayFeeRate: String(body.ebayFeeRate ?? ""),
       advertisingRate: String(body.advertisingRate ?? ""),
-      minimumSalePriceUsd:
-        body.minimumSalePriceUsd === "" || body.minimumSalePriceUsd == null
-          ? null
-          : String(body.minimumSalePriceUsd),
       roundingIncrementUsd: "0.10",
     };
     validatePricingSettings(input);
     const settings = await prisma.pricingSettings.upsert({
       where: { id: "default" },
-      create: { id: "default", ...input, allocationMethod: "PER_CARD_FIXED", updatedById: user.id },
-      update: { ...input, allocationMethod: "PER_CARD_FIXED", updatedById: user.id },
+      create: { id: "default", ...input, minimumSalePriceUsd: null, allocationMethod: "PER_CARD_FIXED", updatedById: user.id },
+      update: { ...input, minimumSalePriceUsd: null, allocationMethod: "PER_CARD_FIXED", updatedById: user.id },
     });
     return NextResponse.json({ settings: serialize(settings) });
   } catch (error) {

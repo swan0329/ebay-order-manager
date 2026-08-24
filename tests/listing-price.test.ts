@@ -13,7 +13,6 @@ const settings = {
   targetMarginRate: "0.30",
   ebayFeeRate: "0.13",
   advertisingRate: "0.05",
-  minimumSalePriceUsd: null,
   roundingIncrementUsd: "0.10",
 };
 

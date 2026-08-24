@@ -33,7 +33,6 @@ export async function POST(request: Request) {
       targetMarginRate: settings.targetMarginRate,
       ebayFeeRate: settings.ebayFeeRate,
       advertisingRate: settings.advertisingRate,
-      minimumSalePriceUsd: settings.minimumSalePriceUsd,
       roundingIncrementUsd: settings.roundingIncrementUsd,
     });
 

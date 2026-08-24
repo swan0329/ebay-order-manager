@@ -8,7 +8,6 @@ export type PricingInputs = {
   targetMarginRate: Prisma.Decimal.Value;
   ebayFeeRate: Prisma.Decimal.Value;
   advertisingRate: Prisma.Decimal.Value;
-  minimumSalePriceUsd?: Prisma.Decimal.Value | null;
   roundingIncrementUsd?: Prisma.Decimal.Value;
 };
 
@@ -35,13 +34,6 @@ export function validatePricingSettings(input: Omit<PricingInputs, "pocaPriceKrw
   if (increment.lessThanOrEqualTo(0)) {
     throw new Error("반올림 단위는 0보다 커야 합니다.");
   }
-  if (
-    input.minimumSalePriceUsd !== undefined &&
-    input.minimumSalePriceUsd !== null &&
-    new Prisma.Decimal(input.minimumSalePriceUsd).isNegative()
-  ) {
-    throw new Error("최소 판매가는 0 이상이어야 합니다.");
-  }
 }
 
 export function calculateRecommendedPrice(input: PricingInputs) {
@@ -60,13 +52,7 @@ export function calculateRecommendedPrice(input: PricingInputs) {
     .times(new Prisma.Decimal(1).plus(input.targetMarginRate))
     .div(new Prisma.Decimal(1).minus(feeTotal));
   const increment = new Prisma.Decimal(input.roundingIncrementUsd ?? "0.10");
-  let recommendedPriceUsd = rawRecommendedPriceUsd.div(increment).ceil().times(increment);
-  if (input.minimumSalePriceUsd !== undefined && input.minimumSalePriceUsd !== null) {
-    recommendedPriceUsd = Prisma.Decimal.max(
-      recommendedPriceUsd,
-      new Prisma.Decimal(input.minimumSalePriceUsd),
-    );
-  }
+  const recommendedPriceUsd = rawRecommendedPriceUsd.div(increment).ceil().times(increment);
   const expectedProceedsUsd = recommendedPriceUsd.times(
     new Prisma.Decimal(1).minus(feeTotal),
   );

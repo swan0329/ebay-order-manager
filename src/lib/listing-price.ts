@@ -12,7 +12,6 @@ export type ListingPriceSettings = {
   targetMarginRate: Prisma.Decimal.Value;
   ebayFeeRate: Prisma.Decimal.Value;
   advertisingRate: Prisma.Decimal.Value;
-  minimumSalePriceUsd?: Prisma.Decimal.Value | null;
   roundingIncrementUsd?: Prisma.Decimal.Value;
 };
 
@@ -63,7 +62,6 @@ export function resolveListingPriceUsd(
       targetMarginRate: settings.targetMarginRate,
       ebayFeeRate: settings.ebayFeeRate,
       advertisingRate: settings.advertisingRate,
-      minimumSalePriceUsd: settings.minimumSalePriceUsd,
       roundingIncrementUsd: settings.roundingIncrementUsd,
     });
 

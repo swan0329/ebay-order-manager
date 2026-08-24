@@ -4,5 +4,99 @@ import { PricingReviewClient } from "@/components/PricingReviewClient";
 import { TopNav } from "@/components/TopNav";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-export const dynamic="force-dynamic";
-export default async function PricingSettingsPage(){const user=await requireUser();const [s,products,reviews,drafts]=await Promise.all([prisma.pricingSettings.findUnique({where:{id:"default"}}),prisma.product.findMany({where:{status:"active"},orderBy:{updatedAt:"desc"},take:200,select:{id:true,sku:true,productName:true,salePrice:true}}),prisma.pricingReview.findMany({orderBy:{createdAt:"desc"},take:20,include:{items:{include:{product:{select:{sku:true,productName:true}}}}}}),prisma.listingDraft.findMany({where:{userId:user.id,status:"draft"},orderBy:{updatedAt:"desc"},select:{id:true,sourceInventoryId:true,sku:true,title:true,price:true}})]);const initial=s?{domesticShippingKrw:String(s.domesticShippingKrw),buyingAgencyFeeKrw:String(s.buyingAgencyFeeKrw),exchangeRateKrwPerUsd:String(s.exchangeRateKrwPerUsd),targetMarginRate:String(s.targetMarginRate),ebayFeeRate:String(s.ebayFeeRate),advertisingRate:String(s.advertisingRate),minimumSalePriceUsd:s.minimumSalePriceUsd==null?null:String(s.minimumSalePriceUsd)}:null;const productProps=products.map(p=>({...p,salePrice:p.salePrice==null?null:String(p.salePrice)}));const reviewProps=reviews.map(review=>({id:review.id,status:review.status,createdAt:review.createdAt.toISOString(),approvedAt:review.approvedAt?.toISOString()??null,items:review.items.map(item=>({id:item.id,productId:item.productId,pocaPriceKrw:String(item.pocaPriceKrw),totalCostKrw:String(item.totalCostKrw),costUsd:String(item.costUsd),rawRecommendedPriceUsd:String(item.rawRecommendedPriceUsd),recommendedPriceUsd:String(item.recommendedPriceUsd),expectedProceedsUsd:String(item.expectedProceedsUsd),expectedNetMarginUsd:String(item.expectedNetMarginUsd),expectedNetMarginRate:String(item.expectedNetMarginRate),appliedDraftId:item.appliedDraftId,product:item.product}))}));return <div className="min-h-screen bg-zinc-50"><TopNav loginId={user.loginId}/><main className="mx-auto max-w-[1600px] px-4 py-7 sm:px-6"><h1 className="text-2xl font-bold">가격 관리</h1><p className="mt-1 text-sm text-zinc-600">설정을 저장하면 포카마켓 가격이 있는 상품의 권장가를 즉시 계산하고 아래에서 검토합니다.</p><PricingNav/><PricingSettingsForm initial={initial} calculationProductIds={productProps.filter(p=>p.salePrice&&Number(p.salePrice)>0).map(p=>p.id)}/><div className="mt-8"><PricingReviewClient products={productProps} initialReviews={reviewProps} drafts={drafts.map(d=>({...d,price:d.price==null?null:String(d.price)}))}/></div></main></div>}
+export const dynamic = "force-dynamic";
+export default async function PricingSettingsPage() {
+  const user = await requireUser();
+  const [s, products, reviews, drafts] = await Promise.all([
+    prisma.pricingSettings.findUnique({ where: { id: "default" } }),
+    prisma.product.findMany({
+      where: { status: "active" },
+      orderBy: { updatedAt: "desc" },
+      take: 200,
+      select: { id: true, sku: true, productName: true, salePrice: true },
+    }),
+    prisma.pricingReview.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      include: {
+        items: {
+          include: { product: { select: { sku: true, productName: true } } },
+        },
+      },
+    }),
+    prisma.listingDraft.findMany({
+      where: { userId: user.id, status: "draft" },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        sourceInventoryId: true,
+        sku: true,
+        title: true,
+        price: true,
+      },
+    }),
+  ]);
+  const initial = s
+    ? {
+        domesticShippingKrw: String(s.domesticShippingKrw),
+        buyingAgencyFeeKrw: String(s.buyingAgencyFeeKrw),
+        exchangeRateKrwPerUsd: String(s.exchangeRateKrwPerUsd),
+        targetMarginRate: String(s.targetMarginRate),
+        ebayFeeRate: String(s.ebayFeeRate),
+        advertisingRate: String(s.advertisingRate),
+      }
+    : null;
+  const productProps = products.map((p) => ({
+    ...p,
+    salePrice: p.salePrice == null ? null : String(p.salePrice),
+  }));
+  const reviewProps = reviews.map((review) => ({
+    id: review.id,
+    status: review.status,
+    createdAt: review.createdAt.toISOString(),
+    approvedAt: review.approvedAt?.toISOString() ?? null,
+    items: review.items.map((item) => ({
+      id: item.id,
+      productId: item.productId,
+      pocaPriceKrw: String(item.pocaPriceKrw),
+      totalCostKrw: String(item.totalCostKrw),
+      costUsd: String(item.costUsd),
+      rawRecommendedPriceUsd: String(item.rawRecommendedPriceUsd),
+      recommendedPriceUsd: String(item.recommendedPriceUsd),
+      expectedProceedsUsd: String(item.expectedProceedsUsd),
+      expectedNetMarginUsd: String(item.expectedNetMarginUsd),
+      expectedNetMarginRate: String(item.expectedNetMarginRate),
+      appliedDraftId: item.appliedDraftId,
+      product: item.product,
+    })),
+  }));
+  return (
+    <div className="min-h-screen bg-zinc-50">
+      <TopNav loginId={user.loginId} />
+      <main className="mx-auto max-w-[1600px] px-4 py-7 sm:px-6">
+        <h1 className="text-2xl font-bold">가격 관리</h1>
+        <p className="mt-1 text-sm text-zinc-600">
+          설정을 저장하면 포카마켓 가격이 있는 상품의 권장가를 즉시 계산하고
+          아래에서 검토합니다.
+        </p>
+        <PricingNav />
+        <PricingSettingsForm
+          initial={initial}
+          calculationProductIds={productProps
+            .filter((p) => p.salePrice && Number(p.salePrice) > 0)
+            .map((p) => p.id)}
+        />
+        <div className="mt-8">
+          <PricingReviewClient
+            products={productProps}
+            initialReviews={reviewProps}
+            drafts={drafts.map((d) => ({
+              ...d,
+              price: d.price == null ? null : String(d.price),
+            }))}
+          />
+        </div>
+      </main>
+    </div>
+  );
+}

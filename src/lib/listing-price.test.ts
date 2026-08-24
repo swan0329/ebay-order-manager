@@ -9,16 +9,15 @@ const settings = {
   targetMarginRate: 0,
   ebayFeeRate: 0,
   advertisingRate: 0,
-  minimumSalePriceUsd: 10,
   roundingIncrementUsd: 0.1,
 };
 
 describe("resolveListingPriceUsd", () => {
   it("uses each Pocamarket price even when an explicit price also exists", () => {
     const first = resolveListingPriceUsd({ salePrice: new Prisma.Decimal(1000), ebayPrice: new Prisma.Decimal("12.30") }, settings);
-    const second = resolveListingPriceUsd({ salePrice: new Prisma.Decimal(20000), ebayPrice: new Prisma.Decimal("27.40") }, { ...settings, minimumSalePriceUsd: null });
+    const second = resolveListingPriceUsd({ salePrice: new Prisma.Decimal(20000), ebayPrice: new Prisma.Decimal("27.40") }, settings);
     expect(first).toMatchObject({ source: "pocamarket" });
-    expect(first?.priceUsd.toFixed(2)).toBe("10.00");
+    expect(first?.priceUsd.toFixed(2)).toBe("1.00");
     expect(second).toMatchObject({ source: "pocamarket" });
     expect(second?.priceUsd.toFixed(2)).toBe("20.00");
   });
@@ -26,6 +25,6 @@ describe("resolveListingPriceUsd", () => {
   it("uses the Pocamarket formula when no explicit option price exists", () => {
     const price = resolveListingPriceUsd({ salePrice: new Prisma.Decimal(1000), ebayPrice: null }, settings);
     expect(price).toMatchObject({ source: "pocamarket" });
-    expect(price?.priceUsd.toFixed(2)).toBe("10.00");
+    expect(price?.priceUsd.toFixed(2)).toBe("1.00");
   });
 });

@@ -61,7 +61,6 @@ export async function POST(request: Request) {
         targetMarginRate: settings.targetMarginRate,
         ebayFeeRate: settings.ebayFeeRate,
         advertisingRate: settings.advertisingRate,
-        minimumSalePriceUsd: settings.minimumSalePriceUsd,
         roundingIncrementUsd: settings.roundingIncrementUsd,
       }) };
     });
@@ -72,7 +71,7 @@ export async function POST(request: Request) {
         exchangeRateKrwPerUsd: settings.exchangeRateKrwPerUsd,
         targetMarginRate: settings.targetMarginRate, ebayFeeRate: settings.ebayFeeRate,
         advertisingRate: settings.advertisingRate,
-        minimumSalePriceUsd: settings.minimumSalePriceUsd,
+        minimumSalePriceUsd: null,
         roundingIncrementUsd: settings.roundingIncrementUsd,
         allocationMethod: settings.allocationMethod, createdById: user.id,
         items: { create: calculated.map(({ productId, ...result }) => ({ productId, ...result })) },

@@ -5,7 +5,7 @@ const base = {
   pocaPriceKrw: "10000", domesticShippingKrw: "3000", buyingAgencyFeeKrw: "1000",
   exchangeRateKrwPerUsd: "1400", targetMarginRate: "0.30",
   ebayFeeRate: "0.13", advertisingRate: "0.05",
-  minimumSalePriceUsd: null, roundingIncrementUsd: "0.10",
+  roundingIncrementUsd: "0.10",
 };
 
 describe("PocaMarket cost based eBay recommendation", () => {
@@ -17,9 +17,10 @@ describe("PocaMarket cost based eBay recommendation", () => {
     expect(result.recommendedPriceUsd.toFixed(2)).toBe("15.90");
     expect(result.expectedNetMarginUsd.toFixed(2)).toBe("3.04");
   });
-  it("applies the global minimum after calculation", () => {
-    const result = calculateRecommendedPrice({ ...base, pocaPriceKrw: "0", domesticShippingKrw: "0", buyingAgencyFeeKrw: "0", minimumSalePriceUsd: "4.99" });
-    expect(result.recommendedPriceUsd.toFixed(2)).toBe("4.99");
+  it("ignores a legacy minimum sale price value", () => {
+    const legacyInput = { ...base, minimumSalePriceUsd: "999.00" };
+    const result = calculateRecommendedPrice(legacyInput);
+    expect(result.recommendedPriceUsd.toFixed(2)).toBe("15.90");
   });
   it("rejects a zero exchange rate", () => {
     expect(() => calculateRecommendedPrice({ ...base, exchangeRateKrwPerUsd: "0" })).toThrow("환율은 0보다 커야");
