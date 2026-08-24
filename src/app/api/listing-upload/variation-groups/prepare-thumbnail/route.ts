@@ -5,6 +5,7 @@ import { asErrorMessage, jsonError } from "@/lib/http";
 import {
   getVariationListingReadyImages,
   promoteVariationListingImagesToR2,
+  withVariationListingMetadata,
 } from "@/lib/variation-listing-products";
 import { buildVariationListingGroups, variationParentSku } from "@/lib/variation-listing-groups";
 import { variationThumbnailHash } from "@/lib/variation-thumbnail-state";
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
     let readyImages = await getVariationListingReadyImages();
     let stored = await prisma.product.findMany({ where: { id: { in: readyImages.map((row) => row.id) } } });
     let imageById = new Map(readyImages.map((row) => [row.id, row.listingImageUrl]));
-    let products = stored.filter(hasListingPrice).map((product) => ({ ...product, imageUrl: imageById.get(product.id) ?? null, ebayImageUrls: [] }));
+    let products = (await withVariationListingMetadata(stored)).filter(hasListingPrice).map((product) => ({ ...product, imageUrl: imageById.get(product.id) ?? null, ebayImageUrls: [] }));
     let group = buildVariationListingGroups(products).groups.find((item) => item.key === groupKey);
     if (!group) return jsonError("묶음 후보가 변경되었습니다. 화면을 새로고침해 주세요.", 409);
     const groupProductIds = new Set(group.products.map((product) => product.id));
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
       readyImages = await getVariationListingReadyImages();
       stored = await prisma.product.findMany({ where: { id: { in: readyImages.map((row) => row.id) } } });
       imageById = new Map(readyImages.map((row) => [row.id, row.listingImageUrl]));
-      products = stored.filter(hasListingPrice).map((product) => ({ ...product, imageUrl: imageById.get(product.id) ?? null, ebayImageUrls: [] }));
+      products = (await withVariationListingMetadata(stored)).filter(hasListingPrice).map((product) => ({ ...product, imageUrl: imageById.get(product.id) ?? null, ebayImageUrls: [] }));
       group = buildVariationListingGroups(products).groups.find((item) => item.key === groupKey);
       if (!group) return jsonError("이미지를 R2에 저장한 뒤 묶음 구성이 변경되었습니다. 화면을 새로고침해 주세요.", 409);
     }

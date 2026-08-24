@@ -30,6 +30,24 @@ describe("buildVariationListingGroups", () => {
     expect(relationshipDetails(result.groups[0])).toBe("Card=Felix;Felix 2");
   });
 
+  it("uses actual featured members instead of unit as the option name", () => {
+    const result = buildVariationListingGroups([
+      { ...base, id: "1", sku: "A-1", optionName: "unit", featuredMembers: "Changbin, Bang Chan" },
+      { ...base, id: "2", sku: "A-2", optionName: "Han" },
+    ]);
+    expect(result.groups[0].products.map((item) => item.variationName)).toEqual(["Changbin, Bang Chan", "Han"]);
+    expect(relationshipDetails(result.groups[0])).toBe("Card=Changbin, Bang Chan;Han");
+  });
+
+  it("keeps a unit card without assigned members out of listing groups", () => {
+    const result = buildVariationListingGroups([
+      { ...base, id: "1", sku: "A-1", optionName: "유닛", featuredMembers: null },
+      { ...base, id: "2", sku: "A-2", optionName: "Han" },
+    ]);
+    expect(result.groups).toHaveLength(0);
+    expect(result.unmatched.map((item) => item.sku)).toContain("A-1");
+  });
+
   it("removes member/group/album from a verbose product name before grouping", () => {
     const result = buildVariationListingGroups([
       { ...base, id: "1", sku: "A-1", optionName: "Bang Chan", productName: "Stray Kids HOP Bang Chan JYP Shop" },

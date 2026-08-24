@@ -4,11 +4,16 @@ import { createHash } from "node:crypto";
 import { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
 import { uploadBufferToR2 } from "@/lib/r2";
+import { productImageExtrasById, withProductImageExtras } from "@/lib/product-export-image-extras";
 
 export type VariationReadyImage = {
   id: string;
   listingImageUrl: string;
 };
+
+export async function withVariationListingMetadata<T extends { id: string }>(products: T[]) {
+  return withProductImageExtras(products, await productImageExtrasById(products.map((product) => product.id)));
+}
 
 export function isPublicListingImageUrl(value: string | null | undefined) {
   if (!value) return false;

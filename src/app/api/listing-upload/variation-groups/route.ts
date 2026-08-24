@@ -3,7 +3,7 @@ import { requireApiUser, UnauthorizedError } from "@/lib/session";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { hasListingPrice, resolveListingPriceUsd } from "@/lib/listing-price";
 import { buildVariationListingGroups, variationEbayTitle } from "@/lib/variation-listing-groups";
-import { getVariationListingReadyImages, isPublicListingImageUrl } from "@/lib/variation-listing-products";
+import { getVariationListingReadyImages, isPublicListingImageUrl, withVariationListingMetadata } from "@/lib/variation-listing-products";
 import { thumbnailIsCurrent, variationThumbnailHash } from "@/lib/variation-thumbnail-state";
 import { getListingWatermarkSettings } from "@/lib/variation-thumbnail-settings";
 import { listingWatermarkSignature } from "@/lib/listing-watermark";
@@ -31,7 +31,7 @@ export async function GET() {
       take: 10_000,
     });
     const readyImageById = new Map(readyImages.map((row) => [row.id, row.listingImageUrl]));
-    const eligible = products
+    const eligible = (await withVariationListingMetadata(products))
       .filter((product) => hasListingPrice(product))
       .map((product) => ({ ...product, imageUrl: readyImageById.get(product.id) ?? null, ebayImageUrls: [] }));
     const { groups, unmatched } = buildVariationListingGroups(eligible);

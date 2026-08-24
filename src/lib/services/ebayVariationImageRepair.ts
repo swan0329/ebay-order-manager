@@ -3,7 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getEbayConfig } from "@/lib/env";
 import { buildVariationListingGroups, type VariationListingGroup } from "@/lib/variation-listing-groups";
-import { getVariationListingImagesByIds } from "@/lib/variation-listing-products";
+import { getVariationListingImagesByIds, withVariationListingMetadata } from "@/lib/variation-listing-products";
 import { ensureVariationThumbnail } from "@/lib/services/shopifyVariationMedia";
 import { reviseEbayRepresentativePicture } from "@/lib/services/ebayRevise";
 import { resolveListingWatermark } from "@/lib/listing-watermark";
@@ -50,7 +50,7 @@ async function groupsForStates(userId: string) {
   const ids = [...new Set(states.flatMap((state) => Array.isArray(state.includedProductIds) ? state.includedProductIds.filter((id): id is string => typeof id === "string") : []))];
   const images = await getVariationListingImagesByIds(ids);
   const imageById = new Map(images.map((row) => [row.id, row.listingImageUrl]));
-  const products = await prisma.product.findMany({ where: { id: { in: ids } }, select: { id: true, sku: true, brand: true, category: true, productName: true, optionName: true } });
+  const products = await withVariationListingMetadata(await prisma.product.findMany({ where: { id: { in: ids } }, select: { id: true, sku: true, brand: true, category: true, productName: true, optionName: true } }));
   const productById = new Map(products.map((product) => [product.id, product]));
   return states.map((state) => {
     const productIds = Array.isArray(state.includedProductIds) ? state.includedProductIds.filter((id): id is string => typeof id === "string") : [];

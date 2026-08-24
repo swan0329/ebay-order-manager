@@ -12,7 +12,7 @@ const ebayImageRepairs = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/prisma", () => ({ prisma: { listingDraft: { findMany: findDrafts, count: countDrafts }, product: { findMany: findProducts }, orderItem: { findMany: findOrderItems }, pricingSettings: { findUnique: findPricingSettings } } }));
 vi.mock("@/lib/services/ebayInventoryPush", () => ({ planEbayInventoryPush: planInventory }));
 vi.mock("@/lib/listing-price", () => ({ resolveListingPriceUsd: (product: { ebayPrice?: number | null }) => ({ priceUsd: product.ebayPrice ?? 10 }) }));
-vi.mock("@/lib/variation-listing-products", () => ({ getVariationListingReadyImages: readyImages }));
+vi.mock("@/lib/variation-listing-products", () => ({ getVariationListingReadyImages: readyImages, withVariationListingMetadata: async <T,>(products: T[]) => products }));
 vi.mock("@/lib/services/ebayVariationImageRepair", () => ({ listEbayVariationImageRepairs: ebayImageRepairs }));
 
 const { getEbayOperations, getShopifyOperations } = await import("@/lib/services/ebayOperations");

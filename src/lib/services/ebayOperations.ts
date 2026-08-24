@@ -6,7 +6,7 @@ import { resolveListingPriceUsd } from "@/lib/listing-price";
 import { reservedByProduct } from "@/lib/stock-reservation";
 import { availabilityReason, resolveChannelAvailability } from "@/lib/channel-availability";
 import { buildVariationListingGroups, variationParentSku } from "@/lib/variation-listing-groups";
-import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
+import { getVariationListingReadyImages, withVariationListingMetadata } from "@/lib/variation-listing-products";
 import { shopifyImageSyncIsCurrent } from "@/lib/shopify-image-sync-state";
 import { listEbayVariationImageRepairs } from "@/lib/services/ebayVariationImageRepair";
 
@@ -124,7 +124,7 @@ export async function getShopifyOperations() {
   const lines = await prisma.orderItem.findMany({ where: { productId: { in: products.map((product) => product.id) }, stockDeducted: false }, select: { productId: true, quantity: true, stockDeducted: true, order: { select: { orderStatus: true, fulfillmentStatus: true } } } });
   const cancelled = ["CANCELLED", "CANCELED", "CANCELLED_BY_SELLER"];
   const reserved = reservedByProduct(lines.map((line) => ({ productId: line.productId as string, quantity: line.quantity, stockDeducted: line.stockDeducted, orderCancelled: cancelled.includes(line.order.orderStatus) || cancelled.includes(line.order.fulfillmentStatus) })));
-  const mapped = products.map((product) => {
+  const mapped = (await withVariationListingMetadata(products)).map((product) => {
     const listing = product.productListings[0];
     const availability = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: reserved.get(product.id) ?? 0, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
     const price = settings ? Number(resolveListingPriceUsd(product, settings)?.priceUsd ?? 0) || null : null;

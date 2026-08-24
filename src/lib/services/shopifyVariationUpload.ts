@@ -5,7 +5,7 @@ import { resolveListingPriceUsd } from "@/lib/listing-price";
 import { reservedByProduct } from "@/lib/stock-reservation";
 import { resolveChannelAvailability } from "@/lib/channel-availability";
 import { buildVariationListingGroups } from "@/lib/variation-listing-groups";
-import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
+import { getVariationListingReadyImages, withVariationListingMetadata } from "@/lib/variation-listing-products";
 import { upsertShopifyVariationProduct } from "@/lib/services/shopifyService";
 import { createWatermarkedListingImage, resolveListingWatermark } from "@/lib/listing-watermark";
 import { ensureShopifyVariationThumbnail } from "@/lib/services/shopifyVariationMedia";
@@ -16,7 +16,7 @@ export async function uploadShopifyVariationGroup(productIds: string[], userId: 
     getVariationListingReadyImages(),
   ]);
   const readyImageById = new Map(readyImages.map((row) => [row.id, row.listingImageUrl]));
-  const products = storedProducts.map((product) => ({ ...product, imageUrl: readyImageById.get(product.id) ?? product.imageUrl }));
+  const products = (await withVariationListingMetadata(storedProducts)).map((product) => ({ ...product, imageUrl: readyImageById.get(product.id) ?? product.imageUrl }));
   if (products.some((product) => !readyImageById.has(product.id))) throw new Error("최종 승인 이미지가 없는 Shopify 옵션이 포함되어 있습니다.");
   const groups = buildVariationListingGroups(products).groups;
   if (groups.length !== 1 || groups[0].products.length !== productIds.length) throw new Error("Shopify 묶음 구성이 변경되었습니다. 목록을 새로고침해 주세요.");

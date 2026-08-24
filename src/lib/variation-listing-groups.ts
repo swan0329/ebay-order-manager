@@ -7,6 +7,7 @@ export type VariationProduct = {
   optionName: string | null;
   imageUrl: string | null;
   ebayImageUrls?: string[];
+  featuredMembers?: string | null;
 };
 
 export type VariationListingGroup<T extends VariationProduct = VariationProduct> = {
@@ -24,6 +25,20 @@ function clean(value: string | null | undefined) {
 
 function comparable(value: string) {
   return clean(value).normalize("NFKC").toLocaleLowerCase("en");
+}
+
+function featuredMemberNames(value: string | null | undefined) {
+  return clean(value).split(/[,/|·、]+/).map(clean).filter(Boolean);
+}
+
+function isUnitName(value: string | null | undefined) {
+  return /^(?:unit|유닛)$/iu.test(clean(value));
+}
+
+export function variationOptionName(product: Pick<VariationProduct, "optionName" | "featuredMembers">) {
+  if (!isUnitName(product.optionName)) return clean(product.optionName) || "Card";
+  const members = featuredMemberNames(product.featuredMembers);
+  return members.length ? members.join(", ") : "";
 }
 
 function removeText(source: string, value: string | null | undefined) {
@@ -63,7 +78,7 @@ export function variationEbayTitle(title: string) {
 function uniqueVariationNames<T extends VariationProduct>(products: T[]) {
   const used = new Map<string, number>();
   return products.map((product) => {
-    const member = clean(product.optionName) || "Card";
+    const member = variationOptionName(product);
     const count = (used.get(comparable(member)) ?? 0) + 1;
     used.set(comparable(member), count);
     return { ...product, variationName: count === 1 ? member : `${member} ${count}` };
@@ -84,7 +99,8 @@ export function buildVariationListingGroups<T extends VariationProduct>(products
     const albumName = clean(product.category);
     const versionName = variationVersionName(product);
     const hasImage = Boolean(clean(product.imageUrl) || product.ebayImageUrls?.some(Boolean));
-    if (!groupName || !albumName || !hasImage) {
+    const optionName = variationOptionName(product);
+    if (!groupName || !albumName || !hasImage || !optionName) {
       unmatched.push(product);
       continue;
     }
@@ -101,7 +117,7 @@ export function buildVariationListingGroups<T extends VariationProduct>(products
       continue;
     }
     rows.sort((a, b) =>
-      clean(a.optionName).localeCompare(clean(b.optionName), "ko", { numeric: true }) ||
+      variationOptionName(a).localeCompare(variationOptionName(b), "ko", { numeric: true }) ||
       a.sku.localeCompare(b.sku, "en", { numeric: true }),
     );
     const groupName = clean(rows[0].brand);

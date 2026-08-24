@@ -17,7 +17,7 @@ import {
   variationSinglesToEnd,
 } from "@/lib/variation-listing-groups";
 import { EBAY_END_LISTING_REASON } from "@/lib/ebay-end-listing-csv";
-import { getVariationListingReadyImages, isPublicListingImageUrl } from "@/lib/variation-listing-products";
+import { getVariationListingReadyImages, isPublicListingImageUrl, withVariationListingMetadata } from "@/lib/variation-listing-products";
 import { thumbnailIsCurrent, variationThumbnailHash } from "@/lib/variation-thumbnail-state";
 import { getListingWatermarkSettings } from "@/lib/variation-thumbnail-settings";
 import { listingWatermarkSignature } from "@/lib/listing-watermark";
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     }
     const storedProducts = await prisma.product.findMany({ where: { id: { in: readyImages.map((row) => row.id) } } });
     const readyImageById = new Map(readyImages.map((row) => [row.id, row.listingImageUrl]));
-    const products = storedProducts.filter(hasListingPrice).map((product) => ({
+    const products = (await withVariationListingMetadata(storedProducts)).filter(hasListingPrice).map((product) => ({
       ...product,
       imageUrl: readyImageById.get(product.id) ?? null,
       ebayImageUrls: [],
