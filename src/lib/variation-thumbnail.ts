@@ -1,11 +1,9 @@
 import sharp from "sharp";
 import path from "node:path";
+import { createWatermarkOverlay } from "@/lib/listing-watermark-renderer";
 
 const SIZE = 1000;
 const HEADER_HEIGHT = 150;
-const DEFAULT_WATERMARK_OPACITY = 0.06;
-const DEFAULT_WATERMARK_LOGO_SIZE = 50;
-const DEFAULT_WATERMARK_GAP = 25;
 
 export type VariationThumbnailInput = {
   groupName: string;
@@ -95,52 +93,13 @@ async function downloadImage(url: string) {
 }
 
 async function watermarkLayer(input: VariationThumbnailInput) {
-  const opacity = Math.max(0.03, Math.min(0.3, input.watermarkOpacity ?? DEFAULT_WATERMARK_OPACITY));
-  let tile: Buffer | null = null;
-  if (input.watermarkLogo?.length) {
-    const logoSize = Math.max(35, Math.min(220, input.watermarkLogoSize ?? DEFAULT_WATERMARK_LOGO_SIZE));
-    const resized = await sharp(input.watermarkLogo, { failOn: "none" })
-      .resize({ width: logoSize, height: logoSize, fit: "inside", withoutEnlargement: true })
-      .greyscale()
-      .ensureAlpha()
-      .png()
-      .toBuffer();
-    tile = await applyAlphaOpacity(resized, opacity);
-    tile = await sharp(tile).rotate(-18, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
-  } else if (input.watermarkText?.trim()) {
-    tile = Buffer.from(watermarkTextSvg(input.watermarkText.trim(), opacity));
-  }
-  if (!tile) return null;
-  const metadata = await sharp(tile).metadata();
-  const width = metadata.width ?? 150;
-  const height = metadata.height ?? 80;
-  const placements: sharp.OverlayOptions[] = [];
-  const gap = Math.max(10, Math.min(180, input.watermarkGap ?? DEFAULT_WATERMARK_GAP));
-  let row = 0;
-  const step = width + gap;
-  for (let y = HEADER_HEIGHT + 8; y < SIZE; y += height + gap) {
-    // 항상 x=0에서 시작하면 왼쪽에 세로 워터마크 줄이 생긴다. 행마다 반 칸씩
-    // 앞으로 이동해 화면 전체에서 자연스럽게 대각선으로 이어지게 한다.
-    const offset = (row * Math.max(1, Math.round(step / 2))) % step;
-    for (let x = offset; x < SIZE; x += width + gap) {
-      placements.push({ input: tile, left: x, top: y });
-    }
-    row += 1;
-  }
-  return sharp({ create: { width: SIZE, height: SIZE, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
-    .composite(placements)
-    .png()
-    .toBuffer();
-}
-
-/** Sharp's linear() cannot safely expand all PNG band layouts. Adjust alpha bytes directly. */
-async function applyAlphaOpacity(input: Buffer, opacity: number) {
-  const rendered = await sharp(input, { failOn: "none" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const alphaChannel = rendered.info.channels - 1;
-  for (let index = alphaChannel; index < rendered.data.length; index += rendered.info.channels) {
-    rendered.data[index] = Math.round(rendered.data[index]! * opacity);
-  }
-  return sharp(rendered.data, { raw: { width: rendered.info.width, height: rendered.info.height, channels: rendered.info.channels } }).png().toBuffer();
+  return createWatermarkOverlay(SIZE, SIZE, {
+    logo: input.watermarkLogo ?? null,
+    watermarkText: input.watermarkText ?? null,
+    watermarkOpacity: input.watermarkOpacity ?? 0.06,
+    watermarkLogoSize: input.watermarkLogoSize ?? 50,
+    watermarkGap: input.watermarkGap ?? 25,
+  }, HEADER_HEIGHT + 8);
 }
 
 async function headerLayer(groupName: string, albumName: string) {
@@ -153,12 +112,6 @@ async function headerLayer(groupName: string, albumName: string) {
   return sharp({ create: { width: SIZE, height: HEADER_HEIGHT, channels: 3, background: "#ffffff" } })
     .composite([{ input: title, left: 28, top: 12 }, { input: subtitle, left: 28, top: 82 }, { input: line, left: 0, top: 0 }])
     .png().toBuffer();
-}
-
-function watermarkTextSvg(text: string, opacity: number) {
-  return `<svg width="190" height="90" xmlns="http://www.w3.org/2000/svg">
-    <text x="95" y="52" text-anchor="middle" transform="rotate(-18 95 45)" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#111" fill-opacity="${opacity}">${escapeXml(text)}</text>
-  </svg>`;
 }
 
 function escapeXml(value: string) {

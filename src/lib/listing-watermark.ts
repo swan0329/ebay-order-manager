@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { uploadBufferToR2 } from "@/lib/r2";
 import { getListingWatermarkSettings, type ListingWatermarkSettings } from "@/lib/variation-thumbnail-settings";
+import { createWatermarkOverlay } from "@/lib/listing-watermark-renderer";
 
 export type ResolvedWatermark = ListingWatermarkSettings & { logo: Buffer | null; signature: string };
 
@@ -16,10 +17,6 @@ export function listingWatermarkSignature(settings: Omit<ListingWatermarkSetting
     watermarkGap: settings.watermarkGap,
     applyToIndividualCards: settings.applyToIndividualCards,
   })).digest("hex").slice(0, 24);
-}
-
-function escapeXml(value: string) {
-  return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[character] ?? character);
 }
 
 async function loadLogo(url: string | null) {
@@ -36,44 +33,6 @@ export async function resolveListingWatermark(userId: string): Promise<ResolvedW
   const logo = await loadLogo(settings.logoUrl);
   const signature = listingWatermarkSignature(settings);
   return { ...settings, logo, signature };
-}
-
-async function watermarkTile(settings: ResolvedWatermark) {
-  // 미리보기와 실제 전송 모두 관리자가 저장한 투명도를 그대로 사용한다.
-  const opacity = Math.max(0.03, Math.min(0.3, settings.watermarkOpacity));
-  if (settings.logo?.length) {
-    const size = Math.max(35, Math.min(220, settings.watermarkLogoSize));
-    const resized = await sharp(settings.logo, { failOn: "none" })
-      .resize({ width: size, height: size, fit: "inside", withoutEnlargement: true })
-      .greyscale().ensureAlpha().png().toBuffer();
-    const rendered = await sharp(resized, { failOn: "none" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const alphaChannel = rendered.info.channels - 1;
-    for (let index = alphaChannel; index < rendered.data.length; index += rendered.info.channels) rendered.data[index] = Math.round(rendered.data[index]! * opacity);
-    const alphaAdjusted = await sharp(rendered.data, { raw: { width: rendered.info.width, height: rendered.info.height, channels: rendered.info.channels } }).png().toBuffer();
-    return sharp(alphaAdjusted).rotate(-18, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
-  }
-  if (!settings.watermarkText?.trim()) return null;
-  return Buffer.from(`<svg width="190" height="90" xmlns="http://www.w3.org/2000/svg"><text x="95" y="52" text-anchor="middle" transform="rotate(-18 95 45)" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#111" fill-opacity="${opacity}">${escapeXml(settings.watermarkText.trim())}</text></svg>`);
-}
-
-async function watermarkOverlay(width: number, height: number, settings: ResolvedWatermark) {
-  const tile = await watermarkTile(settings);
-  if (!tile) return null;
-  const metadata = await sharp(tile).metadata();
-  const tileWidth = metadata.width ?? 150;
-  const tileHeight = metadata.height ?? 80;
-  const gap = Math.max(10, Math.min(180, settings.watermarkGap));
-  const placements: sharp.OverlayOptions[] = [];
-  let row = 0;
-  const step = tileWidth + gap;
-  for (let y = 0; y < height; y += tileHeight + gap) {
-    const offset = (row * Math.max(1, Math.round(step / 2))) % step;
-    for (let x = offset; x < width; x += tileWidth + gap) {
-      placements.push({ input: tile, left: x, top: y });
-    }
-    row += 1;
-  }
-  return sharp({ create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite(placements).png().toBuffer();
 }
 
 /**
@@ -94,7 +53,7 @@ export async function createWatermarkedImageBuffer(sourceUrl: string, settings: 
   const source = Buffer.from(bytes);
   const metadata = await sharp(source, { failOn: "none" }).rotate().metadata();
   if (!metadata.width || !metadata.height) throw new Error("개별 카드 이미지 형식을 확인할 수 없습니다.");
-  const overlay = await watermarkOverlay(metadata.width, metadata.height, settings);
+  const overlay = await createWatermarkOverlay(metadata.width, metadata.height, settings);
   if (!overlay) return { buffer: source, applied: false };
   const buffer = await sharp(source, { failOn: "none" }).rotate().ensureAlpha().composite([{ input: overlay }]).jpeg({ quality: 93, chromaSubsampling: "4:4:4" }).toBuffer();
   return { buffer, applied: true };
