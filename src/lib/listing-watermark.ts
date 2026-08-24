@@ -39,9 +39,8 @@ export async function resolveListingWatermark(userId: string): Promise<ResolvedW
 }
 
 async function watermarkTile(settings: ResolvedWatermark) {
-  // 흰 배경의 묶음 썸네일과 달리 실사 카드 사진에서는 6%가 사실상 보이지
-  // 않는다. 개별 판매 사진은 최소 12%를 보장해 워터마크 역할을 하게 한다.
-  const opacity = Math.max(0.12, Math.min(0.3, settings.watermarkOpacity));
+  // 미리보기와 실제 전송 모두 관리자가 저장한 투명도를 그대로 사용한다.
+  const opacity = Math.max(0.03, Math.min(0.3, settings.watermarkOpacity));
   if (settings.logo?.length) {
     const size = Math.max(35, Math.min(220, settings.watermarkLogoSize));
     const resized = await sharp(settings.logo, { failOn: "none" })
@@ -82,9 +81,8 @@ async function watermarkOverlay(width: number, height: number, settings: Resolve
  * copy to R2, so a changed logo/size/text automatically gets a new URL.
  */
 export async function createWatermarkedImageBuffer(sourceUrl: string, settings: ResolvedWatermark) {
-  // 워터마크가 설정되어 있으면 개별 카드에도 반드시 적용한다. 과거에 저장된
-  // 선택값이 false여도 원본을 그대로 전송하지 않는다.
-  if (!settings.logo && !settings.watermarkText?.trim()) {
+  // 개별 카드 적용 여부는 관리자가 저장한 선택값을 반드시 따른다.
+  if (!settings.applyToIndividualCards || (!settings.logo && !settings.watermarkText?.trim())) {
     const response = await fetch(sourceUrl, { signal: AbortSignal.timeout(20_000) });
     if (!response.ok) throw new Error(`개별 카드 이미지를 불러오지 못했습니다. (${response.status})`);
     return { buffer: Buffer.from(await response.arrayBuffer()), applied: false };
