@@ -1,4 +1,5 @@
 import { VariationListingGroupsClient } from "@/components/VariationListingGroupsClient";
+import { ListingWatermarkControls } from "@/components/ListingWatermarkControls";
 import { TopNav } from "@/components/TopNav";
 import { requireUser } from "@/lib/session";
 
@@ -14,6 +15,7 @@ export default async function Page() {
             이미지 작업과 최종 검수가 승인된 카드만 그룹 · 앨범 · 버전별로 묶습니다.
           </p>
       </div>
+        <ListingWatermarkControls />
         <VariationListingGroupsClient />
       </main>
     </div>
