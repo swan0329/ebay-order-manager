@@ -14,12 +14,13 @@ const settings = {
 };
 
 describe("resolveListingPriceUsd", () => {
-  it("preserves each explicit option price even when Pocamarket price also exists", () => {
+  it("uses each Pocamarket price even when an explicit price also exists", () => {
     const first = resolveListingPriceUsd({ salePrice: new Prisma.Decimal(1000), ebayPrice: new Prisma.Decimal("12.30") }, settings);
-    const second = resolveListingPriceUsd({ salePrice: new Prisma.Decimal(1000), ebayPrice: new Prisma.Decimal("27.40") }, settings);
-    expect(first).toMatchObject({ source: "manual" });
-    expect(first?.priceUsd.toFixed(2)).toBe("12.30");
-    expect(second?.priceUsd.toFixed(2)).toBe("27.40");
+    const second = resolveListingPriceUsd({ salePrice: new Prisma.Decimal(20000), ebayPrice: new Prisma.Decimal("27.40") }, { ...settings, minimumSalePriceUsd: null });
+    expect(first).toMatchObject({ source: "pocamarket" });
+    expect(first?.priceUsd.toFixed(2)).toBe("10.00");
+    expect(second).toMatchObject({ source: "pocamarket" });
+    expect(second?.priceUsd.toFixed(2)).toBe("20.00");
   });
 
   it("uses the Pocamarket formula when no explicit option price exists", () => {

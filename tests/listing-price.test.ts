@@ -25,10 +25,10 @@ function product(salePrice: string | null, ebayPrice: string | null) {
 }
 
 describe("신규등록 판매가 결정", () => {
-  it("포카마켓 가격과 수동 가격이 둘 다 있으면 사람이 확정한 옵션별 가격을 쓴다", () => {
+  it("포카마켓 가격과 수동 가격이 둘 다 있으면 포카마켓 계산가를 쓴다", () => {
     const result = resolveListingPriceUsd(product("10000", "9.99"), settings);
-    expect(result?.source).toBe("manual");
-    expect(result?.priceUsd.toFixed(2)).toBe("9.99");
+    expect(result?.source).toBe("pocamarket");
+    expect(result?.priceUsd.toFixed(2)).toBe("15.90");
   });
 
   it("포카마켓 가격이 없으면 수동 입력한 판매가를 쓴다", () => {

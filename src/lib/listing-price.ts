@@ -48,16 +48,12 @@ export function manualEbayPriceUsd(
   return value.isFinite() && value.greaterThan(0) ? value : null;
 }
 
-// 사람이 상품별로 확정한 eBay 판매가가 있으면 그 값을 우선한다. 명시적 옵션별
-// 가격을 포카마켓 공통 최저가 계산으로 덮으면 묶음의 모든 옵션이 같은 가격이 될
-// 수 있다. 수동값이 없는 상품만 최신 포카마켓 원가와 마진 공식으로 계산한다.
+// 포카마켓 가격이 있으면 최신 원가와 마진 공식으로 계산한다. 수동 eBay 판매가는
+// 포카마켓 가격이 없는 상품에만 사용한다.
 export function resolveListingPriceUsd(
   product: ListingPriceProduct,
   settings: ListingPriceSettings,
 ): ListingPrice | null {
-  const manual = manualEbayPriceUsd(product);
-  if (manual) return { priceUsd: manual, source: "manual" };
-
   if (hasPocamarketPrice(product)) {
     const result = calculateRecommendedPrice({
       pocaPriceKrw: product.salePrice!,
@@ -74,7 +70,8 @@ export function resolveListingPriceUsd(
     return { priceUsd: result.recommendedPriceUsd, source: "pocamarket" };
   }
 
-  return null;
+  const manual = manualEbayPriceUsd(product);
+  return manual ? { priceUsd: manual, source: "manual" } : null;
 }
 
 // 가격 설정 없이도 판정할 수 있는 "가격이 있는가". 목록 필터와 안내 문구에 쓴다.
