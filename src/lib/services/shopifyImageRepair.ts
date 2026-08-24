@@ -39,7 +39,9 @@ export async function repairShopifyProductImages(productIds: string[], userId: s
     await createWatermarkedListingImage(readyImageById.get(product.id)!, watermark),
   ] as const));
   const imageByProductId = new Map(individualImages.map(([productId, image]) => [productId, image.url]));
-  const grouped = buildVariationListingGroups(products.map((product) => ({ ...product, imageUrl: imageByProductId.get(product.id)!, ebayImageUrls: [] }))).groups;
+  // 콜라주 대표 썸네일은 원본 카드들 위에 워터마크를 한 번만 얹는다. 이미
+  // 워터마크된 옵션용 복사본을 재료로 삼으면 대표 이미지가 이중 처리된다.
+  const grouped = buildVariationListingGroups(products.map((product) => ({ ...product, imageUrl: readyImageById.get(product.id)!, ebayImageUrls: [] }))).groups;
   const group = grouped.length === 1 && grouped[0].products.length === products.length ? grouped[0] : null;
   // 묶음은 제작한 콜라주 썸네일을 항상 첫 상품 미디어로 둔다. 옵션 이미지는
   // 그 뒤에 두고, 각각 해당 옵션과만 연결한다.

@@ -44,7 +44,7 @@ async function watermarkTile(settings: ResolvedWatermark) {
     const size = Math.max(35, Math.min(220, settings.watermarkLogoSize));
     return sharp(settings.logo, { failOn: "none" })
       .resize({ width: size, height: size, fit: "inside", withoutEnlargement: true })
-      .greyscale().ensureAlpha().linear([1, opacity], [0, 0])
+      .greyscale().ensureAlpha().linear([1, 1, 1, opacity], [0, 0, 0, 0])
       .rotate(-18, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
   }
   if (!settings.watermarkText?.trim()) return null;
@@ -60,10 +60,11 @@ async function watermarkOverlay(width: number, height: number, settings: Resolve
   const gap = Math.max(10, Math.min(180, settings.watermarkGap));
   const placements: sharp.OverlayOptions[] = [];
   let row = 0;
+  const step = tileWidth + gap;
   for (let y = 0; y < height; y += tileHeight + gap) {
-    const offset = row % 2 === 0 ? 0 : -Math.round((tileWidth + gap) / 2);
+    const offset = (row * Math.max(1, Math.round(step / 2))) % step;
     for (let x = offset; x < width; x += tileWidth + gap) {
-      if (x + tileWidth > 0) placements.push({ input: tile, left: Math.max(0, x), top: y });
+      placements.push({ input: tile, left: x, top: y });
     }
     row += 1;
   }

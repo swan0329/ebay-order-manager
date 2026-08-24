@@ -103,7 +103,9 @@ async function watermarkLayer(input: VariationThumbnailInput) {
       .resize({ width: logoSize, height: logoSize, fit: "inside", withoutEnlargement: true })
       .greyscale()
       .ensureAlpha()
-      .linear([1, opacity], [0, 0])
+      // RGB와 알파를 명시적으로 분리한다. 두 채널 배열을 쓰면 PNG에 따라
+      // 알파가 의도와 다르게 적용되어 개별 카드에서는 워터마크가 거의 안 보였다.
+      .linear([1, 1, 1, opacity], [0, 0, 0, 0])
       .rotate(-18, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
@@ -117,10 +119,13 @@ async function watermarkLayer(input: VariationThumbnailInput) {
   const placements: sharp.OverlayOptions[] = [];
   const gap = Math.max(10, Math.min(180, input.watermarkGap ?? DEFAULT_WATERMARK_GAP));
   let row = 0;
+  const step = width + gap;
   for (let y = HEADER_HEIGHT + 8; y < SIZE; y += height + gap) {
-    const offset = row % 2 === 0 ? 0 : -Math.round((width + gap) / 2);
+    // 항상 x=0에서 시작하면 왼쪽에 세로 워터마크 줄이 생긴다. 행마다 반 칸씩
+    // 앞으로 이동해 화면 전체에서 자연스럽게 대각선으로 이어지게 한다.
+    const offset = (row * Math.max(1, Math.round(step / 2))) % step;
     for (let x = offset; x < SIZE; x += width + gap) {
-      if (x + width > 0) placements.push({ input: tile, left: Math.max(0, x), top: y });
+      placements.push({ input: tile, left: x, top: y });
     }
     row += 1;
   }
