@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
+import { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
 import { uploadBufferToR2 } from "@/lib/r2";
 
@@ -92,4 +93,32 @@ export async function getVariationListingReadyImages() {
     ) <> ''
   `;
   return rows;
+}
+
+/** Final approved images for an already-published group, including sold-out members. */
+export async function getVariationListingImagesByIds(productIds: string[]) {
+  const ids = [...new Set(productIds.filter(Boolean))];
+  if (!ids.length) return [];
+  return prisma.$queryRaw<VariationReadyImage[]>`
+    SELECT p."id"
+      , CASE
+          WHEN EXISTS (
+            SELECT 1 FROM "ai_image_jobs" j
+            WHERE j."product_id" = p."id" AND j."status" = 'approved'
+          ) THEN p."image_url"
+          ELSE p."user_front_image_url"
+        END AS "listingImageUrl"
+    FROM "products" p
+    WHERE p."id" IN (${Prisma.join(ids)})
+      AND COALESCE(
+        CASE
+          WHEN EXISTS (
+            SELECT 1 FROM "ai_image_jobs" j
+            WHERE j."product_id" = p."id" AND j."status" = 'approved'
+          ) THEN p."image_url"
+          ELSE p."user_front_image_url"
+        END,
+        ''
+      ) <> ''
+  `;
 }

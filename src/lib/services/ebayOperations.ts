@@ -8,6 +8,7 @@ import { availabilityReason, resolveChannelAvailability } from "@/lib/channel-av
 import { buildVariationListingGroups, variationParentSku } from "@/lib/variation-listing-groups";
 import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
 import { shopifyImageSyncIsCurrent } from "@/lib/shopify-image-sync-state";
+import { listEbayVariationImageRepairs } from "@/lib/services/ebayVariationImageRepair";
 
 const ACTIVE = ["ACTIVE", "PUBLISHED", "LISTED"];
 
@@ -18,7 +19,7 @@ function priceChanged(current: number | null, previous: number | null) {
 }
 
 export async function getEbayOperations(userId: string) {
-  const [drafts, preparationCount, inventory] = await Promise.all([
+  const [drafts, preparationCount, inventory, imageRepair] = await Promise.all([
     prisma.listingDraft.findMany({
       where: {
         userId,
@@ -47,6 +48,7 @@ export async function getEbayOperations(userId: string) {
       },
     }),
     planEbayInventoryPush({ userId }),
+    listEbayVariationImageRepairs(userId),
   ]);
 
   const newestDraftByProduct = new Map<string, (typeof drafts)[number]>();
@@ -85,7 +87,7 @@ export async function getEbayOperations(userId: string) {
     change,
     unavailable: unavailable.map((row) => ({ ...row, reason: availabilityReason(row.availabilityStatus, row.listingType === "VARIATION_OPTION") })),
     review: review.map((row) => ({ ...row, reason: availabilityReason(row.availabilityStatus, row.listingType === "VARIATION_OPTION") })),
-    imageRepair: [],
+    imageRepair,
     summary: {
       createReady: create.length,
       createNeedsReview: preparationCount,
@@ -94,6 +96,7 @@ export async function getEbayOperations(userId: string) {
       unavailableSingles: unavailable.filter((row) => row.listingType === "SINGLE").length,
       sourceReview: review.filter((row) => row.availabilityStatus === "SOURCE_UNKNOWN").length,
       heldForOrder: review.filter((row) => row.availabilityStatus === "HELD_FOR_ORDER").length,
+      imageRepairListings: imageRepair.filter((row) => row.actionable).length,
     },
     limits: { createBatch: 50, reviseBatch: 200 },
   };

@@ -14,6 +14,7 @@ import {
 import { uploadShopifyProduct } from "@/lib/services/shopifyProductUpload";
 import { uploadShopifyVariationGroup } from "@/lib/services/shopifyVariationUpload";
 import { repairShopifyProductImages } from "@/lib/services/shopifyImageRepair";
+import { repairEbayVariationImage } from "@/lib/services/ebayVariationImageRepair";
 
 const executeSchema = z.object({
   action: z.enum(["CREATE", "CHANGE", "UNAVAILABLE", "REVIEW", "IMAGE_REPAIR"]),
@@ -165,6 +166,20 @@ export async function POST(request: Request) {
         dryRun: true,
         previewToken: preview.valid ? issueListingPreviewToken(draftIds) : null,
       });
+    }
+    if (input.action === "IMAGE_REPAIR") {
+      const current = await getEbayOperations(user.id);
+      const allowed = new Set(current.imageRepair.filter((row) => row.actionable).map((row) => row.productId));
+      const productIds = [...new Set(input.productIds)];
+      if (productIds.some((id) => !allowed.has(id))) return jsonError("현재 활성 상태이거나 최종 승인 이미지가 모두 준비된 eBay 묶음상품이 아닙니다.", 409);
+      if (input.dryRun) return Response.json({ dryRun: true, planned: productIds.length, rows: current.imageRepair.filter((row) => productIds.includes(row.productId)), previewToken: issueListingPreviewToken(productIds) });
+      if (!input.confirmed || !input.previewToken || !verifyListingPreviewToken(input.previewToken, productIds)) return jsonError("유효한 eBay 이미지 교체 미리보기 후 최종 확인이 필요합니다.", 409);
+      const results = [];
+      for (const productId of productIds) {
+        try { results.push({ productId, result: await repairEbayVariationImage(user.id, productId) }); }
+        catch (error) { results.push({ productId, error: error instanceof Error ? error.message : "eBay 대표사진 교체 실패" }); }
+      }
+      return Response.json({ succeeded: results.filter((row) => "result" in row).length, failed: results.filter((row) => "error" in row).length, results });
     }
     if (
       !input.dryRun &&

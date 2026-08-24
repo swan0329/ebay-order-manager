@@ -56,3 +56,6 @@ export async function ensureShopifyVariationThumbnail(
     throw error;
   }
 }
+
+/** Shared by Shopify creation and confirmed eBay representative-image repair. */
+export const ensureVariationThumbnail = ensureShopifyVariationThumbnail;

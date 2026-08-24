@@ -8,15 +8,17 @@ const findOrderItems = vi.hoisted(() => vi.fn());
 const findPricingSettings = vi.hoisted(() => vi.fn());
 const planInventory = vi.hoisted(() => vi.fn());
 const readyImages = vi.hoisted(() => vi.fn());
+const ebayImageRepairs = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/prisma", () => ({ prisma: { listingDraft: { findMany: findDrafts, count: countDrafts }, product: { findMany: findProducts }, orderItem: { findMany: findOrderItems }, pricingSettings: { findUnique: findPricingSettings } } }));
 vi.mock("@/lib/services/ebayInventoryPush", () => ({ planEbayInventoryPush: planInventory }));
 vi.mock("@/lib/listing-price", () => ({ resolveListingPriceUsd: (product: { ebayPrice?: number | null }) => ({ priceUsd: product.ebayPrice ?? 10 }) }));
 vi.mock("@/lib/variation-listing-products", () => ({ getVariationListingReadyImages: readyImages }));
+vi.mock("@/lib/services/ebayVariationImageRepair", () => ({ listEbayVariationImageRepairs: ebayImageRepairs }));
 
 const { getEbayOperations, getShopifyOperations } = await import("@/lib/services/ebayOperations");
 
 describe("eBay operations classification", () => {
-  beforeEach(() => { vi.clearAllMocks(); findDrafts.mockResolvedValue([]); countDrafts.mockResolvedValue(0); findProducts.mockResolvedValue([]); findOrderItems.mockResolvedValue([]); findPricingSettings.mockResolvedValue({}); readyImages.mockResolvedValue([]); });
+  beforeEach(() => { vi.clearAllMocks(); findDrafts.mockResolvedValue([]); countDrafts.mockResolvedValue(0); findProducts.mockResolvedValue([]); findOrderItems.mockResolvedValue([]); findPricingSettings.mockResolvedValue({}); readyImages.mockResolvedValue([]); ebayImageRepairs.mockResolvedValue([]); });
 
   it("separates changed and sold-out listings", async () => {
     planInventory.mockResolvedValue({ missingPrice: [], rows: [

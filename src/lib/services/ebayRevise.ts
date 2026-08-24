@@ -59,6 +59,38 @@ ${targets.map(inventoryStatusXml).join("\n")}
 </ReviseInventoryStatusRequest>`;
 }
 
+export function buildRevisePictureRequest(itemId: string, imageUrl: string) {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<ReviseFixedPriceItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+  <Item>
+    <ItemID>${escapeXml(itemId)}</ItemID>
+    <PictureDetails><PictureURL>${escapeXml(imageUrl)}</PictureURL></PictureDetails>
+  </Item>
+</ReviseFixedPriceItemRequest>`;
+}
+
+export async function reviseEbayRepresentativePicture(account: EbayAccount, itemId: string, imageUrl: string) {
+  const config = getEbayConfig();
+  const token = await getValidAccessToken(account);
+  const response = await fetch(`${config.hosts.api}/ws/api.dll`, {
+    method: "POST",
+    headers: {
+      "content-type": "text/xml;charset=UTF-8",
+      "X-EBAY-API-COMPATIBILITY-LEVEL": "1193",
+      "X-EBAY-API-CALL-NAME": "ReviseFixedPriceItem",
+      "X-EBAY-API-SITEID": "0",
+      "X-EBAY-API-IAF-TOKEN": token,
+    },
+    body: buildRevisePictureRequest(itemId, imageUrl),
+  });
+  const xml = await response.text();
+  if (!response.ok) throw new Error(`eBay 대표사진 수정 실패 (HTTP ${response.status})`);
+  const parsed = parseResponse(xml);
+  if (parsed.hasError) throw new Error(parsed.message);
+  safeLog("info", "ebay.revise.representative_picture", { itemId });
+  return { itemId, imageUrl, ack: parsed.ack };
+}
+
 // eBay는 성공해도 경고를 함께 준다. Ack가 Failure일 때만 실패로 본다.
 function parseResponse(xml: string) {
   const ack = /<Ack>([^<]+)<\/Ack>/.exec(xml)?.[1] ?? "Unknown";
