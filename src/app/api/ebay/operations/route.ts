@@ -20,7 +20,7 @@ import { enqueueEbayInventoryJobs, getEbayInventoryJobSummary, processEbayInvent
 
 const executeSchema = z.object({
   action: z.enum(["CREATE", "CHANGE", "UNAVAILABLE", "REVIEW", "IMAGE_REPAIR"]),
-  productIds: z.array(z.string().min(1)).min(1).max(200),
+  productIds: z.array(z.string().min(1)).min(1).max(2_000),
   dryRun: z.boolean().default(true),
   confirmed: z.boolean().default(false),
   previewToken: z.string().optional(),
@@ -206,7 +206,7 @@ export async function POST(request: Request) {
         409,
       );
     if (input.dryRun) {
-      const result = await pushEbayInventory({ userId: user.id, productIds, dryRun: true, limit: 200 });
+      const result = await pushEbayInventory({ userId: user.id, productIds, dryRun: true, limit: 2_000 });
       if (result.rows.length !== productIds.length) return jsonError("자동 검증 중 재고·연결 상태가 바뀐 항목이 있습니다. 목록을 새로고침한 뒤 다시 시작해 주세요.", 409);
       return Response.json({ ...result, previewToken: issueListingPreviewToken(productIds) });
     }

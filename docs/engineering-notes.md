@@ -26,4 +26,4 @@
 
 ## eBay 가격·재고 대량 반영
 
-`ReviseInventoryStatus`는 요청당 최대 4개만 허용하지만 모든 요청을 직렬로 보낼 필요는 없다. 판매자별 공식 순간 제한보다 충분히 낮은 동시성 3을 유지하고, 같은 Item ID의 옵션은 한 번의 `GetItem` 결과로 검증한다. 단품에도 내부 SKU가 있지만 `GetItem.Variations`에는 없으므로 단품 검증 키는 Item ID만, 묶음 옵션은 Item ID와 SKU를 함께 사용한다. 외부 성공 뒤 내부 `ProductListing` 기록을 여러 `Promise.all` 쿼리로 실행하면 연결 제한 1인 운영 DB에서 pool timeout이 날 수 있으므로 단일 트랜잭션을 사용한다. 브라우저 요청 수명에 전체 작업을 묶지 말고 영구 작업을 먼저 만든 뒤 중단·재개와 항목별 성공 여부를 저장한다. 대량작업은 24개 상품 묶음마다 결과를 저장해 실제 진행률을 보여 주고, 한 사용자의 가격·재고 작업 두 개를 동시에 실행하지 않는다.
+소량 자동화의 `ReviseInventoryStatus` 직접 호출은 요청당 최대 4개와 동시성 3을 지킨다. 운영 화면의 대량 가격·재고 반영은 상품별 `GetItem` 재조회로 완료를 기다리지 않고 공식 `LMS_REVISE_INVENTORY_STATUS` Sell Feed 파일 하나로 최대 2,000건을 제출한다. eBay task ID와 상품별 MessageID를 작업에 저장하고 결과 파일의 CorrelationID별 Success/Error로 완료를 확정한다. 단품은 Item ID만, 묶음 옵션은 Item ID와 SKU를 함께 보낸다. 외부 성공 뒤 내부 `ProductListing` 기록을 여러 `Promise.all` 쿼리로 실행하면 연결 제한 1인 운영 DB에서 pool timeout이 날 수 있으므로 100개 이하 트랜잭션 묶음으로 순차 저장한다. 브라우저 요청 수명에 작업을 묶지 말고 영구 작업과 task ID를 먼저 남겨 메뉴 이동·중단·재개에 안전하게 한다.

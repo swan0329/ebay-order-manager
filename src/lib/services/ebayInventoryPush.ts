@@ -142,7 +142,7 @@ export async function pushEbayInventory(input: {
 }) {
   const plan = await planEbayInventoryPush({ productIds: input.productIds, userId: input.userId });
   // 포카마켓 값이 미확인/오래된 행은 목록에만 보여 주고 외부 수량을 바꾸지 않는다.
-  const rows = plan.rows.filter((row) => row.actionable).slice(0, Math.max(1, Math.min(200, input.limit ?? 100)));
+  const rows = plan.rows.filter((row) => row.actionable).slice(0, Math.max(1, Math.min(2_000, input.limit ?? 100)));
 
   if (input.dryRun || !rows.length) {
     return {

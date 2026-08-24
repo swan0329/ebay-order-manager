@@ -99,7 +99,7 @@ function readZipEntries(input: Buffer): ZipEntry[] {
   return entries;
 }
 
-function decodeDownloadedReport(input: Buffer) {
+export function decodeDownloadedEbayFile(input: Buffer) {
   const gzip = input.subarray(0, 2).equals(Buffer.from([0x1f, 0x8b]));
   const decoded = gzip ? gunzipSync(input) : input;
   const zip = decoded.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
@@ -115,7 +115,7 @@ function decodeDownloadedReport(input: Buffer) {
 
 /** Accepts CSV/XLSX, JSON and the XML flavour of eBay's downloadable report. */
 export function parseDownloadedActiveReport(input: Buffer): EbayActiveReportRow[] {
-  const decoded = decodeDownloadedReport(input);
+  const decoded = decodeDownloadedEbayFile(input);
   try { return parseEbayActiveReport(decoded.content); } catch { /* Feed can be JSON or XML. */ }
   const text = decoded.content.toString("utf8").replace(/^\uFEFF/, "").trim();
   let records: Record<string, unknown>[] = [];

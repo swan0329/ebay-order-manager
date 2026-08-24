@@ -105,7 +105,7 @@ export async function getEbayOperations(userId: string) {
       heldForOrder: review.filter((row) => row.availabilityStatus === "HELD_FOR_ORDER").length,
       imageRepairListings: imageRepair.filter((row) => row.actionable).length,
     },
-    limits: { createBatch: 50, reviseBatch: 200 },
+    limits: { createBatch: 50, reviseBatch: 2_000 },
   };
 }
 
