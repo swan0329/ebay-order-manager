@@ -11,6 +11,7 @@ const JOB_SOURCE = "ebay_inventory_change";
 const ACTIVE = ["pending", "running"];
 const MAX_FEED_ROWS = 2_000;
 const STALE_UNSUBMITTED_MS = 2 * 60_000;
+const FINALIZING_MESSAGE = "eBay 결과 파일 확인 완료 · 내부 반영 저장 중";
 const TERMINAL_FAILURE = new Set(["FAILED", "CANCELED", "CANCELLED"]);
 
 type StoredTarget = EbayInventoryFeedTarget & { productId: string; skuLabel: string; listingType: "SINGLE" | "VARIATION_OPTION" };
@@ -70,6 +71,22 @@ async function finishFeed(userId: string, taskId: string, jobs: Awaited<ReturnTy
     await prisma.productUploadJob.updateMany({ where: { id: { in: jobs.map((job) => job.id) }, status: "running" }, data: { message: `eBay 처리 중 · 접수 ${jobs.length}건 · 현재 상태 ${task.status}` } });
     return;
   }
+
+  // 여러 화면의 상태 확인이 동시에 도착해도 결과 파일 다운로드와 DB 반영은 한 요청만
+  // 수행한다. 저장 도중 서버가 종료된 경우에는 2분 뒤 같은 작업번호로 안전하게 재개한다.
+  const claimed = await prisma.productUploadJob.updateMany({
+    where: {
+      id: { in: jobs.map((job) => job.id) },
+      status: "running",
+      OR: [
+        { message: { not: FINALIZING_MESSAGE } },
+        { message: null },
+        { updatedAt: { lt: new Date(Date.now() - STALE_UNSUBMITTED_MS) } },
+      ],
+    },
+    data: { message: FINALIZING_MESSAGE },
+  });
+  if (claimed.count !== jobs.length) return;
 
   const results = await downloadEbayInventoryFeedResult(userId, taskId);
   const byCorrelation = new Map(results.map((result) => [result.correlationId, result]));

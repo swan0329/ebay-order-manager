@@ -85,4 +85,19 @@ describe("eBay inventory background jobs", () => {
     expect(prismaMock.productListing.upsert).toHaveBeenCalledWith(expect.objectContaining({ update: expect.objectContaining({ externalId: "item-1", quantity: 10, price: 8.5 }) }));
     expect(result).toMatchObject({ active: 0, succeeded: 1, failed: 0, total: 1 });
   });
+
+  it("does not download and persist the same completed result concurrently", async () => {
+    const target = { correlationId: "p1", productId: "p1", itemId: "item-1", sku: null, skuLabel: "S1", listingType: "SINGLE", quantity: 10, price: 8.5 };
+    const running = { id: "j1", userId: "u1", productId: "p1", sku: "S1", source: "ebay_inventory_change", action: "CHANGE", status: "running", message: "eBay 결과 파일 확인 완료 · 내부 반영 저장 중", errorSummary: null, rawJson: { batchId: "b1", productId: "p1", action: "CHANGE", taskId: "task-1", target }, createdAt: new Date(), updatedAt: new Date(), startedAt: new Date(), finishedAt: null };
+    prismaMock.productUploadJob.findMany
+      .mockResolvedValueOnce([running])
+      .mockResolvedValueOnce([running]);
+    prismaMock.productUploadJob.updateMany.mockResolvedValueOnce({ count: 0 });
+    feedStatusMock.mockResolvedValue({ status: "COMPLETED", successCount: 1, failureCount: 0 });
+
+    await processEbayInventoryJobs("u1");
+
+    expect(downloadFeedMock).not.toHaveBeenCalled();
+    expect(prismaMock.productListing.upsert).not.toHaveBeenCalled();
+  });
 });
