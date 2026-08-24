@@ -153,7 +153,10 @@ export async function processEbayVariationImageRepairJobs(userId: string, limit 
   // 현재 eBay 대표사진을 실제로 읽어 제작 썸네일과 같은지 확인해 완료 상태를
   // 승격한다. 확인되지 않은 건은 숫자에서 제거하지 않는다.
   const legacySuccesses = (await prisma.productUploadJob.findMany({
-    where: { userId, source: JOB_SOURCE, status: "success" }, orderBy: { finishedAt: "desc" }, take: 200,
+    where: { userId, source: JOB_SOURCE, OR: [
+      { status: "success" },
+      { status: "failed", message: "과거 전송 결과 실제 반영 미확인" },
+    ] }, orderBy: { finishedAt: "desc" }, take: 200,
   })).filter((job) => !jobVerified(job.rawJson)).slice(0, Math.min(20, limit));
   if (legacySuccesses.length) {
     const [rows, account] = await Promise.all([
@@ -166,7 +169,7 @@ export async function processEbayVariationImageRepairJobs(userId: string, limit 
       try {
         if (!account || !target?.state.thumbnailUrl) throw new Error("과거 대표사진 작업의 대상 썸네일을 확인하지 못했습니다.");
         await verifyEbayRepresentativePicture(account, itemId, target.state.thumbnailUrl);
-        await prisma.productUploadJob.update({ where: { id: job.id }, data: { rawJson: verifiedJobJson(job.rawJson), message: "eBay 재조회로 과거 대표사진 반영 확인 완료" } });
+        await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "success", rawJson: verifiedJobJson(job.rawJson), error: null, errorSummary: null, message: "eBay 재조회로 과거 대표사진 반영 확인 완료" } });
       } catch (error) {
         const message = error instanceof Error ? error.message : "eBay 대표사진 실제 반영 미확인";
         await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "failed", error: message, errorSummary: message, message: "과거 전송 결과 실제 반영 미확인" } });

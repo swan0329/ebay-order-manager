@@ -92,6 +92,30 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
     if (response.ok) setData(await response.json());
   }
 
+  async function reconcileAndRefresh() {
+    if (channel !== "EBAY" || tab !== "imageRepair") {
+      await refresh();
+      return;
+    }
+    setBusy(true); setPhase("preview"); setElapsed(0); setMessage("과거 전송 건의 eBay 실제 대표사진을 재조회하고 있습니다.");
+    try {
+      const started = await fetch("/api/ebay/operations/image-repair?wait=1", { method: "POST" });
+      const startedBody = await started.json();
+      if (!started.ok) throw new Error(startedBody.error ?? "대표사진 완료 상태 재확인을 시작하지 못했습니다.");
+      const previousCount = data.imageRepair.length;
+      const response = await fetch("/api/ebay/operations?channel=EBAY", { cache: "no-store" });
+      if (!response.ok) throw new Error("재확인 후 작업 목록을 불러오지 못했습니다.");
+      const next = await response.json() as OperationsClientData;
+      setData(next);
+      const removed = Math.max(0, previousCount - next.imageRepair.length);
+      setMessage(`eBay 실제 대표사진 재확인 완료: 완료 확인 ${removed}건 제외 · 현재 미완료 ${next.imageRepair.length}건${next.imageRepair.length ? " · 남은 항목은 다시 누르면 다음 20건을 확인합니다." : ""}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "대표사진 완료 상태 재확인 실패");
+    } finally {
+      setBusy(false); setPhase("idle");
+    }
+  }
+
   async function send(previewData: Preview, targetIds: string[]) {
     if (!previewData.token || !previewData.valid) return;
     try {
@@ -202,7 +226,7 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
       </div>
     </section>
     <section className="overflow-hidden rounded-2xl border bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4"><div className="flex flex-wrap items-center gap-2"><button onClick={toggleAll} disabled={!ids.length || busy} className="rounded-lg border px-3 py-2 text-sm font-semibold">{all ? "전체 선택 해제" : `대상 일괄 선택 (최대 ${max}건)`}</button><span className="text-sm text-zinc-500">선택 {selected.length} / 실제 대상 {ids.length} · 자동 검증 통과분만 적용</span></div><button onClick={() => void refresh()} disabled={busy} className="rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-40">목록 새로고침</button></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4"><div className="flex flex-wrap items-center gap-2"><button onClick={toggleAll} disabled={!ids.length || busy} className="rounded-lg border px-3 py-2 text-sm font-semibold">{all ? "전체 선택 해제" : `대상 일괄 선택 (최대 ${max}건)`}</button><span className="text-sm text-zinc-500">선택 {selected.length} / 실제 대상 {ids.length} · 자동 검증 통과분만 적용</span></div><button onClick={() => void reconcileAndRefresh()} disabled={busy} className="rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-40">{channel === "EBAY" && tab === "imageRepair" ? "eBay 완료상태 재확인" : "목록 새로고침"}</button></div>
       {busy && <div className="border-b bg-zinc-50 p-4"><div className="mb-2 flex justify-between text-sm"><b>{phase === "sending" ? `${channel === "EBAY" ? "eBay" : "Shopify"} 전송 처리 중` : "데이터 확인 중"}</b><span>{elapsed}초 경과 · {estimatedText}</span></div><div className="h-2 overflow-hidden rounded bg-zinc-200"><div style={{ width: `${progress}%` }} className="h-full rounded bg-violet-600 transition-[width] duration-500" /></div>{phase === "sending" && <p className="mt-2 text-xs text-zinc-600">{channel === "EBAY" ? "eBay가 대표사진 수정 성공을 반환한 뒤에만 완료로 표시합니다. 옵션 구성과 옵션별 사진은 전송하지 않습니다." : "이미지 교체는 Shopify의 비동기 처리 완료와 실제 대표사진·옵션 연결 확인까지 기다립니다. 완료 확인 전에는 성공으로 표시하지 않습니다."}</p>}</div>}
       {message && <p className="border-b bg-amber-50 p-3 text-sm">{message}</p>}
       <div className="max-h-[620px] overflow-auto"><table className="w-full min-w-[1450px] text-left text-sm"><thead className="sticky top-0 bg-zinc-100"><tr><th className="p-3">선택</th><th>마켓</th><th>작업</th><th>SKU</th><th>상품명</th><th>내 재고/주문예약</th><th>포카마켓 최종 수집값</th><th>마켓 상품 ID</th><th>기존 가격 → 전송 가격</th><th>기존 수량 → 전송 수량</th><th>판정</th></tr></thead><tbody>

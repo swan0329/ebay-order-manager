@@ -15,9 +15,12 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const user = await requireApiUser();
+    if (new URL(request.url).searchParams.get("wait") === "1") {
+      return Response.json(await processEbayVariationImageRepairJobs(user.id, 20));
+    }
     after(() => processEbayVariationImageRepairJobs(user.id));
     return Response.json({ accepted: true });
   } catch (error) {
