@@ -5,7 +5,7 @@ import sharp from "sharp";
 import { uploadBufferToR2 } from "@/lib/r2";
 import { getListingWatermarkSettings, type ListingWatermarkSettings } from "@/lib/variation-thumbnail-settings";
 
-type ResolvedWatermark = ListingWatermarkSettings & { logo: Buffer | null; signature: string };
+export type ResolvedWatermark = ListingWatermarkSettings & { logo: Buffer | null; signature: string };
 
 export function listingWatermarkSignature(settings: Omit<ListingWatermarkSettings, "logoKey">) {
   return createHash("sha256").update(JSON.stringify({
@@ -74,9 +74,11 @@ async function watermarkOverlay(width: number, height: number, settings: Resolve
  * Never alters the approved source image. It writes a deterministic sales-only
  * copy to R2, so a changed logo/size/text automatically gets a new URL.
  */
-export async function createWatermarkedListingImage(sourceUrl: string, settings: ResolvedWatermark) {
+export async function createWatermarkedImageBuffer(sourceUrl: string, settings: ResolvedWatermark) {
   if (!settings.applyToIndividualCards || (!settings.logo && !settings.watermarkText?.trim())) {
-    return { url: sourceUrl, signature: settings.signature, applied: false };
+    const response = await fetch(sourceUrl, { signal: AbortSignal.timeout(20_000) });
+    if (!response.ok) throw new Error(`개별 카드 이미지를 불러오지 못했습니다. (${response.status})`);
+    return { buffer: Buffer.from(await response.arrayBuffer()), applied: false };
   }
   const response = await fetch(sourceUrl, { signal: AbortSignal.timeout(20_000) });
   if (!response.ok) throw new Error(`개별 카드 이미지를 불러오지 못했습니다. (${response.status})`);
@@ -86,9 +88,15 @@ export async function createWatermarkedListingImage(sourceUrl: string, settings:
   const metadata = await sharp(source, { failOn: "none" }).rotate().metadata();
   if (!metadata.width || !metadata.height) throw new Error("개별 카드 이미지 형식을 확인할 수 없습니다.");
   const overlay = await watermarkOverlay(metadata.width, metadata.height, settings);
-  if (!overlay) return { url: sourceUrl, signature: settings.signature, applied: false };
-  const keyHash = createHash("sha256").update(`${sourceUrl}\u0000${settings.signature}`).digest("hex").slice(0, 32);
+  if (!overlay) return { buffer: source, applied: false };
   const buffer = await sharp(source, { failOn: "none" }).rotate().ensureAlpha().composite([{ input: overlay }]).jpeg({ quality: 93, chromaSubsampling: "4:4:4" }).toBuffer();
-  const uploaded = await uploadBufferToR2({ buffer, key: `products/listing-watermarks/${keyHash}.jpg`, contentType: "image/jpeg" });
+  return { buffer, applied: true };
+}
+
+export async function createWatermarkedListingImage(sourceUrl: string, settings: ResolvedWatermark) {
+  const rendered = await createWatermarkedImageBuffer(sourceUrl, settings);
+  if (!rendered.applied) return { url: sourceUrl, signature: settings.signature, applied: false };
+  const keyHash = createHash("sha256").update(`${sourceUrl}\u0000${settings.signature}`).digest("hex").slice(0, 32);
+  const uploaded = await uploadBufferToR2({ buffer: rendered.buffer, key: `products/listing-watermarks/${keyHash}.jpg`, contentType: "image/jpeg" });
   return { url: uploaded.url, signature: settings.signature, applied: true };
 }
