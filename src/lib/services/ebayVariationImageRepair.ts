@@ -153,8 +153,8 @@ export async function enqueueEbayVariationImageRepairs(userId: string, targetIds
   return getEbayVariationImageRepairJobs(userId);
 }
 
-export async function processEbayVariationImageRepairJobs(userId: string, limit = 200) {
-  await prisma.productUploadJob.updateMany({
+export async function processEbayVariationImageRepairJobs(userId: string, limit = 200, reconcileOnly = false) {
+  if (!reconcileOnly) await prisma.productUploadJob.updateMany({
     where: { userId, source: JOB_SOURCE, status: "running", startedAt: { lt: new Date(Date.now() - 5 * 60_000) } },
     data: { status: "pending", message: "중단된 서버 작업 자동 재개" },
   });
@@ -168,10 +168,8 @@ export async function processEbayVariationImageRepairJobs(userId: string, limit 
     ] }, orderBy: { finishedAt: "desc" }, take: 200,
   })).filter((job) => !jobVerificationAttempted(job.rawJson)).slice(0, Math.min(20, limit));
   if (legacySuccesses.length) {
-    const [rows, account] = await Promise.all([
-      groupsForStates(userId),
-      prisma.ebayAccount.findFirst({ where: { userId, environment: getEbayConfig().environment === "production" ? "PRODUCTION" : "SANDBOX" }, orderBy: { updatedAt: "desc" } }),
-    ]);
+    const rows = await groupsForStates(userId);
+    const account = await prisma.ebayAccount.findFirst({ where: { userId, environment: getEbayConfig().environment === "production" ? "PRODUCTION" : "SANDBOX" }, orderBy: { updatedAt: "desc" } });
     for (const job of legacySuccesses) {
       const itemId = job.sku.startsWith("ebay-image:") ? job.sku.slice("ebay-image:".length) : "";
       const target = rows.find((row) => row.state.ebayItemId === itemId && row.state.thumbnailUrl && row.state.thumbnailHash === jobHash(job.rawJson));
@@ -191,12 +189,10 @@ export async function processEbayVariationImageRepairJobs(userId: string, limit 
   // 않는다. 이 경로는 eBay에 사진을 다시 전송하지 않는다.
   const reconciliationCapacity = Math.max(0, Math.min(20, limit) - legacySuccesses.length);
   if (reconciliationCapacity) {
-    const [rows, watermark, account, previousJobs] = await Promise.all([
-      groupsForStates(userId),
-      resolveListingWatermark(userId),
-      prisma.ebayAccount.findFirst({ where: { userId, environment: getEbayConfig().environment === "production" ? "PRODUCTION" : "SANDBOX" }, orderBy: { updatedAt: "desc" } }),
-      prisma.productUploadJob.findMany({ where: { userId, source: JOB_SOURCE }, select: { sku: true, rawJson: true } }),
-    ]);
+    const rows = await groupsForStates(userId);
+    const watermark = await resolveListingWatermark(userId);
+    const account = await prisma.ebayAccount.findFirst({ where: { userId, environment: getEbayConfig().environment === "production" ? "PRODUCTION" : "SANDBOX" }, orderBy: { updatedAt: "desc" } });
+    const previousJobs = await prisma.productUploadJob.findMany({ where: { userId, source: JOB_SOURCE }, select: { sku: true, rawJson: true } });
     const attempted = new Set(previousJobs.filter((job) => jobVerificationAttempted(job.rawJson)).map((job) => `${job.sku}:${jobHash(job.rawJson) ?? ""}`));
     const candidates = rows.flatMap((row) => {
       if (!row.state.ebayItemId || !row.group || row.imageCount !== row.productIds.length) return [];
@@ -217,6 +213,7 @@ export async function processEbayVariationImageRepairJobs(userId: string, limit 
       }
     }
   }
+  if (reconcileOnly) return getEbayVariationImageRepairJobs(userId);
   const jobs = await prisma.productUploadJob.findMany({
     where: { userId, source: JOB_SOURCE, status: "pending" }, orderBy: { createdAt: "asc" }, take: limit,
   });
@@ -236,7 +233,7 @@ export async function processEbayVariationImageRepairJobs(userId: string, limit 
 
 export async function getEbayVariationImageRepairJobs(userId: string) {
   const jobs = await prisma.productUploadJob.findMany({ where: { userId, source: JOB_SOURCE }, orderBy: { createdAt: "desc" }, take: 200, select: { id: true, sku: true, status: true, message: true, errorSummary: true, rawJson: true, createdAt: true, startedAt: true, finishedAt: true } });
-  const active = jobs.filter((job) => ["pending", "running"].includes(job.status) || (job.status === "success" && !jobVerified(job.rawJson)));
+  const active = jobs.filter((job) => ["pending", "running"].includes(job.status));
   const latestStart = jobs[0]?.createdAt;
   const batch = latestStart ? jobs.filter((job) => Math.abs(job.createdAt.getTime() - latestStart.getTime()) < 10_000) : [];
   return { active: active.length, pending: active.filter((job) => job.status === "pending" || job.status === "success").length, running: active.filter((job) => job.status === "running").length, succeeded: batch.filter((job) => job.status === "success" && jobVerified(job.rawJson)).length, failed: batch.filter((job) => job.status === "failed").length, total: batch.length, jobs: jobs.slice(0, 50).map((job) => ({ id: job.id, sku: job.sku, status: job.status, message: job.message, errorSummary: job.errorSummary, createdAt: job.createdAt, startedAt: job.startedAt, finishedAt: job.finishedAt })) };
