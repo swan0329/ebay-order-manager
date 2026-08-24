@@ -32,12 +32,22 @@ async function watermarkTile(settings: WatermarkRenderSettings) {
 }
 
 export async function createWatermarkOverlay(width: number, height: number, settings: WatermarkRenderSettings, startY = 0) {
-  const tile = await watermarkTile(settings);
-  if (!tile) return null;
+  const canonicalTile = await watermarkTile(settings);
+  if (!canonicalTile) return null;
+
+  // Controls are expressed against the 1000px collection-cover canvas. Scale
+  // the complete tile and gap for arbitrary source widths so both previews have
+  // the same apparent watermark size when displayed at the same CSS width.
+  const scale = width / 1000;
+  const canonicalMetadata = await sharp(canonicalTile).metadata();
+  const canonicalWidth = canonicalMetadata.width ?? 150;
+  const tile = scale === 1
+    ? canonicalTile
+    : await sharp(canonicalTile, { failOn: "none" }).resize({ width: Math.max(1, Math.round(canonicalWidth * scale)) }).png().toBuffer();
   const metadata = await sharp(tile).metadata();
   const tileWidth = metadata.width ?? 150;
   const tileHeight = metadata.height ?? 80;
-  const gap = Math.max(10, Math.min(180, settings.watermarkGap));
+  const gap = Math.max(1, Math.round(Math.max(10, Math.min(180, settings.watermarkGap)) * scale));
   const placements: sharp.OverlayOptions[] = [];
   let row = 0;
   const step = tileWidth + gap;
