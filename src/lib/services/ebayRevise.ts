@@ -154,12 +154,16 @@ async function verifyVariationTargets(account: EbayAccount, targets: ReviseTarge
       for (const target of targets.filter((row) => row.itemId === itemId && row.sku)) failures.set(reviseTargetKey(target), "eBay 반영 후 실제 옵션을 다시 조회하지 못했습니다.");
       continue;
     }
-    const variations = xmlBlocks(xmlValue(xml, "Variations"), "Variation").map((block) => ({ sku: xmlValue(block, "SKU"), price: Number(xmlValue(block, "StartPrice")), quantity: Number(xmlValue(block, "Quantity")) }));
+    const variations = xmlBlocks(xmlValue(xml, "Variations"), "Variation").map((block) => {
+      const quantity = Number(xmlValue(block, "Quantity"));
+      const quantitySold = Number(xmlValue(block, "QuantitySold") || 0);
+      return { sku: xmlValue(block, "SKU"), price: Number(xmlValue(block, "StartPrice")), quantity, quantitySold, availableQuantity: quantity - quantitySold };
+    });
     for (const target of targets.filter((row) => row.itemId === itemId && row.sku)) {
       const actual = variations.find((row) => row.sku === target.sku);
       if (!actual) failures.set(reviseTargetKey(target), `${target.sku}: eBay 재조회에서 옵션을 찾지 못했습니다.`);
       else if (target.price != null && (!Number.isFinite(actual.price) || Math.abs(actual.price - target.price) >= 0.005)) failures.set(reviseTargetKey(target), `${target.sku}: eBay 실제 가격 ${actual.price || "확인 불가"} USD가 전송 가격 ${target.price.toFixed(2)} USD와 다릅니다.`);
-      else if (target.quantity != null && (!Number.isFinite(actual.quantity) || actual.quantity !== Math.max(0, Math.trunc(target.quantity)))) failures.set(reviseTargetKey(target), `${target.sku}: eBay 실제 수량 ${actual.quantity}개가 전송 수량 ${target.quantity}개와 다릅니다.`);
+      else if (target.quantity != null && (!Number.isFinite(actual.availableQuantity) || actual.availableQuantity !== Math.max(0, Math.trunc(target.quantity)))) failures.set(reviseTargetKey(target), `${target.sku}: eBay 실제 판매 가능 수량 ${actual.availableQuantity}개(전체 ${actual.quantity} - 판매 ${actual.quantitySold})가 전송 수량 ${target.quantity}개와 다릅니다.`);
     }
   }
   return failures;

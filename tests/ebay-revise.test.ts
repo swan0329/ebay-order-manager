@@ -85,6 +85,16 @@ describe("eBay 가격·수량 변경", () => {
     expect(result.failed).toEqual([]);
   });
 
+  it("판매 이력이 있는 옵션은 전체 수량에서 판매량을 뺀 판매 가능 수량을 검증한다", async () => {
+    const getItem = `<GetItemResponse><Ack>Success</Ack><Item><Variations><Variation><SKU>A</SKU><StartPrice currencyID="USD">8.40</StartPrice><Quantity>5</Quantity><SellingStatus><QuantitySold>3</QuantitySold></SellingStatus></Variation></Variations></Item></GetItemResponse>`;
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(ok, { status: 200 }))
+      .mockResolvedValueOnce(new Response(getItem, { status: 200 })));
+    const result = await reviseEbayPriceQuantity(account, [{ itemId: "1", sku: "A", quantity: 2, price: 8.4 }]);
+    expect(result.succeeded).toEqual(["1:A"]);
+    expect(result.failed).toEqual([]);
+  });
+
   it("eBay가 옵션 가격을 다르게 보관하면 성공으로 가장하지 않는다", async () => {
     const getItem = `<GetItemResponse><Ack>Success</Ack><Item><Variations><Variation><SKU>A</SKU><StartPrice>5.00</StartPrice><Quantity>2</Quantity></Variation></Variations></Item></GetItemResponse>`;
     vi.stubGlobal("fetch", vi.fn()
