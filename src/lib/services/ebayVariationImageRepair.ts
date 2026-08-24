@@ -78,6 +78,15 @@ function verifiedJobJson(raw: Prisma.JsonValue | null) {
   return { ...previous, verification: "verified", verifiedAt: new Date().toISOString() };
 }
 
+function failedVerificationJobJson(raw: Prisma.JsonValue | null) {
+  const previous = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, Prisma.JsonValue> : {};
+  return { ...previous, verification: "failed", verifiedAt: new Date().toISOString() };
+}
+
+function jobVerificationAttempted(raw: Prisma.JsonValue | null) {
+  return raw && typeof raw === "object" && !Array.isArray(raw) && ["verified", "failed"].includes(String((raw as Record<string, unknown>).verification));
+}
+
 export async function listEbayVariationImageRepairs(userId: string): Promise<EbayVariationImageRepairRow[]> {
   const rows = await groupsForStates(userId);
   const watermark = await resolveListingWatermark(userId);
@@ -157,7 +166,7 @@ export async function processEbayVariationImageRepairJobs(userId: string, limit 
       { status: "success" },
       { status: "failed", message: "과거 전송 결과 실제 반영 미확인" },
     ] }, orderBy: { finishedAt: "desc" }, take: 200,
-  })).filter((job) => !jobVerified(job.rawJson)).slice(0, Math.min(20, limit));
+  })).filter((job) => !jobVerificationAttempted(job.rawJson)).slice(0, Math.min(20, limit));
   if (legacySuccesses.length) {
     const [rows, account] = await Promise.all([
       groupsForStates(userId),
@@ -172,7 +181,7 @@ export async function processEbayVariationImageRepairJobs(userId: string, limit 
         await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "success", rawJson: verifiedJobJson(job.rawJson), error: null, errorSummary: null, message: "eBay 재조회로 과거 대표사진 반영 확인 완료" } });
       } catch (error) {
         const message = error instanceof Error ? error.message : "eBay 대표사진 실제 반영 미확인";
-        await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "failed", error: message, errorSummary: message, message: "과거 전송 결과 실제 반영 미확인" } });
+        await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "failed", rawJson: failedVerificationJobJson(job.rawJson), error: message, errorSummary: message, message: "과거 전송 결과 실제 반영 미확인" } });
       }
     }
   }
