@@ -197,7 +197,14 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
   // 띄우지는 않지만, 서버에서는 항상 같은 최신 대상과 토큰을 먼저 검증한 뒤에만
   // 외부 마켓 쓰기를 시작한다. 검증에서 빠진 항목은 전송하지 않고 결과로 남긴다.
   async function startAutomatically(targetIds = selected, actionTab: Tab = tab) {
-    if (!targetIds.length) return;
+    if (channel === "EBAY" && data.inventoryJob?.active && (actionTab === "change" || actionTab === "unavailable")) {
+      setMessage(`이미 eBay 가격·재고 작업 ${data.inventoryJob.active}건이 진행 중입니다. 위 진행상황에서 eBay 접수·성공·실패를 확인해 주세요.`);
+      return;
+    }
+    if (!targetIds.length) {
+      setMessage(`현재 선택된 항목이 없습니다. 아래 '${ids.length <= max ? `전체 대상 ${ids.length.toLocaleString()}건 선택` : `대상 일괄 선택 (최대 ${max.toLocaleString()}건)`}'을 먼저 눌러 주세요.`);
+      return;
+    }
     setElapsed(0); setBusy(true); setPhase("preview"); setMessage(""); setResult(null); setPreview(null);
     const controller = new AbortController(); abortRef.current = controller;
     try {
@@ -260,7 +267,7 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
     <div className="grid gap-3 sm:grid-cols-5">{([['create', '신규등록', data.create.length], ['change', '가격·재고 변동', data.change.length], ['unavailable', '품절·판매중지', data.unavailable.length], ['review', '주문 예약·수집 필요', data.review.length], ['imageRepair', channel === "EBAY" ? '묶음 대표사진 교체' : '이미지·썸네일 교체', data.imageRepair.length] as const] as const).map(([key, label, count]) => <button key={key} disabled={busy} onClick={() => choose(key)} className={`rounded-2xl border p-4 text-left disabled:opacity-50 ${tab === key ? "border-violet-600 bg-violet-50" : "bg-white"}`}><span className="text-sm text-zinc-500">{label}</span><strong className="mt-1 block text-2xl">{count.toLocaleString()}건</strong></button>)}</div>
     <section className="overflow-hidden rounded-2xl border border-zinc-300 bg-white shadow-sm">
       <div className="flex flex-wrap items-center gap-2 border-b bg-zinc-50 p-3">
-        <button onClick={() => void startAutomatically()} disabled={busy || !selected.length || (channel === "EBAY" && Boolean(data.inventoryJob?.active))} className="rounded-lg border border-violet-700 bg-white px-4 py-2 text-sm font-bold text-violet-800 disabled:opacity-40">작업 시작 · 자동 검증 후 적용</button>
+        <button onClick={() => void startAutomatically()} disabled={busy} className="rounded-lg border border-violet-700 bg-white px-4 py-2 text-sm font-bold text-violet-800 disabled:opacity-40">{selected.length ? `선택 ${selected.length.toLocaleString()}건 작업 시작` : "작업 시작 · 대상 선택 필요"}</button>
         <button onClick={() => void retryFailures()} disabled={busy || !result?.failed || Boolean(data.inventoryJob?.active)} className="rounded-lg border bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">실패·미확인 {result?.failed ?? 0}건 재시작</button>
         <button onClick={() => { setResult(null); setPreview(null); setMessage(""); }} disabled={busy || (!result && !preview)} className="rounded-lg border bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">완료작업 지우기</button>
         <button onClick={() => { setSelected([]); resetReview(); }} disabled={busy || !selected.length} className="rounded-lg border bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">선택 해제</button>
