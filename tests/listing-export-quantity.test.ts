@@ -6,10 +6,10 @@ import { listingQuantity } from "@/lib/listing-quantity";
 // 다음 날 바뀌는 일이 없다.
 
 describe("리스팅 수량", () => {
-  it("내 재고와 포카 빠른구매 판매분 한 장을 더한다", () => {
+  it("내 재고와 포카 빠른구매 가능 수량 전체를 더한다", () => {
     expect(
       listingQuantity({ stockQuantity: 2, pocamarketAvailableCount: 5 }),
-    ).toBe(3);
+    ).toBe(7);
   });
 
   it("내 재고만 있으면 그 수량", () => {
@@ -21,7 +21,7 @@ describe("리스팅 수량", () => {
   it("포카 매물만 있으면 그 수량", () => {
     expect(
       listingQuantity({ stockQuantity: 0, pocamarketAvailableCount: 5 }),
-    ).toBe(1);
+    ).toBe(5);
   });
 
   it("포카 매물 정보가 없으면 내 재고만 센다", () => {
@@ -38,6 +38,6 @@ describe("리스팅 수량", () => {
   it("음수 재고는 0으로 본다", () => {
     expect(
       listingQuantity({ stockQuantity: -2, pocamarketAvailableCount: 4 }),
-    ).toBe(1);
+    ).toBe(4);
   });
 });

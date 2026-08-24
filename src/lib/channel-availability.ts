@@ -2,8 +2,6 @@
 // 마지막으로 수집한 포카마켓 값은 수집 시각과 무관하게 사용한다. 데이터가 아예
 // 없을 때만 품절을 추측하지 않고 전송 대상에서 제외한다.
 
-export const MAX_PROCUREMENT_LISTING_QUANTITY = 1;
-
 export type ChannelAvailabilityInput = {
   status: string;
   stockQuantity: number;
@@ -59,7 +57,7 @@ export function resolveChannelAvailability(
   // 값이 없다는 뜻이다.
   const sourceKnown = input.isSoldOut || input.pocamarketAvailableCount !== null;
   const pocamarketListingQuantity = sourceKnown && !input.isSoldOut
-    ? Math.min(MAX_PROCUREMENT_LISTING_QUANTITY, observedSourceQuantity)
+    ? observedSourceQuantity
     : 0;
 
   if (isExplicitlyDiscontinued(input.status)) {

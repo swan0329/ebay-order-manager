@@ -21,8 +21,8 @@ export function listingQuantity(
   // 되살려 과판매하는 것을 막기 위해 의도적으로 사용하지 않는다.
   void _fallback;
   const own = Math.max(0, product.stockQuantity);
-  // 조달 판매는 빠른구매 매물이 갑자기 사라질 수 있어 한 장만 연다. 템플릿의
-  // 기본 수량으로 재고 0 상품을 되살리면 안 된다.
-  const procurable = (product.pocamarketAvailableCount ?? 0) > 0 ? 1 : 0;
+  // 관리자가 정한 판매 가능 수량은 내 재고와 포카마켓 빠른구매 가능 수량의
+  // 합계다. 템플릿의 기본 수량으로 재고 0 상품을 되살리지는 않는다.
+  const procurable = Math.max(0, product.pocamarketAvailableCount ?? 0);
   return own + procurable;
 }

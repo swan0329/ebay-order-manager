@@ -527,8 +527,7 @@ export async function POST(request: Request) {
         ? renderListingDescriptionTemplate(templateResult.template.conditionDescription, merged, title)
         : text(merged.conditionDescription);
       // The template's quantity is an explicit listing quantity, so it wins over
-      // the product's stock count. Procurement listings are always capped at 1
-      // because the external Pocamarket supply can disappear before the next sync.
+      // the product's stock count. Include the full observed Quick Buy quantity.
       // 내 재고 + 포카마켓 조달 가능 수량. 템플릿 기본값이 실제 재고를 덮으면
       // 1장 가진 카드가 여러 장으로 올라가 초과 판매가 나므로 뒤로 밀어둔다.
       const quantity = listingQuantity(
