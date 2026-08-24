@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { withVariationListingMetadata } from "@/lib/variation-listing-products";
 import { buildVariationListingGroups } from "@/lib/variation-listing-groups";
 
-export type UnitRepair = { itemId: string; sku: string; currentName: string; desiredName: string; productId: string };
+export type UnitRepair = { itemId: string; sku: string; currentName: string; desiredName: string; productId: string; quantitySold: number };
 
 const esc = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const unesc = (value: string) => value.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&");
@@ -27,7 +27,7 @@ async function trading(account: EbayAccount, call: string, body: string) {
 
 async function getItem(account: EbayAccount, itemId: string) {
   const xml = await trading(account, "GetItem", `<?xml version="1.0" encoding="utf-8"?><GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents"><ItemID>${esc(itemId)}</ItemID><IncludeItemSpecifics>true</IncludeItemSpecifics><IncludeWatchCount>false</IncludeWatchCount></GetItemRequest>`);
-  const variations = blocks(rawValue(xml, "Variations"), "Variation").map((block) => ({ sku: value(block, "SKU"), price: value(block, "StartPrice"), quantity: value(block, "Quantity"), specifics: blocks(rawValue(block, "VariationSpecifics"), "NameValueList").map((specific) => ({ name: value(specific, "Name"), value: value(specific, "Value") })) }));
+  const variations = blocks(rawValue(xml, "Variations"), "Variation").map((block) => ({ sku: value(block, "SKU"), price: value(block, "StartPrice"), quantity: value(block, "Quantity"), quantitySold: Number(value(block, "QuantitySold") || 0), specifics: blocks(rawValue(block, "VariationSpecifics"), "NameValueList").map((specific) => ({ name: value(specific, "Name"), value: value(specific, "Value") })) }));
   return { xml, variations, picturesXml: rawValue(xml, "Pictures") };
 }
 
@@ -65,7 +65,7 @@ export async function scanEbayUnitOptionRepairs(userId: string) {
     for (const target of targets) {
       const variation = current.variations.find((row) => row.sku === target.sku);
       const currentName = variation?.specifics.find((specific) => unitValue(specific.value))?.value;
-      if (currentName && currentName !== target.desiredName) repairs.push({ itemId, sku: target.sku, currentName, desiredName: target.desiredName, productId: target.productId });
+      if (currentName && currentName !== target.desiredName) repairs.push({ itemId, sku: target.sku, currentName, desiredName: target.desiredName, productId: target.productId, quantitySold: variation?.quantitySold ?? 0 });
     }
   }
   return repairs;
@@ -85,8 +85,10 @@ export async function applyEbayUnitOptionRepairs(userId: string, requested: Unit
       const variationXml = current.variations.flatMap((variation) => {
         const repair = bySku.get(variation.sku); if (!repair) return [];
         if (!variation.price || !variation.quantity) throw new Error(`${variation.sku}: eBay 현재 가격 또는 수량을 확인하지 못했습니다.`);
-        const specifics = variation.specifics.map((specific) => ({ ...specific, value: unitValue(specific.value) ? repair.desiredName : specific.value }));
-        return [`<Variation><SKU>${esc(variation.sku)}</SKU><StartPrice>${esc(variation.price)}</StartPrice><Quantity>${esc(variation.quantity)}</Quantity><VariationSpecifics>${specifics.map((specific) => `<NameValueList><Name>${esc(specific.name)}</Name><Value>${esc(specific.value)}</Value></NameValueList>`).join("")}</VariationSpecifics></Variation>`];
+        if (variation.quantitySold > 0) throw new Error(`${variation.sku}: 이미 ${variation.quantitySold}개 판매된 옵션은 eBay가 삭제를 허용하지 않아 자동으로 이름을 바꾸지 않았습니다.`);
+        const oldSpecifics = variation.specifics.map((specific) => `<NameValueList><Name>${esc(specific.name)}</Name><Value>${esc(specific.value)}</Value></NameValueList>`).join("");
+        const newSpecifics = variation.specifics.map((specific) => ({ ...specific, value: unitValue(specific.value) ? repair.desiredName : specific.value })).map((specific) => `<NameValueList><Name>${esc(specific.name)}</Name><Value>${esc(specific.value)}</Value></NameValueList>`).join("");
+        return [`<Variation><Delete>true</Delete><SKU>${esc(variation.sku)}</SKU><StartPrice>${esc(variation.price)}</StartPrice><Quantity>${esc(variation.quantity)}</Quantity><VariationSpecifics>${oldSpecifics}</VariationSpecifics></Variation><Variation><SKU>${esc(variation.sku)}</SKU><StartPrice>${esc(variation.price)}</StartPrice><Quantity>${esc(variation.quantity)}</Quantity><VariationSpecifics>${newSpecifics}</VariationSpecifics></Variation>`];
       }).join("");
       if (!variationXml) throw new Error("eBay 현재 옵션에서 해당 SKU를 찾지 못했습니다.");
       const specificNames = [...new Set(revisedSpecifics.flat().map((specific) => specific.name))];
@@ -94,6 +96,11 @@ export async function applyEbayUnitOptionRepairs(userId: string, requested: Unit
       let picturesXml = current.picturesXml;
       for (const repair of repairs) picturesXml = picturesXml.replaceAll(`<VariationSpecificValue>${esc(repair.currentName)}</VariationSpecificValue>`, `<VariationSpecificValue>${esc(repair.desiredName)}</VariationSpecificValue>`);
       await trading(account, "ReviseFixedPriceItem", `<?xml version="1.0" encoding="utf-8"?><ReviseFixedPriceItemRequest xmlns="urn:ebay:apis:eBLBaseComponents"><Item><ItemID>${esc(itemId)}</ItemID><Variations>${variationXml}${picturesXml ? `<Pictures>${picturesXml}</Pictures>` : ""}<VariationSpecificsSet>${setXml}</VariationSpecificsSet></Variations></Item></ReviseFixedPriceItemRequest>`);
+      const verified = await getItem(account, itemId);
+      for (const repair of repairs) {
+        const variation = verified.variations.find((row) => row.sku === repair.sku);
+        if (!variation || !variation.specifics.some((specific) => specific.value === repair.desiredName) || variation.specifics.some((specific) => unitValue(specific.value))) throw new Error(`${repair.sku}: eBay 응답 후 다시 조회했지만 옵션명이 실제로 바뀌지 않았습니다.`);
+      }
       results.push(...repairs);
     } catch (error) { results.push(...repairs.map((repair) => ({ ...repair, error: error instanceof Error ? error.message : "옵션명 수정 실패" }))); }
   }

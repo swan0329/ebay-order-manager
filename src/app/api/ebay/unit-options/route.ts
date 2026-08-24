@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   try {
     const user = await requireApiUser(); const input = schema.parse(await request.json()); const rows = await scanEbayUnitOptionRepairs(user.id);
     const key = (row: typeof rows[number]) => `${row.itemId}:${row.sku}:${row.desiredName}`;
-    if (input.dryRun) { const keys = rows.map(key); return Response.json({ rows, previewToken: issueListingPreviewToken(keys) }); }
+    if (input.dryRun) { const keys = rows.filter((row) => row.quantitySold === 0).map(key); return Response.json({ rows, previewToken: keys.length ? issueListingPreviewToken(keys) : null }); }
     const keys = input.keys ?? [];
     if (!input.confirmed || !input.previewToken || !verifyListingPreviewToken(input.previewToken, keys)) return jsonError("현재 eBay 옵션 확인 후 최종 확인이 필요합니다.", 409);
     const selected = rows.filter((row) => keys.includes(key(row)));

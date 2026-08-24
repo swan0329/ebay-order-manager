@@ -70,7 +70,7 @@ eBay `IMAGE_REPAIR` 실행은 `product_upload_jobs`에 묶음별로 영구 저�
 
 묶음 옵션명은 일반 카드의 `optionName`을 사용하되 `unit`/`유닛` 카드는 `featured_members`에 지정된 실제 멤버명을 쉼표로 연결해 사용한다(예: `창빈, 방찬`). 실제 멤버가 지정되지 않은 유닛 카드는 eBay·Shopify 묶음 등록 대상에서 제외하며 `unit`/`유닛`이라는 값을 옵션명으로 전송하지 않는다.
 
-`POST /api/ebay/unit-options`는 최신 전체 활성상품 보고서의 묶음만 `GetItem`으로 다시 읽어 내부 SKU와 대조한다. `dryRun=true`는 eBay 값이 실제 `unit`/`유닛`인 옵션의 변경 전·후만 반환하며, 서명된 토큰과 `confirmed=true`가 있는 실행만 현재 가격·수량·SKU·옵션 사진 연결을 보존한 `ReviseFixedPriceItem` 요청을 보낸다. SKU나 현재 필수값이 불완전하면 변경하지 않는다.
+`POST /api/ebay/unit-options`는 최신 전체 활성상품 보고서의 묶음만 `GetItem`으로 다시 읽어 내부 SKU와 대조한다. `dryRun=true`는 eBay 값이 실제 `unit`/`유닛`인 옵션의 변경 전·후만 반환한다. eBay variation 값은 직접 덮어쓸 수 없으므로, 판매 이력이 없는 옵션만 서명된 토큰과 `confirmed=true` 실행에서 기존 variation 삭제와 실제 멤버명 variation 재추가를 같은 `ReviseFixedPriceItem` 요청으로 수행한다. 현재 가격·수량·SKU·옵션 사진 연결을 보존하고, 실행 후 `GetItem` 재조회에서 실제 변경이 확인되어야 성공으로 기록한다. 판매 이력, SKU 불일치 또는 현재 필수값 누락이 있으면 변경하지 않는다.
 
 기존 리스팅의 품절 판정은 내 판매 가능 재고(내 재고 - 미처리 주문 예약 - 안전재고)와 최신 포카마켓 빠른구매 재고를 함께 본다. 둘 다 0인 경우만 `품절`이며, 내 재고가 예약·안전재고 때문에 0이 된 경우는 `판매 보류`로 구분한다. 포카마켓 관측값이 없거나 24시간을 넘긴 경우는 `포카마켓 재고 확인 필요`로 표시하고 자동 전송 대상에서 제외한다. 조달 판매분은 매물 변동 위험 때문에 최대 1장만 채널 수량에 더한다.
 
