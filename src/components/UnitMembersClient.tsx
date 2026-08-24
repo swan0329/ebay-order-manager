@@ -47,13 +47,22 @@ export function UnitMembersClient({ items: initial }: { items: Item[] }) {
     if (!actionableRepairs.length || !repairToken) return;
     setRepairElapsed(0); setRepairStage("apply"); setRepairBusy(true); setMessage("eBay 유닛 옵션명을 수정하고 있습니다.");
     try {
-      const keys = actionableRepairs.map((row) => `${row.itemId}:${row.sku}:${row.desiredName}`);
-      const response = await fetch("/api/ebay/unit-options", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dryRun: false, confirmed: true, previewToken: repairToken, keys }) });
-      const body = await response.json(); if (!response.ok) throw new Error(body.error ?? "eBay 옵션명 수정 실패");
-      setMessage(`eBay 옵션명 수정 완료: 성공 ${body.succeeded}건 · 실패 ${body.failed}건`);
-      const errors = (body.results ?? []).flatMap((row: EbayRepair & { error?: string }) => row.error ? [`${row.sku}: ${row.error}`] : []);
-      setRepairResult({ succeeded: body.succeeded, failed: body.failed, errors });
-      setRepairs((body.results ?? []).filter((row: EbayRepair & { error?: string }) => row.error)); setRepairToken("");
+      const authorizedKeys = actionableRepairs.map((row) => `${row.itemId}:${row.sku}:${row.desiredName}`);
+      const allResults: Array<EbayRepair & { error?: string }> = [];
+      for (let offset = 0; offset < actionableRepairs.length; offset += 5) {
+        const requested = actionableRepairs.slice(offset, offset + 5);
+        const keys = requested.map((row) => `${row.itemId}:${row.sku}:${row.desiredName}`);
+        setMessage(`eBay 유닛 옵션 적용 중: ${Math.min(offset + requested.length, actionableRepairs.length)} / ${actionableRepairs.length}건`);
+        const response = await fetch("/api/ebay/unit-options", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dryRun: false, confirmed: true, previewToken: repairToken, authorizedKeys, keys, requested }) });
+        const body = await response.json();
+        if (!response.ok) allResults.push(...requested.map((row) => ({ ...row, error: body.error ?? "eBay 옵션명 수정 실패" })));
+        else allResults.push(...(body.results ?? []));
+      }
+      const succeeded = allResults.filter((row) => !row.error).length; const failed = allResults.length - succeeded;
+      setMessage(`eBay 옵션명 수정 완료: 성공 ${succeeded}건 · 실패 ${failed}건`);
+      const errors = allResults.flatMap((row) => row.error ? [`${row.sku}: ${row.error}`] : []);
+      setRepairResult({ succeeded, failed, errors });
+      setRepairs(allResults.filter((row) => row.error)); setRepairToken("");
     } catch (error) { setMessage(error instanceof Error ? error.message : "eBay 옵션명 수정 실패"); }
     finally { setRepairBusy(false); }
   }

@@ -72,6 +72,11 @@ export async function scanEbayUnitOptionRepairs(userId: string) {
 }
 
 export async function applyEbayUnitOptionRepairs(userId: string, requested: UnitRepair[]) {
+  const desired = await desiredByItem(userId);
+  for (const repair of requested) {
+    const currentDesired = desired.get(repair.itemId)?.find((row) => row.sku === repair.sku);
+    if (!currentDesired || currentDesired.productId !== repair.productId || currentDesired.desiredName !== repair.desiredName) throw new Error(`${repair.sku}: 저장된 멤버 지정이 점검 이후 바뀌었습니다. 다시 점검해 주세요.`);
+  }
   const account = await accountFor(userId); const grouped = new Map<string, UnitRepair[]>();
   // 한 리스팅의 여러 옵션을 한 요청에 묶으면 하나의 제약 오류로 전부 실패한다.
   // SKU 하나씩 독립 요청·재조회하여 성공과 실패를 정확히 분리한다.
