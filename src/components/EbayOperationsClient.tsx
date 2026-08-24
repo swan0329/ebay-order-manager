@@ -42,6 +42,8 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
   const [history, setHistory] = useState<WorkLog[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const [jobClock, setJobClock] = useState(() => Date.now());
+  const [outOfStockControl, setOutOfStockControl] = useState<boolean | null>(null);
+  const [outOfStockBusy, setOutOfStockBusy] = useState(false);
   const rows = tab === "create" ? data.create : tab === "change" ? data.change : tab === "unavailable" ? data.unavailable : tab === "imageRepair" ? data.imageRepair : data.review;
   const ids = useMemo(() => rows.flatMap((row) => {
     if (tab === "create") return (row as CreateRow).productId ? [(row as CreateRow).productId!] : [];
@@ -105,6 +107,22 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
     const timer = window.setInterval(() => setJobClock(Date.now()), 1_000);
     return () => window.clearInterval(timer);
   }, [data.inventoryJob?.active]);
+
+  useEffect(() => {
+    if (channel !== "EBAY") return;
+    let mounted = true;
+    void fetch("/api/ebay/out-of-stock-control", { cache: "no-store" })
+      .then(async (response) => {
+        const body = await response.json();
+        if (!mounted) return;
+        if (!response.ok) throw new Error(body.error ?? "eBay 품절 유지 설정을 확인하지 못했습니다.");
+        setOutOfStockControl(Boolean(body.enabled));
+      })
+      .catch((error) => {
+        if (mounted) setMessage(error instanceof Error ? error.message : "eBay 품절 유지 설정을 확인하지 못했습니다.");
+      });
+    return () => { mounted = false; };
+  }, [channel]);
 
   const inventoryTiming = useMemo(() => {
     const job = data.inventoryJob;
@@ -205,6 +223,10 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
       setMessage(`현재 선택된 항목이 없습니다. 아래 '${ids.length <= max ? `전체 대상 ${ids.length.toLocaleString()}건 선택` : `대상 일괄 선택 (최대 ${max.toLocaleString()}건)`}'을 먼저 눌러 주세요.`);
       return;
     }
+    if (channel === "EBAY" && actionTab === "unavailable" && outOfStockControl === false) {
+      setMessage("eBay 품절 유지 설정이 꺼져 있어 수량 0을 보낼 수 없습니다. 위의 ‘eBay 품절 유지 설정 켜기’를 먼저 눌러 주세요.");
+      return;
+    }
     setElapsed(0); setBusy(true); setPhase("preview"); setMessage(""); setResult(null); setPreview(null);
     const controller = new AbortController(); abortRef.current = controller;
     try {
@@ -256,9 +278,31 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
     abortRef.current?.abort();
   }
 
+  async function enableOutOfStockControl() {
+    setOutOfStockBusy(true);
+    setMessage("eBay 계정의 품절 유지 설정을 켜고 실제 적용 여부를 확인하고 있습니다.");
+    try {
+      const response = await fetch("/api/ebay/out-of-stock-control", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirmed: true }),
+      });
+      const body = await response.json();
+      if (!response.ok || body.enabled !== true) throw new Error(body.error ?? "eBay 품절 유지 설정을 켜지 못했습니다.");
+      setOutOfStockControl(true);
+      setMessage("eBay 품절 유지 설정이 켜진 것을 실제 재조회로 확인했습니다. 이제 실패·미확인 항목만 재시작해 주세요.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "eBay 품절 유지 설정 변경에 실패했습니다.");
+    } finally {
+      setOutOfStockBusy(false);
+    }
+  }
+
   return <div className="mt-6 space-y-4">
     <OperationProgressOverlay open={busy} title={phase === "sending" ? `${channel === "EBAY" ? "eBay" : "Shopify"} 작업 등록 중` : "전송 대상 자동 검증 중"} detail={phase === "sending" ? `${actionName(tab)} ${selected.length}건을 안전한 서버 작업으로 등록하고 있습니다.` : "최신 재고·가격·옵션·이미지를 다시 확인하고 있습니다."} elapsedSeconds={elapsed} estimateSeconds={estimatedSeconds.maximum} total={phase === "sending" ? selected.length : undefined}/>
     <div className="flex gap-2 rounded-2xl border bg-white p-2">{(["EBAY", "SHOPIFY"] as const).map((item) => <button key={item} disabled={busy} onClick={() => void load(item)} className={`flex-1 rounded-xl px-4 py-3 font-bold ${channel === item ? (item === "EBAY" ? "bg-violet-600 text-white" : "bg-emerald-600 text-white") : "text-zinc-600"}`}>{item === "EBAY" ? "eBay" : "Shopify"}</button>)}</div>
+    {channel === "EBAY" && outOfStockControl === false && <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-950"><div className="flex flex-wrap items-center justify-between gap-3"><div><b>eBay 품절 유지 설정이 꺼져 있어 수량 0 전송이 거절됩니다.</b><p className="mt-1">설정을 켜면 단품은 수량 0에서 검색·구매가 숨겨지고, 묶음상품은 품절 옵션만 구매 불가가 됩니다. 상품을 영구 삭제하거나 종료하지 않으며 재입고 시 다시 판매할 수 있습니다.</p></div><button onClick={() => void enableOutOfStockControl()} disabled={outOfStockBusy || busy} className="rounded-lg bg-red-700 px-4 py-2 font-bold text-white disabled:opacity-40">{outOfStockBusy ? "설정 확인 중…" : "eBay 품절 유지 설정 켜기"}</button></div></div>}
+    {channel === "EBAY" && outOfStockControl === true && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950"><b>eBay 품절 유지 설정 정상:</b> 수량 0 전송이 가능합니다. 묶음은 해당 옵션만 품절되고, 단품은 판매가 숨겨졌다가 재입고 시 복구됩니다.</div>}
     {channel === "EBAY" && data.summary && <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950"><b>신규등록 숫자의 의미:</b> {data.summary.createCountMeaning}. 검증 전·실패 초안 {(data.summary.createNeedsReview ?? 0).toLocaleString()}건은 신규등록 수에 포함하지 않습니다.<span className="ml-3">실제 품절·중지: 묶음 옵션 {data.summary.unavailableOptions ?? 0}건 / 단품 {data.summary.unavailableSingles ?? 0}건</span>{(data.summary.heldForOrder ?? 0) > 0 && <span className="ml-3">주문 예약 보류 {data.summary.heldForOrder}건</span>}{(data.summary.sourceReview ?? 0) > 0 && <span className="ml-3 font-bold text-amber-800">포카마켓 수집값 없음 {data.summary.sourceReview}건 — 자동 전송 제외</span>}</div>}
     {channel === "SHOPIFY" && data.summary && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950"><b>Shopify 등록 단위:</b> 카드 {data.summary.shopifyOptions ?? 0}장을 묶음상품 {data.summary.shopifyVariationListings ?? 0}개와 단품 {data.summary.shopifySingleListings ?? 0}개, 총 {data.summary.shopifyListings ?? 0}개 리스팅으로 계산합니다.<span className="ml-3 font-bold">이미지·썸네일 교체 가능 {data.summary.imageRepairListings ?? 0}개</span></div>}
     {channel === "EBAY" && data.summary && <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950"><b>eBay 묶음 대표사진:</b> 최신 활성상품 보고서에서 확인되고 옵션 이미지가 모두 준비된 묶음 {data.summary.imageRepairListings ?? 0}개를 현재 워터마크 설정으로 교체할 수 있습니다.</div>}

@@ -17,6 +17,7 @@ import { uploadShopifyVariationGroup } from "@/lib/services/shopifyVariationUplo
 import { repairShopifyProductImages } from "@/lib/services/shopifyImageRepair";
 import { enqueueEbayVariationImageRepairs, getEbayVariationImageRepairJobs, processEbayVariationImageRepairJobs } from "@/lib/services/ebayVariationImageRepair";
 import { enqueueEbayInventoryJobs, getEbayInventoryJobSummary, processEbayInventoryJobs } from "@/lib/services/ebayInventoryJobs";
+import { getEbayOutOfStockControl } from "@/lib/services/ebayOutOfStockControl";
 
 const executeSchema = z.object({
   action: z.enum(["CREATE", "CHANGE", "UNAVAILABLE", "REVIEW", "IMAGE_REPAIR"]),
@@ -209,6 +210,9 @@ export async function POST(request: Request) {
       const result = await pushEbayInventory({ userId: user.id, productIds, dryRun: true, limit: 2_000 });
       if (result.rows.length !== productIds.length) return jsonError("자동 검증 중 재고·연결 상태가 바뀐 항목이 있습니다. 목록을 새로고침한 뒤 다시 시작해 주세요.", 409);
       return Response.json({ ...result, previewToken: issueListingPreviewToken(productIds) });
+    }
+    if (input.action === "UNAVAILABLE" && !(await getEbayOutOfStockControl(user.id))) {
+      return jsonError("eBay 품절 유지 설정이 꺼져 있어 수량 0을 전송할 수 없습니다. 화면의 ‘eBay 품절 유지 설정 켜기’를 먼저 승인해 주세요.", 409);
     }
     const existingJob = await getEbayInventoryJobSummary(user.id);
     if (existingJob.active) return jsonError(`이미 eBay 가격·재고 작업 ${existingJob.active}건이 진행 중입니다. 완료된 뒤 다음 작업을 시작해 주세요.`, 409);
