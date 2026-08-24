@@ -103,9 +103,9 @@ async function watermarkLayer(input: VariationThumbnailInput) {
       .resize({ width: logoSize, height: logoSize, fit: "inside", withoutEnlargement: true })
       .greyscale()
       .ensureAlpha()
-      // RGB와 알파를 명시적으로 분리한다. 두 채널 배열을 쓰면 PNG에 따라
-      // 알파가 의도와 다르게 적용되어 개별 카드에서는 워터마크가 거의 안 보였다.
-      .linear([1, 1, 1, opacity], [0, 0, 0, 0])
+      // greyscale 뒤 ensureAlpha()는 회색·알파 2개 밴드다. 현재 Sharp에서는
+      // 4개 밴드 배열 확장을 지원하지 않으므로 알파 밴드만 투명도로 조절한다.
+      .linear([1, opacity], [0, 0])
       .rotate(-18, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();

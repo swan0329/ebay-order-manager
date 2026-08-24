@@ -44,7 +44,7 @@ async function watermarkTile(settings: ResolvedWatermark) {
     const size = Math.max(35, Math.min(220, settings.watermarkLogoSize));
     return sharp(settings.logo, { failOn: "none" })
       .resize({ width: size, height: size, fit: "inside", withoutEnlargement: true })
-      .greyscale().ensureAlpha().linear([1, 1, 1, opacity], [0, 0, 0, 0])
+      .greyscale().ensureAlpha().linear([1, opacity], [0, 0])
       .rotate(-18, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
   }
   if (!settings.watermarkText?.trim()) return null;
