@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Users } from "lucide-react";
+import { OperationProgressOverlay } from "@/components/OperationProgressOverlay";
 
 type Item = {
   id: string;
@@ -24,9 +25,14 @@ export function UnitMembersClient({ items: initial }: { items: Item[] }) {
   const [repairs, setRepairs] = useState<EbayRepair[]>([]);
   const [repairToken, setRepairToken] = useState("");
   const [repairBusy, setRepairBusy] = useState(false);
+  const [repairStage, setRepairStage] = useState<"scan" | "apply">("scan");
+  const [repairElapsed, setRepairElapsed] = useState(0);
+  const [repairResult, setRepairResult] = useState<{ succeeded: number; failed: number } | null>(null);
+
+  useEffect(() => { if (!repairBusy) return; const timer = window.setInterval(() => setRepairElapsed((value) => value + 1), 1000); return () => window.clearInterval(timer); }, [repairBusy]);
 
   async function scanRepairs() {
-    setRepairBusy(true); setMessage("eBay의 현재 유닛 옵션을 확인하고 있습니다.");
+    setRepairResult(null); setRepairElapsed(0); setRepairStage("scan"); setRepairBusy(true); setMessage("eBay의 현재 유닛 옵션을 확인하고 있습니다.");
     try {
       const response = await fetch("/api/ebay/unit-options", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dryRun: true }) });
       const body = await response.json(); if (!response.ok) throw new Error(body.error ?? "eBay 옵션 점검 실패");
@@ -38,12 +44,13 @@ export function UnitMembersClient({ items: initial }: { items: Item[] }) {
 
   async function applyRepairs() {
     if (!repairs.length || !repairToken) return;
-    setRepairBusy(true); setMessage("eBay 유닛 옵션명을 수정하고 있습니다.");
+    setRepairElapsed(0); setRepairStage("apply"); setRepairBusy(true); setMessage("eBay 유닛 옵션명을 수정하고 있습니다.");
     try {
       const keys = repairs.map((row) => `${row.itemId}:${row.sku}:${row.desiredName}`);
       const response = await fetch("/api/ebay/unit-options", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dryRun: false, confirmed: true, previewToken: repairToken, keys }) });
       const body = await response.json(); if (!response.ok) throw new Error(body.error ?? "eBay 옵션명 수정 실패");
       setMessage(`eBay 옵션명 수정 완료: 성공 ${body.succeeded}건 · 실패 ${body.failed}건`);
+      setRepairResult({ succeeded: body.succeeded, failed: body.failed });
       setRepairs((body.results ?? []).filter((row: EbayRepair & { error?: string }) => row.error)); setRepairToken("");
     } catch (error) { setMessage(error instanceof Error ? error.message : "eBay 옵션명 수정 실패"); }
     finally { setRepairBusy(false); }
@@ -114,6 +121,8 @@ export function UnitMembersClient({ items: initial }: { items: Item[] }) {
 
   return (
     <div className="space-y-3">
+      <OperationProgressOverlay open={repairBusy} title={repairStage === "scan" ? "eBay 유닛 옵션 점검 중" : "eBay 유닛 옵션 수정 중"} detail={repairStage === "scan" ? "활성상품을 조회하고 Item ID·SKU·현재 옵션명을 대조하고 있습니다." : `${repairs.length}건의 옵션명과 옵션 사진 연결을 순서대로 반영하고 있습니다.`} elapsedSeconds={repairElapsed} estimateSeconds={repairStage === "scan" ? 60 : Math.max(20, repairs.length * 12)} total={repairStage === "apply" ? repairs.length : undefined}/>
+      {repairResult ? <div className={`rounded-xl border p-4 ${repairResult.failed ? "border-amber-300 bg-amber-50 text-amber-950" : "border-emerald-300 bg-emerald-50 text-emerald-950"}`} role="status"><b>eBay 반영 결과</b><p className="mt-1 text-sm">성공 {repairResult.succeeded}건 · 실패 {repairResult.failed}건</p></div> : null}
       {message ? (
         <p className="rounded-md bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-800">
           {message}

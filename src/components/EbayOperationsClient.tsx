@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { OperationProgressOverlay } from "@/components/OperationProgressOverlay";
 
 type Channel = "EBAY" | "SHOPIFY";
 type Tab = "create" | "change" | "unavailable" | "review" | "imageRepair";
@@ -176,6 +177,7 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
   }
 
   return <div className="mt-6 space-y-4">
+    <OperationProgressOverlay open={busy} title={phase === "sending" ? `${channel === "EBAY" ? "eBay" : "Shopify"} 반영 중` : "전송 대상 자동 검증 중"} detail={phase === "sending" ? `${actionName(tab)} ${selected.length}건을 순서대로 처리하고 외부 마켓 성공 여부를 확인하고 있습니다.` : "최신 재고·가격·옵션·이미지를 다시 확인하고 있습니다."} elapsedSeconds={elapsed} estimateSeconds={estimatedSeconds.maximum} total={phase === "sending" ? selected.length : undefined}/>
     <div className="flex gap-2 rounded-2xl border bg-white p-2">{(["EBAY", "SHOPIFY"] as const).map((item) => <button key={item} disabled={busy} onClick={() => void load(item)} className={`flex-1 rounded-xl px-4 py-3 font-bold ${channel === item ? (item === "EBAY" ? "bg-violet-600 text-white" : "bg-emerald-600 text-white") : "text-zinc-600"}`}>{item === "EBAY" ? "eBay" : "Shopify"}</button>)}</div>
     {channel === "EBAY" && data.summary && <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950"><b>신규등록 숫자의 의미:</b> {data.summary.createCountMeaning}. 검증 전·실패 초안 {(data.summary.createNeedsReview ?? 0).toLocaleString()}건은 신규등록 수에 포함하지 않습니다.<span className="ml-3">실제 품절·중지: 묶음 옵션 {data.summary.unavailableOptions ?? 0}건 / 단품 {data.summary.unavailableSingles ?? 0}건</span>{(data.summary.heldForOrder ?? 0) > 0 && <span className="ml-3">주문 예약 보류 {data.summary.heldForOrder}건</span>}{(data.summary.sourceReview ?? 0) > 0 && <span className="ml-3 font-bold text-amber-800">포카마켓 수집값 없음 {data.summary.sourceReview}건 — 자동 전송 제외</span>}</div>}
     {channel === "SHOPIFY" && data.summary && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950"><b>Shopify 등록 단위:</b> 카드 {data.summary.shopifyOptions ?? 0}장을 묶음상품 {data.summary.shopifyVariationListings ?? 0}개와 단품 {data.summary.shopifySingleListings ?? 0}개, 총 {data.summary.shopifyListings ?? 0}개 리스팅으로 계산합니다.<span className="ml-3 font-bold">이미지·썸네일 교체 가능 {data.summary.imageRepairListings ?? 0}개</span></div>}
