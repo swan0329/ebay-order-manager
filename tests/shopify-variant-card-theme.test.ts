@@ -5,11 +5,13 @@ vi.mock("server-only", () => ({}));
 
 let injectVariantCardRender: typeof import("@/lib/services/shopifyVariantCardTheme").injectVariantCardRender;
 let snippet: string;
+let experienceSnippet: string;
 
 beforeAll(async () => {
   const themeService = await import("@/lib/services/shopifyVariantCardTheme");
   injectVariantCardRender = themeService.injectVariantCardRender;
   snippet = themeService.SHOPIFY_VARIANT_CARD_SNIPPET;
+  experienceSnippet = themeService.SHOPIFY_STOREFRONT_EXPERIENCE_SNIPPET;
 });
 
 describe("Shopify 옵션 카드 테마", () => {
@@ -18,6 +20,7 @@ describe("Shopify 옵션 카드 테마", () => {
     const second = injectVariantCardRender(first);
     expect(first).toBe(second);
     expect(first.indexOf("PHOTOCARD_VARIANT_CARDS_START")).toBeLessThan(first.indexOf("</body>"));
+    expect(first).toContain("photocard-storefront-experience");
   });
 
   it("안전한 삽입 지점이 없으면 변경하지 않는다", () => {
@@ -53,6 +56,19 @@ describe("Shopify 옵션 카드 테마", () => {
     expect(snippet).toContain("media-gallery");
     expect(snippet).toContain("slideshow-slide[aria-hidden=\"false\"] .product-media__image");
     expect(snippet).toContain("mainImage.src = imageUrl");
+  });
+
+  it("스토어 전반에 홈 안내, 카탈로그 검색, 상품 구매 흐름을 제공한다", () => {
+    expect(experienceSnippet).toContain("PHOTOCARD_STOREFRONT_EXPERIENCE_V1");
+    expect(experienceSnippet).toContain("data-pc-storefront-hero");
+    expect(experienceSnippet).toContain("data-pc-collection-tools");
+    expect(experienceSnippet).toContain("data-pc-product-guide");
+  });
+
+  it("스토어 경험 스크립트도 문법 오류가 없다", () => {
+    const script = experienceSnippet.match(/<script>\s*([\s\S]*?)\s*<\/script>/)?.[1];
+    expect(script).toBeTruthy();
+    expect(() => new Script(script!)).not.toThrow();
   });
 
 });

@@ -5,10 +5,12 @@ import { getShopifyConfig, type ShopifyConfig } from "@/lib/env";
 import { getShopifyAccessToken, resetShopifyTokenCache } from "@/lib/services/shopifyToken";
 
 const SNIPPET_KEY = "snippets/photocard-variant-cards.liquid";
+const EXPERIENCE_SNIPPET_KEY = "snippets/photocard-storefront-experience.liquid";
 const INSTALL_START = "<!-- PHOTOCARD_VARIANT_CARDS_START -->";
 const INSTALL_END = "<!-- PHOTOCARD_VARIANT_CARDS_END -->";
-const INSTALL_BLOCK = `${INSTALL_START}\n{% render 'photocard-variant-cards' %}\n${INSTALL_END}`;
+const INSTALL_BLOCK = `${INSTALL_START}\n{% render 'photocard-variant-cards' %}\n{% render 'photocard-storefront-experience' %}\n${INSTALL_END}`;
 const SNIPPET_MARKER = "PHOTOCARD_VARIANT_CARDS_V1";
+const EXPERIENCE_MARKER = "PHOTOCARD_STOREFRONT_EXPERIENCE_V1";
 
 type Theme = { id: number | string; name: string; role: string };
 type Asset = { key?: string; value?: string; checksum?: string | null };
@@ -112,6 +114,57 @@ export const SHOPIFY_VARIANT_CARD_SNIPPET = `{% comment %} ${SNIPPET_MARKER} {% 
   </script>
 {% endif %}`;
 
+export const SHOPIFY_STOREFRONT_EXPERIENCE_SNIPPET = `{% comment %} ${EXPERIENCE_MARKER} {% endcomment %}
+<style>
+  :root{--pc-ink:#191127;--pc-violet:#6334c7;--pc-violet-dark:#3f217f;--pc-mist:#f7f4ff;--pc-line:#e5ddf5}
+  body{background:linear-gradient(180deg,#fff 0,#fbfaff 40rem,#fff 70rem);color:var(--pc-ink)}
+  a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid rgba(99,52,199,.42);outline-offset:3px}
+  .pc-storefront-hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(18rem,.85fr);gap:2rem;align-items:center;max-width:78rem;margin:1.4rem auto 2.4rem;padding:clamp(1.5rem,4vw,3.5rem);border:1px solid var(--pc-line);border-radius:1.5rem;background:radial-gradient(circle at 85% 15%,#e8dcff 0,transparent 32%),linear-gradient(135deg,#251044,#6334c7);color:#fff;box-shadow:0 18px 50px rgba(63,33,127,.2)}
+  .pc-storefront-hero__eyebrow{margin:0 0 .8rem;font-size:.73rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#d9caff}.pc-storefront-hero h1{max-width:13ch;margin:0;font-size:clamp(2rem,5vw,4rem);line-height:1.03;letter-spacing:-.045em}.pc-storefront-hero p{max-width:38rem;margin:1rem 0 0;font-size:1rem;line-height:1.65;color:#f0ebff}.pc-storefront-hero__points{display:grid;gap:.7rem;margin:0;padding:1.15rem;list-style:none;border:1px solid rgba(255,255,255,.24);border-radius:1rem;background:rgba(255,255,255,.11);backdrop-filter:blur(10px)}.pc-storefront-hero__points li{display:flex;gap:.55rem;align-items:center;font-size:.92rem}.pc-storefront-hero__points li::before{content:'✓';display:grid;width:1.35rem;height:1.35rem;place-items:center;border-radius:50%;background:#d9caff;color:#32166d;font-weight:900}
+  .pc-collection-tools{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;max-width:78rem;margin:0 auto 1.25rem;padding:1rem 1.1rem;border:1px solid var(--pc-line);border-radius:1rem;background:#fff;box-shadow:0 8px 25px rgba(32,18,66,.06)}.pc-collection-tools__label{font-weight:800}.pc-collection-tools input{min-width:min(100%,18rem);flex:1;border:1px solid #cfc4e6;border-radius:.7rem;padding:.7rem .85rem;background:var(--pc-mist);font:inherit;color:inherit}.pc-collection-tools__count{color:#625778;font-size:.88rem}
+  .pc-product-guide{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.1rem 0;padding:0;list-style:none}.pc-product-guide li{display:flex;align-items:center;gap:.42rem;padding:.48rem .66rem;border:1px solid var(--pc-line);border-radius:999px;background:var(--pc-mist);font-size:.78rem;font-weight:700;color:#4b3974}.pc-product-guide li::before{display:grid;place-items:center;width:1.25rem;height:1.25rem;border-radius:50%;background:var(--pc-violet);color:#fff;font-size:.7rem}.pc-product-guide li:nth-child(1)::before{content:'1'}.pc-product-guide li:nth-child(2)::before{content:'2'}.pc-product-guide li:nth-child(3)::before{content:'3'}
+  .pc-variant-picker{padding:1.05rem;border:1px solid var(--pc-line);border-radius:1rem;background:linear-gradient(145deg,#fff,#faf8ff);box-shadow:0 10px 26px rgba(47,25,96,.07)}.pc-variant-picker__heading{margin-bottom:1rem}.pc-variant-picker__heading span{font-weight:700;color:#66577f}.pc-variant-picker__heading strong{background:var(--pc-violet)}.pc-variant-card{transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}.pc-variant-card:hover{transform:translateY(-2px)}.pc-variant-card__name{font-weight:700}.pc-variant-card__price{color:var(--pc-violet-dark)}
+  @media(max-width:749px){.pc-storefront-hero{grid-template-columns:1fr;margin:1rem;border-radius:1.1rem}.pc-storefront-hero h1{font-size:2.25rem}.pc-collection-tools{margin:0 1rem 1rem}.pc-variant-picker{padding:.8rem}.pc-product-guide{gap:.4rem}.pc-product-guide li{font-size:.72rem}}
+</style>
+{% if request.page_type == 'index' %}
+  <section class="pc-storefront-hero" data-pc-storefront-hero aria-labelledby="pc-storefront-hero-title">
+    <div><p class="pc-storefront-hero__eyebrow">K-pop photocard collection</p><h1 id="pc-storefront-hero-title">Find the card you want.</h1><p>Browse clear card photos, compare each option price, and choose the exact photocard before adding it to your cart.</p></div>
+    <ul class="pc-storefront-hero__points"><li>Option-by-option card photos</li><li>Clear price for every card</li><li>Simple, focused checkout flow</li></ul>
+  </section>
+{% endif %}
+{% if request.page_type == 'collection' %}
+  <div class="pc-collection-tools" data-pc-collection-tools><label class="pc-collection-tools__label" for="pc-collection-search">Find a card</label><input id="pc-collection-search" type="search" placeholder="Search artist, album, or member" autocomplete="off"/><span class="pc-collection-tools__count" data-pc-collection-count></span></div>
+{% endif %}
+{% if request.page_type == 'product' %}
+  <ul class="pc-product-guide" data-pc-product-guide aria-label="How to buy"><li>Choose a card</li><li>Check its price</li><li>Add to cart</li></ul>
+{% endif %}
+<script>
+  (() => {
+    const normalizeDuplicateTitles = () => document.querySelectorAll('main h1,main h2,main h3').forEach((node) => {
+      const text = node.textContent?.trim() || '';
+      if (text.length < 8 || text.length % 2) return;
+      const half = text.slice(0, text.length / 2).trim();
+      if (half && half === text.slice(text.length / 2).trim()) node.textContent = half;
+    });
+    const move = (selector, targetSelector) => {
+      const node = document.querySelector(selector); const target = document.querySelector(targetSelector);
+      if (node && target && !target.contains(node)) target.prepend(node);
+    };
+    const setupCollectionSearch = () => {
+      const tools = document.querySelector('[data-pc-collection-tools]');
+      const input = tools?.querySelector('input'); const count = tools?.querySelector('[data-pc-collection-count]');
+      if (!tools || !input || !count || tools.dataset.ready) return;
+      tools.dataset.ready = '1';
+      const cards = () => [...document.querySelectorAll('main product-card,main .resource-card')];
+      const filter = () => { const query = input.value.trim().toLowerCase(); const items = cards(); let visible = 0; items.forEach((item) => { const matched = !query || (item.textContent || '').toLowerCase().includes(query); item.style.display = matched ? '' : 'none'; if (matched) visible += 1; }); count.textContent = query ? visible + ' matching cards' : items.length + ' cards'; };
+      input.addEventListener('input', filter); filter();
+    };
+    const init = () => { move('[data-pc-storefront-hero]', 'main'); move('[data-pc-collection-tools]', 'main'); const guide = document.querySelector('[data-pc-product-guide]'); const picker = document.querySelector('[data-pc-variant-picker]'); if (guide && picker && !picker.contains(guide)) picker.parentElement?.insertBefore(guide, picker); normalizeDuplicateTitles(); setupCollectionSearch(); };
+    document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', init) : init();
+    document.addEventListener('shopify:section:load', init);
+  })();
+</script>`;
+
 function checksum(value: string) {
   return createHash("sha256").update(value).digest("hex").slice(0, 12);
 }
@@ -172,13 +225,15 @@ export async function getShopifyVariantCardThemeStatus() {
   const theme = await mainTheme(config);
   const layout = await getAsset(config, String(theme.id), "layout/theme.liquid");
   const snippet = await getAsset(config, String(theme.id), SNIPPET_KEY, true);
+  const experience = await getAsset(config, String(theme.id), EXPERIENCE_SNIPPET_KEY, true);
   const layoutValue = layout?.value ?? "";
   const snippetValue = snippet?.value ?? "";
+  const experienceValue = experience?.value ?? "";
   return {
     themeId: String(theme.id),
     themeName: theme.name,
-    installed: layoutValue.includes(INSTALL_START) && snippetValue.includes(SNIPPET_MARKER),
-    partial: layoutValue.includes(INSTALL_START) !== snippetValue.includes(SNIPPET_MARKER),
+    installed: layoutValue.includes(INSTALL_START) && snippetValue.includes(SNIPPET_MARKER) && experienceValue.includes(EXPERIENCE_MARKER),
+    partial: !layoutValue.includes(INSTALL_START) || !snippetValue.includes(SNIPPET_MARKER) || !experienceValue.includes(EXPERIENCE_MARKER),
   };
 }
 
@@ -192,8 +247,13 @@ export async function installShopifyVariantCardTheme() {
   if (existingSnippet?.value && !existingSnippet.value.includes(SNIPPET_MARKER)) {
     throw new Error(`${SNIPPET_KEY} 파일이 이미 다른 용도로 존재해 덮어쓰지 않았습니다.`);
   }
+  const existingExperience = await getAsset(config, themeId, EXPERIENCE_SNIPPET_KEY, true);
+  if (existingExperience?.value && !existingExperience.value.includes(EXPERIENCE_MARKER)) {
+    throw new Error(`${EXPERIENCE_SNIPPET_KEY} 파일이 이미 다른 용도로 존재해 덮어쓰지 않았습니다.`);
+  }
   const nextLayout = injectVariantCardRender(layout.value);
   await putAsset(config, themeId, SNIPPET_KEY, SHOPIFY_VARIANT_CARD_SNIPPET);
+  await putAsset(config, themeId, EXPERIENCE_SNIPPET_KEY, SHOPIFY_STOREFRONT_EXPERIENCE_SNIPPET);
   if (nextLayout !== layout.value) await putAsset(config, themeId, "layout/theme.liquid", nextLayout);
   const verified = await getShopifyVariantCardThemeStatus();
   if (!verified.installed || verified.themeId !== themeId) throw new Error("Shopify 테마 저장 후 설치 상태를 확인하지 못했습니다.");
