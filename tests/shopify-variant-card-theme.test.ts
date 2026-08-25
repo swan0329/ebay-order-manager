@@ -43,13 +43,16 @@ describe("Shopify 옵션 카드 테마", () => {
     expect(snippet).toContain("form.querySelectorAll('[name=\"id\"]')");
   });
 
+  it("Shopify 테마의 표준 variant change 흐름으로 가격과 대표 미디어를 갱신한다", () => {
+    expect(snippet).toContain("nativeInput.dispatchEvent(new Event('change', { bubbles: true }))");
+    expect(snippet).toContain("nativeComponent.insertAdjacentElement('afterend', root)");
+    expect(snippet).toContain("nativeComponent.style.display = 'none'");
+  });
+
   it("카드 선택 시 현재 보이는 상품 갤러리의 큰 이미지를 해당 옵션 사진으로 바꾼다", () => {
     expect(snippet).toContain("media-gallery");
     expect(snippet).toContain("slideshow-slide[aria-hidden=\"false\"] .product-media__image");
     expect(snippet).toContain("mainImage.src = imageUrl");
   });
 
-  it("테마가 초기 기본사진을 늦게 다시 그려도 선택된 옵션 사진을 확정한다", () => {
-    expect(snippet).toContain("window.setTimeout(() => update(selected), 350)");
-  });
 });

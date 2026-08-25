@@ -39,11 +39,21 @@ export const SHOPIFY_VARIANT_CARD_SNIPPET = `{% comment %} ${SNIPPET_MARKER} {% 
         if (root.dataset.ready) return;
         root.dataset.ready = '1';
         const form = [...document.querySelectorAll('form[action*="/cart/add"]')].find((item) => item.querySelector('[name="id"]'));
-        const nativePicker = document.querySelector('fieldset.variant-option');
+        const nativePicker = document.querySelector('variant-picker fieldset.variant-option');
+        const nativeComponent = nativePicker?.closest('variant-picker');
         const buttons = [...root.querySelectorAll('[data-pc-variant-id]')];
         const add = form && form.querySelector('button[name="add"],button[type="submit"]');
-        const update = (button) => {
+        const update = (button, notifyTheme = true) => {
           const id = button.dataset.pcVariantId;
+          const nativeInput = document.querySelector('variant-picker fieldset.variant-option input[data-variant-id="' + id + '"]');
+          if (notifyTheme && nativeInput) {
+            nativeInput.checked = true;
+            nativeInput.dispatchEvent(new Event('change', { bubbles: true }));
+            window.setTimeout(() => {
+              const refreshedNativeComponent = document.querySelector('variant-picker');
+              if (refreshedNativeComponent) refreshedNativeComponent.style.display = 'none';
+            }, 500);
+          }
           if (form) form.querySelectorAll('[name="id"]').forEach((input) => {
             input.value = id;
             input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -75,9 +85,9 @@ export const SHOPIFY_VARIANT_CARD_SNIPPET = `{% comment %} ${SNIPPET_MARKER} {% 
           if (add) add.disabled = button.disabled;
         };
         buttons.forEach((button) => button.addEventListener('click', () => update(button)));
-        if (nativePicker && nativePicker.parentElement) {
-          nativePicker.parentElement.insertBefore(root, nativePicker);
-          nativePicker.style.display = 'none';
+        if (nativeComponent && nativeComponent.parentElement) {
+          nativeComponent.insertAdjacentElement('afterend', root);
+          nativeComponent.style.display = 'none';
         } else {
           const anchor = form && form.querySelector('.product-form__buttons,button[name="add"],button[type="submit"]');
           if (anchor) {
@@ -94,7 +104,6 @@ export const SHOPIFY_VARIANT_CARD_SNIPPET = `{% comment %} ${SNIPPET_MARKER} {% 
         const selected = buttons.find((button) => button.dataset.pcVariantId === root.dataset.selectedId && !button.disabled) || buttons.find((button) => !button.disabled);
         if (selected) {
           update(selected);
-          window.setTimeout(() => update(selected), 350);
         }
       });
       document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', init) : init();
