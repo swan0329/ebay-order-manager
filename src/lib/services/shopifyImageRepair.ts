@@ -2,7 +2,7 @@ import "server-only";
 
 import { getShopifyConfig } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
-import { attachShopifyVariantImages, moveShopifyProductMediaToFirst, replaceShopifyProductImages } from "@/lib/services/shopifyService";
+import { attachShopifyVariantImages, inspectShopifyProductImageState, moveShopifyProductMediaToFirst, replaceShopifyProductImages } from "@/lib/services/shopifyService";
 import { ensureShopifyVariationThumbnail } from "@/lib/services/shopifyVariationMedia";
 import { buildVariationListingGroups } from "@/lib/variation-listing-groups";
 import { getVariationListingReadyImages, promoteVariationListingImagesToR2, withVariationListingMetadata } from "@/lib/variation-listing-products";
@@ -47,17 +47,7 @@ export async function repairShopifyProductImages(productIds: string[], userId: s
   // 묶음은 제작한 콜라주 썸네일을 항상 첫 상품 미디어로 둔다. 옵션 이미지는
   // 그 뒤에 두고, 각각 해당 옵션과만 연결한다.
   const thumbnailUrl = group ? await ensureShopifyVariationThumbnail(userId, group) : null;
-  const urls = [...new Set([...(thumbnailUrl ? [thumbnailUrl] : []), ...imageByProductId.values()])];
-  // 새 승인 이미지를 먼저 접수한 뒤에 기존 Shopify 사진을 지운다. 가격, 재고,
-  // 옵션은 이 경로에서 변경하지 않는다.
-  const result = await replaceShopifyProductImages(getShopifyConfig(), externalIds[0], urls);
-  const mediaIdByUrl = new Map(result.media.map((media) => [media.sourceUrl, media.mediaId]));
-  if (thumbnailUrl) {
-    const thumbnailMediaId = mediaIdByUrl.get(thumbnailUrl);
-    if (!thumbnailMediaId) throw new Error("Shopify가 제작된 묶음 썸네일의 미디어 ID를 반환하지 않았습니다.");
-    await moveShopifyProductMediaToFirst(getShopifyConfig(), externalIds[0], thumbnailMediaId);
-  }
-  const assignments = products.map((product) => {
+  const variantAssignments = products.map((product) => {
     const metadata = product.productListings[0]?.metadata;
     const variantId = product.shopifyVariantId ?? (
       metadata && typeof metadata === "object" && !Array.isArray(metadata) && typeof (metadata as Record<string, unknown>).variantId === "string"
@@ -65,14 +55,11 @@ export async function repairShopifyProductImages(productIds: string[], userId: s
         : null
     );
     if (!variantId) throw new Error(`${product.sku}: Shopify 옵션 ID가 없어 이미지 연결을 시작하지 않았습니다.`);
-    const sourceUrl = imageByProductId.get(product.id)!;
-    const mediaId = mediaIdByUrl.get(sourceUrl);
-    if (!mediaId) throw new Error(`${product.sku}: Shopify가 옵션 사진 미디어 ID를 반환하지 않았습니다.`);
-    return { variantId, sourceUrl, mediaId };
+    return { variantId, sourceUrl: imageByProductId.get(product.id)! };
   });
-  const variantsUpdated = await attachShopifyVariantImages(getShopifyConfig(), externalIds[0], assignments);
+  const config = getShopifyConfig();
   const completedAt = new Date();
-  await prisma.$transaction([
+  const recordCompleted = async () => prisma.$transaction([
     prisma.product.updateMany({
       where: { id: { in: products.map((product) => product.id) } },
       data: { shopifyLastUploadedAt: completedAt, shopifyUploadError: null },
@@ -89,5 +76,38 @@ export async function repairShopifyProductImages(productIds: string[], userId: s
       })];
     }),
   ]);
+
+  // 이전 요청이 Shopify에 이미 반영된 경우에는 다시 업로드·삭제·순서 변경을
+  // 하지 않는다. 실제 대표 사진과 각 옵션 연결을 읽기 전용으로 대조한 뒤
+  // 내부 완료 기록만 복구해 목록에서 즉시 사라지게 한다.
+  const existing = await inspectShopifyProductImageState(config, externalIds[0], { thumbnailUrl, variants: variantAssignments });
+  if (existing.current) {
+    await recordCompleted();
+    return {
+      productId: externalIds[0], thumbnailUrl, variantsUpdated: 0,
+      requested: new Set([...(thumbnailUrl ? [thumbnailUrl] : []), ...imageByProductId.values()]).size,
+      attached: 0, alreadyAttached: variantAssignments.length, processing: 0, removed: 0,
+      media: [...existing.mediaBySourceUrl.entries()].map(([sourceUrl, mediaId]) => ({ sourceUrl, mediaId })),
+      reconciled: true,
+    };
+  }
+
+  const urls = [...new Set([...(thumbnailUrl ? [thumbnailUrl] : []), ...imageByProductId.values()])];
+  // 새 승인 이미지를 먼저 접수한 뒤에 기존 Shopify 사진을 지운다. 가격, 재고,
+  // 옵션은 이 경로에서 변경하지 않는다.
+  const result = await replaceShopifyProductImages(config, externalIds[0], urls);
+  const mediaIdByUrl = new Map(result.media.map((media) => [media.sourceUrl, media.mediaId]));
+  if (thumbnailUrl) {
+    const thumbnailMediaId = mediaIdByUrl.get(thumbnailUrl);
+    if (!thumbnailMediaId) throw new Error("Shopify가 제작된 묶음 썸네일의 미디어 ID를 반환하지 않았습니다.");
+    await moveShopifyProductMediaToFirst(config, externalIds[0], thumbnailMediaId);
+  }
+  const assignments = variantAssignments.map((assignment) => {
+    const mediaId = mediaIdByUrl.get(assignment.sourceUrl);
+    if (!mediaId) throw new Error(`${assignment.variantId}: Shopify가 옵션 사진 미디어 ID를 반환하지 않았습니다.`);
+    return { ...assignment, mediaId };
+  });
+  const variantsUpdated = await attachShopifyVariantImages(config, externalIds[0], assignments);
+  await recordCompleted();
   return { productId: externalIds[0], thumbnailUrl, variantsUpdated, ...result };
 }

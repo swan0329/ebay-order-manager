@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 
 const mocks = vi.hoisted(() => ({
   getConfig: vi.fn(),
@@ -11,7 +12,7 @@ vi.mock("@/lib/env", () => ({ getShopifyConfig: mocks.getConfig }));
 vi.mock("@/lib/services/shopifyToken", () => ({ getShopifyAccessToken: mocks.getToken }));
 vi.mock("@/lib/safe-log", () => ({ safeLog: mocks.safeLog }));
 
-import { onlyAlreadyAttachedVariantMediaErrors, upsertShopifyVariationProduct } from "@/lib/services/shopifyService";
+import { inspectShopifyProductImageState, onlyAlreadyAttachedVariantMediaErrors, upsertShopifyVariationProduct } from "@/lib/services/shopifyService";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -41,6 +42,20 @@ describe("Shopify 묶음상품 부분 실패", () => {
       { message: "Media is invalid." },
     ])).toBe(false);
     expect(onlyAlreadyAttachedVariantMediaErrors([])).toBe(false);
+  });
+
+  it("대표·옵션 사진이 이미 Shopify에 맞게 연결됐으면 쓰기 없이 완료로 판정한다", async () => {
+    const marker = `managed-source:${createHash("sha256").update("https://cdn.example/card-a.png").digest("hex").slice(0, 20)}`;
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({
+      data: { product: {
+        media: { nodes: [{ id: "gid://shopify/MediaImage/1", alt: marker, mediaContentType: "IMAGE", status: "READY" }] },
+        variants: { nodes: [{ id: "gid://shopify/ProductVariant/11", media: { nodes: [{ id: "gid://shopify/MediaImage/1" }] } }] },
+      } },
+    }));
+
+    await expect(inspectShopifyProductImageState(mocks.getConfig(), "100", {
+      variants: [{ variantId: "11", sourceUrl: "https://cdn.example/card-a.png" }],
+    })).resolves.toMatchObject({ current: true, missing: [] });
   });
 
   it("한 옵션의 재고 반영이 실패해도 생성된 Shopify 상품과 다른 옵션 결과를 돌려준다", async () => {

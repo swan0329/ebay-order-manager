@@ -146,6 +146,65 @@ function shopifyImageMarker(url: string) {
   return `managed-source:${createHash("sha256").update(url).digest("hex").slice(0, 20)}`;
 }
 
+/**
+ * Shopify에 이미 반영된 사진을 다시 올리지 않고 확인만 한다.
+ * 이미지 보정 작업이 중간에 끊긴 뒤 다시 시작될 때, 이 검증을 먼저 통과하면
+ * 외부 쓰기 없이 내부 완료 기록만 복구할 수 있다.
+ */
+export async function inspectShopifyProductImageState(
+  config: ShopifyConfig,
+  productId: string,
+  expected: {
+    thumbnailUrl?: string | null;
+    variants: Array<{ variantId: string; sourceUrl: string }>;
+  },
+) {
+  const query = `query InspectManagedProductMedia($id: ID!) {
+    product(id: $id) {
+      media(first: 250) { nodes { id alt mediaContentType status } }
+      variants(first: 250) { nodes { id media(first: 250) { nodes { id } } } }
+    }
+  }`;
+  const data = await shopifyGraphqlRequest<{
+    product?: {
+      media?: { nodes?: Array<{ id: string; alt?: string | null; mediaContentType?: string | null; status?: string | null }> } | null;
+      variants?: { nodes?: Array<{ id: string; media?: { nodes?: Array<{ id: string }> } | null }> } | null;
+    } | null;
+  }>(config, query, { id: `gid://shopify/Product/${productId}` });
+  const mediaByMarker = new Map(
+    (data.product?.media?.nodes ?? [])
+      .filter((media) => media.mediaContentType === "IMAGE" && media.status === "READY" && media.alt?.startsWith("managed-source:"))
+      .map((media) => [media.alt!, media] as const),
+  );
+  const variantMediaIds = new Map(
+    (data.product?.variants?.nodes ?? []).map((variant) => [variant.id, new Set((variant.media?.nodes ?? []).map((media) => media.id))]),
+  );
+  const missing: string[] = [];
+  const mediaBySourceUrl = new Map<string, string>();
+  for (const assignment of expected.variants) {
+    const media = mediaByMarker.get(shopifyImageMarker(assignment.sourceUrl));
+    if (!media) {
+      missing.push(`${assignment.variantId}: 옵션 사진 없음`);
+      continue;
+    }
+    mediaBySourceUrl.set(assignment.sourceUrl, media.id);
+    if (!variantMediaIds.get(`gid://shopify/ProductVariant/${assignment.variantId}`)?.has(media.id)) {
+      missing.push(`${assignment.variantId}: 옵션 사진 연결 없음`);
+    }
+  }
+  let thumbnailMediaId: string | null = null;
+  if (expected.thumbnailUrl) {
+    const thumbnail = mediaByMarker.get(shopifyImageMarker(expected.thumbnailUrl));
+    if (!thumbnail) {
+      missing.push("묶음 대표 썸네일 없음");
+    } else {
+      thumbnailMediaId = thumbnail.id;
+      if (data.product?.media?.nodes?.[0]?.id !== thumbnail.id) missing.push("묶음 대표 썸네일 순서 불일치");
+    }
+  }
+  return { current: missing.length === 0, missing, mediaBySourceUrl, thumbnailMediaId };
+}
+
 export async function syncShopifyProductImages(
   config: ShopifyConfig,
   productId: string,
