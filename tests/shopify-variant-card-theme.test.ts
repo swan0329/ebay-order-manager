@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { Script } from "node:vm";
 
 vi.mock("server-only", () => ({}));
 
@@ -28,5 +29,11 @@ describe("Shopify 옵션 카드 테마", () => {
     expect(snippet).toContain("variant.price | money");
     expect(snippet).toContain("unless variant.available");
     expect(snippet).not.toContain("product.product_type == 'Photocard'");
+  });
+
+  it("테마에 넣는 브라우저 JavaScript는 문법 오류가 없다", () => {
+    const script = snippet.match(/<script>\s*([\s\S]*?)\s*<\/script>/)?.[1];
+    expect(script).toBeTruthy();
+    expect(() => new Script(script!)).not.toThrow();
   });
 });
