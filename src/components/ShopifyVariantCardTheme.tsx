@@ -38,7 +38,7 @@ export function ShopifyVariantCardTheme() {
   }
 
   return <div className={`rounded-xl border p-4 text-sm ${status?.installed ? "border-emerald-200 bg-emerald-50 text-emerald-950" : "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-950"}`}>
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><b>Shopify 상품페이지 옵션 카드</b><p className="mt-1">옵션별 사진·이름·실제 가격·품절 상태를 카드로 표시하고, 선택한 옵션의 사진과 장바구니 항목을 함께 바꿉니다.{status?.themeName ? ` 현재 공개 테마: ${status.themeName}` : ""}</p></div>{status?.installed ? <span className="rounded-full bg-emerald-100 px-3 py-1 font-bold text-emerald-800">설치 완료</span> : <button onClick={() => void install()} disabled={busy} className="rounded-lg bg-fuchsia-700 px-4 py-2 font-bold text-white disabled:opacity-40">{busy ? "설치·확인 중…" : status?.partial ? "설치 복구" : "공개 테마에 설치"}</button>}</div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><b>Shopify 상품페이지 옵션 카드</b><p className="mt-1">옵션별 사진·이름·실제 가격·품절 상태를 카드로 표시하고, 선택한 옵션의 사진과 장바구니 항목을 함께 바꿉니다. 상품 유형 값과 관계없이 옵션이 둘 이상인 상품에 표시됩니다.{status?.themeName ? ` 현재 공개 테마: ${status.themeName}` : ""}</p></div><div className="flex items-center gap-2">{status?.installed && <span className="rounded-full bg-emerald-100 px-3 py-1 font-bold text-emerald-800">설치 완료</span>}<button onClick={() => void install()} disabled={busy} className="rounded-lg bg-fuchsia-700 px-4 py-2 font-bold text-white disabled:opacity-40">{busy ? "적용·확인 중…" : status?.installed ? "카드 UI 다시 적용" : status?.partial ? "설치 복구" : "공개 테마에 설치"}</button></div></div>
     {message && <p className="mt-3 font-medium">{message}</p>}
   </div>;
 }

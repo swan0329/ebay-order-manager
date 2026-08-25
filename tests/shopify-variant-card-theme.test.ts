@@ -23,10 +23,10 @@ describe("Shopify 옵션 카드 테마", () => {
     expect(() => injectVariantCardRender("<html></html>")).toThrow("</body>");
   });
 
-  it("Shopify 실제 variant 사진·가격·재고 상태를 사용한다", () => {
+  it("Shopify 실제 variant 사진·가격·재고 상태를 사용하며 상품 유형으로 제외하지 않는다", () => {
     expect(snippet).toContain("variant.featured_media.preview_image");
     expect(snippet).toContain("variant.price | money");
     expect(snippet).toContain("unless variant.available");
-    expect(snippet).toContain("product.product_type == 'Photocard'");
+    expect(snippet).not.toContain("product.product_type == 'Photocard'");
   });
 });
