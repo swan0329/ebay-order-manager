@@ -68,6 +68,23 @@ describe("eBay operations classification", () => {
     expect(result.summary).toMatchObject({ unavailableOptions: 0, unavailableSingles: 0 });
   });
 
+  it("uses the record matching the current Shopify product ID when old links are duplicated", async () => {
+    findProducts.mockResolvedValue([{
+      id: "linked", sku: "LINKED", brand: null, category: null, productName: "Linked", optionName: null,
+      imageUrl: "https://img.test/card.jpg", ebayImageUrls: [], stockQuantity: 1, safetyStock: 0, status: "active",
+      isSoldOut: false, pocamarketAvailableCount: 0, pocamarketSyncedAt: new Date(),
+      shopifyProductId: "new-product", shopifyVariantId: "200", ebayPrice: 10,
+      productListings: [
+        { id: "old", externalId: "old-product", quantity: 1, price: 10, metadata: { imageSync: { status: "FAILED", sourceImageUrl: "https://img.test/old.jpg" } } },
+        { id: "current", externalId: "new-product", quantity: 1, price: 10, metadata: { imageSync: { status: "READY", sourceImageUrl: "https://img.test/card.jpg" } } },
+      ],
+    }]);
+    readyImages.mockResolvedValue([{ id: "linked", listingImageUrl: "https://img.test/card.jpg" }]);
+
+    const result = await getShopifyOperations();
+    expect(result.imageRepair).toEqual([]);
+  });
+
   it("keeps a sold-out variation as an option update instead of ending its parent", async () => {
     planInventory.mockResolvedValue({ missingPrice: [], rows: [
       { productId:"option",sku:"OPT-1",productName:"Option",productStatus:"active",itemId:"parent",stock:0,reserved:0,quantity:0,price:12,previousQuantity:1,previousPrice:12,listingType:"VARIATION_OPTION",parentTitle:"Bundle",availabilityStatus:"SOLD_OUT",actionable:true },

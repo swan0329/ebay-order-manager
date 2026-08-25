@@ -19,7 +19,7 @@ export async function repairShopifyProductImages(productIds: string[], userId: s
   }
   const products = await prisma.product.findMany({
     where: { id: { in: productIds } },
-    include: { productListings: { where: { channel: "SHOPIFY" }, take: 1 } },
+    include: { productListings: { where: { channel: "SHOPIFY" } } },
   });
   if (products.length !== productIds.length) throw new Error("이미지 보정 대상 상품을 찾을 수 없습니다.");
   const readyImageById = new Map(readyImages.map((image) => [image.id, image.listingImageUrl]));
@@ -47,8 +47,9 @@ export async function repairShopifyProductImages(productIds: string[], userId: s
   // 묶음은 제작한 콜라주 썸네일을 항상 첫 상품 미디어로 둔다. 옵션 이미지는
   // 그 뒤에 두고, 각각 해당 옵션과만 연결한다.
   const thumbnailUrl = group ? await ensureShopifyVariationThumbnail(userId, group) : null;
+  const listingFor = (product: typeof products[number]) => product.productListings.find((listing) => listing.externalId === externalIds[0]) ?? product.productListings[0];
   const variantAssignments = products.map((product) => {
-    const metadata = product.productListings[0]?.metadata;
+    const metadata = listingFor(product)?.metadata;
     const variantId = product.shopifyVariantId ?? (
       metadata && typeof metadata === "object" && !Array.isArray(metadata) && typeof (metadata as Record<string, unknown>).variantId === "string"
         ? (metadata as Record<string, string>).variantId
@@ -65,15 +66,17 @@ export async function repairShopifyProductImages(productIds: string[], userId: s
       data: { shopifyLastUploadedAt: completedAt, shopifyUploadError: null },
     }),
     ...products.flatMap((product) => {
-      const listing = product.productListings[0];
-      if (!listing) return [];
-      const previous = listing.metadata && typeof listing.metadata === "object" && !Array.isArray(listing.metadata)
-        ? listing.metadata as Record<string, unknown>
-        : {};
-      return [prisma.productListing.update({
-        where: { id: listing.id },
-        data: { metadata: { ...previous, imageSync: { status: "READY", sourceImageUrl: readyImageById.get(product.id), salesImageUrl: imageByProductId.get(product.id), watermarkSignature: watermark.signature, watermarkApplied: watermark.applyToIndividualCards, thumbnailUrl, completedAt: completedAt.toISOString() } } },
-      })];
+      // 같은 Shopify 상품을 가리키는 이전 연결 기록도 함께 완료로 맞춘다.
+      // 그래야 조회 때 어떤 기록을 읽어도 이미 끝난 3건이 다시 나타나지 않는다.
+      return product.productListings.filter((listing) => listing.externalId === externalIds[0]).map((listing) => {
+        const previous = listing.metadata && typeof listing.metadata === "object" && !Array.isArray(listing.metadata)
+          ? listing.metadata as Record<string, unknown>
+          : {};
+        return prisma.productListing.update({
+          where: { id: listing.id },
+          data: { metadata: { ...previous, imageSync: { status: "READY", sourceImageUrl: readyImageById.get(product.id), salesImageUrl: imageByProductId.get(product.id), watermarkSignature: watermark.signature, watermarkApplied: watermark.applyToIndividualCards, thumbnailUrl, completedAt: completedAt.toISOString() } } },
+        });
+      });
     }),
   ]);
 

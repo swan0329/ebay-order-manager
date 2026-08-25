@@ -123,7 +123,11 @@ export async function getShopifyOperations() {
           { OR: [{ stockQuantity: { gt: 0 } }, { pocamarketAvailableCount: { gt: 0 }, isSoldOut: false }] },
         ] },
       ] },
-      include: { productListings: { where: { channel: "SHOPIFY" }, take: 1 } },
+      // 과거 재등록으로 Shopify 연결 기록이 중복된 상품이 있다. take: 1로
+      // 임의 행을 고르면 완료 기록을 다른 행에 저장한 뒤에도 계속 "교체 필요"
+      // 로 보일 수 있으므로, 아래에서 현재 Shopify 상품 ID와 일치하는 행을
+      // 명시적으로 고른다.
+      include: { productListings: { where: { channel: "SHOPIFY" } } },
       orderBy: { updatedAt: "desc" },
     }),
     prisma.pricingSettings.findUnique({ where: { id: "default" } }),
@@ -132,10 +136,11 @@ export async function getShopifyOperations() {
   const cancelled = ["CANCELLED", "CANCELED", "CANCELLED_BY_SELLER"];
   const reserved = reservedByProduct(lines.map((line) => ({ productId: line.productId as string, quantity: line.quantity, stockDeducted: line.stockDeducted, orderCancelled: cancelled.includes(line.order.orderStatus) || cancelled.includes(line.order.fulfillmentStatus) })));
   const mapped = (await withVariationListingMetadata(products)).map((product) => {
-    const listing = product.productListings[0];
+    const canonicalExternalId = product.shopifyProductId ?? product.productListings[0]?.externalId ?? null;
+    const listing = product.productListings.find((candidate) => candidate.externalId === canonicalExternalId) ?? product.productListings[0];
     const availability = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: reserved.get(product.id) ?? 0, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
     const price = settings ? Number(resolveListingPriceUsd(product, settings)?.priceUsd ?? 0) || null : null;
-    return { productId: product.id, sku: product.sku, productName: product.productName, itemId: listing?.externalId ?? product.shopifyProductId ?? "-", price, previousQuantity: listing?.quantity ?? null, previousPrice: listing?.price == null ? null : Number(listing.price), productStatus: product.status, linked: Boolean(listing?.externalId ?? product.shopifyProductId), imageSync: listing?.metadata, product: readyImageById.has(product.id) ? { ...product, imageUrl: readyImageById.get(product.id)! } : product, ...availability };
+    return { productId: product.id, sku: product.sku, productName: product.productName, itemId: canonicalExternalId ?? "-", price, previousQuantity: listing?.quantity ?? null, previousPrice: listing?.price == null ? null : Number(listing.price), productStatus: product.status, linked: Boolean(canonicalExternalId), imageSync: listing?.metadata, product: readyImageById.has(product.id) ? { ...product, imageUrl: readyImageById.get(product.id)! } : product, ...availability };
   });
   const unlinked = mapped.filter((row) => !row.linked && row.availabilityStatus === "AVAILABLE" && row.price !== null);
   const byId = new Map(unlinked.map((row) => [row.productId, row]));
