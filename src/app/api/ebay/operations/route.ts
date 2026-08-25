@@ -12,12 +12,10 @@ import {
   previewListingUpload,
   verifyListingPreviewToken,
 } from "@/lib/services/listingUploadSafety";
-import { uploadShopifyProduct } from "@/lib/services/shopifyProductUpload";
-import { uploadShopifyVariationGroup } from "@/lib/services/shopifyVariationUpload";
-import { repairShopifyProductImages } from "@/lib/services/shopifyImageRepair";
 import { enqueueEbayVariationImageRepairs, getEbayVariationImageRepairJobs, processEbayVariationImageRepairJobs } from "@/lib/services/ebayVariationImageRepair";
 import { enqueueEbayInventoryJobs, getEbayInventoryJobSummary, processEbayInventoryJobs } from "@/lib/services/ebayInventoryJobs";
 import { getEbayOutOfStockControl } from "@/lib/services/ebayOutOfStockControl";
+import { enqueueShopifyOperationJobs, getShopifyOperationJobSummary, processShopifyOperationJobs } from "@/lib/services/shopifyOperationJobs";
 
 const executeSchema = z.object({
   action: z.enum(["CREATE", "CHANGE", "UNAVAILABLE", "REVIEW", "IMAGE_REPAIR"]),
@@ -35,7 +33,7 @@ export async function GET(request: Request) {
     const user = await requireApiUser();
     const shopify = new URL(request.url).searchParams.get("channel") === "SHOPIFY";
     const operations = shopify ? await getShopifyOperations() : await getEbayOperations(user.id);
-    return Response.json(shopify ? operations : { ...operations, imageRepairJob: await getEbayVariationImageRepairJobs(user.id), inventoryJob: await getEbayInventoryJobSummary(user.id) });
+    return Response.json(shopify ? { ...operations, shopifyJob: await getShopifyOperationJobSummary(user.id) } : { ...operations, imageRepairJob: await getEbayVariationImageRepairJobs(user.id), inventoryJob: await getEbayInventoryJobSummary(user.id) });
   } catch (error) {
     if (error instanceof UnauthorizedError)
       return jsonError("Unauthorized", 401);
@@ -48,6 +46,7 @@ export async function POST(request: Request) {
     const user = await requireApiUser();
     const input = executeSchema.parse(await request.json());
     if (input.channel === "SHOPIFY") {
+      if (input.action === "REVIEW") return jsonError("주문 예약·수집 필요 항목은 Shopify에 전송하지 않습니다.", 409);
       const current = await getShopifyOperations();
       const source =
         input.action === "CREATE"
@@ -95,52 +94,17 @@ export async function POST(request: Request) {
       const selectedRows = source.filter((row) =>
         productIds.includes(String(row.productId)),
       );
-      const results = [];
-      for (const row of selectedRows) {
-        try {
-          const memberIds = (
-            "productIds" in row && Array.isArray(row.productIds)
-              ? row.productIds
-              : [row.productId]
-          ).filter((id): id is string => typeof id === "string");
-          const result =
-            input.action === "IMAGE_REPAIR"
-              ? await repairShopifyProductImages(memberIds, user.id)
-              : memberIds.length > 1
-                ? await uploadShopifyVariationGroup(memberIds, user.id)
-                : await uploadShopifyProduct(memberIds[0], user.id);
-          const partialFailures =
-            "failed" in result && Array.isArray(result.failed)
-              ? result.failed
-              : [];
-          results.push(
-            partialFailures.length
-              ? {
-                  productId: String(row.productId),
-                  result,
-                  error: partialFailures
-                    .map(
-                      (failure: { sku: string; reason: string }) =>
-                        `${failure.sku}: ${failure.reason}`,
-                    )
-                    .join(" / "),
-                }
-              : { productId: String(row.productId), result },
-          );
-        } catch (error) {
-          results.push({
-            productId: String(row.productId),
-            error: error instanceof Error ? error.message : "Shopify 전송 실패",
-          });
-        }
-      }
-      // 브라우저 작업 콘솔이 성공·실패를 정확히 재시작할 수 있도록 실패 건수와
-      // 항목별 결과를 함께 준다. 배열 자체를 failed 값으로 보내면 0건 판정이 틀어진다.
-      return Response.json({
-        succeeded: results.filter((row) => "result" in row).length,
-        failed: results.filter((row) => "error" in row).length,
-        results,
+      const job = await enqueueShopifyOperationJobs({
+        userId: user.id,
+        action: input.action,
+        targets: selectedRows.map((row) => ({
+          targetId: String(row.productId),
+          productIds: ("productIds" in row && Array.isArray(row.productIds) ? row.productIds : [row.productId]).filter((id): id is string => typeof id === "string"),
+          sku: String(row.sku),
+        })),
       });
+      after(() => processShopifyOperationJobs(user.id));
+      return Response.json({ queued: true, jobType: "shopify", succeeded: 0, failed: 0, job });
     }
     if (input.action === "CREATE") {
       if (!input.dryRun)

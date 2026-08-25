@@ -3,6 +3,8 @@ import { runScheduledOrderSync } from "@/lib/scheduled-order-sync";
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { processEbayInventoryJobs } from "@/lib/services/ebayInventoryJobs";
+import { processEbayVariationImageRepairJobs } from "@/lib/services/ebayVariationImageRepair";
+import { processShopifyOperationJobs } from "@/lib/services/shopifyOperationJobs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,12 +24,17 @@ export async function GET(request: Request) {
   // 사용자가 메뉴를 닫은 뒤 서버리스 실행이 중단돼도 다음 30분 주문 수집 때
   // 승인·대기 중이던 eBay 가격·재고 작업을 자동 재개한다.
   after(async () => {
-    const queuedUsers = await prisma.productUploadJob.findMany({
-      where: { source: "ebay_inventory_change", status: { in: ["pending", "running"] } },
-      distinct: ["userId"],
-      select: { userId: true },
+    const queuedJobs = await prisma.productUploadJob.findMany({
+      where: { source: { in: ["ebay_inventory_change", "ebay_variation_image_repair", "shopify_operations"] }, status: { in: ["pending", "running"] } },
+      select: { userId: true, source: true },
     });
-    for (const { userId } of queuedUsers) await processEbayInventoryJobs(userId);
+    const queuedSources = new Map<string, Set<string>>();
+    for (const job of queuedJobs) queuedSources.set(job.userId, new Set([...(queuedSources.get(job.userId) ?? []), job.source]));
+    for (const [userId, sources] of queuedSources) {
+      if (sources.has("ebay_inventory_change")) await processEbayInventoryJobs(userId);
+      if (sources.has("ebay_variation_image_repair")) await processEbayVariationImageRepairJobs(userId);
+      if (sources.has("shopify_operations")) await processShopifyOperationJobs(userId);
+    }
   });
   return Response.json(result, { status: result.ok ? 200 : 207 });
 }

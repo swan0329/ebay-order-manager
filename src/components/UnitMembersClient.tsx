@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Users } from "lucide-react";
-import { OperationProgressOverlay } from "@/components/OperationProgressOverlay";
 
 type Item = {
   id: string;
@@ -132,7 +131,7 @@ export function UnitMembersClient({ items: initial }: { items: Item[] }) {
 
   return (
     <div className="space-y-3">
-      <OperationProgressOverlay open={repairBusy} title={repairStage === "scan" ? "eBay 유닛 옵션 점검 중" : "eBay 유닛 옵션 수정 중"} detail={repairStage === "scan" ? "활성상품을 조회하고 Item ID·SKU·현재 옵션명을 대조하고 있습니다." : `${repairs.filter((row) => row.quantitySold === 0).length}건의 옵션명과 옵션 사진 연결을 순서대로 반영하고 실제 변경 결과를 다시 확인하고 있습니다.`} elapsedSeconds={repairElapsed} estimateSeconds={repairStage === "scan" ? 60 : Math.max(20, repairs.filter((row) => row.quantitySold === 0).length * 18)} total={repairStage === "apply" ? repairs.filter((row) => row.quantitySold === 0).length : undefined}/>
+      {repairBusy ? <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950" role="status"><b>{repairStage === "scan" ? "eBay 유닛 옵션 점검 중" : "eBay 유닛 옵션 수정 중"}</b><p className="mt-1">{repairStage === "scan" ? "활성상품의 Item ID·SKU·현재 옵션명을 대조하고 있습니다." : `${repairs.filter((row) => row.quantitySold === 0).length}건의 옵션명과 옵션 사진 연결을 순서대로 반영하고 실제 결과를 재조회합니다.`}</p><p className="mt-2 text-xs">{Math.floor(repairElapsed / 60)}분 {repairElapsed % 60}초 경과 · 예상 {repairStage === "scan" ? "약 1분" : `약 ${Math.max(1, Math.ceil(repairs.filter((row) => row.quantitySold === 0).length * 18 / 60))}분`}</p><div className="mt-2 h-2 overflow-hidden rounded bg-blue-100"><div className="h-full w-2/3 animate-pulse rounded bg-blue-600"/></div></div> : null}
       {repairResult ? <div className={`rounded-xl border p-4 ${repairResult.failed ? "border-amber-300 bg-amber-50 text-amber-950" : "border-emerald-300 bg-emerald-50 text-emerald-950"}`} role="status"><b>eBay 실제 재조회 결과</b><p className="mt-1 text-sm">성공 {repairResult.succeeded}건 · 실패 {repairResult.failed}건</p>{repairResult.errors?.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">{repairResult.errors.map((error) => <li key={error}>{error}</li>)}</ul> : <p className="mt-1 text-xs">eBay GetItem 재조회에서 실제 멤버명이 확인됐습니다.</p>}</div> : null}
       {message ? (
         <p className="rounded-md bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-800">
