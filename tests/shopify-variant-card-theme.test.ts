@@ -36,4 +36,10 @@ describe("Shopify 옵션 카드 테마", () => {
     expect(script).toBeTruthy();
     expect(() => new Script(script!)).not.toThrow();
   });
+
+  it("카드 선택은 현재 화면에서 장바구니 대상만 바꾸며 테마의 페이지 이동을 호출하지 않는다", () => {
+    expect(snippet).not.toContain("nativeInput.click()");
+    expect(snippet).not.toContain("history.replaceState");
+    expect(snippet).toContain("form.querySelectorAll('[name=\"id\"]')");
+  });
 });

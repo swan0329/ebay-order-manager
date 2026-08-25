@@ -44,8 +44,6 @@ export const SHOPIFY_VARIANT_CARD_SNIPPET = `{% comment %} ${SNIPPET_MARKER} {% 
         const add = form && form.querySelector('button[name="add"],button[type="submit"]');
         const update = (button) => {
           const id = button.dataset.pcVariantId;
-          const nativeInput = document.querySelector('fieldset.variant-option input[data-variant-id="' + id + '"]');
-          if (nativeInput && !nativeInput.checked) nativeInput.click();
           if (form) form.querySelectorAll('[name="id"]').forEach((input) => {
             input.value = id;
             input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -73,9 +71,6 @@ export const SHOPIFY_VARIANT_CARD_SNIPPET = `{% comment %} ${SNIPPET_MARKER} {% 
             }
           }
           if (add) add.disabled = button.disabled;
-          const url = new URL(location.href);
-          url.searchParams.set('variant', id);
-          history.replaceState({}, '', url);
         };
         buttons.forEach((button) => button.addEventListener('click', () => update(button)));
         if (nativePicker && nativePicker.parentElement) {
