@@ -270,8 +270,12 @@ export async function attachShopifyVariantImages(
       mediaIds: [assignment.mediaId],
     })),
   });
-  const errors = graphqlUserErrorMessage(data.productVariantAppendMedia?.userErrors);
-  if (errors) throw new ShopifyApiError(errors, 422, data);
+  const userErrors = data.productVariantAppendMedia?.userErrors;
+  const errors = graphqlUserErrorMessage(userErrors);
+  // "already has attached media"는 재시도 중 이미 연결된 옵션에 대한 Shopify의
+  // 비멱등 오류 문구다. 외부 상태를 가정하지 않고 바로 아래 재조회로 해당
+  // variantId와 mediaId 조합이 실제 존재할 때만 성공으로 인정한다.
+  if (errors && !onlyAlreadyAttachedVariantMediaErrors(userErrors)) throw new ShopifyApiError(errors, 422, data);
   const verification = await shopifyGraphqlRequest<{
     product?: { variants?: { nodes?: Array<{ id: string; media?: { nodes?: Array<{ id: string }> } | null }> } | null } | null;
   }>(config, `query VerifyVariantMedia($id: ID!) {
@@ -323,6 +327,14 @@ function gidNumber(value: string) {
 
 function graphqlUserErrorMessage(errors: ShopifyGraphqlError[] | undefined) {
   return (errors ?? []).map((error) => error.message).filter((message): message is string => Boolean(message)).join(" / ");
+}
+
+/** Shopify는 같은 옵션-미디어 연결을 두 번 요청하면 오류를 반환한다.
+ * 이는 재시도 중 흔히 생기는 정상적인 멱등 결과다. 단, 이 응답만 허용하고
+ * 아래 실제 재조회에서 모든 옵션이 기대 미디어를 갖는지 반드시 확인한다. */
+export function onlyAlreadyAttachedVariantMediaErrors(errors: ShopifyGraphqlError[] | undefined) {
+  const messages = (errors ?? []).map((error) => error.message?.trim()).filter((message): message is string => Boolean(message));
+  return messages.length > 0 && messages.every((message) => /given variant already has attached media/i.test(message));
 }
 
 function collectImageUrls(product: Product): string[] {

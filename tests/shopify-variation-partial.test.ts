@@ -11,7 +11,7 @@ vi.mock("@/lib/env", () => ({ getShopifyConfig: mocks.getConfig }));
 vi.mock("@/lib/services/shopifyToken", () => ({ getShopifyAccessToken: mocks.getToken }));
 vi.mock("@/lib/safe-log", () => ({ safeLog: mocks.safeLog }));
 
-import { upsertShopifyVariationProduct } from "@/lib/services/shopifyService";
+import { onlyAlreadyAttachedVariantMediaErrors, upsertShopifyVariationProduct } from "@/lib/services/shopifyService";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -29,6 +29,18 @@ describe("Shopify 묶음상품 부분 실패", () => {
       locationId: "1",
     });
     mocks.getToken.mockResolvedValue("token");
+  });
+
+  it("이미 연결된 옵션 사진 응답은 재조회 대상으로만 허용한다", () => {
+    expect(onlyAlreadyAttachedVariantMediaErrors([
+      { message: "The given variant already has attached media." },
+      { message: "The given variant already has attached media." },
+    ])).toBe(true);
+    expect(onlyAlreadyAttachedVariantMediaErrors([
+      { message: "The given variant already has attached media." },
+      { message: "Media is invalid." },
+    ])).toBe(false);
+    expect(onlyAlreadyAttachedVariantMediaErrors([])).toBe(false);
   });
 
   it("한 옵션의 재고 반영이 실패해도 생성된 Shopify 상품과 다른 옵션 결과를 돌려준다", async () => {
