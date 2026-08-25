@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { getShopifyConfig, type ShopifyConfig } from "@/lib/env";
-import { getShopifyAccessToken } from "@/lib/services/shopifyToken";
+import { getShopifyAccessToken, resetShopifyTokenCache } from "@/lib/services/shopifyToken";
 
 const SNIPPET_KEY = "snippets/photocard-variant-cards.liquid";
 const INSTALL_START = "<!-- PHOTOCARD_VARIANT_CARDS_START -->";
@@ -49,12 +49,16 @@ export function injectVariantCardRender(layout: string) {
   return `${layout.slice(0, bodyEnd)}${INSTALL_BLOCK}\n${layout.slice(bodyEnd)}`;
 }
 
-async function request<T>(config: ShopifyConfig, path: string, init?: RequestInit): Promise<T> {
+async function request<T>(config: ShopifyConfig, path: string, init?: RequestInit, refreshed = false): Promise<T> {
   const response = await fetch(`https://${config.storeDomain}/admin/api/${config.apiVersion}${path}`, {
     ...init,
     headers: { "content-type": "application/json", "X-Shopify-Access-Token": await getShopifyAccessToken(config), ...(init?.headers ?? {}) },
     signal: AbortSignal.timeout(25_000),
   });
+  if (!refreshed && !config.accessToken && (response.status === 401 || response.status === 403)) {
+    resetShopifyTokenCache();
+    return request<T>(config, path, init, true);
+  }
   const body = await response.json().catch(() => null);
   if (!response.ok) {
     const permission = response.status === 401 || response.status === 403
