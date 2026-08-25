@@ -42,4 +42,10 @@ describe("Shopify 옵션 카드 테마", () => {
     expect(snippet).not.toContain("history.replaceState");
     expect(snippet).toContain("form.querySelectorAll('[name=\"id\"]')");
   });
+
+  it("카드 선택 시 현재 보이는 상품 갤러리의 큰 이미지를 해당 옵션 사진으로 바꾼다", () => {
+    expect(snippet).toContain("media-gallery");
+    expect(snippet).toContain("slideshow-slide[aria-hidden=\"false\"] .product-media__image");
+    expect(snippet).toContain("mainImage.src = imageUrl");
+  });
 });

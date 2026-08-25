@@ -60,14 +60,16 @@ export const SHOPIFY_VARIANT_CARD_SNIPPET = `{% comment %} ${SNIPPET_MARKER} {% 
           const info = (form && form.closest('.product__info-container,[data-product-info],.product-info')) || document.querySelector('.product__info-container,[data-product-info],.product-info');
           const priceNode = info && info.querySelector('.price-item--regular,[data-product-price],.product__price .money');
           if (priceNode && price) priceNode.textContent = price;
-          const mediaId = button.dataset.pcMediaId;
-          const mediaTrigger = mediaId && document.querySelector('[data-target*="' + mediaId + '"],button[data-media-id*="' + mediaId + '"],[data-media-id*="' + mediaId + '"] button');
-          if (mediaTrigger) mediaTrigger.click();
-          else {
-            const mainImage = document.querySelector('.product__media img,.product-gallery img,[data-product-media] img');
-            if (mainImage && button.dataset.pcImage) {
+          const imageUrl = button.dataset.pcImage;
+          if (imageUrl) {
+            const gallery = document.querySelector('media-gallery');
+            const mainImage = gallery?.querySelector('slideshow-slide[aria-hidden="false"] .product-media__image')
+              || gallery?.querySelector('slideshow-slide .product-media__image')
+              || document.querySelector('.product-media__image,.product__media img,.product-gallery img,[data-product-media] img');
+            if (mainImage) {
               mainImage.removeAttribute('srcset');
-              mainImage.src = button.dataset.pcImage;
+              mainImage.src = imageUrl;
+              mainImage.setAttribute('data-pc-variant-image', id);
             }
           }
           if (add) add.disabled = button.disabled;
