@@ -9,9 +9,12 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const user = await requireApiUser();
-    // 상태 조회는 읽기 전용이다. 3~5초 폴링마다 새 처리기를 띄우면 연결 제한 1인
-    // 운영 DB에 불필요한 경쟁이 생기므로 재개는 POST와 30분 cron에서만 수행한다.
-    return Response.json(await getEbayInventoryJobSummary(user.id));
+    const job = await getEbayInventoryJobSummary(user.id);
+    // 작업번호를 만든 뒤 결과를 확인하는 호출이 cron(최대 30분)에만 의존하면
+    // 화면은 영원히 같은 숫자처럼 보인다. DB lease가 중복 실행을 막으므로 상태
+    // 조회가 활성 작업을 안전하게 깨우고, 응답 자체는 즉시 돌려준다.
+    if (job.active) after(() => processEbayInventoryJobs(user.id));
+    return Response.json(job);
   } catch (error) {
     if (error instanceof UnauthorizedError) return jsonError("Unauthorized", 401);
     return jsonError(asErrorMessage(error), 500);

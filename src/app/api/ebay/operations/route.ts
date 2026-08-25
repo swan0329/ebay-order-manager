@@ -15,7 +15,7 @@ import {
 import { enqueueEbayVariationImageRepairs, getEbayVariationImageRepairJobs, processEbayVariationImageRepairJobs } from "@/lib/services/ebayVariationImageRepair";
 import { enqueueEbayInventoryJobs, getEbayInventoryJobSummary, processEbayInventoryJobs } from "@/lib/services/ebayInventoryJobs";
 import { getEbayOutOfStockControl } from "@/lib/services/ebayOutOfStockControl";
-import { enqueueShopifyOperationJobs, getShopifyOperationJobSummary, processShopifyOperationJobs, reconcileShopifyImageRepairJobs } from "@/lib/services/shopifyOperationJobs";
+import { enqueueShopifyOperationJobs, getShopifyOperationJobSummary, processShopifyOperationJobs, reconcileShopifyImageRepairJobs, reconcileShopifyInventoryJobs } from "@/lib/services/shopifyOperationJobs";
 
 const executeSchema = z.object({
   action: z.enum(["CREATE", "CHANGE", "UNAVAILABLE", "REVIEW", "IMAGE_REPAIR"]),
@@ -24,6 +24,7 @@ const executeSchema = z.object({
   confirmed: z.boolean().default(false),
   previewToken: z.string().optional(),
   reconcileShopifyImages: z.boolean().default(false),
+  reconcileChannelState: z.boolean().default(false),
   channel: z.enum(["EBAY", "SHOPIFY"]).default("EBAY"),
 });
 
@@ -36,13 +37,15 @@ export async function GET(request: Request) {
     const operations = shopify ? await getShopifyOperations() : await getEbayOperations(user.id);
     if (shopify) {
       const shopifyJob = await getShopifyOperationJobSummary(user.id);
-      // 화면의 3초 상태 조회는 쓰기 요청이 아니다. 다만 서버리스 after 작업이
-      // 중단됐을 때 IMAGE_REPAIR만 멱등 재확인을 재개해, 한 건이 남은 채 전체
+      // 화면의 3초 상태 조회 자체는 외부 쓰기가 아니다. 서버리스 after 작업이
+      // 중단되면 멱등 재확인이 가능한 이미지·가격·재고 작업을 한 건씩 깨워,
       // 배치가 수십 분 동안 멈추는 일을 막는다.
-      if (shopifyJob.active) after(() => processShopifyOperationJobs(user.id));
+      if (shopifyJob.active) after(() => processShopifyOperationJobs(user.id, 1));
       return Response.json({ ...operations, shopifyJob });
     }
-    return Response.json({ ...operations, imageRepairJob: await getEbayVariationImageRepairJobs(user.id), inventoryJob: await getEbayInventoryJobSummary(user.id) });
+    const imageRepairJob = await getEbayVariationImageRepairJobs(user.id);
+    if (imageRepairJob.active) after(() => processEbayVariationImageRepairJobs(user.id, 1));
+    return Response.json({ ...operations, imageRepairJob, inventoryJob: await getEbayInventoryJobSummary(user.id) });
   } catch (error) {
     if (error instanceof UnauthorizedError)
       return jsonError("Unauthorized", 401);
@@ -55,6 +58,10 @@ export async function POST(request: Request) {
     const user = await requireApiUser();
     const input = executeSchema.parse(await request.json());
     if (input.channel === "SHOPIFY") {
+      if (input.reconcileChannelState) {
+        if (input.action !== "CHANGE" && input.action !== "UNAVAILABLE") return jsonError("Shopify 가격·재고 재확인 대상이 아닙니다.", 422);
+        return Response.json({ reconciled: true, ...await reconcileShopifyInventoryJobs(user.id, input.action, input.productIds) });
+      }
       if (input.reconcileShopifyImages) {
         if (input.action !== "IMAGE_REPAIR") return jsonError("Shopify 사진 재확인은 이미지·썸네일 교체 목록에서만 사용할 수 있습니다.", 422);
         const result = await reconcileShopifyImageRepairJobs(user.id, input.productIds);

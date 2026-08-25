@@ -12,6 +12,11 @@ const ACTIVE = ["pending", "running"];
 const MAX_FEED_ROWS = 2_000;
 const STALE_UNSUBMITTED_MS = 2 * 60_000;
 const FINALIZING_MESSAGE = "eBay 결과 파일 확인 완료 · 내부 반영 저장 중";
+const POLLING_MESSAGE = "eBay 작업 상태 확인 중";
+// CREATED 상태에서는 같은 파일을 다시 올릴 수 있으므로 느린 eBay 응답 중에도
+// 두 번째 화면 폴러가 lease를 빼앗지 않게 충분한 시간을 둔다. 정상 응답은 아래
+// 상태 메시지 갱신으로 즉시 lease가 풀리므로 다음 3초 폴링을 막지 않는다.
+const POLL_LEASE_MS = 2 * 60_000;
 const TERMINAL_FAILURE = new Set(["FAILED", "CANCELED", "CANCELLED"]);
 
 type StoredTarget = EbayInventoryFeedTarget & { productId: string; skuLabel: string; listingType: "SINGLE" | "VARIATION_OPTION" };
@@ -115,7 +120,17 @@ export async function processEbayInventoryJobs(userId: string) {
   const submitted = active.filter((job) => payload(job.rawJson)?.taskId);
   if (submitted.length) {
     const taskId = payload(submitted[0].rawJson)!.taskId!;
-    await finishFeed(userId, taskId, submitted.filter((job) => payload(job.rawJson)?.taskId === taskId));
+    const taskJobs = submitted.filter((job) => payload(job.rawJson)?.taskId === taskId);
+    // 화면 폴링·cron·최초 요청이 동시에 도착해도 같은 eBay 작업번호의 파일을
+    // 중복 업로드/다운로드하지 않도록 짧은 DB lease를 잡는다.
+    const claimed = await prisma.productUploadJob.updateMany({
+      where: {
+        id: { in: taskJobs.map((job) => job.id) }, status: "running",
+        OR: [{ message: { not: POLLING_MESSAGE } }, { updatedAt: { lt: new Date(Date.now() - POLL_LEASE_MS) } }],
+      },
+      data: { message: POLLING_MESSAGE },
+    });
+    if (claimed.count === taskJobs.length) await finishFeed(userId, taskId, taskJobs);
     return getEbayInventoryJobSummary(userId);
   }
 

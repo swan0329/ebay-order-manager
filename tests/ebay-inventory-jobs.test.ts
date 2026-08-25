@@ -100,4 +100,17 @@ describe("eBay inventory background jobs", () => {
     expect(downloadFeedMock).not.toHaveBeenCalled();
     expect(prismaMock.productListing.upsert).not.toHaveBeenCalled();
   });
+
+  it("allows only one status poller to own a submitted task lease", async () => {
+    const target = { correlationId: "p1", productId: "p1", itemId: "item-1", sku: null, skuLabel: "S1", listingType: "SINGLE", quantity: 1, price: 8.5 };
+    const running = { id: "j1", userId: "u1", productId: "p1", sku: "S1", source: "ebay_inventory_change", action: "CHANGE", status: "running", message: "eBay 작업 상태 확인 중", errorSummary: null, rawJson: { batchId: "b1", productId: "p1", action: "CHANGE", taskId: "task-1", target }, createdAt: new Date(), updatedAt: new Date(), startedAt: new Date(), finishedAt: null };
+    prismaMock.productUploadJob.findMany.mockResolvedValueOnce([running]).mockResolvedValueOnce([running]);
+    prismaMock.productUploadJob.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    await processEbayInventoryJobs("u1");
+
+    expect(feedStatusMock).not.toHaveBeenCalled();
+    expect(downloadFeedMock).not.toHaveBeenCalled();
+    expect(uploadFeedMock).not.toHaveBeenCalled();
+  });
 });

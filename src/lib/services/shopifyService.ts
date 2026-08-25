@@ -838,6 +838,60 @@ export async function setShopifyInventoryLevel(
   throw new ShopifyApiError(`Shopify 재조회에서 실제 재고 ${target}개 반영을 확인하지 못했습니다.`, 502, { inventoryItemId, locationId, target });
 }
 
+export async function getShopifyInventoryLevel(
+  config: ShopifyConfig,
+  inventoryItemId: string,
+): Promise<number | null> {
+  const locationId = config.locationId ?? (await resolvePrimaryLocationId(config));
+  if (!locationId) throw new Error("Shopify 재고 위치를 찾지 못했습니다.");
+  const checked = await shopifyApiRequest(config, {
+    path: `/inventory_levels.json?inventory_item_ids=${encodeURIComponent(inventoryItemId)}&location_ids=${encodeURIComponent(locationId)}`,
+  }) as { inventory_levels?: Array<{ inventory_item_id?: number; location_id?: number; available?: number | null }> };
+  const level = checked.inventory_levels?.find((row) => String(row.inventory_item_id) === String(inventoryItemId) && String(row.location_id) === String(locationId));
+  return typeof level?.available === "number" ? level.available : null;
+}
+
+/** 가격·재고 작업에서 이미지나 옵션 구성을 건드리지 않고 가격만 수정한다. */
+export async function updateShopifyVariantPrices(
+  config: ShopifyConfig,
+  productId: string,
+  assignments: Array<{ variantId: string; priceUsd: string }>,
+) {
+  if (!assignments.length) return [];
+  const mutation = `mutation UpdateOperationPrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+    productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+      productVariants { id price }
+      userErrors { field message }
+    }
+  }`;
+  const updated = await shopifyGraphqlRequest<{
+    productVariantsBulkUpdate?: { productVariants?: Array<{ id: string; price?: string | null }> | null; userErrors?: ShopifyGraphqlError[] };
+  }>(config, mutation, {
+    productId: `gid://shopify/Product/${productId}`,
+    variants: assignments.map((assignment) => ({ id: `gid://shopify/ProductVariant/${assignment.variantId}`, price: assignment.priceUsd })),
+  });
+  const mutationErrors = graphqlUserErrorMessage(updated.productVariantsBulkUpdate?.userErrors);
+  if (mutationErrors) throw new ShopifyApiError(mutationErrors, 422, updated);
+
+  // mutation 응답만 믿지 않고 실제 variant를 다시 읽어서 확정한다.
+  const actualById = await getShopifyVariantPrices(config, assignments.map((assignment) => assignment.variantId));
+  return assignments.map((assignment) => {
+    const actual = actualById.get(assignment.variantId) ?? null;
+    const synced = actual !== null && Number.isFinite(Number(actual)) && Math.abs(Number(actual) - Number(assignment.priceUsd)) < 0.005;
+    return { ...assignment, actualPrice: actual, synced };
+  });
+}
+
+export async function getShopifyVariantPrices(config: ShopifyConfig, variantIds: string[]) {
+  if (!variantIds.length) return new Map<string, string | null>();
+  const verified = await shopifyGraphqlRequest<{
+    nodes?: Array<{ id?: string; price?: string | null } | null> | null;
+  }>(config, `query VerifyOperationPrices($ids: [ID!]!) {
+    nodes(ids: $ids) { ... on ProductVariant { id price } }
+  }`, { ids: variantIds.map((variantId) => `gid://shopify/ProductVariant/${variantId}`) });
+  return new Map((verified.nodes ?? []).flatMap((node) => node?.id ? [[gidNumber(node.id), node.price ?? null] as const] : []));
+}
+
 export async function uploadProductToShopify(
   product: Product,
   extras?: ProductImageExtras,

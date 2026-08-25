@@ -12,7 +12,7 @@ vi.mock("@/lib/env", () => ({ getShopifyConfig: mocks.getConfig }));
 vi.mock("@/lib/services/shopifyToken", () => ({ getShopifyAccessToken: mocks.getToken }));
 vi.mock("@/lib/safe-log", () => ({ safeLog: mocks.safeLog }));
 
-import { inspectShopifyProductImageState, onlyAlreadyAttachedVariantMediaErrors, upsertShopifyVariationProduct } from "@/lib/services/shopifyService";
+import { inspectShopifyProductImageState, onlyAlreadyAttachedVariantMediaErrors, updateShopifyVariantPrices, upsertShopifyVariationProduct } from "@/lib/services/shopifyService";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -56,6 +56,17 @@ describe("Shopify 묶음상품 부분 실패", () => {
     await expect(inspectShopifyProductImageState(mocks.getConfig(), "100", {
       variants: [{ variantId: "11", sourceUrl: "https://cdn.example/card-a.png" }],
     })).resolves.toMatchObject({ current: true, missing: [] });
+  });
+
+  it("가격 변경은 옵션 이미지와 무관하게 GraphQL 수정 후 실제 가격을 재조회한다", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ data: { productVariantsBulkUpdate: { productVariants: [{ id: "gid://shopify/ProductVariant/11", price: "12.30" }], userErrors: [] } } }))
+      .mockResolvedValueOnce(jsonResponse({ data: { nodes: [{ id: "gid://shopify/ProductVariant/11", price: "12.30" }] } }));
+
+    await expect(updateShopifyVariantPrices(mocks.getConfig(), "100", [{ variantId: "11", priceUsd: "12.30" }]))
+      .resolves.toEqual([{ variantId: "11", priceUsd: "12.30", actualPrice: "12.30", synced: true }]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0]?.[1]?.body)).not.toContain("media");
   });
 
   it("한 옵션의 재고 반영이 실패해도 생성된 Shopify 상품과 다른 옵션 결과를 돌려준다", async () => {
