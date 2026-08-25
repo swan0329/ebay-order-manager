@@ -31,6 +31,8 @@ describe("Shopify 옵션 카드 테마", () => {
     expect(snippet).toContain("variant.featured_media.preview_image");
     expect(snippet).toContain("variant.price | money");
     expect(snippet).toContain("unless variant.available");
+    expect(snippet).toContain("data-pc-search");
+    expect(snippet).toContain("data-pc-available");
     expect(snippet).not.toContain("product.product_type == 'Photocard'");
   });
 
@@ -50,6 +52,13 @@ describe("Shopify 옵션 카드 테마", () => {
     expect(snippet).toContain("nativeInput.dispatchEvent(new Event('change', { bubbles: true }))");
     expect(snippet).toContain("nativeComponent.insertAdjacentElement('afterend', root)");
     expect(snippet).toContain("nativeComponent.style.display = 'none'");
+  });
+
+  it("많은 옵션에서도 멤버 검색과 재고 가능 항목 필터를 제공한다", () => {
+    expect(snippet).toContain("data-pc-option-search");
+    expect(snippet).toContain("data-pc-available-filter");
+    expect(snippet).toContain("filterCards");
+    expect(snippet).toContain("cards shown");
   });
 
   it("카드 선택 시 현재 보이는 상품 갤러리의 큰 이미지를 해당 옵션 사진으로 바꾼다", () => {

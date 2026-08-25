@@ -20,10 +20,11 @@ export const SHOPIFY_VARIANT_CARD_SNIPPET = `{% comment %} ${SNIPPET_MARKER} {% 
   {% assign selected_variant = product.selected_or_first_available_variant %}
   <div class="pc-variant-picker" data-pc-variant-picker data-selected-id="{{ selected_variant.id }}">
     <div class="pc-variant-picker__heading"><span>{{ product.options.first }}</span><strong data-pc-selected-title>{{ selected_variant.title }}</strong></div>
+    <div class="pc-variant-picker__controls"><label class="pc-variant-picker__search"><span class="visually-hidden">Search card options</span><input type="search" data-pc-option-search placeholder="Search member or card" autocomplete="off"/></label><button type="button" class="pc-variant-picker__available" data-pc-available-filter aria-pressed="false">In stock only</button><span class="pc-variant-picker__count" data-pc-visible-count></span></div>
     <div class="pc-variant-picker__grid" role="radiogroup" aria-label="{{ product.options.first | escape }}">
       {% for variant in product.variants %}
         {% assign card_image = variant.featured_media.preview_image | default: product.featured_media.preview_image %}
-        <button type="button" class="pc-variant-card{% if variant.id == selected_variant.id %} is-selected{% endif %}{% unless variant.available %} is-sold-out{% endunless %}" data-pc-variant-id="{{ variant.id }}" data-pc-title="{{ variant.title | escape }}" data-pc-price="{{ variant.price | money | escape }}" data-pc-image="{{ card_image | image_url: width: 1400 }}" data-pc-media-id="{{ variant.featured_media.id }}" role="radio" aria-checked="{% if variant.id == selected_variant.id %}true{% else %}false{% endif %}" {% unless variant.available %}disabled{% endunless %}>
+        <button type="button" class="pc-variant-card{% if variant.id == selected_variant.id %} is-selected{% endif %}{% unless variant.available %} is-sold-out{% endunless %}" data-pc-variant-id="{{ variant.id }}" data-pc-title="{{ variant.title | escape }}" data-pc-search="{{ variant.title | escape }}" data-pc-available="{{ variant.available }}" data-pc-price="{{ variant.price | money | escape }}" data-pc-image="{{ card_image | image_url: width: 1400 }}" data-pc-media-id="{{ variant.featured_media.id }}" role="radio" aria-checked="{% if variant.id == selected_variant.id %}true{% else %}false{% endif %}" {% unless variant.available %}disabled{% endunless %}>
           <span class="pc-variant-card__image">{% if card_image %}{{ card_image | image_url: width: 260 | image_tag: loading: 'lazy', widths: '130,195,260', alt: variant.title }}{% endif %}</span>
           <span class="pc-variant-card__name">{{ variant.title }}</span>
           <strong class="pc-variant-card__price">{{ variant.price | money }}</strong>
@@ -33,7 +34,7 @@ export const SHOPIFY_VARIANT_CARD_SNIPPET = `{% comment %} ${SNIPPET_MARKER} {% 
     </div>
   </div>
   <style>
-    .pc-variant-picker{margin:1.25rem 0}.pc-variant-picker__heading{display:flex;align-items:center;gap:.65rem;margin-bottom:.75rem;font-size:.9rem}.pc-variant-picker__heading span{color:rgba(var(--color-foreground,18,18,18),.65)}.pc-variant-picker__heading strong{padding:.25rem .6rem;border-radius:.45rem;background:#5b21b6;color:#fff}.pc-variant-picker__grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem}.pc-variant-card{position:relative;display:flex;min-width:0;flex-direction:column;align-items:center;gap:.25rem;padding:.5rem;border:1px solid rgba(var(--color-foreground,18,18,18),.16);border-radius:.65rem;background:rgb(var(--color-background,255,255,255));color:rgb(var(--color-foreground,18,18,18));cursor:pointer;text-align:center}.pc-variant-card:hover{border-color:#7c3aed;box-shadow:0 2px 10px rgba(91,33,182,.12)}.pc-variant-card.is-selected{border:2px solid #7c3aed;padding:calc(.5rem - 1px);box-shadow:0 0 0 2px rgba(124,58,237,.12)}.pc-variant-card.is-sold-out{opacity:.48;cursor:not-allowed}.pc-variant-card__image{display:block;width:100%;aspect-ratio:1/1.18;overflow:hidden;border-radius:.35rem;background:#f5f5f5}.pc-variant-card__image img{width:100%;height:100%;object-fit:contain}.pc-variant-card__name{width:100%;overflow:hidden;text-overflow:ellipsis;font-size:.72rem;line-height:1.2;white-space:nowrap}.pc-variant-card__price{font-size:.82rem;line-height:1.2}.pc-variant-card__soldout{position:absolute;inset:auto .35rem .35rem;padding:.15rem .35rem;border-radius:.3rem;background:#111;color:#fff;font-size:.65rem}@media(max-width:749px){.pc-variant-picker__grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem}}
+    .pc-variant-picker{margin:1.25rem 0}.pc-variant-picker__heading{display:flex;align-items:center;gap:.65rem;margin-bottom:.75rem;font-size:.9rem}.pc-variant-picker__heading span{color:rgba(var(--color-foreground,18,18,18),.65)}.pc-variant-picker__heading strong{padding:.25rem .6rem;border-radius:.45rem;background:#5b21b6;color:#fff}.pc-variant-picker__controls{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:0 0 .85rem}.pc-variant-picker__search{min-width:12rem;flex:1}.pc-variant-picker__search input{box-sizing:border-box;width:100%;border:1px solid rgba(var(--color-foreground,18,18,18),.22);border-radius:.5rem;padding:.52rem .62rem;background:rgb(var(--color-background,255,255,255));color:inherit;font:inherit}.pc-variant-picker__available{border:1px solid #7651ca;border-radius:.5rem;padding:.52rem .62rem;background:#fff;color:#4a278f;font:inherit;font-weight:700;cursor:pointer}.pc-variant-picker__available[aria-pressed=true]{background:#5b21b6;color:#fff}.pc-variant-picker__count{color:rgba(var(--color-foreground,18,18,18),.64);font-size:.78rem;font-weight:700}.pc-variant-picker__grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem}.pc-variant-card{position:relative;display:flex;min-width:0;flex-direction:column;align-items:center;gap:.25rem;padding:.5rem;border:1px solid rgba(var(--color-foreground,18,18,18),.16);border-radius:.65rem;background:rgb(var(--color-background,255,255,255));color:rgb(var(--color-foreground,18,18,18));cursor:pointer;text-align:center}.pc-variant-card:hover{border-color:#7c3aed;box-shadow:0 2px 10px rgba(91,33,182,.12)}.pc-variant-card.is-selected{border:2px solid #7c3aed;padding:calc(.5rem - 1px);box-shadow:0 0 0 2px rgba(124,58,237,.12)}.pc-variant-card.is-sold-out{opacity:.48;cursor:not-allowed}.pc-variant-card__image{display:block;width:100%;aspect-ratio:1/1.18;overflow:hidden;border-radius:.35rem;background:#f5f5f5}.pc-variant-card__image img{width:100%;height:100%;object-fit:contain}.pc-variant-card__name{width:100%;overflow:hidden;text-overflow:ellipsis;font-size:.72rem;line-height:1.2;white-space:nowrap}.pc-variant-card__price{font-size:.82rem;line-height:1.2}.pc-variant-card__soldout{position:absolute;inset:auto .35rem .35rem;padding:.15rem .35rem;border-radius:.3rem;background:#111;color:#fff;font-size:.65rem}@media(max-width:749px){.pc-variant-picker__grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem}.pc-variant-picker__search{min-width:100%}}
   </style>
   <script>
     (() => {
@@ -44,7 +45,30 @@ export const SHOPIFY_VARIANT_CARD_SNIPPET = `{% comment %} ${SNIPPET_MARKER} {% 
         const nativePicker = document.querySelector('variant-picker fieldset.variant-option');
         const nativeComponent = nativePicker?.closest('variant-picker');
         const buttons = [...root.querySelectorAll('[data-pc-variant-id]')];
+        const search = root.querySelector('[data-pc-option-search]');
+        const availableFilter = root.querySelector('[data-pc-available-filter]');
+        const visibleCount = root.querySelector('[data-pc-visible-count]');
         const add = form && form.querySelector('button[name="add"],button[type="submit"]');
+        const filterCards = () => {
+          const query = (search?.value || '').trim().toLowerCase();
+          const availableOnly = root.dataset.availableOnly === 'true';
+          let visible = 0;
+          buttons.forEach((button) => {
+            const matchesQuery = !query || (button.dataset.pcSearch || '').toLowerCase().includes(query);
+            const matchesAvailability = !availableOnly || button.dataset.pcAvailable === 'true';
+            button.hidden = !(matchesQuery && matchesAvailability);
+            if (!button.hidden) visible += 1;
+          });
+          if (visibleCount) visibleCount.textContent = visible + ' cards shown';
+        };
+        search?.addEventListener('input', filterCards);
+        availableFilter?.addEventListener('click', () => {
+          const next = root.dataset.availableOnly !== 'true';
+          root.dataset.availableOnly = String(next);
+          availableFilter.setAttribute('aria-pressed', String(next));
+          filterCards();
+        });
+        filterCards();
         const update = (button, notifyTheme = true) => {
           const id = button.dataset.pcVariantId;
           const nativeInput = document.querySelector('variant-picker fieldset.variant-option input[data-variant-id="' + id + '"]');
