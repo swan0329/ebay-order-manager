@@ -92,7 +92,10 @@ export const SHOPIFY_VARIANT_CARD_SNIPPET = `{% comment %} ${SNIPPET_MARKER} {% 
           }
         }
         const selected = buttons.find((button) => button.dataset.pcVariantId === root.dataset.selectedId && !button.disabled) || buttons.find((button) => !button.disabled);
-        if (selected) update(selected);
+        if (selected) {
+          update(selected);
+          window.setTimeout(() => update(selected), 350);
+        }
       });
       document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', init) : init();
       document.addEventListener('shopify:section:load', init);

@@ -48,4 +48,8 @@ describe("Shopify 옵션 카드 테마", () => {
     expect(snippet).toContain("slideshow-slide[aria-hidden=\"false\"] .product-media__image");
     expect(snippet).toContain("mainImage.src = imageUrl");
   });
+
+  it("테마가 초기 기본사진을 늦게 다시 그려도 선택된 옵션 사진을 확정한다", () => {
+    expect(snippet).toContain("window.setTimeout(() => update(selected), 350)");
+  });
 });
