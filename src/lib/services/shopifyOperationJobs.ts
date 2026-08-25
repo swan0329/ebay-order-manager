@@ -57,6 +57,13 @@ export async function processShopifyOperationJobs(userId: string, limit = 100) {
     where: { userId, source: JOB_SOURCE, action: "IMAGE_REPAIR", status: "running", startedAt: { lt: new Date(Date.now() - IMAGE_REPAIR_RECOVERY_DELAY_MS) } },
     data: { status: "pending", startedAt: null, message: "2분 제한 초과 · Shopify 이미지 상태 재확인 재개" },
   });
+  // 이 수정 전에는 Shopify의 "이미 연결됨" 응답을 실패로 기록했다. 해당 과거
+  // 이미지 작업만 새 멱등 검증 경로로 한 번 되돌린다. 신규등록·가격·재고 실패는
+  // 절대 자동 재시도하지 않는다.
+  await prisma.productUploadJob.updateMany({
+    where: { userId, source: JOB_SOURCE, action: "IMAGE_REPAIR", status: "failed", errorSummary: { contains: "given variant already has attached media", mode: "insensitive" } },
+    data: { status: "pending", startedAt: null, finishedAt: null, error: null, errorSummary: null, message: "기존 옵션 사진 연결을 Shopify 재조회로 재검증" },
+  });
   const jobs = await prisma.productUploadJob.findMany({ where: { userId, source: JOB_SOURCE, status: "pending" }, orderBy: { createdAt: "asc" }, take: limit });
   for (const job of jobs) {
     const claimed = await prisma.productUploadJob.updateMany({ where: { id: job.id, status: "pending" }, data: { status: "running", startedAt: new Date(), error: null, errorSummary: null, message: "Shopify 최신 상태 확인 중" } });
