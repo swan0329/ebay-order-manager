@@ -9,6 +9,7 @@ import { uploadShopifyVariationGroup } from "@/lib/services/shopifyVariationUplo
 
 const JOB_SOURCE = "shopify_operations";
 const ACTIVE = ["pending", "running"];
+const IMAGE_REPAIR_RECOVERY_DELAY_MS = 2 * 60_000;
 type Action = "CREATE" | "CHANGE" | "UNAVAILABLE" | "IMAGE_REPAIR";
 
 type JobPayload = { batchId?: string; productIds?: string[]; targetId?: string };
@@ -48,10 +49,14 @@ export async function enqueueShopifyOperationJobs(input: { userId: string; actio
 }
 
 export async function processShopifyOperationJobs(userId: string, limit = 100) {
-  // Shopify 신규등록은 외부 생성 직후 응답이 끊기면 중복 게시 위험이 있다.
-  // 따라서 실행 중 상태를 시간만으로 pending으로 되돌리지 않는다. pending만
-  // cron이 이어서 처리하며, 오래 남은 running은 완료/실패를 추정하지 않고
-  // 운영자가 해당 작업 메시지로 확인할 수 있게 보존한다.
+  // 신규등록/가격 변경은 외부 생성 직후 응답이 끊기면 중복 게시 위험이 있으므로
+  // 실행 중 상태를 자동 재개하지 않는다. 반면 이미지 교체는 같은 미디어 연결을
+  // 재조회하는 멱등 작업이므로, 2분을 넘긴 작업만 대기로 돌려 다음 상태 조회에서
+  // 안전하게 다시 확인한다. 28분처럼 큐 전체가 멈추는 상태를 막는다.
+  await prisma.productUploadJob.updateMany({
+    where: { userId, source: JOB_SOURCE, action: "IMAGE_REPAIR", status: "running", startedAt: { lt: new Date(Date.now() - IMAGE_REPAIR_RECOVERY_DELAY_MS) } },
+    data: { status: "pending", startedAt: null, message: "2분 제한 초과 · Shopify 이미지 상태 재확인 재개" },
+  });
   const jobs = await prisma.productUploadJob.findMany({ where: { userId, source: JOB_SOURCE, status: "pending" }, orderBy: { createdAt: "asc" }, take: limit });
   for (const job of jobs) {
     const claimed = await prisma.productUploadJob.updateMany({ where: { id: job.id, status: "pending" }, data: { status: "running", startedAt: new Date(), error: null, errorSummary: null, message: "Shopify 최신 상태 확인 중" } });

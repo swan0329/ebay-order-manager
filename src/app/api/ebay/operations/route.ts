@@ -33,7 +33,15 @@ export async function GET(request: Request) {
     const user = await requireApiUser();
     const shopify = new URL(request.url).searchParams.get("channel") === "SHOPIFY";
     const operations = shopify ? await getShopifyOperations() : await getEbayOperations(user.id);
-    return Response.json(shopify ? { ...operations, shopifyJob: await getShopifyOperationJobSummary(user.id) } : { ...operations, imageRepairJob: await getEbayVariationImageRepairJobs(user.id), inventoryJob: await getEbayInventoryJobSummary(user.id) });
+    if (shopify) {
+      const shopifyJob = await getShopifyOperationJobSummary(user.id);
+      // 화면의 3초 상태 조회는 쓰기 요청이 아니다. 다만 서버리스 after 작업이
+      // 중단됐을 때 IMAGE_REPAIR만 멱등 재확인을 재개해, 한 건이 남은 채 전체
+      // 배치가 수십 분 동안 멈추는 일을 막는다.
+      if (shopifyJob.active) after(() => processShopifyOperationJobs(user.id));
+      return Response.json({ ...operations, shopifyJob });
+    }
+    return Response.json({ ...operations, imageRepairJob: await getEbayVariationImageRepairJobs(user.id), inventoryJob: await getEbayInventoryJobSummary(user.id) });
   } catch (error) {
     if (error instanceof UnauthorizedError)
       return jsonError("Unauthorized", 401);

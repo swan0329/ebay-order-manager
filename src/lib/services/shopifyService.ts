@@ -31,6 +31,23 @@ type ShopifyRequestInput = {
   body?: unknown;
 };
 
+const SHOPIFY_REQUEST_TIMEOUT_MS = 30_000;
+
+async function shopifyFetch(url: string, init: RequestInit) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SHOPIFY_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ShopifyApiError("Shopify API 응답이 30초 안에 도착하지 않았습니다. 이 항목만 재시작할 수 있습니다.", 504, null);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function shopifyApiRequest(
   config: ShopifyConfig,
   input: ShopifyRequestInput,
@@ -39,7 +56,7 @@ export async function shopifyApiRequest(
   const hasBody = input.body !== undefined;
   const accessToken = await getShopifyAccessToken(config);
 
-  const response = await fetch(url, {
+  const response = await shopifyFetch(url, {
     method: input.method ?? "GET",
     headers: {
       "X-Shopify-Access-Token": accessToken,
@@ -86,7 +103,7 @@ async function shopifyGraphqlRequest<T>(
   query: string,
   variables: Record<string, unknown>,
 ): Promise<T> {
-  const response = await fetch(
+  const response = await shopifyFetch(
     `https://${config.storeDomain}/admin/api/${config.apiVersion}/graphql.json`,
     {
       method: "POST",
@@ -693,7 +710,7 @@ async function setShopifyProductCategory(
         userErrors { field message }
       }
     }`;
-    const response = await fetch(
+    const response = await shopifyFetch(
       `https://${config.storeDomain}/admin/api/${config.apiVersion}/graphql.json`,
       {
         method: "POST",
