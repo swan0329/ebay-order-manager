@@ -103,6 +103,40 @@ export async function processShopifyOperationJobs(userId: string, limit = 100) {
   return getShopifyOperationJobSummary(userId);
 }
 
+/** Shopify 변경 없이 현재 대표·옵션 사진 연결만 다시 확인한다. */
+export async function reconcileShopifyImageRepairJobs(userId: string, targetIds?: string[]) {
+  const operations = await getShopifyOperations();
+  const candidates = operations.imageRepair.filter((row) => row.actionable && (!targetIds || targetIds.includes(String(row.productId))));
+  const outcomes: Array<{ productId: string; sku: string; current: boolean; reason: string }> = [];
+  for (const row of candidates) {
+    try {
+      const result = await repairShopifyProductImages(row.productIds, userId, { verifyOnly: true });
+      outcomes.push({
+        productId: String(row.productId), sku: row.sku, current: "reconciled" in result && result.reconciled === true,
+        reason: "reconciled" in result && result.reconciled === true ? "Shopify 실제 대표·옵션 사진 연결 확인 완료" : ("missing" in result ? (result.missing ?? []).join(" / ") : "현재 Shopify 사진 연결을 확인하지 못했습니다."),
+      });
+    } catch (error) {
+      outcomes.push({ productId: String(row.productId), sku: row.sku, current: false, reason: error instanceof Error ? error.message : "Shopify 사진 재확인 실패" });
+    }
+  }
+  const completedIds = new Set(outcomes.filter((outcome) => outcome.current).map((outcome) => outcome.productId));
+  if (completedIds.size) {
+    const jobs = await prisma.productUploadJob.findMany({
+      where: { userId, source: JOB_SOURCE, action: "IMAGE_REPAIR", status: { in: ACTIVE.concat("failed") } },
+      select: { id: true, rawJson: true },
+    });
+    for (const job of jobs) {
+      if (!completedIds.has(String(payload(job.rawJson).targetId))) continue;
+      await prisma.productUploadJob.update({
+        where: { id: job.id },
+        data: { status: "success", message: "Shopify 실제 사진 연결 재확인 완료", error: null, errorSummary: null, finishedAt: new Date() },
+      });
+    }
+  }
+  const latest = await getShopifyOperations();
+  return { checked: candidates.length, completed: completedIds.size, remaining: latest.imageRepair.length, outcomes, operations: latest, job: await getShopifyOperationJobSummary(userId) };
+}
+
 export async function getShopifyOperationJobSummary(userId: string, requestedBatchId?: string) {
   const jobs = await prisma.productUploadJob.findMany({ where: { userId, source: JOB_SOURCE }, orderBy: { createdAt: "desc" }, take: 500, select: { id: true, productId: true, sku: true, action: true, status: true, message: true, errorSummary: true, rawJson: true, createdAt: true, startedAt: true, finishedAt: true } });
   const active = jobs.filter((job) => ACTIVE.includes(job.status));

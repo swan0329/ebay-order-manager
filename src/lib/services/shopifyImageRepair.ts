@@ -12,7 +12,7 @@ import { createWatermarkedListingImage, resolveListingWatermark } from "@/lib/li
  * 이미 생성된 Shopify 상품에 승인된 원본 사진을 다시 연결한다.
  * 가격·재고·옵션은 전혀 수정하지 않으며, 상품 ID가 하나로 일치할 때만 실행한다.
  */
-export async function repairShopifyProductImages(productIds: string[], userId: string) {
+export async function repairShopifyProductImages(productIds: string[], userId: string, options?: { verifyOnly?: boolean }) {
   let readyImages = await getVariationListingReadyImages();
   if (await promoteVariationListingImagesToR2(readyImages.filter((image) => productIds.includes(image.id)))) {
     readyImages = await getVariationListingReadyImages();
@@ -92,6 +92,17 @@ export async function repairShopifyProductImages(productIds: string[], userId: s
       attached: 0, alreadyAttached: variantAssignments.length, processing: 0, removed: 0,
       media: [...existing.mediaBySourceUrl.entries()].map(([sourceUrl, mediaId]) => ({ sourceUrl, mediaId })),
       reconciled: true,
+    };
+  }
+  // 목록 새로고침의 재확인은 절대로 Shopify에 사진을 추가·삭제·재정렬하지
+  // 않는다. 실제로 다른 부분만 명시해 사용자가 원인을 보고 작업 시작 여부를
+  // 결정할 수 있게 한다.
+  if (options?.verifyOnly) {
+    return {
+      productId: externalIds[0], thumbnailUrl, reconciled: false,
+      missing: existing.missing,
+      requested: new Set([...(thumbnailUrl ? [thumbnailUrl] : []), ...imageByProductId.values()]).size,
+      attached: 0, alreadyAttached: 0, processing: 0, removed: 0, media: [], variantsUpdated: 0,
     };
   }
 

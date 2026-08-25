@@ -180,8 +180,35 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
   }
 
   async function refresh() {
-    const response = await fetch(`/api/ebay/operations?channel=${channel}`, { cache: "no-store" });
-    if (response.ok) setData(await response.json());
+    setBusy(true); setElapsed(0);
+    try {
+      if (channel === "SHOPIFY" && tab === "imageRepair") {
+        setPhase("preview");
+        setMessage("Shopify 실제 대표·옵션 사진 연결을 읽기 전용으로 확인하고 있습니다.");
+        const response = await fetch("/api/ebay/operations", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: "IMAGE_REPAIR", productIds: ids, dryRun: true, channel: "SHOPIFY", reconcileShopifyImages: true }),
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error ?? "Shopify 사진 재확인에 실패했습니다.");
+        setData({ ...body.operations, shopifyJob: body.job });
+        const unresolved = (body.outcomes ?? []).filter((outcome: { current: boolean }) => !outcome.current);
+        setMessage(unresolved.length
+          ? `Shopify 실제 재확인 완료: ${body.completed ?? 0}건 완료 · ${unresolved.length}건은 아직 실제 사진 연결이 다릅니다. 아래 판정에 정확한 이유를 표시했습니다.`
+          : `Shopify 실제 재확인 완료: ${body.completed ?? 0}건 완료 · 남은 이미지 교체 ${body.remaining ?? 0}건`);
+        setResult({ succeeded: body.completed ?? 0, failed: unresolved.length, rows: (body.outcomes ?? []).map((outcome: { sku: string; productId: string; current: boolean; reason: string }) => ({ sku: outcome.sku, productId: outcome.productId, action: "imageRepair", status: outcome.current ? "성공" : "실패", message: outcome.reason })) });
+      } else {
+        const response = await fetch(`/api/ebay/operations?channel=${channel}`, { cache: "no-store" });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error ?? "목록을 불러오지 못했습니다.");
+        setData(body);
+        setMessage("최신 목록을 불러왔습니다.");
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "목록 새로고침 실패");
+    } finally {
+      setBusy(false); setPhase("idle");
+    }
   }
 
   async function reconcileAndRefresh() {

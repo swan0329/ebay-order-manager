@@ -15,7 +15,7 @@ import {
 import { enqueueEbayVariationImageRepairs, getEbayVariationImageRepairJobs, processEbayVariationImageRepairJobs } from "@/lib/services/ebayVariationImageRepair";
 import { enqueueEbayInventoryJobs, getEbayInventoryJobSummary, processEbayInventoryJobs } from "@/lib/services/ebayInventoryJobs";
 import { getEbayOutOfStockControl } from "@/lib/services/ebayOutOfStockControl";
-import { enqueueShopifyOperationJobs, getShopifyOperationJobSummary, processShopifyOperationJobs } from "@/lib/services/shopifyOperationJobs";
+import { enqueueShopifyOperationJobs, getShopifyOperationJobSummary, processShopifyOperationJobs, reconcileShopifyImageRepairJobs } from "@/lib/services/shopifyOperationJobs";
 
 const executeSchema = z.object({
   action: z.enum(["CREATE", "CHANGE", "UNAVAILABLE", "REVIEW", "IMAGE_REPAIR"]),
@@ -23,6 +23,7 @@ const executeSchema = z.object({
   dryRun: z.boolean().default(true),
   confirmed: z.boolean().default(false),
   previewToken: z.string().optional(),
+  reconcileShopifyImages: z.boolean().default(false),
   channel: z.enum(["EBAY", "SHOPIFY"]).default("EBAY"),
 });
 
@@ -54,6 +55,11 @@ export async function POST(request: Request) {
     const user = await requireApiUser();
     const input = executeSchema.parse(await request.json());
     if (input.channel === "SHOPIFY") {
+      if (input.reconcileShopifyImages) {
+        if (input.action !== "IMAGE_REPAIR") return jsonError("Shopify 사진 재확인은 이미지·썸네일 교체 목록에서만 사용할 수 있습니다.", 422);
+        const result = await reconcileShopifyImageRepairJobs(user.id, input.productIds);
+        return Response.json({ reconciled: true, ...result });
+      }
       if (input.action === "REVIEW") return jsonError("주문 예약·수집 필요 항목은 Shopify에 전송하지 않습니다.", 409);
       const current = await getShopifyOperations();
       const source =
