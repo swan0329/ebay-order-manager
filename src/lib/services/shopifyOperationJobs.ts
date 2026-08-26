@@ -68,7 +68,9 @@ export async function processShopifyOperationJobs(userId: string, limit = MAX_CO
   // 상태 폴링과 최초 after()가 겹쳐도 짧은 트랜잭션 advisory lock 안에서만
   // 작업을 가져온다. 외부 Shopify 호출 중에는 DB 연결과 lock을 잡지 않는다.
   const jobs = await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`shopify-operations:${userId}`}))`;
+    // PostgreSQL advisory lock 함수는 void를 반환한다. Prisma/Postgres 어댑터는
+    // void 열을 역직렬화할 수 없으므로 짧은 lock 결과를 text로 명시한다.
+    await tx.$queryRaw<Array<{ lock: string }>>`SELECT pg_advisory_xact_lock(hashtext(${`shopify-operations:${userId}`}))::text AS "lock"`;
     const running = await tx.productUploadJob.count({ where: { userId, source: JOB_SOURCE, status: "running" } });
     const take = Math.max(0, Math.min(limit, MAX_CONCURRENT_JOBS - running));
     if (!take) return [];
