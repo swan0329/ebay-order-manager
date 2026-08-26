@@ -12,7 +12,7 @@ vi.mock("@/lib/env", () => ({ getShopifyConfig: mocks.getConfig }));
 vi.mock("@/lib/services/shopifyToken", () => ({ getShopifyAccessToken: mocks.getToken }));
 vi.mock("@/lib/safe-log", () => ({ safeLog: mocks.safeLog }));
 
-import { findShopifyProductVariantsBySkus, inspectShopifyProductImageState, onlyAlreadyAttachedVariantMediaErrors, updateShopifyVariantPrices, upsertShopifyVariationProduct } from "@/lib/services/shopifyService";
+import { attachShopifyVariantImages, findShopifyProductVariantsBySkus, inspectShopifyProductImageState, onlyAlreadyAttachedVariantMediaErrors, updateShopifyVariantPrices, upsertShopifyVariationProduct } from "@/lib/services/shopifyService";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -42,6 +42,22 @@ describe("Shopify 묶음상품 부분 실패", () => {
       { message: "Media is invalid." },
     ])).toBe(false);
     expect(onlyAlreadyAttachedVariantMediaErrors([])).toBe(false);
+  });
+
+  it("옵션 사진 연결 확인 GraphQL은 닫힌 문장으로 전송하고 실제 연결을 확인한다", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ data: { productVariantAppendMedia: { product: { id: "gid://shopify/Product/100" }, userErrors: [] } } }))
+      .mockResolvedValueOnce(jsonResponse({ data: { product: { variants: { nodes: [
+        { id: "gid://shopify/ProductVariant/11", media: { nodes: [{ id: "gid://shopify/MediaImage/1" }] } },
+      ] } } } }));
+
+    await expect(attachShopifyVariantImages(mocks.getConfig(), "100", [
+      { variantId: "11", sourceUrl: "https://cdn.example/card-a.png", mediaId: "gid://shopify/MediaImage/1" },
+    ])).resolves.toBe(1);
+
+    const request = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)) as { query: string };
+    expect([...request.query].reduce((depth, char) => depth + (char === "{" ? 1 : char === "}" ? -1 : 0), 0)).toBe(0);
+    expect(request.query).toContain("query VerifyVariantMedia");
   });
 
   it("대표·옵션 사진이 이미 Shopify에 맞게 연결됐으면 쓰기 없이 완료로 판정한다", async () => {

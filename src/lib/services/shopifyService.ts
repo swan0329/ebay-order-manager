@@ -380,7 +380,7 @@ export async function attachShopifyVariantImages(
   const verification = await shopifyGraphqlRequest<{
     product?: { variants?: { nodes?: Array<{ id: string; media?: { nodes?: Array<{ id: string }> } | null }> } | null } | null;
   }>(config, `query VerifyVariantMedia($id: ID!) {
-    product(id: $id) { variants(first: 250) { nodes { id media(first: 250) { nodes { id } } } }
+    product(id: $id) { variants(first: 250) { nodes { id media(first: 250) { nodes { id } } } } }
   }`, { id: `gid://shopify/Product/${productId}` });
   const mediaIdsByVariant = new Map(
     (verification.product?.variants?.nodes ?? []).map((variant) => [variant.id, new Set((variant.media?.nodes ?? []).map((media) => media.id))]),
