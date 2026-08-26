@@ -693,7 +693,6 @@ export async function upsertShopifyVariationProduct(
           status: "active",
           options: [{ name: "Card" }],
           variants: buildShopifyVariationVariants(items),
-          ...(!existingProductId && images.length ? { images: images.map((src) => ({ src })) } : {}),
         },
       },
     }) as ShopifyProductResponse;
@@ -744,9 +743,9 @@ export async function upsertShopifyVariationProduct(
   const productId = String(created.id);
   let imageSync: ShopifyImageSyncResult | null = null;
   let imageError: string | null = null;
-  // REST 생성 결과의 사진은 source marker가 없어 옵션 연결을 검증할 수 없다.
-  // 따라서 생성 방식과 상관없이 관리 이미지로 한 번 정리해 대표/옵션 사진을
-  // 같은 기준으로 잡는다. 실패해도 상품·재고 생성 사실은 호출자에게 남긴다.
+  // REST 생성과 함께 사진을 보내면 source marker가 없는 복사본을 만든 다음 같은
+  // 사진을 productCreateMedia로 다시 올리고 첫 복사본을 지우게 된다. 상품·옵션은
+  // 먼저 만들고 관리 이미지 경로로 한 번만 올려 대표/옵션 사진을 연결한다.
   if (images.length) try {
     const replaced = await replaceShopifyProductImages(config, productId, images);
     imageSync = replaced;

@@ -129,6 +129,29 @@ describe("Shopify 묶음상품 부분 실패", () => {
     expect(fetchMock).toHaveBeenCalledTimes(8);
   });
 
+  it("신규 묶음 생성 본문에는 사진을 중복 업로드하지 않는다", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ product: {
+        id: 100, status: "active", variants: [
+          { id: 11, sku: "CARD-A", price: "10.00" },
+          { id: 12, sku: "CARD-B", price: "11.00" },
+        ],
+      } }))
+      // 관리 이미지 업로드 오류도 상품·옵션 생성 사실을 잃지 않고 결과에 남긴다.
+      .mockResolvedValueOnce(jsonResponse({ errors: [{ message: "media validation failed" }] }))
+      .mockResolvedValueOnce(jsonResponse({ data: { productUpdate: { userErrors: [] } } }));
+
+    const result = await upsertShopifyVariationProduct("Test group", [
+      { sku: "CARD-A", optionName: "A", priceUsd: "10.00", quantity: 1, imageUrls: ["https://cdn.example/a.jpg"] },
+      { sku: "CARD-B", optionName: "B", priceUsd: "11.00", quantity: 1, imageUrls: ["https://cdn.example/b.jpg"] },
+    ]);
+
+    const request = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { product: Record<string, unknown> };
+    expect(request.product).not.toHaveProperty("images");
+    expect(result.productId).toBe("100");
+    expect(result.imageError).toContain("ProductMedia");
+  });
+
   it("레거시 REST 상품 생성이 500이면 GraphQL 상품 생성으로 한 번만 대체한다", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
