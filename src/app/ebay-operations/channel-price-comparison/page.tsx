@@ -42,6 +42,8 @@ export default async function ChannelPriceComparisonPage() {
       difference,
       ebayId: ebay.externalId,
       shopifyId: shopify.externalId,
+      ebayStatus: ebay.status,
+      shopifyStatus: shopify.status,
       ebayUpdatedAt: ebay.updatedAt,
       shopifyUpdatedAt: shopify.updatedAt,
     }];
@@ -76,8 +78,8 @@ export default async function ChannelPriceComparisonPage() {
             {rows.map((row) => <tr key={`${row.sku}:${row.ebayId}:${row.shopifyId}`} className="border-t">
               <td className="whitespace-nowrap px-3 py-2 font-mono">{row.sku}</td>
               <td className="px-3 py-2">{row.productName}</td>
-              <td className="whitespace-nowrap px-3 py-2">{formatPrice(row.ebayPrice, row.currency)}</td>
-              <td className="whitespace-nowrap px-3 py-2">{formatPrice(row.shopifyPrice, row.currency)}</td>
+              <td className="whitespace-nowrap px-3 py-2">{formatPrice(row.ebayPrice, row.currency)} · {row.ebayStatus ?? "상태 없음"}</td>
+              <td className="whitespace-nowrap px-3 py-2">{formatPrice(row.shopifyPrice, row.currency)} · {row.shopifyStatus ?? "상태 없음"}</td>
               <td className="whitespace-nowrap px-3 py-2">{row.difference == null ? "-" : formatPrice(row.difference, row.currency)}</td>
               <td className={`whitespace-nowrap px-3 py-2 font-semibold ${row.difference === 0 ? "text-emerald-700" : "text-red-700"}`}>{row.difference === 0 ? "일치" : row.difference == null ? "미확인" : "불일치"}</td>
             </tr>)}
