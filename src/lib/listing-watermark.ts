@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import sharp from "sharp";
-import { uploadBufferToR2 } from "@/lib/r2";
+import { getExistingR2PublicUrl, uploadBufferToR2 } from "@/lib/r2";
 import { getListingWatermarkSettings, type ListingWatermarkSettings } from "@/lib/variation-thumbnail-settings";
 import { createWatermarkOverlay } from "@/lib/listing-watermark-renderer";
 
@@ -60,9 +60,15 @@ export async function createWatermarkedImageBuffer(sourceUrl: string, settings: 
 }
 
 export async function createWatermarkedListingImage(sourceUrl: string, settings: ResolvedWatermark) {
-  const rendered = await createWatermarkedImageBuffer(sourceUrl, settings);
-  if (!rendered.applied) return { url: sourceUrl, signature: settings.signature, applied: false };
+  const shouldApply = settings.applyToIndividualCards && Boolean(settings.logo || settings.watermarkText?.trim());
+  // 워터마크를 쓰지 않는 설정에서는 원본 URL을 그대로 사용한다. 이전에는 결과를
+  // 버리면서도 매 작업마다 원본 이미지를 전부 내려받아 대량등록을 지연시켰다.
+  if (!shouldApply) return { url: sourceUrl, signature: settings.signature, applied: false };
   const keyHash = createHash("sha256").update(`${sourceUrl}\u0000${settings.signature}`).digest("hex").slice(0, 32);
-  const uploaded = await uploadBufferToR2({ buffer: rendered.buffer, key: `products/listing-watermarks/${keyHash}.jpg`, contentType: "image/jpeg" });
+  const key = `products/listing-watermarks/${keyHash}.jpg`;
+  const existingUrl = await getExistingR2PublicUrl(key);
+  if (existingUrl) return { url: existingUrl, signature: settings.signature, applied: true };
+  const rendered = await createWatermarkedImageBuffer(sourceUrl, settings);
+  const uploaded = await uploadBufferToR2({ buffer: rendered.buffer, key, contentType: "image/jpeg" });
   return { url: uploaded.url, signature: settings.signature, applied: true };
 }

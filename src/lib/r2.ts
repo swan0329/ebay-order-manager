@@ -2,6 +2,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -79,6 +80,19 @@ export async function uploadBufferToR2(
     key,
     url: buildPublicR2Url(key, config.publicBaseUrl),
   };
+}
+
+/** 결정적 키로 이미 만든 판매 이미지를 다시 렌더링·업로드하지 않도록 확인한다. */
+export async function getExistingR2PublicUrl(key: string): Promise<string | null> {
+  const config = assertR2Configured();
+  const normalizedKey = normalizeR2Key(key);
+  if (!normalizedKey) return null;
+  try {
+    await clientFor(config).send(new HeadObjectCommand({ Bucket: config.bucketName, Key: normalizedKey }));
+    return buildPublicR2Url(normalizedKey, config.publicBaseUrl);
+  } catch {
+    return null;
+  }
 }
 
 export async function getObjectFromR2(
