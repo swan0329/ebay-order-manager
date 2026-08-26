@@ -109,6 +109,18 @@ export async function enqueueShopifyOperationJobs(input: { userId: string; actio
 }
 
 export async function processShopifyOperationJobs(userId: string, limit = MAX_CONCURRENT_JOBS) {
+  // 예전 connection_limit=1 경합으로 실패 확정된 신규등록은 바로 다시 생성하면
+  // 안 된다. stale-create 복구 경로로 넘겨 Shopify SKU 존재 여부를 먼저 확인한다.
+  await prisma.productUploadJob.updateMany({
+    where: {
+      userId, source: JOB_SOURCE, action: "CREATE", status: "failed",
+      OR: [
+        { errorSummary: { contains: "Timed out fetching a new connection from the connection pool" } },
+        { errorSummary: { contains: "connection pool timeout" } },
+      ],
+    },
+    data: { status: "running", startedAt: new Date(0), finishedAt: null, message: "DB 연결 오류 항목 · Shopify 동일 SKU 생성 여부 확인 대기" },
+  });
   await recoverStaleCreateJobs(userId);
   // 신규등록은 외부 생성 직후 응답이 끊기면 중복 게시 위험이 있어 자동 재개하지
   // 않는다. 이미지와 가격·재고 전용 작업은 실제값 재확인을 포함한 멱등 경로이므로
