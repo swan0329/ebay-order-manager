@@ -16,6 +16,7 @@ import { enqueueEbayVariationImageRepairs, getEbayVariationImageRepairJobs, proc
 import { enqueueEbayInventoryJobs, getEbayInventoryJobSummary, processEbayInventoryJobs } from "@/lib/services/ebayInventoryJobs";
 import { getEbayOutOfStockControl } from "@/lib/services/ebayOutOfStockControl";
 import { enqueueShopifyOperationJobs, getShopifyOperationJobSummary, processShopifyOperationJobs, reconcileShopifyImageRepairJobs, reconcileShopifyInventoryJobs } from "@/lib/services/shopifyOperationJobs";
+import { issueShopifyOperationPreviewToken, verifyShopifyOperationPreviewToken, type ShopifyOperationAction } from "@/lib/services/shopifyOperationPreview";
 
 const executeSchema = z.object({
   action: z.enum(["CREATE", "CHANGE", "UNAVAILABLE", "REVIEW", "IMAGE_REPAIR"]),
@@ -68,61 +69,44 @@ export async function POST(request: Request) {
         return Response.json({ reconciled: true, ...result });
       }
       if (input.action === "REVIEW") return jsonError("주문 예약·수집 필요 항목은 Shopify에 전송하지 않습니다.", 409);
-      const current = await getShopifyOperations();
-      const source =
-        input.action === "CREATE"
-          ? current.create
-          : input.action === "CHANGE"
-            ? current.change
-            : input.action === "UNAVAILABLE"
-              ? current.unavailable
-              : input.action === "IMAGE_REPAIR"
-                ? current.imageRepair
-                : current.review;
-      const allowed = new Set(
-        source
-          .filter(
-            (row) => (row as { actionable?: boolean }).actionable !== false,
-          )
-          .map((row) => String(row.productId)),
-      );
       const productIds = [...new Set(input.productIds)];
-      if (productIds.some((id) => !allowed.has(id)))
-        return jsonError(
-          input.action === "IMAGE_REPAIR"
-            ? "최종 승인 이미지가 없거나 Shopify 연결이 불완전한 항목이 포함되어 있습니다."
-            : "포카마켓 재고가 확인되지 않았거나 현재 Shopify 전송 대상이 아닌 항목이 포함되어 있습니다.",
-          409,
-        );
-      if (input.dryRun)
+      if (input.dryRun) {
+        const current = await getShopifyOperations();
+        const source = input.action === "CREATE" ? current.create : input.action === "CHANGE" ? current.change : input.action === "UNAVAILABLE" ? current.unavailable : current.imageRepair;
+        const selectedRows = source.filter((row) => productIds.includes(String(row.productId)) && (row as { actionable?: boolean }).actionable !== false);
+        if (selectedRows.length !== productIds.length)
+          return jsonError(
+            input.action === "IMAGE_REPAIR"
+              ? "최종 승인 이미지가 없거나 Shopify 연결이 불완전한 항목이 포함되어 있습니다."
+              : "포카마켓 재고가 확인되지 않았거나 현재 Shopify 전송 대상이 아닌 항목이 포함되어 있습니다.",
+            409,
+          );
+        const targets = selectedRows.map((row) => ({
+          targetId: String(row.productId),
+          productIds: ("productIds" in row && Array.isArray(row.productIds) ? row.productIds : [row.productId]).filter((id): id is string => typeof id === "string"),
+          sku: String(row.sku),
+        }));
         return Response.json({
           dryRun: true,
           planned: productIds.length,
-          rows: source.filter((row) =>
-            productIds.includes(String(row.productId)),
-          ),
-          previewToken: issueListingPreviewToken(productIds),
+          rows: selectedRows,
+          previewToken: issueShopifyOperationPreviewToken(input.action as ShopifyOperationAction, targets),
         });
+      }
       if (
         !input.confirmed ||
         !input.previewToken ||
-        !verifyListingPreviewToken(input.previewToken, productIds)
+        !verifyShopifyOperationPreviewToken(input.previewToken, input.action as ShopifyOperationAction, productIds)
       )
         return jsonError(
           "유효한 Shopify 미리보기 후 최종 확인이 필요합니다.",
           409,
         );
-      const selectedRows = source.filter((row) =>
-        productIds.includes(String(row.productId)),
-      );
+      const targets = verifyShopifyOperationPreviewToken(input.previewToken, input.action as ShopifyOperationAction, productIds)!;
       const job = await enqueueShopifyOperationJobs({
         userId: user.id,
         action: input.action,
-        targets: selectedRows.map((row) => ({
-          targetId: String(row.productId),
-          productIds: ("productIds" in row && Array.isArray(row.productIds) ? row.productIds : [row.productId]).filter((id): id is string => typeof id === "string"),
-          sku: String(row.sku),
-        })),
+        targets,
       });
       after(() => processShopifyOperationJobs(user.id));
       return Response.json({ queued: true, jobType: "shopify", succeeded: 0, failed: 0, job });

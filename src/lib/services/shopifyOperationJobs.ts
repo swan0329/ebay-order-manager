@@ -11,6 +11,7 @@ import { reconcileShopifyPriceInventory, syncShopifyPriceInventory } from "@/lib
 const JOB_SOURCE = "shopify_operations";
 const ACTIVE = ["pending", "running"];
 const RECOVERABLE_JOB_DELAY_MS = 2 * 60_000;
+const MAX_CONCURRENT_JOBS = 2;
 type Action = "CREATE" | "CHANGE" | "UNAVAILABLE" | "IMAGE_REPAIR";
 
 type JobPayload = { batchId?: string; productIds?: string[]; targetId?: string };
@@ -49,7 +50,7 @@ export async function enqueueShopifyOperationJobs(input: { userId: string; actio
   return getShopifyOperationJobSummary(input.userId, batchId);
 }
 
-export async function processShopifyOperationJobs(userId: string, limit = 100) {
+export async function processShopifyOperationJobs(userId: string, limit = MAX_CONCURRENT_JOBS) {
   // 신규등록은 외부 생성 직후 응답이 끊기면 중복 게시 위험이 있어 자동 재개하지
   // 않는다. 이미지와 가격·재고 전용 작업은 실제값 재확인을 포함한 멱등 경로이므로
   // 2분 넘게 멈춘 건만 대기로 돌려 다음 상태 조회에서 안전하게 재개한다.
@@ -64,25 +65,26 @@ export async function processShopifyOperationJobs(userId: string, limit = 100) {
     where: { userId, source: JOB_SOURCE, action: "IMAGE_REPAIR", status: "failed", errorSummary: { contains: "given variant already has attached media", mode: "insensitive" } },
     data: { status: "pending", startedAt: null, finishedAt: null, error: null, errorSummary: null, message: "기존 옵션 사진 연결을 Shopify 재조회로 재검증" },
   });
-  // 화면 폴링과 최초 after 작업이 겹쳐도 서로 다른 대기 건을 동시에 잡지 않는다.
-  // 운영 DB 연결 제한 1과 Shopify API 호출 순서를 모두 지키는 전역 직렬화다.
-  const running = await prisma.productUploadJob.findFirst({ where: { userId, source: JOB_SOURCE, status: "running" }, select: { id: true } });
-  if (running) return getShopifyOperationJobSummary(userId);
-  const jobs = await prisma.productUploadJob.findMany({ where: { userId, source: JOB_SOURCE, status: "pending" }, orderBy: { createdAt: "asc" }, take: limit });
-  for (const job of jobs) {
-    const claimed = await prisma.productUploadJob.updateMany({ where: { id: job.id, status: "pending" }, data: { status: "running", startedAt: new Date(), error: null, errorSummary: null, message: "Shopify 최신 상태 확인 중" } });
-    if (!claimed.count) continue;
+  // 상태 폴링과 최초 after()가 겹쳐도 짧은 트랜잭션 advisory lock 안에서만
+  // 작업을 가져온다. 외부 Shopify 호출 중에는 DB 연결과 lock을 잡지 않는다.
+  const jobs = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`shopify-operations:${userId}`}))`;
+    const running = await tx.productUploadJob.count({ where: { userId, source: JOB_SOURCE, status: "running" } });
+    const take = Math.max(0, Math.min(limit, MAX_CONCURRENT_JOBS - running));
+    if (!take) return [];
+    const pending = await tx.productUploadJob.findMany({ where: { userId, source: JOB_SOURCE, status: "pending" }, orderBy: { createdAt: "asc" }, take });
+    const claimed = [];
+    for (const job of pending) {
+      const result = await tx.productUploadJob.updateMany({ where: { id: job.id, status: "pending" }, data: { status: "running", startedAt: new Date(), error: null, errorSummary: null, message: "Shopify 전송 및 실제 반영 확인 중" } });
+      if (result.count) claimed.push(job);
+    }
+    return claimed;
+  }, { timeout: 10_000 });
+
+  await Promise.all(jobs.map(async (job) => {
     try {
       const action = job.action as Action;
       const data = payload(job.rawJson);
-      const operations = await getShopifyOperations();
-      const row = sourceForAction(operations, action).find((candidate) => String(candidate.productId) === data.targetId);
-      // 이미 다른 작업으로 목표 값이 반영되어 목록에서 사라진 경우다. 외부에 다시
-      // 쓰지 않고 완료로 확정한다.
-      if (!row) {
-        await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "success", message: "최신 목록에서 완료 상태 확인", finishedAt: new Date() } });
-        continue;
-      }
       const productIds = data.productIds ?? [];
       if (!productIds.length) throw new Error("Shopify 작업 대상 상품을 확인하지 못했습니다.");
       const result = action === "IMAGE_REPAIR"
@@ -94,23 +96,19 @@ export async function processShopifyOperationJobs(userId: string, limit = 100) {
             : await uploadShopifyProduct(productIds[0], userId);
       const partialFailures = "failed" in result && Array.isArray(result.failed) ? result.failed : [];
       if (partialFailures.length) throw new Error(partialFailures.map((failure: { sku: string; reason: string }) => `${failure.sku}: ${failure.reason}`).join(" / "));
-      // 각 전용 서비스가 Shopify 실제값을 다시 읽은 뒤 ProductListing을 갱신한다.
-      // 그 후 최신 작업 목록을 다시 계산해 완료 건을 즉시 숫자에서 제외한다.
-      // 처리 도중 원본 가격·재고가 또 바뀐 경우에는 이전 작업은 성공으로 남기고
-      // 새 차이를 별도 변동으로 표시한다.
-      const rechecked = await getShopifyOperations();
-      const remains = sourceForAction(rechecked, action).some((candidate) => String(candidate.productId) === data.targetId);
-      if (remains && action !== "CHANGE" && action !== "UNAVAILABLE") throw new Error("Shopify 응답은 받았지만 최신 작업 목록에서 완료 상태를 확인하지 못했습니다.");
       await prisma.productUploadJob.update({ where: { id: job.id }, data: {
         status: "success",
-        message: remains ? "Shopify 실제 반영 완료 · 처리 중 최신 가격·재고가 다시 바뀌어 새 변동으로 분리" : "Shopify 실제 반영 및 최신 목록 제외 확인 완료",
+        message: "Shopify 실제 반영 확인 완료",
         finishedAt: new Date(), finalPayloadJson: result as Prisma.InputJsonValue,
       } });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Shopify 작업 실패";
+      const rawMessage = error instanceof Error ? error.message : "Shopify 작업 실패";
+      const message = rawMessage.includes("Timed out fetching a new connection")
+        ? "내부 데이터 연결이 혼잡해 작업을 확인하지 못했습니다. 이 항목만 다시 시도해 주세요."
+        : rawMessage;
       await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "failed", message: "Shopify 실제 반영 미확인", error: message, errorSummary: message, finishedAt: new Date() } });
     }
-  }
+  }));
   return getShopifyOperationJobSummary(userId);
 }
 

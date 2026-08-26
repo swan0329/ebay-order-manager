@@ -27,3 +27,9 @@
 ## eBay 가격·재고 대량 반영
 
 소량 자동화의 `ReviseInventoryStatus` 직접 호출은 요청당 최대 4개와 동시성 3을 지킨다. 운영 화면의 대량 가격·재고 반영은 상품별 `GetItem` 재조회로 완료를 기다리지 않고 공식 `LMS_REVISE_INVENTORY_STATUS` Sell Feed 파일 하나로 최대 2,000건을 제출한다. eBay task ID와 상품별 MessageID를 작업에 저장하고 결과 파일의 CorrelationID별 Success/Error로 완료를 확정한다. 단품은 Item ID만, 묶음 옵션은 Item ID와 SKU를 함께 보낸다. 외부 성공 뒤 내부 `ProductListing` 기록을 여러 `Promise.all` 쿼리로 실행하면 연결 제한 1인 운영 DB에서 pool timeout이 날 수 있으므로 100개 이하 트랜잭션 묶음으로 순차 저장한다. 브라우저 요청 수명에 작업을 묶지 말고 영구 작업과 task ID를 먼저 남겨 메뉴 이동·중단·재개에 안전하게 한다.
+## Shopify 운영 배치에서 전체 목록을 상태 조회로 사용하지 않는다
+
+- `getShopifyOperations()`는 이미지 준비 상태, 옵션 묶음, 예약 재고, 가격과 기존 채널 연결을 함께 계산하는 무거운 조회다.
+- 작업 상태를 몇 초마다 확인하거나 각 상품 처리 전후에 이 함수를 호출하면 서버리스 요청이 겹쳐 `connection_limit=1` 환경에서 P2024와 300초 타임아웃이 연쇄적으로 발생한다.
+- 자동검증에서 확정한 대상은 서명된 스냅샷으로 작업 큐에 넘기고, 진행 화면은 작업 테이블만 읽는 전용 API를 사용한다. 전체 운영 목록은 배치 완료 후 한 번만 다시 계산한다.
+- 작업 가져오기는 짧은 DB advisory lock 안에서만 수행하고 Shopify 네트워크 호출 중에는 DB lock이나 트랜잭션을 유지하지 않는다.

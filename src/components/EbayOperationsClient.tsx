@@ -111,20 +111,24 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
   useEffect(() => {
     if (channel !== "SHOPIFY" || !data.shopifyJob?.active) return;
     let mounted = true;
+    let timer: number | undefined;
     const poll = async () => {
-      const response = await fetch("/api/ebay/operations?channel=SHOPIFY", { cache: "no-store" }).catch(() => null);
-      if (!mounted || !response?.ok) return;
-      const next = await response.json() as OperationsClientData;
-      setData(next);
-      const job = next.shopifyJob;
+      const response = await fetch("/api/ebay/operations/shopify-jobs", { cache: "no-store", signal: AbortSignal.timeout(20_000) }).catch(() => null);
+      if (!mounted) return;
+      if (!response?.ok) { timer = window.setTimeout(() => void poll(), 5_000); return; }
+      const job = await response.json() as ShopifyJob;
+      setData((current) => ({ ...current, shopifyJob: job }));
       if (job && !job.active) {
         setResult(resultFromShopifyJob(job));
-        setMessage(`Shopify 실제 반영 및 목록 갱신 완료: 성공 ${job.succeeded}건 · 실패·미확인 ${job.failed}건`);
+        setMessage(`Shopify 실제 반영 완료: 성공 ${job.succeeded}건 · 실패·미확인 ${job.failed}건 · 최신 목록을 불러오는 중입니다.`);
+        const operations = await fetch("/api/ebay/operations?channel=SHOPIFY", { cache: "no-store", signal: AbortSignal.timeout(60_000) }).catch(() => null);
+        if (mounted && operations?.ok) setData(await operations.json());
+        return;
       }
+      timer = window.setTimeout(() => void poll(), 2_000);
     };
     void poll();
-    const timer = window.setInterval(() => void poll(), 3_000);
-    return () => { mounted = false; window.clearInterval(timer); };
+    return () => { mounted = false; if (timer) window.clearTimeout(timer); };
   }, [channel, data.shopifyJob?.active, data.shopifyJob?.batchId]);
 
   useEffect(() => {
@@ -379,7 +383,7 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
     {channel === "EBAY" && data.summary && <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950"><b>eBay 묶음 대표사진:</b> 최신 활성상품 보고서에서 확인되고 옵션 이미지가 모두 준비된 묶음 {data.summary.imageRepairListings ?? 0}개를 현재 워터마크 설정으로 교체할 수 있습니다.</div>}
     {channel === "EBAY" && data.imageRepairJob && data.imageRepairJob.total > 0 && <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950"><b>최근 대표사진 작업:</b> 전체 {data.imageRepairJob.total}건 · 실제 반영 확인 {data.imageRepairJob.succeeded}건 · 실패·미확인 {data.imageRepairJob.failed}건 · 처리 중/대기 {data.imageRepairJob.active}건. eBay 재조회까지 통과한 항목만 목록과 숫자에서 자동으로 제외됩니다.</div>}
     {channel === "EBAY" && data.inventoryJob && data.inventoryJob.total > 0 && <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950"><div className="flex flex-wrap items-center justify-between gap-2"><b>eBay 가격·재고 대량작업 {data.inventoryJob.active ? "진행 중" : "완료"}</b><span>대상 {data.inventoryJob.total} · eBay 접수 {data.inventoryJob.submitted ?? 0} · 성공 {data.inventoryJob.succeeded} · 실패 {data.inventoryJob.failed} · 결과 대기 {Math.max(0, data.inventoryJob.total - data.inventoryJob.completed)}</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-sky-100"><div className="h-full rounded-full bg-sky-600 transition-[width]" style={{width:`${data.inventoryJob.total ? data.inventoryJob.completed ? Math.round((data.inventoryJob.completed / data.inventoryJob.total) * 100) : (data.inventoryJob.submitted ?? 0) > 0 ? 55 : 15 : 0}%`}}/></div><p className="mt-2 text-xs">{data.inventoryJob.active ? `${Math.floor(inventoryTiming.elapsed / 60)}분 ${inventoryTiming.elapsed % 60}초 경과 · 예상 1~10분${inventoryTiming.elapsed > 600 ? " · 예상 범위를 넘어 eBay 처리 지연 중" : ""}. ` : ""}개별 상품을 하나씩 재조회하지 않고 eBay 공식 백그라운드 대량처리 결과 파일로 성공·실패를 확정합니다. 메뉴를 이동하거나 창을 닫아도 계속됩니다.</p>{data.inventoryJob.active && (data.inventoryJob.submitted ?? 0) > 0 && <p className="mt-2 font-semibold">eBay 작업번호 {data.inventoryJob.taskId}로 전체 {(data.inventoryJob.submitted ?? 0).toLocaleString()}건이 접수되었습니다. 성공 수는 eBay 결과 파일이 나온 즉시 한꺼번에 갱신됩니다.</p>}{!data.inventoryJob.active && data.inventoryJob.failed > 0 && <p className="mt-2 font-semibold text-amber-900">실패 항목은 아래 결과에 이유가 남아 있으며, ‘실패·미확인 재시작’으로 해당 항목만 다시 처리할 수 있습니다.</p>}</div>}
-    {channel === "SHOPIFY" && data.shopifyJob && data.shopifyJob.total > 0 && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><div className="flex flex-wrap items-center justify-between gap-2"><b>Shopify 작업 {data.shopifyJob.active ? "진행 중" : "완료"}</b><span>대상 {data.shopifyJob.total} · 성공 {data.shopifyJob.succeeded} · 실패 {data.shopifyJob.failed} · 처리 중/대기 {data.shopifyJob.active}</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-emerald-100"><div className="h-full rounded-full bg-emerald-600 transition-[width]" style={{width:`${data.shopifyJob.total ? Math.round((data.shopifyJob.completed / data.shopifyJob.total) * 100) : 0}%`}}/></div><p className="mt-2 text-xs">{data.shopifyJob.active ? `${Math.floor(inventoryTiming.elapsed / 60)}분 ${inventoryTiming.elapsed % 60}초 경과 · 현재 ${data.shopifyJob.running ? "Shopify 실제 반영 확인 중" : "작업 대기 중"}. ` : ""}{tab === "imageRepair" ? "대표사진과 옵션 사진의 실제 연결을 확인합니다." : tab === "create" ? "상품·옵션 생성과 실제 반영을 확인합니다." : "가격·재고만 전송하고 Shopify 실제값을 재조회해 확인합니다. 이미지에는 손대지 않습니다."} 메뉴를 이동하거나 창을 닫아도 계속됩니다.</p></div>}
+    {channel === "SHOPIFY" && data.shopifyJob && data.shopifyJob.total > 0 && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><div className="flex flex-wrap items-center justify-between gap-2"><b>Shopify 작업 {data.shopifyJob.active ? "진행 중" : "완료"}</b><span>대상 {data.shopifyJob.total} · 성공 {data.shopifyJob.succeeded} · 실패 {data.shopifyJob.failed} · 처리 중 {data.shopifyJob.running} · 대기 {data.shopifyJob.pending}</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-emerald-100"><div className="h-full rounded-full bg-emerald-600 transition-[width]" style={{width:`${data.shopifyJob.total ? Math.round((data.shopifyJob.completed / data.shopifyJob.total) * 100) : 0}%`}}/></div><p className="mt-2 text-xs">{data.shopifyJob.active ? `${Math.floor(inventoryTiming.elapsed / 60)}분 ${inventoryTiming.elapsed % 60}초 경과 · 현재 ${data.shopifyJob.running ? "Shopify 실제 반영 확인 중" : "다음 작업 시작 대기 중"}. ` : ""}{tab === "imageRepair" ? "대표사진과 옵션 사진의 실제 연결을 확인합니다." : tab === "create" ? "상품·옵션 생성과 실제 반영을 확인합니다." : "가격·재고만 전송하고 Shopify 실제값을 재조회해 확인합니다. 이미지에는 손대지 않습니다."} 메뉴를 이동하거나 창을 닫아도 계속됩니다.</p>{data.shopifyJob.running > 0 && <p className="mt-2 rounded-lg bg-white/80 px-3 py-2 text-xs"><b>지금 처리 중:</b> {data.shopifyJob.jobs.filter((job) => job.status === "running").map((job) => job.sku).join(" · ")}</p>}{data.shopifyJob.completed > 0 && <p className="mt-2 text-xs"><b>최근 완료:</b> {data.shopifyJob.jobs.filter((job) => job.status === "success").slice(-3).map((job) => job.sku).join(" · ") || "-"}</p>}</div>}
     {channel === "SHOPIFY" && data.shopifyJob && data.shopifyJob.failed > 0 && <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-950"><b>Shopify 실패 원인 · 재시작 전 확인</b><p className="mt-1 text-xs">아래 사유가 해결되지 않은 상태에서 재시작해도 같은 결과가 반복됩니다. 성공으로 표시하거나 목록에서 임의로 빼지 않습니다.</p><ul className="mt-3 max-h-48 list-disc space-y-1 overflow-auto pl-5 text-xs">{data.shopifyJob.jobs.filter((job) => job.status === "failed").map((job) => <li key={job.id}><b>{job.sku}</b>: {job.errorSummary ?? job.message ?? "원인을 저장하지 못했습니다."}</li>)}</ul></div>}
     <div className="grid gap-3 sm:grid-cols-5">{([['create', '신규등록', data.create.length], ['change', '가격·재고 변동', data.change.length], ['unavailable', '품절·판매중지', data.unavailable.length], ['review', '주문 예약·수집 필요', data.review.length], ['imageRepair', channel === "EBAY" ? '묶음 대표사진 교체' : '이미지·썸네일 교체', data.imageRepair.length] as const] as const).map(([key, label, count]) => <button key={key} disabled={busy} onClick={() => choose(key)} className={`rounded-2xl border p-4 text-left disabled:opacity-50 ${tab === key ? "border-violet-600 bg-violet-50" : "bg-white"}`}><span className="text-sm text-zinc-500">{label}</span><strong className="mt-1 block text-2xl">{count.toLocaleString()}건</strong></button>)}</div>
     <section className="overflow-hidden rounded-2xl border border-zinc-300 bg-white shadow-sm">
