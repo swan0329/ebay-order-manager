@@ -604,6 +604,48 @@ export type ShopifyVariationUploadResult = {
   }>;
 };
 
+export type ShopifyVariantLookup = {
+  sku: string;
+  productId: string;
+  productStatus: string | null;
+  variantId: string;
+  inventoryItemId: string | null;
+  price: string | null;
+  inventoryQuantity: number | null;
+};
+
+/** 제한시간이 지난 신규등록을 중복 생성하지 않도록 Shopify SKU로 실제 상품을 찾는다. */
+export async function findShopifyProductVariantsBySkus(skus: string[]): Promise<ShopifyVariantLookup[]> {
+  const unique = [...new Set(skus.map((sku) => sku.trim()).filter(Boolean))];
+  if (!unique.length) return [];
+  const config = getShopifyConfig();
+  const search = unique.map((sku) => `sku:"${sku.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`).join(" OR ");
+  const data = await shopifyGraphqlRequest<{
+    productVariants?: { nodes?: Array<{
+      id: string; sku?: string | null; price?: string | null; inventoryQuantity?: number | null;
+      inventoryItem?: { id: string } | null; product?: { id: string; status?: string | null } | null;
+    }> | null } | null;
+  }>(config, `query FindOperationVariants($query: String!) {
+    productVariants(first: 100, query: $query) {
+      nodes { id sku price inventoryQuantity inventoryItem { id } product { id status } }
+    }
+  }`, { query: search });
+  const wanted = new Set(unique);
+  return (data.productVariants?.nodes ?? []).flatMap((node) => {
+    const sku = node.sku?.trim() ?? "";
+    if (!wanted.has(sku) || !node.product?.id) return [];
+    return [{
+      sku,
+      productId: gidNumber(node.product.id),
+      productStatus: node.product.status ?? null,
+      variantId: gidNumber(node.id),
+      inventoryItemId: node.inventoryItem ? gidNumber(node.inventoryItem.id) : null,
+      price: node.price ?? null,
+      inventoryQuantity: node.inventoryQuantity ?? null,
+    }];
+  });
+}
+
 /** 한 묶음을 Shopify 상품 하나와 여러 옵션으로 만든다. */
 export async function upsertShopifyVariationProduct(
   title: string,

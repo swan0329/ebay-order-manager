@@ -7,10 +7,12 @@ import { repairShopifyProductImages } from "@/lib/services/shopifyImageRepair";
 import { uploadShopifyProduct } from "@/lib/services/shopifyProductUpload";
 import { uploadShopifyVariationGroup } from "@/lib/services/shopifyVariationUpload";
 import { reconcileShopifyPriceInventory, syncShopifyPriceInventory } from "@/lib/services/shopifyInventoryOperations";
+import { findShopifyProductVariantsBySkus } from "@/lib/services/shopifyService";
 
 const JOB_SOURCE = "shopify_operations";
 const ACTIVE = ["pending", "running"];
 const RECOVERABLE_JOB_DELAY_MS = 2 * 60_000;
+const CREATE_RECOVERY_DELAY_MS = 6 * 60_000;
 const MAX_CONCURRENT_JOBS = 2;
 type Action = "CREATE" | "CHANGE" | "UNAVAILABLE" | "IMAGE_REPAIR";
 
@@ -39,6 +41,50 @@ function sourceForAction(operations: Awaited<ReturnType<typeof getShopifyOperati
         : operations.imageRepair;
 }
 
+async function recoverStaleCreateJobs(userId: string) {
+  const stale = await prisma.productUploadJob.findMany({
+    where: { userId, source: JOB_SOURCE, action: "CREATE", status: "running", startedAt: { lt: new Date(Date.now() - CREATE_RECOVERY_DELAY_MS) } },
+    orderBy: { startedAt: "asc" }, take: MAX_CONCURRENT_JOBS,
+  });
+  for (const job of stale) {
+    const claimedAt = new Date();
+    const claimed = await prisma.productUploadJob.updateMany({
+      where: { id: job.id, status: "running", startedAt: job.startedAt },
+      data: { startedAt: claimedAt, message: "제한시간 초과 · Shopify 동일 SKU 생성 여부 확인 중" },
+    });
+    if (!claimed.count) continue;
+    try {
+      const data = payload(job.rawJson);
+      const products = await prisma.product.findMany({ where: { id: { in: data.productIds ?? [] } }, select: { id: true, sku: true } });
+      if (!products.length) throw new Error("내부 Shopify 작업 대상 상품을 찾지 못했습니다.");
+      const found = await findShopifyProductVariantsBySkus(products.map((product) => product.sku));
+      const bySku = new Map(found.map((variant) => [variant.sku, variant]));
+      if (!found.length) {
+        await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "pending", startedAt: null, message: "Shopify 동일 SKU 상품 없음 확인 · 안전 재시작 대기" } });
+        continue;
+      }
+      const productIds = new Set(found.map((variant) => variant.productId));
+      if (products.some((product) => !bySku.has(product.sku)) || productIds.size !== 1) {
+        const message = "Shopify에서 일부 SKU만 발견되거나 서로 다른 상품에 연결되어 자동 재시작하지 않습니다.";
+        await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "failed", message: "Shopify 부분 생성 확인 · 수동 확인 필요", error: message, errorSummary: message, finishedAt: new Date() } });
+        continue;
+      }
+      const externalId = found[0].productId;
+      await prisma.$transaction(products.flatMap((product) => {
+        const variant = bySku.get(product.sku)!;
+        return [
+          prisma.product.update({ where: { id: product.id }, data: { shopifyProductId: externalId, shopifyVariantId: variant.variantId, shopifyInventoryItemId: variant.inventoryItemId, shopifyStatus: variant.productStatus, shopifyLastUploadedAt: new Date() } }),
+          prisma.productListing.upsert({ where: { productId_channel: { productId: product.id, channel: "SHOPIFY" } }, update: { externalId, price: variant.price, quantity: variant.inventoryQuantity, status: variant.productStatus, metadata: { source: "shopify_stale_create_recovery", variantId: variant.variantId, inventoryItemId: variant.inventoryItemId } }, create: { productId: product.id, channel: "SHOPIFY", externalId, price: variant.price, quantity: variant.inventoryQuantity, status: variant.productStatus, metadata: { source: "shopify_stale_create_recovery", variantId: variant.variantId, inventoryItemId: variant.inventoryItemId } } }),
+        ];
+      }));
+      await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "pending", startedAt: null, message: "Shopify 기존 생성 상품 연결 복구 · 나머지 반영 재개 대기" } });
+    } catch (error) {
+      const message = publicJobError(error instanceof Error ? error.message : "Shopify 생성 여부 확인 실패") ?? "Shopify 생성 여부 확인 실패";
+      await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "running", startedAt: claimedAt, message, errorSummary: message } });
+    }
+  }
+}
+
 /**
  * Shopify writes may take minutes while media is copied and variant links are
  * checked.  Persist them before doing I/O so navigating away can never turn a
@@ -63,6 +109,7 @@ export async function enqueueShopifyOperationJobs(input: { userId: string; actio
 }
 
 export async function processShopifyOperationJobs(userId: string, limit = MAX_CONCURRENT_JOBS) {
+  await recoverStaleCreateJobs(userId);
   // 신규등록은 외부 생성 직후 응답이 끊기면 중복 게시 위험이 있어 자동 재개하지
   // 않는다. 이미지와 가격·재고 전용 작업은 실제값 재확인을 포함한 멱등 경로이므로
   // 2분 넘게 멈춘 건만 대기로 돌려 다음 상태 조회에서 안전하게 재개한다.
