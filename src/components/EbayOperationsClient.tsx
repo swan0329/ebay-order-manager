@@ -155,7 +155,10 @@ export function EbayOperationsClient({ initial, initialChannel = "EBAY" }: { ini
 
   const inventoryTiming = useMemo(() => {
     const job = channel === "EBAY" ? data.inventoryJob : data.shopifyJob;
-    const started = job?.jobs.map((item) => item.startedAt ?? item.createdAt).filter(Boolean).map((value) => new Date(value!).getTime()).filter(Number.isFinite).sort((a, b) => a - b)[0];
+    const timingJobs = channel === "SHOPIFY"
+      ? job?.jobs.filter((item) => item.status === "running") ?? []
+      : job?.jobs ?? [];
+    const started = timingJobs.map((item) => item.startedAt ?? item.createdAt).filter(Boolean).map((value) => new Date(value!).getTime()).filter(Number.isFinite).sort((a, b) => a - b)[0];
     if (!job || !started) return { elapsed: 0, eta: null as number | null };
     const elapsedSeconds = Math.max(1, Math.round((jobClock - started) / 1_000));
     return { elapsed: elapsedSeconds };

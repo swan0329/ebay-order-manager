@@ -93,7 +93,22 @@ export async function shopifyApiRequest(
   return body;
 }
 
-type ShopifyGraphqlError = { field?: string[] | null; message?: string; code?: string | null };
+type ShopifyGraphqlError = {
+  field?: string[] | null;
+  message?: string;
+  code?: string | null;
+  extensions?: { code?: string | null } | null;
+};
+
+function shopifyGraphqlOperationName(query: string) {
+  return query.match(/\b(?:query|mutation)\s+([_A-Za-z][_0-9A-Za-z]*)/)?.[1] ?? "anonymous";
+}
+
+function isRetryableShopifyGraphqlFailure(status: number, errors: ShopifyGraphqlError[]) {
+  return status === 429
+    || status >= 500
+    || errors.some((error) => error.extensions?.code === "THROTTLED" || /temporar|throttl|try again/i.test(error.message ?? ""));
+}
 
 // Shopify 상품 REST API는 레거시이며 일부 스토어에서 상품 생성 요청이 500으로
 // 끝난다. GraphQL 응답의 userErrors를 숨기지 않고 호출자에게 돌려 주기 위한
@@ -103,27 +118,37 @@ async function shopifyGraphqlRequest<T>(
   query: string,
   variables: Record<string, unknown>,
 ): Promise<T> {
-  const response = await shopifyFetch(
-    `https://${config.storeDomain}/admin/api/${config.apiVersion}/graphql.json`,
-    {
-      method: "POST",
-      headers: {
-        "X-Shopify-Access-Token": await getShopifyAccessToken(config),
-        accept: "application/json",
-        "content-type": "application/json",
+  const operation = shopifyGraphqlOperationName(query);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await shopifyFetch(
+      `https://${config.storeDomain}/admin/api/${config.apiVersion}/graphql.json`,
+      {
+        method: "POST",
+        headers: {
+          "X-Shopify-Access-Token": await getShopifyAccessToken(config),
+          accept: "application/json",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ query, variables }),
       },
-      body: JSON.stringify({ query, variables }),
-    },
-  );
-  const body = await response.json().catch(() => null) as { data?: T; errors?: ShopifyGraphqlError[] } | null;
-  if (!response.ok || body?.errors?.length || !body?.data) {
+    );
+    const body = await response.json().catch(() => null) as { data?: T; errors?: ShopifyGraphqlError[] } | null;
+    const errors = body?.errors ?? [];
+    if (response.ok && !errors.length && body?.data) return body.data;
+    if (attempt < 2 && isRetryableShopifyGraphqlFailure(response.status, errors)) {
+      await new Promise((resolve) => setTimeout(resolve, 750 * (attempt + 1)));
+      continue;
+    }
     safeLog("error", "shopify.graphql_request_failed", {
+      operation,
+      queryLength: query.length,
       status: response.status,
-      errors: body?.errors?.map((error) => error.message) ?? [],
+      errors: errors.map((error) => error.message),
     });
-    throw new ShopifyApiError("Shopify GraphQL 상품 요청에 실패했습니다.", response.status || 502, body);
+    const reason = errors.map((error) => error.message).filter(Boolean).join(" / ");
+    throw new ShopifyApiError(`Shopify ${operation} 요청에 실패했습니다.${reason ? ` ${reason}` : ""}`, response.status || 502, body);
   }
-  return body.data;
+  throw new ShopifyApiError(`Shopify ${operation} 요청에 실패했습니다.`, 502, null);
 }
 
 export type ShopifyImageSyncResult = {
