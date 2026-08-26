@@ -82,9 +82,12 @@ describe("Shopify 묶음상품 부분 실패", () => {
           ],
         },
       }))
-      .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValueOnce(jsonResponse({ data: { inventorySetQuantities: { inventoryAdjustmentGroup: { changes: [] }, userErrors: [] } } }))
       .mockResolvedValueOnce(jsonResponse({ inventory_levels: [{ inventory_item_id: 101, location_id: 1, available: 1 }] }))
-      .mockResolvedValueOnce(jsonResponse({ error: "inventory unavailable" }, 500))
+      .mockResolvedValueOnce(jsonResponse({ inventory_levels: [{ inventory_item_id: 101, location_id: 1, available: 1 }] }))
+      .mockResolvedValueOnce(jsonResponse({ inventory_levels: [{ inventory_item_id: 101, location_id: 1, available: 1 }] }))
+      .mockResolvedValueOnce(jsonResponse({ inventory_levels: [{ inventory_item_id: 101, location_id: 1, available: 1 }] }))
+      .mockResolvedValueOnce(jsonResponse({ inventory_levels: [{ inventory_item_id: 101, location_id: 1, available: 1 }] }))
       .mockResolvedValueOnce(jsonResponse({ data: { productUpdate: { userErrors: [] } } }));
 
     const result = await upsertShopifyVariationProduct("Test group", [
@@ -95,9 +98,9 @@ describe("Shopify 묶음상품 부분 실패", () => {
     expect(result.productId).toBe("100");
     expect(result.variants).toEqual([
       expect.objectContaining({ sku: "CARD-A", inventorySynced: true, inventoryError: null }),
-      expect.objectContaining({ sku: "CARD-B", inventorySynced: false, inventoryError: "Shopify Admin API request failed." }),
+      expect.objectContaining({ sku: "CARD-B", inventorySynced: false, inventoryError: expect.stringContaining("실제 재고 0개 반영을 확인하지 못했습니다") }),
     ]);
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(8);
   });
 
   it("레거시 REST 상품 생성이 500이면 GraphQL 상품 생성으로 한 번만 대체한다", async () => {
@@ -119,10 +122,8 @@ describe("Shopify 묶음상품 부분 실패", () => {
           },
         },
       }))
-      .mockResolvedValueOnce(jsonResponse({}))
-      .mockResolvedValueOnce(jsonResponse({ inventory_levels: [{ inventory_item_id: 201, location_id: 1, available: 1 }] }))
-      .mockResolvedValueOnce(jsonResponse({}))
-      .mockResolvedValueOnce(jsonResponse({ inventory_levels: [{ inventory_item_id: 202, location_id: 1, available: 0 }] }))
+      .mockResolvedValueOnce(jsonResponse({ data: { inventorySetQuantities: { inventoryAdjustmentGroup: { changes: [] }, userErrors: [] } } }))
+      .mockResolvedValueOnce(jsonResponse({ inventory_levels: [{ inventory_item_id: 201, location_id: 1, available: 1 }, { inventory_item_id: 202, location_id: 1, available: 0 }] }))
       .mockResolvedValueOnce(jsonResponse({ data: { productUpdate: { userErrors: [] } } }));
 
     await expect(upsertShopifyVariationProduct("Fallback group", [

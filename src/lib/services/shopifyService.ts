@@ -642,7 +642,13 @@ export async function upsertShopifyVariationProduct(
   const created = response.product;
   if (!created?.id) throw new ShopifyApiError("Shopify가 묶음 상품 ID를 반환하지 않았습니다.", 502, response);
   const bySku = new Map((created.variants ?? []).flatMap((variant) => variant.sku ? [[variant.sku, variant] as const] : []));
-  const variants: ShopifyVariationUploadResult["variants"] = [];
+  const preparedVariants: Array<{
+    item: ShopifyVariationUploadInput;
+    variantId: string;
+    inventoryItemId: string | null;
+    priceSynced: boolean;
+    priceError: string | null;
+  }> = [];
   for (const item of items) {
     const variant = bySku.get(item.sku);
     if (!variant) throw new ShopifyApiError(`Shopify가 ${item.sku} 옵션 ID를 반환하지 않았습니다.`, 502, response);
@@ -650,30 +656,24 @@ export async function upsertShopifyVariationProduct(
     const priceSynced = variant.price !== undefined && Number.isFinite(actualPrice) && Math.abs(actualPrice - Number(item.priceUsd)) < 0.005;
     const priceError = priceSynced ? null : `Shopify가 ${item.sku} 옵션 가격 ${item.priceUsd} USD의 실제 반영을 확인해 주지 않았습니다.${variant.price === undefined ? "" : ` 실제 응답: ${variant.price} USD`}`;
     const inventoryItemId = variant.inventory_item_id ? String(variant.inventory_item_id) : null;
-    let inventorySynced = false;
-    let inventoryError: string | null = null;
-    if (inventoryItemId) {
-      try {
-        await setShopifyInventoryLevel(config, inventoryItemId, item.quantity);
-        inventorySynced = true;
-      } catch (error) {
-        // 상품/옵션 생성은 이미 성공했을 수 있다. 여기서 전체 작업을 throw하면
-        // 그 외부 ID를 저장하지 못해 다음 실행 때 같은 묶음을 또 만들 수 있다.
-        inventoryError = error instanceof Error ? error.message : String(error);
-      }
-    } else {
-      inventoryError = "Shopify가 옵션 재고 항목 ID를 반환하지 않았습니다.";
-    }
-    variants.push({
-      sku: item.sku,
-      variantId: String(variant.id),
-      inventoryItemId,
-      inventorySynced,
-      inventoryError,
-      priceSynced,
-      priceError,
-    });
+    preparedVariants.push({ item, variantId: String(variant.id), inventoryItemId, priceSynced, priceError });
   }
+  // 옵션마다 REST 쓰기+재조회를 반복하지 않고 Shopify 공식 절대수량 대량
+  // mutation 한 번과 실제값 대량 재조회 한 번으로 확정한다.
+  const inventoryAssignments = preparedVariants.flatMap((variant) => variant.inventoryItemId ? [{ inventoryItemId: variant.inventoryItemId, quantity: variant.item.quantity }] : []);
+  const inventoryResults = await setShopifyInventoryLevels(config, inventoryAssignments);
+  const variants: ShopifyVariationUploadResult["variants"] = preparedVariants.map((variant) => {
+    const inventory = variant.inventoryItemId ? inventoryResults.get(variant.inventoryItemId) : null;
+    return {
+      sku: variant.item.sku,
+      variantId: variant.variantId,
+      inventoryItemId: variant.inventoryItemId,
+      inventorySynced: inventory?.synced ?? false,
+      inventoryError: inventory ? inventory.error : "Shopify가 옵션 재고 항목 ID를 반환하지 않았습니다.",
+      priceSynced: variant.priceSynced,
+      priceError: variant.priceError,
+    };
+  });
   const productId = String(created.id);
   let imageSync: ShopifyImageSyncResult | null = null;
   let imageError: string | null = null;
@@ -836,6 +836,75 @@ export async function setShopifyInventoryLevel(
     if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
   throw new ShopifyApiError(`Shopify 재조회에서 실제 재고 ${target}개 반영을 확인하지 못했습니다.`, 502, { inventoryItemId, locationId, target });
+}
+
+/** 여러 옵션의 절대 판매가능 수량을 한 번에 설정하고 실제값도 한 번에 확인한다. */
+export async function setShopifyInventoryLevels(
+  config: ShopifyConfig,
+  assignments: Array<{ inventoryItemId: string; quantity: number }>,
+) {
+  const unique = [...new Map(assignments.map((assignment) => [assignment.inventoryItemId, assignment])).values()];
+  const results = new Map<string, { synced: boolean; error: string | null }>();
+  if (!unique.length) return results;
+  const locationId = config.locationId ?? (await resolvePrimaryLocationId(config));
+  if (!locationId) throw new Error("Shopify 재고 위치를 찾지 못했습니다.");
+  const mutation = `mutation SetOperationInventory($input: InventorySetQuantitiesInput!) {
+    inventorySetQuantities(input: $input) {
+      inventoryAdjustmentGroup { changes { name quantityAfterChange } }
+      userErrors { field message }
+    }
+  }`;
+  try {
+    const updated = await shopifyGraphqlRequest<{
+      inventorySetQuantities?: { userErrors?: ShopifyGraphqlError[] | null } | null;
+    }>(config, mutation, {
+      input: {
+        name: "available",
+        reason: "correction",
+        ignoreCompareQuantity: true,
+        referenceDocumentUri: `gid://ebay-order-manager/ShopifyInventoryBatch/${crypto.randomUUID()}`,
+        quantities: unique.map((assignment) => ({
+          inventoryItemId: `gid://shopify/InventoryItem/${assignment.inventoryItemId}`,
+          locationId: `gid://shopify/Location/${locationId}`,
+          quantity: Math.max(0, Math.trunc(assignment.quantity)),
+          compareQuantity: null,
+        })),
+      },
+    });
+    const errors = graphqlUserErrorMessage(updated.inventorySetQuantities?.userErrors ?? undefined);
+    if (errors || !updated.inventorySetQuantities) throw new ShopifyApiError(errors || "Shopify가 대량 재고 반영 결과를 반환하지 않았습니다.", 422, updated);
+  } catch {
+    // 오래된 상점 API 버전이나 일시적인 대량 mutation 거부 시에도 상품 생성
+    // 결과를 잃지 않도록 기존 단건 경로로만 안전하게 대체한다.
+    for (const assignment of unique) {
+      try {
+        await setShopifyInventoryLevel(config, assignment.inventoryItemId, assignment.quantity);
+        results.set(assignment.inventoryItemId, { synced: true, error: null });
+      } catch (fallbackError) {
+        results.set(assignment.inventoryItemId, { synced: false, error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError) });
+      }
+    }
+    return results;
+  }
+  type InventoryLevelsResponse = { inventory_levels?: Array<{ inventory_item_id?: number; location_id?: number; available?: number | null }> };
+  const ids = unique.map((assignment) => assignment.inventoryItemId);
+  let actual = new Map<string, number | null>();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const checked = await shopifyApiRequest(config, {
+      path: `/inventory_levels.json?inventory_item_ids=${encodeURIComponent(ids.join(","))}&location_ids=${encodeURIComponent(locationId)}`,
+    }) as InventoryLevelsResponse;
+    actual = new Map((checked.inventory_levels ?? []).map((level) => [String(level.inventory_item_id), level.available ?? null]));
+    if (unique.every((assignment) => actual.get(assignment.inventoryItemId) === Math.max(0, Math.trunc(assignment.quantity)))) break;
+    if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  for (const assignment of unique) {
+    const target = Math.max(0, Math.trunc(assignment.quantity));
+    const value = actual.get(assignment.inventoryItemId) ?? null;
+    results.set(assignment.inventoryItemId, value === target
+      ? { synced: true, error: null }
+      : { synced: false, error: `Shopify 재조회에서 실제 재고 ${target}개 반영을 확인하지 못했습니다. 실제값: ${value ?? "없음"}` });
+  }
+  return results;
 }
 
 export async function getShopifyInventoryLevel(
