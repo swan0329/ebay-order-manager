@@ -124,6 +124,19 @@ export async function processShopifyOperationJobs(userId: string, limit = MAX_CO
     where: { userId, source: JOB_SOURCE, action: "IMAGE_REPAIR", status: "failed", errorSummary: { contains: "given variant already has attached media", mode: "insensitive" } },
     data: { status: "pending", startedAt: null, finishedAt: null, error: null, errorSummary: null, message: "기존 옵션 사진 연결을 Shopify 재조회로 재검증" },
   });
+  // 2026-08-26 배포 전 VerifyVariantMedia 문장의 닫는 괄호 누락으로 상품·재고가
+  // 정상 생성된 뒤 마지막 옵션 사진 재조회만 실패했다. 생성된 외부 ID는 이미
+  // 저장되어 있으므로 이 정확한 과거 오류만 기존 상품 수정 경로로 자동 재개한다.
+  await prisma.productUploadJob.updateMany({
+    where: {
+      userId, source: JOB_SOURCE, action: "CREATE", status: "failed",
+      OR: [
+        { errorSummary: { contains: "Shopify VerifyVariantMedia 요청에 실패했습니다. syntax error, unexpected end of file" } },
+        { errorSummary: { endsWith: "상품 이미지·썸네일 연결 실패: Shopify GraphQL 상품 요청에 실패했습니다." } },
+      ],
+    },
+    data: { status: "pending", startedAt: null, finishedAt: null, error: null, errorSummary: null, message: "수정된 옵션 사진 확인으로 자동 재시작 대기" },
+  });
   // 상태 폴링과 최초 after()가 겹쳐도 짧은 트랜잭션 advisory lock 안에서만
   // 작업을 가져온다. 외부 Shopify 호출 중에는 DB 연결과 lock을 잡지 않는다.
   const runningBeforeClaim = await prisma.productUploadJob.count({ where: { userId, source: JOB_SOURCE, status: "running" } });
