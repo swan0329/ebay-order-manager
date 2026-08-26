@@ -27,6 +27,11 @@ function publicJobError(message: string | null) {
     : message;
 }
 
+function isTransientWorkerContention(error: unknown) {
+  const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+  return code === "P2024" || code === "P2028";
+}
+
 function sourceForAction(operations: Awaited<ReturnType<typeof getShopifyOperations>>, action: Action) {
   return action === "CREATE" ? operations.create
     : action === "CHANGE" ? operations.change
@@ -74,21 +79,31 @@ export async function processShopifyOperationJobs(userId: string, limit = MAX_CO
   });
   // 상태 폴링과 최초 after()가 겹쳐도 짧은 트랜잭션 advisory lock 안에서만
   // 작업을 가져온다. 외부 Shopify 호출 중에는 DB 연결과 lock을 잡지 않는다.
-  const jobs = await prisma.$transaction(async (tx) => {
-    // PostgreSQL advisory lock 함수는 void를 반환한다. Prisma/Postgres 어댑터는
-    // void 열을 역직렬화할 수 없으므로 짧은 lock 결과를 text로 명시한다.
-    await tx.$queryRaw<Array<{ lock: string }>>`SELECT pg_advisory_xact_lock(hashtext(${`shopify-operations:${userId}`}))::text AS "lock"`;
-    const running = await tx.productUploadJob.count({ where: { userId, source: JOB_SOURCE, status: "running" } });
-    const take = Math.max(0, Math.min(limit, MAX_CONCURRENT_JOBS - running));
-    if (!take) return [];
-    const pending = await tx.productUploadJob.findMany({ where: { userId, source: JOB_SOURCE, status: "pending" }, orderBy: { createdAt: "asc" }, take });
-    const claimed = [];
-    for (const job of pending) {
-      const result = await tx.productUploadJob.updateMany({ where: { id: job.id, status: "pending" }, data: { status: "running", startedAt: new Date(), error: null, errorSummary: null, message: "Shopify 전송 및 실제 반영 확인 중" } });
-      if (result.count) claimed.push(job);
-    }
-    return claimed;
-  }, { timeout: 10_000 });
+  const runningBeforeClaim = await prisma.productUploadJob.count({ where: { userId, source: JOB_SOURCE, status: "running" } });
+  if (runningBeforeClaim >= MAX_CONCURRENT_JOBS) return getShopifyOperationJobSummary(userId);
+  let jobs;
+  try {
+    jobs = await prisma.$transaction(async (tx) => {
+      // PostgreSQL advisory lock 함수는 void를 반환한다. Prisma/Postgres 어댑터는
+      // void 열을 역직렬화할 수 없으므로 짧은 lock 결과를 text로 명시한다.
+      await tx.$queryRaw<Array<{ lock: string }>>`SELECT pg_advisory_xact_lock(hashtext(${`shopify-operations:${userId}`}))::text AS "lock"`;
+      const running = await tx.productUploadJob.count({ where: { userId, source: JOB_SOURCE, status: "running" } });
+      const take = Math.max(0, Math.min(limit, MAX_CONCURRENT_JOBS - running));
+      if (!take) return [];
+      const pending = await tx.productUploadJob.findMany({ where: { userId, source: JOB_SOURCE, status: "pending" }, orderBy: { createdAt: "asc" }, take });
+      const claimed = [];
+      for (const job of pending) {
+        const result = await tx.productUploadJob.updateMany({ where: { id: job.id, status: "pending" }, data: { status: "running", startedAt: new Date(), error: null, errorSummary: null, message: "Shopify 전송 및 실제 반영 확인 중" } });
+        if (result.count) claimed.push(job);
+      }
+      return claimed;
+    }, { timeout: 10_000 });
+  } catch (error) {
+    // 다른 폴러가 먼저 슬롯을 가져간 짧은 경합은 실패가 아니다. 다음 상태
+    // 조회가 다시 깨우므로 오류 로그와 사용자 실패 건수를 만들지 않는다.
+    if (isTransientWorkerContention(error)) return getShopifyOperationJobSummary(userId);
+    throw error;
+  }
 
   await Promise.all(jobs.map(async (job) => {
     try {
