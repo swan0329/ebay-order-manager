@@ -6,6 +6,7 @@ import { getEbayVariationImageRepairJobs } from "@/lib/services/ebayVariationIma
 import { getEbayInventoryJobSummary } from "@/lib/services/ebayInventoryJobs";
 import { EbayConnectionTest } from "@/components/EbayConnectionTest";
 import { EbayApiUsageCard } from "@/components/EbayApiUsageCard";
+import { getShopifyOperationJobSummary } from "@/lib/services/shopifyOperationJobs";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,13 @@ export default async function EbayOperationsPage({
   const query = await searchParams;
   const initialChannel = query.channel === "SHOPIFY" ? "SHOPIFY" : "EBAY";
   let initial: OperationsClientData;
-  if (initialChannel === "SHOPIFY") initial = await getShopifyOperations() as unknown as OperationsClientData;
+  if (initialChannel === "SHOPIFY") {
+    const operations = await getShopifyOperations();
+    // 주소로 Shopify 화면에 직접 진입해도 진행 중인 서버 작업을 즉시 표시한다.
+    // 운영 DB 연결 제한이 하나이므로 전체 목록과 상태 조회는 순서대로 실행한다.
+    const shopifyJob = await getShopifyOperationJobSummary(user.id);
+    initial = { ...operations, shopifyJob } as unknown as OperationsClientData;
+  }
   else {
     const operations = await getEbayOperations(user.id);
     // 운영 DB 연결이 하나이므로 상태 조회를 동시에 몰지 않는다.

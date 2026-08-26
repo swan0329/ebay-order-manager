@@ -20,6 +20,13 @@ function payload(value: Prisma.JsonValue | null): JobPayload {
   return value && typeof value === "object" && !Array.isArray(value) ? value as JobPayload : {};
 }
 
+function publicJobError(message: string | null) {
+  if (!message) return null;
+  return message.includes("Timed out fetching a new connection") || message.includes("connection pool timeout")
+    ? "내부 데이터 연결이 혼잡해 작업을 확인하지 못했습니다. 이 항목만 다시 시도해 주세요."
+    : message;
+}
+
 function sourceForAction(operations: Awaited<ReturnType<typeof getShopifyOperations>>, action: Action) {
   return action === "CREATE" ? operations.create
     : action === "CHANGE" ? operations.change
@@ -105,9 +112,7 @@ export async function processShopifyOperationJobs(userId: string, limit = MAX_CO
       } });
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : "Shopify 작업 실패";
-      const message = rawMessage.includes("Timed out fetching a new connection")
-        ? "내부 데이터 연결이 혼잡해 작업을 확인하지 못했습니다. 이 항목만 다시 시도해 주세요."
-        : rawMessage;
+      const message = publicJobError(rawMessage) ?? "Shopify 작업 실패";
       await prisma.productUploadJob.update({ where: { id: job.id }, data: { status: "failed", message: "Shopify 실제 반영 미확인", error: message, errorSummary: message, finishedAt: new Date() } });
     }
   }));
@@ -193,6 +198,6 @@ export async function getShopifyOperationJobSummary(userId: string, requestedBat
     pending: active.filter((job) => job.status === "pending").length,
     running: active.filter((job) => job.status === "running").length,
     succeeded, failed, completed: succeeded + failed, total: batch.length,
-    jobs: batch.map((job) => ({ id: job.id, productId: job.productId, targetId: payload(job.rawJson).targetId ?? null, productIds: payload(job.rawJson).productIds ?? [], sku: job.sku, action: job.action, status: job.status, message: job.message, errorSummary: job.errorSummary, createdAt: job.createdAt, startedAt: job.startedAt, finishedAt: job.finishedAt })),
+    jobs: batch.map((job) => ({ id: job.id, productId: job.productId, targetId: payload(job.rawJson).targetId ?? null, productIds: payload(job.rawJson).productIds ?? [], sku: job.sku, action: job.action, status: job.status, message: job.message, errorSummary: publicJobError(job.errorSummary), createdAt: job.createdAt, startedAt: job.startedAt, finishedAt: job.finishedAt })),
   };
 }
