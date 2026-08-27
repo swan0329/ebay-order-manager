@@ -138,6 +138,7 @@ export async function getMarketIntegrityAudit(userId: string) {
     }),
   );
   const duplicateShopifySkus = [...shopifyVariantsBySku]
+    .map(([sku, rows]) => [sku, rows.filter((row) => row.product.status !== "archived")] as const)
     .filter(([, rows]) => new Set(rows.map((row) => String(row.product.id))).size > 1)
     .map(([sku, rows]) => ({
       sku,
@@ -152,6 +153,7 @@ export async function getMarketIntegrityAudit(userId: string) {
     if (skus.length) addToMap(skuSetBuckets, skus.join("|"), product);
   }
   const duplicateShopifyProducts = [...skuSetBuckets]
+    .map(([skuSet, rows]) => [skuSet, rows.filter((row) => row.status !== "archived")] as const)
     .filter(([, rows]) => rows.length > 1)
     .map(([skuSet, rows]) => ({
       skus: skuSet.split("|"),
@@ -199,9 +201,12 @@ export async function getMarketIntegrityAudit(userId: string) {
   });
   const orphanedShopifyProducts = shopifyProducts.flatMap((product) => {
     const skus = (product.variants ?? []).flatMap((variant) => variant.sku?.trim() ? [variant.sku.trim()] : []);
-    if (internallyLinkedShopifyIds.has(String(product.id)) || !skus.some((sku) => internalBySku.has(sku))) return [];
+    if (product.status === "archived" || internallyLinkedShopifyIds.has(String(product.id)) || !skus.some((sku) => internalBySku.has(sku))) return [];
     return [{ productId: String(product.id), title: product.title, status: product.status, published: Boolean(product.published_at), skus }];
   });
+  const archivedShopifyHistory = shopifyProducts
+    .filter((product) => product.status === "archived")
+    .map((product) => ({ productId: String(product.id), title: product.title, skus: (product.variants ?? []).flatMap((variant) => variant.sku?.trim() ? [variant.sku.trim()] : []) }));
 
   const ebayListings = latestEbayReport?.listings ?? [];
   const variationItemIds = new Set(variationStates.flatMap((state) => state.ebayItemId ? [state.ebayItemId] : []));
@@ -330,6 +335,7 @@ export async function getMarketIntegrityAudit(userId: string) {
       duplicateProducts: duplicateShopifyProducts,
       duplicateSkus: duplicateShopifySkus,
       orphanedProducts: orphanedShopifyProducts,
+      archivedHistory: archivedShopifyHistory,
       connectionIssues: shopifyConnectionIssues,
       quantityIssues: shopifyQuantityIssues,
       imageIssues: shopifyImageIssues,
