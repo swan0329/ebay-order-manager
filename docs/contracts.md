@@ -84,6 +84,9 @@ Shopify 신규등록 수는 카드 수가 아니라 실제 생성할 리스팅 �
 
 `GET /api/shopify/variant-card-theme`는 현재 공개 Shopify 테마에 옵션 선택기가 설치됐는지 읽는다. `POST`는 `confirmed=true`인 관리자 요청만 받아 별도 Liquid 스니펫을 저장하고 `layout/theme.liquid`의 `</body>` 직전에 식별 가능한 render 블록을 한 번만 추가한다. 다른 테마 코드는 덮어쓰지 않으며, 설치 후 두 파일을 다시 읽어 확인한다. 상품 페이지에서는 옵션이 둘 이상인 상품에 Shopify Variant의 실제 사진·가격·판매 가능 상태를 카드형으로 표시한다.
 
+`GET /api/shopify/variation-relink`와 같은 경로의 `POST dryRun=true`는 중복 생성된 Shopify 묶음 상품을 복구하기 위한 관리자 전용 미리보기다. 기존 연결 묶음의 모든 SKU가 대상 Shopify Product에 정확히 한 번씩 존재하는지 확인하고 15분짜리 미리보기 토큰을 발급한다. 실제 `POST` 실행은 같은 대상과 토큰에 `confirmed=true`를 함께 보내야 하며, 내부 Product·ProductListing 연결을 대상 상품으로 옮긴 뒤 현재 가격·재고·옵션 이미지를 다시 전송한다. 이전 중복 Shopify 상품은 자동 삭제하지 않고 연결 변경 이력을 Listing metadata에 남긴다.
+관리자 화면 `/shopify/variation-relink`는 같은 미리보기와 명시적 확인 체크를 제공하며, 복구 실행 결과를 화면에 표시한다.
+
 eBay `신규등록` 건수는 조회 상한이나 단순 상품 후보 수가 아니라 `ListingDraft.status=validated`이고 활성 eBay Item ID가 없는 최신 상품별 초안 수다. 초안·실패 상태는 별도 검토 수로만 보여 주며, 미리보기 요청이 초안을 자동 생성하거나 검증 실패 상품을 등록 대상으로 승격하지 않는다. 미리보기 응답은 SKU·제목·가격·수량·이미지 수·항목별 검증 사유와 예상 처리시간 범위를 반환한다.
 
 `GET/PUT /api/automation/rules`는 재고 0 리스팅 규칙과 최근 이벤트를 다룬다. 기본 모드는 `NOTIFY`이며 `AUTOMATIC` 저장은 현재 대상 미리보기와 명시적 확인을 요구한다.
