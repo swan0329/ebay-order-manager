@@ -1,9 +1,11 @@
 import "server-only";
 
 import { resolveChannelAvailability } from "@/lib/channel-availability";
-import { getShopifyConfig } from "@/lib/env";
+import { getEbayConfig, getShopifyConfig } from "@/lib/env";
+import { getValidAccessToken } from "@/lib/ebay";
 import { prisma } from "@/lib/prisma";
 import { summarizeActiveReportIssues } from "@/lib/ebay-active-report-summary";
+import { getActiveEbayInventoryAccount } from "@/lib/services/ebayApiService";
 import { shopifyApiRequest } from "@/lib/services/shopifyService";
 import { reservedByProduct } from "@/lib/stock-reservation";
 
@@ -45,6 +47,28 @@ async function getAllShopifyProducts() {
 
 function addToMap<K, V>(map: Map<K, V[]>, key: K, value: V) {
   map.set(key, [...(map.get(key) ?? []), value]);
+}
+
+function xmlValue(xml: string, tag: string) {
+  return new RegExp(`<(?:[\\w-]+:)?${tag}\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w-]+:)?${tag}>`, "i").exec(xml)?.[1]?.trim() ?? "";
+}
+
+function xmlBlocks(xml: string, tag: string) {
+  return [...xml.matchAll(new RegExp(`<(?:[\\w-]+:)?${tag}\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w-]+:)?${tag}>`, "gi"))].map((match) => match[1]);
+}
+
+async function mapWithConcurrency<T, R>(values: T[], concurrency: number, worker: (value: T) => Promise<R>) {
+  const results = new Array<R>(values.length);
+  let cursor = 0;
+  async function run() {
+    while (cursor < values.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await worker(values[index]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, run));
+  return results;
 }
 
 export async function getMarketIntegrityAudit(userId: string) {
@@ -208,6 +232,85 @@ export async function getMarketIntegrityAudit(userId: string) {
     return [{ itemId: listing.itemId, sku: product.sku, productName: product.productName, expectedQuantity: expected.quantity, actualQuantity: listing.quantity, availabilityStatus: expected.availabilityStatus }];
   });
   const missingVariationParents = variationStates.filter((state) => !ebayListings.some((listing) => listing.itemId === state.ebayItemId));
+  const ebayAccount = variationStates.length ? await getActiveEbayInventoryAccount(userId) : null;
+  const ebayToken = ebayAccount ? await getValidAccessToken(ebayAccount) : null;
+  const ebayConfig = getEbayConfig();
+  const internalById = new Map(internalProducts.map((product) => [product.id, product]));
+  const ebayVariationInspections = await mapWithConcurrency(variationStates, 3, async (state) => {
+    const itemId = state.ebayItemId!;
+    try {
+      const response = await fetch(`${ebayConfig.hosts.api}/ws/api.dll`, {
+        method: "POST",
+        headers: {
+          "content-type": "text/xml;charset=UTF-8",
+          "X-EBAY-API-COMPATIBILITY-LEVEL": "1193",
+          "X-EBAY-API-CALL-NAME": "GetItem",
+          "X-EBAY-API-SITEID": "0",
+          "X-EBAY-API-IAF-TOKEN": ebayToken!,
+        },
+        body: `<?xml version="1.0" encoding="utf-8"?><GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents"><ItemID>${itemId}</ItemID><IncludeItemSpecifics>true</IncludeItemSpecifics></GetItemRequest>`,
+        signal: AbortSignal.timeout(20_000),
+      });
+      const xml = await response.text();
+      if (!response.ok || xmlValue(xml, "Ack") === "Failure") throw new Error(`HTTP ${response.status}`);
+      const item = xmlValue(xml, "Item") || xml;
+      const variationsXml = xmlValue(item, "Variations");
+      const variations = xmlBlocks(variationsXml, "Variation").map((block) => {
+        const specifics = xmlBlocks(xmlValue(block, "VariationSpecifics"), "NameValueList").map((specific) => ({ name: xmlValue(specific, "Name"), value: xmlValue(specific, "Value") }));
+        const quantity = Number(xmlValue(block, "Quantity"));
+        const sold = Number(xmlValue(block, "QuantitySold") || 0);
+        return { sku: xmlValue(block, "SKU"), specifics, availableQuantity: quantity - sold };
+      });
+      const pictures = xmlValue(variationsXml, "Pictures");
+      const pictureSpecificName = xmlValue(pictures, "VariationSpecificName");
+      const pictureValues = new Set(xmlBlocks(pictures, "VariationSpecificPictureSet").flatMap((block) => {
+        const value = xmlValue(block, "VariationSpecificValue");
+        const urls = xmlBlocks(block, "PictureURL");
+        return value && urls.length ? [value] : [];
+      }));
+      const expectedProducts = (Array.isArray(state.includedProductIds) ? state.includedProductIds : [])
+        .flatMap((id) => typeof id === "string" && internalById.has(id) ? [internalById.get(id)!] : []);
+      const expectedSkus = new Set(expectedProducts.map((product) => product.sku));
+      const actualSkuCounts = new Map<string, number>();
+      for (const variation of variations) if (variation.sku) actualSkuCounts.set(variation.sku, (actualSkuCounts.get(variation.sku) ?? 0) + 1);
+      const actualSkus = new Set(actualSkuCounts.keys());
+      const missingImageSkus = variations.flatMap((variation) => {
+        const pictureValue = variation.specifics.find((specific) => specific.name === pictureSpecificName)?.value;
+        return !pictureSpecificName || !pictureValue || !pictureValues.has(pictureValue) ? [variation.sku || "(SKU 없음)"] : [];
+      });
+      const quantityIssues = expectedProducts.flatMap((product) => {
+        const actual = variations.find((variation) => variation.sku === product.sku);
+        if (!actual || !Number.isFinite(actual.availableQuantity)) return [];
+        const expected = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: reserved.get(product.id) ?? 0, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
+        return expected.actionable && expected.quantity !== actual.availableQuantity
+          ? [{ sku: product.sku, expected: expected.quantity, actual: actual.availableQuantity }]
+          : [];
+      });
+      return {
+        itemId,
+        parentSku: state.parentSku,
+        title: state.title,
+        optionCount: variations.length,
+        missingExpectedSkus: [...expectedSkus].filter((sku) => !actualSkus.has(sku)),
+        unexpectedSkus: [...actualSkus].filter((sku) => !expectedSkus.has(sku)),
+        duplicateSkus: [...actualSkuCounts].filter(([, count]) => count > 1).map(([sku]) => sku),
+        missingImageSkus,
+        quantityIssues,
+        error: null,
+      };
+    } catch (error) {
+      return { itemId, parentSku: state.parentSku, title: state.title, optionCount: 0, missingExpectedSkus: [], unexpectedSkus: [], duplicateSkus: [], missingImageSkus: [], quantityIssues: [], error: error instanceof Error ? error.message : "조회 실패" };
+    }
+  });
+  const ebayVariationSkuBuckets = new Map<string, typeof ebayVariationInspections>();
+  for (const inspection of ebayVariationInspections) {
+    if (inspection.error || !inspection.optionCount) continue;
+    const fingerprint = stateFingerprint(inspection, internalById, variationStates);
+    if (fingerprint) addToMap(ebayVariationSkuBuckets, fingerprint, inspection);
+  }
+  const duplicateEbayVariationProducts = [...ebayVariationSkuBuckets]
+    .filter(([, rows]) => rows.length > 1)
+    .map(([, rows]) => rows.map((row) => ({ itemId: row.itemId, parentSku: row.parentSku, title: row.title })));
 
   return {
     checkedAt: new Date().toISOString(),
@@ -227,6 +330,27 @@ export async function getMarketIntegrityAudit(userId: string) {
       multiplyLinkedProducts: multiplyLinkedEbayProducts,
       quantityIssues: ebayQuantityIssues,
       missingVariationParents: missingVariationParents.map((state) => ({ itemId: state.ebayItemId, parentSku: state.parentSku, title: state.title })),
+      variationAudit: {
+        inspectedCount: ebayVariationInspections.filter((row) => !row.error).length,
+        errorCount: ebayVariationInspections.filter((row) => row.error).length,
+        duplicateProducts: duplicateEbayVariationProducts,
+        skuIssues: ebayVariationInspections.filter((row) => row.missingExpectedSkus.length || row.unexpectedSkus.length || row.duplicateSkus.length),
+        imageIssues: ebayVariationInspections.filter((row) => row.missingImageSkus.length).map((row) => ({ itemId: row.itemId, parentSku: row.parentSku, title: row.title, missingImageSkus: row.missingImageSkus })),
+        quantityIssues: ebayVariationInspections.filter((row) => row.quantityIssues.length).map((row) => ({ itemId: row.itemId, parentSku: row.parentSku, title: row.title, issues: row.quantityIssues })),
+        errors: ebayVariationInspections.filter((row) => row.error).map((row) => ({ itemId: row.itemId, error: row.error })),
+      },
     },
   };
+}
+
+function stateFingerprint(
+  inspection: { itemId: string },
+  internalById: Map<string, { sku: string }>,
+  states: Array<{ ebayItemId: string | null; includedProductIds: unknown }>,
+) {
+  const state = states.find((row) => row.ebayItemId === inspection.itemId);
+  return (Array.isArray(state?.includedProductIds) ? state.includedProductIds : [])
+    .flatMap((id) => typeof id === "string" && internalById.has(id) ? [internalById.get(id)!.sku] : [])
+    .sort()
+    .join("|");
 }
