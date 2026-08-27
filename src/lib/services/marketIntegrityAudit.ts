@@ -195,7 +195,7 @@ export async function getMarketIntegrityAudit(userId: string) {
       pocamarketSyncedAt: product.pocamarketSyncedAt,
     });
     if (!expected.actionable || expected.quantity === actualVariant.inventory_quantity) return [];
-    return [{ sku: product.sku, productName: product.productName, productId: canonical, expectedQuantity: expected.quantity, actualQuantity: actualVariant.inventory_quantity, availabilityStatus: expected.availabilityStatus }];
+    return [{ internalProductId: product.id, sku: product.sku, productName: product.productName, productId: canonical, expectedQuantity: expected.quantity, actualQuantity: actualVariant.inventory_quantity, availabilityStatus: expected.availabilityStatus }];
   });
   const orphanedShopifyProducts = shopifyProducts.flatMap((product) => {
     const skus = (product.variants ?? []).flatMap((variant) => variant.sku?.trim() ? [variant.sku.trim()] : []);
@@ -229,7 +229,7 @@ export async function getMarketIntegrityAudit(userId: string) {
       pocamarketSyncedAt: product.pocamarketSyncedAt,
     });
     if (!expected.actionable || expected.quantity === listing.quantity) return [];
-    return [{ itemId: listing.itemId, sku: product.sku, productName: product.productName, expectedQuantity: expected.quantity, actualQuantity: listing.quantity, availabilityStatus: expected.availabilityStatus }];
+    return [{ internalProductId: product.id, itemId: listing.itemId, sku: product.sku, productName: product.productName, expectedQuantity: expected.quantity, actualQuantity: listing.quantity, availabilityStatus: expected.availabilityStatus }];
   });
   const missingVariationParents = variationStates.filter((state) => !ebayListings.some((listing) => listing.itemId === state.ebayItemId));
   const ebayAccount = variationStates.length ? await getActiveEbayInventoryAccount(userId) : null;
@@ -283,7 +283,7 @@ export async function getMarketIntegrityAudit(userId: string) {
         if (!actual || !Number.isFinite(actual.availableQuantity)) return [];
         const expected = resolveChannelAvailability({ status: product.status, stockQuantity: product.stockQuantity, reservedQuantity: reserved.get(product.id) ?? 0, isSoldOut: product.isSoldOut, pocamarketAvailableCount: product.pocamarketAvailableCount, pocamarketSyncedAt: product.pocamarketSyncedAt });
         return expected.actionable && expected.quantity !== actual.availableQuantity
-          ? [{ sku: product.sku, expected: expected.quantity, actual: actual.availableQuantity }]
+          ? [{ internalProductId: product.id, sku: product.sku, expected: expected.quantity, actual: actual.availableQuantity }]
           : [];
       });
       return {
