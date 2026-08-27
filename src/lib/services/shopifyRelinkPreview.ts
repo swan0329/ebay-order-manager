@@ -9,6 +9,11 @@ type ShopifyRelinkPreviewPayload = {
   issuedAt: number;
 };
 
+export type ShopifyDuplicateBatchMapping = {
+  currentShopifyProductId: string;
+  targetShopifyProductId: string;
+};
+
 function signature(body: string) {
   return createHmac("sha256", requiredEnv("SESSION_SECRET"))
     .update(body)
@@ -54,6 +59,41 @@ export function verifyShopifyRelinkPreviewToken(
     return (
       parsed.seedProductId === seedProductId &&
       parsed.targetShopifyProductId === targetShopifyProductId &&
+      now - parsed.issuedAt >= 0 &&
+      now - parsed.issuedAt <= TOKEN_TTL_MS
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function issueShopifyDuplicateBatchToken(
+  mappings: ShopifyDuplicateBatchMapping[],
+  issuedAt = Date.now(),
+) {
+  const body = Buffer.from(JSON.stringify({ mappings, issuedAt })).toString("base64url");
+  return `${body}.${signature(body)}`;
+}
+
+export function verifyShopifyDuplicateBatchToken(
+  token: string,
+  mappings: ShopifyDuplicateBatchMapping[],
+  now = Date.now(),
+) {
+  const [body, supplied] = token.split(".");
+  if (!body || !supplied) return false;
+  const expected = signature(body);
+  const suppliedBytes = Buffer.from(supplied);
+  const expectedBytes = Buffer.from(expected);
+  if (suppliedBytes.length !== expectedBytes.length || !timingSafeEqual(suppliedBytes, expectedBytes)) return false;
+  try {
+    const parsed = JSON.parse(Buffer.from(body, "base64url").toString()) as {
+      mappings?: ShopifyDuplicateBatchMapping[];
+      issuedAt?: number;
+    };
+    return (
+      JSON.stringify(parsed.mappings) === JSON.stringify(mappings) &&
+      typeof parsed.issuedAt === "number" &&
       now - parsed.issuedAt >= 0 &&
       now - parsed.issuedAt <= TOKEN_TTL_MS
     );

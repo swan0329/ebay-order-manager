@@ -6,6 +6,8 @@ import {
   type ShopifyVariantLookup,
 } from "@/lib/services/shopifyService";
 import { uploadShopifyVariationGroup } from "@/lib/services/shopifyVariationUpload";
+import { archiveShopifyProduct } from "@/lib/services/shopifyService";
+import type { ShopifyDuplicateBatchMapping } from "@/lib/services/shopifyRelinkPreview";
 
 type RelinkProduct = {
   id: string;
@@ -109,6 +111,33 @@ export async function previewShopifyVariationRelink(
     seed.shopifyProductId,
     targetShopifyProductId,
   );
+}
+
+export async function previewShopifyDuplicateBatch(mappings: ShopifyDuplicateBatchMapping[]) {
+  const plans = [];
+  for (const mapping of mappings) {
+    const seed = await prisma.product.findFirst({
+      where: { shopifyProductId: mapping.currentShopifyProductId },
+      select: { id: true },
+    });
+    if (!seed) throw new Error(`기존 Shopify 상품 ${mapping.currentShopifyProductId}에 연결된 내부 상품을 찾지 못했습니다.`);
+    plans.push(await previewShopifyVariationRelink(seed.id, mapping.targetShopifyProductId));
+  }
+  return plans;
+}
+
+export async function repairShopifyDuplicateBatch(
+  mappings: ShopifyDuplicateBatchMapping[],
+  userId: string,
+) {
+  const plans = await previewShopifyDuplicateBatch(mappings);
+  const relinked = [];
+  for (const plan of plans) {
+    relinked.push(await relinkShopifyVariationGroup(plan.products[0].id, plan.targetShopifyProductId, userId));
+  }
+  const archived = [];
+  for (const mapping of mappings) archived.push(await archiveShopifyProduct(mapping.currentShopifyProductId));
+  return { relinked, archived };
 }
 
 export async function relinkShopifyVariationGroup(

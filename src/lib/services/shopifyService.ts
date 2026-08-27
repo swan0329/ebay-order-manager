@@ -151,6 +151,22 @@ async function shopifyGraphqlRequest<T>(
   throw new ShopifyApiError(`Shopify ${operation} 요청에 실패했습니다.`, 502, null);
 }
 
+export async function archiveShopifyProduct(productId: string) {
+  const config = getShopifyConfig();
+  const mutation = `mutation ArchiveProduct($input: ProductInput!) {
+    productUpdate(input: $input) { product { id status } userErrors { field message } }
+  }`;
+  const result = await shopifyGraphqlRequest<{
+    productUpdate?: { product?: { id: string; status: string } | null; userErrors?: ShopifyGraphqlError[] } | null;
+  }>(config, mutation, {
+    input: { id: `gid://shopify/Product/${productId}`, status: "ARCHIVED" },
+  });
+  const errors = graphqlUserErrorMessage(result.productUpdate?.userErrors ?? undefined);
+  if (errors) throw new Error(`Shopify 상품 ${productId} 보관 실패: ${errors}`);
+  if (result.productUpdate?.product?.status !== "ARCHIVED") throw new Error(`Shopify 상품 ${productId}의 보관 상태를 확인하지 못했습니다.`);
+  return { productId, status: "ARCHIVED" };
+}
+
 export type ShopifyImageSyncResult = {
   requested: number;
   attached: number;
