@@ -87,6 +87,8 @@ Shopify 신규등록 수는 카드 수가 아니라 실제 생성할 리스팅 �
 `GET /api/shopify/variation-relink`와 같은 경로의 `POST dryRun=true`는 중복 생성된 Shopify 묶음 상품을 복구하기 위한 관리자 전용 미리보기다. 기존 연결 묶음의 모든 SKU가 대상 Shopify Product에 정확히 한 번씩 존재하는지 확인하고 15분짜리 미리보기 토큰을 발급한다. 실제 `POST` 실행은 같은 대상과 토큰에 `confirmed=true`를 함께 보내야 하며, 내부 Product·ProductListing 연결을 대상 상품으로 옮긴 뒤 현재 가격·재고·옵션 이미지를 다시 전송한다. 이전 중복 Shopify 상품은 자동 삭제하지 않고 연결 변경 이력을 Listing metadata에 남긴다.
 관리자 화면 `/shopify/variation-relink`는 같은 미리보기와 명시적 확인 체크를 제공하며, 복구 실행 결과를 화면에 표시한다.
 
+관리자 화면 `/market-integrity-audit`는 외부 쓰기 없이 Shopify 전체 상품·옵션과 최신 eBay 전체 활성상품 보고서를 내부 연결·판매 가능 수량과 대조한다. Shopify 중복 SKU·고아 상품·연결·재고·옵션이미지 문제와 eBay 미연결·충돌·중복 SKU·단품 수량·묶음 부모 누락을 읽기 전용 결과로 표시한다.
+
 eBay `신규등록` 건수는 조회 상한이나 단순 상품 후보 수가 아니라 `ListingDraft.status=validated`이고 활성 eBay Item ID가 없는 최신 상품별 초안 수다. 초안·실패 상태는 별도 검토 수로만 보여 주며, 미리보기 요청이 초안을 자동 생성하거나 검증 실패 상품을 등록 대상으로 승격하지 않는다. 미리보기 응답은 SKU·제목·가격·수량·이미지 수·항목별 검증 사유와 예상 처리시간 범위를 반환한다.
 
 `GET/PUT /api/automation/rules`는 재고 0 리스팅 규칙과 최근 이벤트를 다룬다. 기본 모드는 `NOTIFY`이며 `AUTOMATIC` 저장은 현재 대상 미리보기와 명시적 확인을 요구한다.
