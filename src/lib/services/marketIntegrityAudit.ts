@@ -291,6 +291,7 @@ export async function getMarketIntegrityAudit(userId: string) {
         parentSku: state.parentSku,
         title: state.title,
         optionCount: variations.length,
+        skus: [...actualSkus],
         missingExpectedSkus: [...expectedSkus].filter((sku) => !actualSkus.has(sku)),
         unexpectedSkus: [...actualSkus].filter((sku) => !expectedSkus.has(sku)),
         duplicateSkus: [...actualSkuCounts].filter(([, count]) => count > 1).map(([sku]) => sku),
@@ -299,7 +300,7 @@ export async function getMarketIntegrityAudit(userId: string) {
         error: null,
       };
     } catch (error) {
-      return { itemId, parentSku: state.parentSku, title: state.title, optionCount: 0, missingExpectedSkus: [], unexpectedSkus: [], duplicateSkus: [], missingImageSkus: [], quantityIssues: [], error: error instanceof Error ? error.message : "조회 실패" };
+      return { itemId, parentSku: state.parentSku, title: state.title, optionCount: 0, skus: [], missingExpectedSkus: [], unexpectedSkus: [], duplicateSkus: [], missingImageSkus: [], quantityIssues: [], error: error instanceof Error ? error.message : "조회 실패" };
     }
   });
   const ebayVariationSkuBuckets = new Map<string, typeof ebayVariationInspections>();
@@ -311,6 +312,16 @@ export async function getMarketIntegrityAudit(userId: string) {
   const duplicateEbayVariationProducts = [...ebayVariationSkuBuckets]
     .filter(([, rows]) => rows.length > 1)
     .map(([, rows]) => rows.map((row) => ({ itemId: row.itemId, parentSku: row.parentSku, title: row.title })));
+  const ebaySkuPlacements = new Map<string, Array<{ itemId: string; listingType: "SINGLE" | "VARIATION" }>>();
+  for (const listing of ebayListings) {
+    if (listing.sku && !variationItemIds.has(listing.itemId)) addToMap(ebaySkuPlacements, listing.sku, { itemId: listing.itemId, listingType: "SINGLE" });
+  }
+  for (const inspection of ebayVariationInspections) {
+    for (const sku of inspection.skus) addToMap(ebaySkuPlacements, sku, { itemId: inspection.itemId, listingType: "VARIATION" });
+  }
+  const crossListingDuplicateSkus = [...ebaySkuPlacements]
+    .filter(([, rows]) => new Set(rows.map((row) => row.itemId)).size > 1)
+    .map(([sku, rows]) => ({ sku, listings: rows }));
 
   return {
     checkedAt: new Date().toISOString(),
@@ -334,6 +345,7 @@ export async function getMarketIntegrityAudit(userId: string) {
         inspectedCount: ebayVariationInspections.filter((row) => !row.error).length,
         errorCount: ebayVariationInspections.filter((row) => row.error).length,
         duplicateProducts: duplicateEbayVariationProducts,
+        crossListingDuplicateSkus,
         skuIssues: ebayVariationInspections.filter((row) => row.missingExpectedSkus.length || row.unexpectedSkus.length || row.duplicateSkus.length),
         imageIssues: ebayVariationInspections.filter((row) => row.missingImageSkus.length).map((row) => ({ itemId: row.itemId, parentSku: row.parentSku, title: row.title, missingImageSkus: row.missingImageSkus })),
         quantityIssues: ebayVariationInspections.filter((row) => row.quantityIssues.length).map((row) => ({ itemId: row.itemId, parentSku: row.parentSku, title: row.title, issues: row.quantityIssues })),
