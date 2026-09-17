@@ -14,7 +14,7 @@ import {
   productImageExtrasById,
   withProductImageExtras,
 } from "@/lib/product-export-image-extras";
-import { productWhere } from "@/lib/products";
+import { productSearchWhere } from "@/lib/product-search-where";
 import { getOperationalProductIds } from "@/lib/product-operations";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
@@ -159,14 +159,14 @@ export async function GET(request: Request) {
     }
 
     const sellableIds = await getOperationalProductIds("sellable");
-    const baseWhere = productWhere({
+    const baseWhere = await productSearchWhere({
       q: url.searchParams.get("q"),
       stock: url.searchParams.get("stock"),
       group: url.searchParams.get("group"),
       member: url.searchParams.get("member"),
       album: url.searchParams.get("album"),
       version: url.searchParams.get("version"),
-    });
+    }, user.id);
     const existingAnd = Array.isArray(baseWhere.AND)
       ? baseWhere.AND
       : baseWhere.AND

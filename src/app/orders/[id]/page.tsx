@@ -1,6 +1,5 @@
-/* eslint-disable @next/next/no-img-element */
 import { notFound } from "next/navigation";
-import { ImageOff } from "lucide-react";
+import Link from "next/link";
 import { FulfillmentRefreshButton } from "@/components/FulfillmentRefreshButton";
 import {
   DeductStockButton,
@@ -10,13 +9,22 @@ import { ShipmentForm } from "@/components/ShipmentForm";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TopNav } from "@/components/TopNav";
 import { orderWarningClass } from "@/lib/order-automation";
-import { orderItemImageUrlFromRaw } from "@/lib/order-images";
+import { orderCardImageSources } from "@/lib/order-images";
+import { orderItemSale, orderMerchandiseTotal, formatOrderMoney, soldBelowCurrentCost } from "@/lib/order-money";
+import { OrderCardImage } from "@/components/OrderCardImage";
+import { PocamarketPurchaseButton } from "@/components/PocamarketPurchaseButton";
+import { procurementHoldReason } from "@/lib/procurement-freshness";
 import { rankFuzzyTitleMatches } from "@/lib/services/matchingService";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { formatDate } from "@/lib/view-models";
 
 export const dynamic = "force-dynamic";
+
+function formatDate(date: Date | null | undefined) {
+  return date ? new Intl.DateTimeFormat("ko-KR", {
+    dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Seoul",
+  }).format(date) : "-";
+}
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -34,6 +42,22 @@ function asString(value: unknown) {
 
 function addressLines(rawJson: unknown) {
   const order = asRecord(rawJson);
+  const shopifyAddress = asRecord(order.shippingAddress);
+  if (Object.keys(shopifyAddress).length) {
+    return [
+      asString(shopifyAddress.name),
+      asString(shopifyAddress.address1),
+      asString(shopifyAddress.address2),
+      [
+        asString(shopifyAddress.city),
+        asString(shopifyAddress.provinceCode),
+        asString(shopifyAddress.zip),
+      ]
+        .filter(Boolean)
+        .join(" "),
+      asString(shopifyAddress.countryCodeV2),
+    ].filter(Boolean);
+  }
   const instruction = asRecord(asArray(order.fulfillmentStartInstructions)[0]);
   const shippingStep = asRecord(instruction.shippingStep);
   const shipTo = asRecord(shippingStep.shipTo);
@@ -56,7 +80,12 @@ function addressLines(rawJson: unknown) {
 
 function orderMemo(rawJson: unknown) {
   const order = asRecord(rawJson);
-  return asString(order.buyerCheckoutNotes) ?? asString(order.sellerMemo) ?? "-";
+  return (
+    asString(order.buyerCheckoutNotes) ??
+    asString(order.sellerMemo) ??
+    asString(order.note) ??
+    "-"
+  );
 }
 
 function itemInventoryState({
@@ -95,24 +124,6 @@ function itemInventoryState({
   };
 }
 
-function ProductImage({
-  src,
-  title,
-}: {
-  src: string | null;
-  title: string;
-}) {
-  return (
-    <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-zinc-200 bg-zinc-100">
-      {src ? (
-        <img src={src} alt={title} className="h-full w-full object-cover" />
-      ) : (
-        <ImageOff className="h-7 w-7 text-zinc-400" />
-      )}
-    </div>
-  );
-}
-
 export default async function OrderDetailPage({
   params,
 }: {
@@ -120,7 +131,7 @@ export default async function OrderDetailPage({
 }) {
   const user = await requireUser();
   const { id } = await params;
-  const [order, allProducts] = await Promise.all([
+  const [order, allProducts, pricingSettings] = await Promise.all([
     prisma.order.findFirst({
       where: { id, userId: user.id },
       include: {
@@ -143,6 +154,7 @@ export default async function OrderDetailPage({
       },
       orderBy: { sku: "asc" },
     }),
+    prisma.pricingSettings.findUnique({ where: { id: "default" }, select: { exchangeRateKrwPerUsd: true } }),
   ]);
 
   if (!order) {
@@ -150,6 +162,7 @@ export default async function OrderDetailPage({
   }
 
   const unmatchedItems = order.items.filter((item) => !item.productId);
+  const merchandiseTotal = orderMerchandiseTotal(order.items.map(item => orderItemSale(item.rawJson, item.quantity, order.salesChannel)), order.currency);
   const products = allProducts.slice(0, 50).map((product) => ({
     id: product.id,
     sku: product.sku,
@@ -181,12 +194,16 @@ export default async function OrderDetailPage({
     <div className="min-h-screen bg-zinc-50">
       <TopNav loginId={user.loginId} />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        <Link href="/orders" className="mb-4 inline-block text-sm text-blue-700">← 주문 목록</Link>
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-3">
               <h1 className="text-xl font-semibold text-zinc-950">
-                {order.ebayOrderId}
+                {order.orderNumber}
               </h1>
+              <span className={`rounded-full px-2 py-1 text-xs font-semibold ${order.salesChannel === "SHOPIFY" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700"}`}>
+                {order.salesChannel === "SHOPIFY" ? "Shopify" : "eBay"}
+              </span>
               <StatusBadge status={order.fulfillmentStatus} />
             </div>
             {order.tags.length ? (
@@ -204,12 +221,15 @@ export default async function OrderDetailPage({
               </div>
             ) : null}
             <p className="text-sm text-zinc-500">
-              {formatDate(order.orderDate)} · {order.totalAmount.toString()}{" "}
-              {order.currency}
+              {formatDate(order.orderDate)}
             </p>
+            <p className="mt-2 text-xl font-bold text-zinc-950">주문 총액 {formatOrderMoney(order.totalAmount.toString(), order.currency)}</p>
           </div>
           <div className="flex flex-col gap-2 sm:items-end">
-            <FulfillmentRefreshButton orderId={order.id} />
+            <a href="#pocamarket-purchase" className="rounded-md bg-rose-600 px-3 py-2 text-center text-sm font-semibold text-white">포카마켓 구매로 이동</a>
+            {order.salesChannel === "EBAY" ? (
+              <FulfillmentRefreshButton orderId={order.id} />
+            ) : null}
             <DeductStockButton orderId={order.id} />
           </div>
         </div>
@@ -220,7 +240,7 @@ export default async function OrderDetailPage({
             <div className="mt-2 space-y-1">
               {unmatchedItems.map((item) => (
                 <p key={item.id}>
-                  eBay SKU {item.sku || "없음"} · {item.title}
+                  {order.salesChannel === "SHOPIFY" ? "Shopify" : "eBay"} SKU {item.sku || "없음"} · {item.title}
                   {!item.sku ? " · SKU가 없어 자동 매칭되지 않았습니다." : ""}
                 </p>
               ))}
@@ -228,8 +248,8 @@ export default async function OrderDetailPage({
           </section>
         ) : null}
 
-        <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
-          <section className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <section className="min-w-0 space-y-4">
             <div className="rounded-lg border border-zinc-200 bg-white p-4">
               <h2 className="mb-3 text-base font-semibold text-zinc-950">
                 주문 상품 / 상품매칭
@@ -245,26 +265,38 @@ export default async function OrderDetailPage({
                     shortage: Boolean(shortage),
                     matched: Boolean(item.productId),
                   });
-                  const imageUrl =
-                    orderItemImageUrlFromRaw(item.rawJson) ??
-                    item.product?.imageUrl ??
-                    null;
+                  const sale = orderItemSale(item.rawJson, item.quantity, order.salesChannel);
+                  const cost = item.product?.salePrice == null ? null : Number(item.product.salePrice);
+                  const hold = item.product ? procurementHoldReason(item.product) : null;
+                  const belowCost = soldBelowCurrentCost(sale, cost, pricingSettings ? Number(pricingSettings.exchangeRateKrwPerUsd) : null);
 
                   return (
                     <div
                       key={item.id}
-                      className="grid gap-3 py-4 text-sm lg:grid-cols-[auto_1fr_160px_70px_300px_120px]"
+                      className="space-y-3 py-4 text-sm"
                     >
-                      <ProductImage src={imageUrl} title={item.title} />
-                      <div>
+                      <div className="flex items-start gap-3">
+                      <OrderCardImage sources={orderCardImageSources(item.product?.imageUrl, item.rawJson)} title={`${item.sku ?? ""} ${item.title}`} className="h-36 w-24" />
+                      <div className="min-w-0 flex-1">
+                        <p className="mb-1 font-semibold text-blue-800">카드 {item.product?.sku ?? item.sku ?? "SKU 없음"} · {item.quantity}장</p>
                         <p className="font-medium text-zinc-950">{item.title}</p>
-                        <p className="mt-1 text-zinc-500">
-                          Line item: {item.lineItemId}
-                        </p>
-                        <p className="mt-1 text-zinc-500">
-                          eBay SKU: {item.sku ?? "없음"}
-                        </p>
+                        <p className="mt-2 font-bold text-zinc-950">{sale ? `장당 판매금액 ${formatOrderMoney(sale.unitAmount, sale.currency)}` : "판매금액 미수집 · 주문 다시 불러오기 필요"}</p>
+                        {sale ? <p className="mt-1 text-zinc-600">상품 합계 {formatOrderMoney(sale.lineAmount, sale.currency)} · 배송비·세금 제외</p> : null}
+                        {item.product?.pocamarketId ? <div className="mt-3 rounded-md bg-zinc-50 p-2 text-xs">
+                          <p>포카 판매목록 최저가: {item.product.isSoldOut ? "품절 · 구매 가능한 매물 없음" : cost !== null && cost > 0 ? formatOrderMoney(cost, "KRW") : "미확인"}</p>
+                          <p className="mt-1 text-zinc-500">확인: {item.product.pocamarketSyncedAt ? formatDate(item.product.pocamarketSyncedAt) : "미확인"} · 앱 빠른구매 가격과 다를 수 있습니다.</p>
+                          {hold ? <p className="mt-1 font-semibold text-amber-800">{hold}</p> : null}
+                          {belowCost ? <p className="mt-1 font-semibold text-rose-700">현재 포카 원가보다 낮게 판매된 주문입니다. 설정 환율 기준이며 판매수수료·추가비용 전 비교입니다.</p> : null}
+                        </div> : null}
                       </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`rounded-full px-2 py-1 font-semibold ring-1 ${state.className}`}>{state.label}</span>
+                        {item.product ? <span className="text-zinc-500">현재 재고 {item.product.stockQuantity}장</span> : null}
+                      </div>
+                      <details open={!item.productId} className="rounded-md border border-zinc-200 p-2">
+                      <summary className="cursor-pointer text-xs font-medium text-zinc-600">{item.productId ? `상품 연결 변경 · ${item.product?.sku ?? item.sku}` : "상품 연결 필요"}</summary>
+                      <div className="mt-2 grid min-w-0 gap-3 rounded-md bg-zinc-50 p-3 sm:grid-cols-2">
                       <div className="text-zinc-700">
                         <p className="text-xs font-semibold text-zinc-500">
                           연결된 상품
@@ -280,7 +312,7 @@ export default async function OrderDetailPage({
                           <p className="mt-1 text-amber-700">아직 없음</p>
                         )}
                       </div>
-                      <p className="text-zinc-700">{item.quantity}개</p>
+                      <div className="min-w-0 sm:col-span-2">
                       <OrderItemProductMatcher
                         orderId={order.id}
                         orderItemId={item.id}
@@ -293,6 +325,7 @@ export default async function OrderDetailPage({
                         matchScore={item.matchScore}
                         disabled={item.stockDeducted}
                       />
+                      </div>
                       <div>
                         <span
                           className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${state.className}`}
@@ -309,6 +342,8 @@ export default async function OrderDetailPage({
                           </p>
                         )}
                       </div>
+                      </div>
+                      </details>
                     </div>
                   );
                 })}
@@ -353,6 +388,20 @@ export default async function OrderDetailPage({
           </section>
 
           <aside className="space-y-4">
+            <section className="rounded-lg border border-zinc-200 bg-white p-4">
+              <h2 className="mb-3 font-semibold text-zinc-950">판매금액 합계</h2>
+              <dl className="space-y-2 text-sm">
+                <div className="flex justify-between gap-2"><dt>상품 합계</dt><dd>{merchandiseTotal === null ? "일부 금액 미수집" : formatOrderMoney(merchandiseTotal, order.currency)}</dd></div>
+                {merchandiseTotal !== null ? <div className="flex justify-between gap-2 text-zinc-500"><dt>배송·세금·기타 조정</dt><dd>{formatOrderMoney(Number(order.totalAmount) - merchandiseTotal, order.currency)}</dd></div> : null}
+                <div className="flex justify-between gap-2 border-t pt-2 font-bold"><dt>주문 총액</dt><dd>{formatOrderMoney(order.totalAmount.toString(), order.currency)}</dd></div>
+              </dl>
+              <p className="mt-2 text-xs text-zinc-500">주문 당시 금액입니다. 판매수수료 차감 후 정산액과 다릅니다.</p>
+            </section>
+            <section id="pocamarket-purchase" className="scroll-mt-6 rounded-lg border border-rose-200 bg-white p-4">
+              <h2 className="font-semibold text-zinc-950">포카마켓 구매</h2>
+              <p className="mt-1 text-xs text-zinc-500">부족 수량의 구매 요청과 휴대폰 결제 확인을 여기서 진행하세요.</p>
+              <PocamarketPurchaseButton orderId={order.id} />
+            </section>
             <div className="rounded-lg border border-zinc-200 bg-white p-4">
               <h2 className="mb-3 text-base font-semibold text-zinc-950">
                 자동 태그/경고
@@ -383,7 +432,13 @@ export default async function OrderDetailPage({
               </div>
             </div>
 
-            <ShipmentForm orderId={order.id} />
+            {order.salesChannel === "EBAY" ? (
+              <ShipmentForm orderId={order.id} />
+            ) : (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                Shopify 배송 처리는 Shopify 관리자에서 진행하고, 이 화면에서는 주문과 송장 이력을 수집합니다.
+              </div>
+            )}
           </aside>
         </div>
       </main>

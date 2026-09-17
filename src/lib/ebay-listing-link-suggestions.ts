@@ -98,6 +98,9 @@ export type LinkSuggestions = {
 export async function getEbayLinkSuggestions(
   userId: string,
   limit = 100,
+  itemId?: string,
+  offset = 0,
+  productSku?: string,
 ): Promise<LinkSuggestions> {
   const report = await prisma.ebayReportImport.findFirst({
     where: { userId },
@@ -108,8 +111,25 @@ export async function getEbayLinkSuggestions(
     return { reportImportedAt: null, totalPending: 0, listings: [] };
   }
 
+  // eBay 옵션형 리스팅은 하나의 Item ID 아래 여러 SKU 행으로 내려온다.
+  // 각 행을 단일상품 연결 대상으로 보여주면 같은 사진과 상품번호가 수십 번
+  // 반복되고, 옵션 구성원을 잘못 단품으로 연결할 수 있으므로 이 화면에서 제외한다.
+  const reportItemRows = await prisma.ebayActiveListing.findMany({
+    where: { importId: report.id },
+    select: { itemId: true },
+  });
+  const itemIdCounts = new Map<string, number>();
+  for (const row of reportItemRows) {
+    itemIdCounts.set(row.itemId, (itemIdCounts.get(row.itemId) ?? 0) + 1);
+  }
+  const variationItemIds = [...itemIdCounts]
+    .filter(([, count]) => count > 1)
+    .map(([itemId]) => itemId);
+
   const where = {
     importId: report.id,
+    ...(itemId ? { itemId } : {}),
+    ...(!itemId && variationItemIds.length ? { itemId: { notIn: variationItemIds } } : {}),
     matchStatus: { in: LINK_PENDING_STATUSES },
     // 이미 상품이 확정된 행은 제외한다.
     productId: null,
@@ -120,6 +140,7 @@ export async function getEbayLinkSuggestions(
     prisma.ebayActiveListing.findMany({
       where,
       orderBy: { createdAt: "asc" },
+      skip: Math.max(0, offset),
       take: limit,
       select: {
         id: true,
@@ -148,6 +169,7 @@ export async function getEbayLinkSuggestions(
   const products = await prisma.product.findMany({
     where: {
       status: { not: "inactive" },
+      ...(productSku ? { sku: { equals: productSku, mode: "insensitive" as const } } : {}),
       OR: [{ ebayItemId: null }, { ebayItemId: "" }],
     },
     select: {
@@ -179,7 +201,20 @@ export async function getEbayLinkSuggestions(
 
   const listings = rows.map((row) => {
     const title = row.title;
-    const candidates = title
+    const candidates = productSku
+      ? products.map((product) => ({
+          productId: product.id,
+          sku: product.sku,
+          productName: product.productName,
+          brand: product.brand,
+          optionName: product.optionName,
+          category: product.category,
+          imageUrl: product.ebayImageUrls[0] ?? product.imageUrl ?? null,
+          score: 1,
+          alreadyLinkedItemId: product.ebayItemId,
+          memberMismatch: false,
+        }))
+      : title
       ? rankFuzzyTitleMatches(title, products, 20)
           // 멤버가 어긋나는 후보는 버린다. 남겨두면 사진을 대충 보고 눌러
           // 다른 멤버 카드에 연결되는 사고가 난다.

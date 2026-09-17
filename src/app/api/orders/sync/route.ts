@@ -1,10 +1,18 @@
 import { z } from "zod";
 import { EbayApiError } from "@/lib/ebay";
-import { syncOrdersForUser } from "@/lib/orders";
+import { syncOrdersForUser, syncShopifyOrdersForUser } from "@/lib/orders";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
+import { ShopifyApiError } from "@/lib/services/shopifyService";
+
+// 전체 주문을 한 번에 가져올 때 페이지네이션 + 이미지 보강으로 시간이 걸릴 수 있어
+// 함수 실행 시간을 넉넉히 잡는다. (플랜 한도에 맞춰 Vercel이 자동으로 클램프함)
+export const maxDuration = 300;
 
 const syncSchema = z.object({
+  channel: z.enum(["EBAY", "SHOPIFY"]).default("EBAY"),
+  // 기본은 eBay에서 바뀐 주문만 다시 저장한다. 문제가 생겼을 때만 전체를 다시 쓴다.
+  refreshAll: z.boolean().default(false),
   creationDateFrom: z.string().datetime().optional(),
   creationDateTo: z.string().datetime().optional(),
   modifiedDateFrom: z.string().datetime().optional(),
@@ -18,7 +26,11 @@ export async function POST(request: Request) {
   try {
     const user = await requireApiUser();
     const input = syncSchema.parse(await request.json().catch(() => ({})));
-    const result = await syncOrdersForUser(user.id, input);
+    const { channel, refreshAll, ...filters } = input;
+    const result =
+      channel === "SHOPIFY"
+        ? await syncShopifyOrdersForUser(user.id, filters)
+        : await syncOrdersForUser(user.id, filters, { refreshAll });
     return Response.json(result);
   } catch (error) {
     if (error instanceof UnauthorizedError) {
@@ -46,6 +58,15 @@ export async function POST(request: Request) {
         `eBay 주문 API 오류 (${error.status})${detail ? `: ${detail}` : ""}`,
         502,
         { status: error.status, body: error.body },
+      );
+    }
+
+    if (error instanceof ShopifyApiError) {
+      return jsonError(
+        error.status === 401 || error.status === 403
+          ? "Shopify 주문 읽기 권한(read_orders)을 확인하고 Admin API 토큰을 다시 설정해 주세요."
+          : error.message,
+        error.status === 504 ? 504 : 502,
       );
     }
 

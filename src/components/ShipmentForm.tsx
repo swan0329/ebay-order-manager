@@ -44,10 +44,10 @@ export function ShipmentForm({ orderId }: { orderId: string }) {
         <Truck className="h-5 w-5 text-zinc-700" />
         <h2 className="text-base font-semibold text-zinc-950">운송장 등록</h2>
       </div>
-      <div className="grid gap-3 sm:grid-cols-[160px_1fr_auto]">
+      <div className="grid min-w-0 gap-3">
         <select
           name="carrierCode"
-          className="h-10 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
+          className="h-10 min-w-0 w-full rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
         >
           {carriers.map((carrier) => (
             <option key={carrier} value={carrier}>
@@ -59,7 +59,7 @@ export function ShipmentForm({ orderId }: { orderId: string }) {
           name="trackingNumber"
           required
           placeholder="운송장 번호"
-          className="h-10 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
+          className="h-10 min-w-0 w-full rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
         />
         <button
           type="submit"

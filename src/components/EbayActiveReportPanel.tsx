@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, FileSpreadsheet, Link2, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { notifyProductDataChanged } from "@/lib/client-product-refresh";
 
 type ReportSummary = {
   id: string;
@@ -26,6 +27,7 @@ type ReportSummary = {
 };
 
 const matchLabels: Record<string, string> = {
+  MANUALLY_VERIFIED: "이미지 확인 완료",
   TITLE_MATCHED: "제목 매칭 · 확인",
   UNMATCHED: "SKU 연결 필요",
   DUPLICATE: "중복 SKU",
@@ -35,9 +37,12 @@ const matchLabels: Record<string, string> = {
 export function EbayActiveReportPanel() {
   const router = useRouter();
   const [latest, setLatest] = useState<ReportSummary | null>(null);
+  const [reviewRequiredCount, setReviewRequiredCount] = useState(0);
   const [completeSnapshot, setCompleteSnapshot] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [rematching, setRematching] = useState(false);
+  const [auditing, setAuditing] = useState(false);
+  const [imageAuditing, setImageAuditing] = useState(false);
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
   const [showListings, setShowListings] = useState(false);
   const [message, setMessage] = useState("");
@@ -45,8 +50,12 @@ export function EbayActiveReportPanel() {
   async function loadLatest() {
     const response = await fetch("/api/ebay/active-report", { cache: "no-store" });
     if (!response.ok) return;
-    const body = (await response.json()) as { latest?: ReportSummary | null };
+    const body = (await response.json()) as {
+      latest?: ReportSummary | null;
+      reviewRequiredCount?: number;
+    };
     setLatest(body.latest ?? null);
+    setReviewRequiredCount(body.reviewRequiredCount ?? 0);
   }
 
   useEffect(() => {
@@ -87,6 +96,7 @@ export function EbayActiveReportPanel() {
         }건 · 종료 확인 ${result?.endedCount ?? 0}건`,
       );
       await loadLatest();
+      notifyProductDataChanged();
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "보고서 가져오기 실패");
@@ -123,11 +133,92 @@ export function EbayActiveReportPanel() {
         }건`,
       );
       await loadLatest();
+      notifyProductDataChanged();
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "다시 연결 실패");
     } finally {
       setRematching(false);
+    }
+  }
+
+  async function auditLinks() {
+    setAuditing(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/ebay/active-report/audit", { method: "POST" });
+      const body = (await response.json().catch(() => null)) as {
+        result?: { scanned: number; quarantined: number; trusted: number };
+        error?: string;
+      } | null;
+      if (!response.ok) throw new Error(body?.error ?? "연결 점검 실패");
+      const result = body?.result;
+      setMessage(
+        `연결 안전 점검 완료: ${result?.scanned ?? 0}건 중 ${result?.quarantined ?? 0}건을 자동 반영에서 격리했습니다. eBay에는 변경을 보내지 않았습니다.`,
+      );
+      await loadLatest();
+      notifyProductDataChanged();
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "연결 점검 실패");
+    } finally {
+      setAuditing(false);
+    }
+  }
+
+  async function auditListingImages() {
+    setImageAuditing(true);
+    setMessage("eBay 사진과 내부 상품 사진을 비교하고 있습니다...");
+    let offset = 0;
+    let total = 0;
+    let checked = 0;
+    let quarantined = 0;
+    let skipped = 0;
+
+    try {
+      while (true) {
+        const response = await fetch("/api/ebay/active-report/image-audit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ offset, limit: 5 }),
+        });
+        const body = (await response.json().catch(() => null)) as {
+          total?: number;
+          nextOffset?: number;
+          done?: boolean;
+          results?: Array<{
+            status: "OK" | "REVIEW_REQUIRED" | "SKIPPED";
+            reason?: "IMAGE_UNAVAILABLE";
+          }>;
+          error?: string;
+        } | null;
+        if (!response.ok) throw new Error(body?.error ?? "사진 오연결 점검 실패");
+
+        total = body?.total ?? total;
+        const results = body?.results ?? [];
+        checked += results.length;
+        quarantined += results.filter((result) => result.status === "REVIEW_REQUIRED").length;
+        skipped += results.filter(
+          (result) => result.status === "SKIPPED" || result.reason === "IMAGE_UNAVAILABLE",
+        ).length;
+        offset = body?.nextOffset ?? offset + results.length;
+        setMessage(
+          `사진 오연결 점검 중: ${Math.min(offset, total).toLocaleString()} / ${total.toLocaleString()}건 · 검토 격리 ${quarantined.toLocaleString()}건`,
+        );
+
+        if (body?.done || results.length === 0) break;
+      }
+
+      setMessage(
+        `사진 오연결 전수점검 완료: ${checked.toLocaleString()}건 비교 · 검토 격리 ${quarantined.toLocaleString()}건 · 사진 확인 불가 ${skipped.toLocaleString()}건. eBay 상품 자체는 변경하지 않았습니다.`,
+      );
+      await loadLatest();
+      notifyProductDataChanged();
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "사진 오연결 점검 실패");
+    } finally {
+      setImageAuditing(false);
     }
   }
 
@@ -143,6 +234,7 @@ export function EbayActiveReportPanel() {
         throw new Error(body?.error ?? "연결 해제 실패");
       }
       await loadLatest();
+      notifyProductDataChanged();
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "연결 해제 실패");
@@ -160,7 +252,8 @@ export function EbayActiveReportPanel() {
             <h2 className="font-semibold text-zinc-950">eBay 활성상품 보고서</h2>
           </div>
           <p className="mt-1 text-sm text-zinc-600">
-            SKU와 Item ID를 연결하고 신규등록·변경·판매중단 대상을 판별합니다.
+            eBay에서 자동으로 가져와 SKU와 Item ID를 연결하고 등록·변경·판매중단 대상을 판별합니다.
+            파일 업로드는 자동 수집에 문제가 있을 때만 사용하는 보조 기능입니다.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -176,6 +269,26 @@ export function EbayActiveReportPanel() {
           {latest ? (
             <button
               type="button"
+              onClick={() => void auditListingImages()}
+              disabled={imageAuditing || auditing || rematching || uploading}
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-amber-600 px-4 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-50"
+            >
+              {imageAuditing ? "사진 전수점검 중..." : "eBay 사진 오연결 전수점검"}
+            </button>
+          ) : null}
+          {latest ? (
+            <button
+              type="button"
+              onClick={() => void auditLinks()}
+              disabled={imageAuditing || auditing || rematching || uploading}
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-rose-600 px-4 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+            >
+              {auditing ? "점검 중..." : "기존 eBay 연결 안전 점검"}
+            </button>
+          ) : null}
+          {latest ? (
+            <button
+              type="button"
               onClick={() => void rematch()}
               disabled={rematching || uploading}
               className="inline-flex h-10 items-center gap-2 rounded-md border border-blue-600 px-4 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
@@ -185,7 +298,7 @@ export function EbayActiveReportPanel() {
           ) : null}
           <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700">
             <Upload className="h-4 w-4" />
-            {uploading ? "가져오는 중..." : "보고서 가져오기"}
+            {uploading ? "가져오는 중..." : "파일로 가져오기 (보조)"}
             <input
               type="file"
               accept=".csv,.xlsx,.xls"
@@ -261,6 +374,15 @@ export function EbayActiveReportPanel() {
               <Link2 className="h-3.5 w-3.5" />
               연결하기
             </Link>
+            {reviewRequiredCount ? (
+              <button
+                type="button"
+                onClick={() => window.location.assign("/products?upload=review_required")}
+                className="inline-flex items-center gap-1 rounded bg-rose-600 px-2 py-1 font-semibold text-white hover:bg-rose-700"
+              >
+                eBay 연결 검토 필요 {reviewRequiredCount.toLocaleString()}건 보기
+              </button>
+            ) : null}
           </div>
           {latest.listings.length ? (
             <button

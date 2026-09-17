@@ -18,6 +18,12 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+@media (min-width: 768px) {
+  body:has([data-app-sidebar]) {
+    padding-left: 272px;
+  }
+}
+
 button,
 input,
 select,

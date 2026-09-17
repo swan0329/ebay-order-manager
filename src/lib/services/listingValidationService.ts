@@ -23,9 +23,23 @@ function issue(field: string, message: string): ListingValidationIssue {
 }
 
 function addZodIssues(issues: ListingValidationIssue[], error: z.ZodError) {
+  const labels: Record<string, string> = {
+    sku: "SKU",
+    title: "상품명",
+    price: "판매가격",
+    quantity: "판매수량",
+    imageUrls: "상품 이미지",
+    categoryId: "eBay 카테고리",
+    condition: "상품 상태",
+    paymentProfile: "결제정책",
+    shippingProfile: "배송정책",
+    returnProfile: "반품정책",
+    merchantLocationKey: "eBay 재고 위치",
+  };
   for (const zodIssue of error.issues) {
     const field = zodIssue.path.join(".") || "input";
-    issues.push(issue(field, `${field} 입력값을 확인해 주세요.`));
+    const root = String(zodIssue.path[0] ?? "input");
+    issues.push(issue(field, `${labels[root] ?? field} 입력값을 확인해 주세요.`));
   }
 }
 
@@ -63,20 +77,22 @@ async function isReachableImageUrl(url: string) {
 }
 
 async function validateImageUrls(input: ListingUploadInput) {
-  const issues: ListingValidationIssue[] = [];
+  const checks = await Promise.all(
+    input.imageUrls.map(async (url, index) => ({
+      index,
+      url,
+      reachable: await isReachableImageUrl(url),
+    })),
+  );
 
-  for (const [index, url] of input.imageUrls.entries()) {
-    if (!(await isReachableImageUrl(url))) {
-      issues.push(
-        issue(
-          `image_urls[${index}]`,
-          `이미지 URL에 접근할 수 없습니다: ${url}`,
-        ),
-      );
-    }
-  }
-
-  return issues;
+  return checks
+    .filter((check) => !check.reachable)
+    .map((check) =>
+      issue(
+        `image_urls[${check.index}]`,
+        `이미지 URL에 접근할 수 없습니다: ${check.url}`,
+      ),
+    );
 }
 
 async function validateInventoryScope(userId: string) {

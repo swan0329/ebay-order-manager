@@ -1,3 +1,4 @@
+import { memberOptions } from "@/lib/product-member";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
@@ -18,10 +19,10 @@ type FacetRow = {
 };
 
 const cacheTtlMs = 5 * 60_000;
-const facetLimit = 300;
-let facetsCache: { expiresAt: number; value: ProductFacetOptions } | null = null;
+const facetLimit = 5000;
+const facetsCache = new Map<string, { expiresAt: number; value: ProductFacetOptions }>();
 
-async function loadFacets(): Promise<ProductFacetOptions> {
+async function loadFacets(group: string): Promise<ProductFacetOptions> {
   const rows = await prisma.$queryRaw<FacetRow[]>`
     SELECT 'groups' AS facet, value
     FROM (
@@ -29,7 +30,6 @@ async function loadFacets(): Promise<ProductFacetOptions> {
       FROM "products"
       WHERE "brand" IS NOT NULL
         AND "brand" <> ''
-        AND "status" <> 'inactive'
       ORDER BY "brand" ASC
       LIMIT ${facetLimit}
     ) groups
@@ -40,7 +40,7 @@ async function loadFacets(): Promise<ProductFacetOptions> {
       FROM "products"
       WHERE "option_name" IS NOT NULL
         AND "option_name" <> ''
-        AND "status" <> 'inactive'
+        AND (${group} = '' OR lower("brand") = lower(${group}))
       ORDER BY "option_name" ASC
       LIMIT ${facetLimit}
     ) members
@@ -51,7 +51,6 @@ async function loadFacets(): Promise<ProductFacetOptions> {
       FROM "products"
       WHERE "category" IS NOT NULL
         AND "category" <> ''
-        AND "status" <> 'inactive'
       ORDER BY "category" ASC
       LIMIT ${facetLimit}
     ) albums
@@ -62,7 +61,6 @@ async function loadFacets(): Promise<ProductFacetOptions> {
       FROM "products"
       WHERE "product_name" IS NOT NULL
         AND "product_name" <> ''
-        AND "status" <> 'inactive'
       ORDER BY "product_name" ASC
       LIMIT ${facetLimit}
     ) versions
@@ -82,22 +80,20 @@ async function loadFacets(): Promise<ProductFacetOptions> {
     }
   }
 
+  facets.members = memberOptions(facets.members);
   return facets;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await requireApiUser();
 
-    if (facetsCache && facetsCache.expiresAt > Date.now()) {
-      return Response.json({ facets: facetsCache.value });
-    }
-
-    const value = await loadFacets();
-    facetsCache = {
-      expiresAt: Date.now() + cacheTtlMs,
-      value,
-    };
+    const group = new URL(request.url).searchParams.get("group")?.trim().slice(0, 120) ?? "";
+    const cached = facetsCache.get(group);
+    if (cached && cached.expiresAt > Date.now()) return Response.json({ facets: cached.value });
+    const value = await loadFacets(group);
+    if (facetsCache.size >= 20) facetsCache.clear();
+    facetsCache.set(group, { expiresAt: Date.now() + cacheTtlMs, value });
 
     return Response.json({ facets: value });
   } catch (error) {

@@ -1,0 +1,32 @@
+import {it,expect,vi} from 'vitest';
+import fs from 'node:fs';
+import sharp from 'sharp';
+vi.mock('server-only',()=>({}));
+import {createEbayWatermarkedImage as oldRender} from './ebay-watermarked-images';
+import {createEbayWatermarkedImage as candidate} from './ebay-watermarked-images';
+import {createVariationThumbnail as oldGroup} from './variation-thumbnail';
+import {createVariationThumbnail as newGroup} from './variation-thumbnail';
+it('renders real approved samples and checks candidate geometry without external writes',async()=>{
+ const dir='outputs/uniform-800x1200';fs.mkdirSync(dir,{recursive:true});
+ const settings=JSON.parse(fs.readFileSync('.codex-tmp/compare-settings.json','utf8')).settings;
+ const next=settings;
+ const logo=fs.readFileSync('.codex-tmp/equal-logo'),background=fs.readFileSync('.codex-tmp/equal-background');
+ const results=[];
+ for(const sku of ['15131','12764','12294','101214','4625','13236']){
+  const src=fs.readFileSync('.codex-tmp/equal-source-'+sku);const source=JSON.parse(fs.readFileSync('.codex-tmp/source-'+sku+'.json','utf8'));
+  const options={backgroundEligible:source.backgroundEligible,background};
+  const old=await oldRender(src,logo,settings,options),out=await candidate(src,logo,next,options);
+  fs.writeFileSync(`${dir}/${sku}-before.jpg`,old);fs.writeFileSync(`${dir}/${sku}-after.jpg`,out);
+  const m=await sharp(out).metadata();expect([m.width,m.height]).toEqual([800,1200]);
+  const sm=await sharp(src).metadata();results.push({sku,source:[sm.width,sm.height],result:[m.width,m.height],backgroundEligible:source.backgroundEligible});
+ }
+ const skus=['13236','14319','4335','13233','4456','4625'];
+ vi.stubGlobal('fetch',vi.fn(async(url:string)=>new Response(new Uint8Array(url==='https://local/background'?background:fs.readFileSync('.codex-tmp/equal-source-'+url.split('/').pop())))));
+ try{
+ const input={...settings,groupName:'BTS',albumName:'WINGS · 6 cards',imageUrls:skus.map(s=>'https://local/'+s),backgroundEligible:skus.map(()=>true),backgroundImageUrl:'https://local/background',watermarkLogo:logo,watermarkOpacity:settings.variationWatermarkOpacity,watermarkLogoSize:settings.variationWatermarkLogoSize,watermarkGap:settings.variationWatermarkGap};
+ fs.writeFileSync(`${dir}/group-before.jpg`,await oldGroup(input));
+ const out=await newGroup(input);fs.writeFileSync(`${dir}/group-after.jpg`,out);
+ expect((await sharp(out).metadata()).width).toBe(800);
+ }finally{vi.unstubAllGlobals();}
+ fs.writeFileSync(`${dir}/checks.json`,JSON.stringify({settings:next,samples:results,scope:'local preview only; no external channel writes'},null,2));
+},120000);

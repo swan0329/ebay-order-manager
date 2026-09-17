@@ -21,11 +21,21 @@ function simplifyPolicy(policy: PolicyRecord, idKey: string) {
 }
 
 function simplifyLocation(location: PolicyRecord) {
+  const locationDetails = location.location && typeof location.location === "object"
+    ? location.location as PolicyRecord
+    : {};
+  const address = locationDetails.address && typeof locationDetails.address === "object"
+    ? locationDetails.address as PolicyRecord
+    : {};
   return {
     id: text(location.merchantLocationKey),
     name: text(location.name) || text(location.merchantLocationKey),
-    status: text(location.locationStatus),
+    status: text(location.merchantLocationStatus) || text(location.locationStatus),
     type: text(location.locationTypes),
+    postalCode: text(address.postalCode),
+    country: text(address.country),
+    city: text(address.city),
+    stateOrProvince: text(address.stateOrProvince),
   };
 }
 

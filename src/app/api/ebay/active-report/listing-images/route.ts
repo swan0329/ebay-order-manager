@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getEbayListingImageUrl } from "@/lib/ebay";
+import { getEbayListingSummary } from "@/lib/ebay";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { safeLog } from "@/lib/safe-log";
@@ -24,15 +24,20 @@ export async function POST(request: Request) {
 
     const listings = await prisma.ebayActiveListing.findMany({
       where: { id: { in: listingIds }, reportImport: { userId: user.id } },
-      select: { id: true, itemId: true, imageUrl: true },
+      select: { id: true, itemId: true, imageUrl: true, title: true },
     });
 
     const images: Record<string, string> = {};
+    const titles: Record<string, string> = {};
     const pending: typeof listings = [];
     for (const listing of listings) {
       if (listing.imageUrl) {
         images[listing.id] = listing.imageUrl;
-      } else {
+      }
+      if (listing.title) {
+        titles[listing.id] = listing.title;
+      }
+      if (!listing.imageUrl || !listing.title) {
         pending.push(listing);
       }
     }
@@ -41,40 +46,43 @@ export async function POST(request: Request) {
     const results = await Promise.all(
       toFetch.map(async (listing) => {
         try {
-          const imageUrl = await getEbayListingImageUrl({
+          const summary = await getEbayListingSummary({
             legacyItemId: listing.itemId,
           });
-          return { id: listing.id, imageUrl: imageUrl ?? null };
+          return { id: listing.id, imageUrl: summary.imageUrl, title: summary.title };
         } catch (error) {
           // 한 건이 실패해도 나머지는 보여준다. 사진 없이도 연결은 가능하다.
           safeLog("warn", "ebay.listing_image.failed", {
             message: error instanceof Error ? error.message : "unknown",
           });
-          return { id: listing.id, imageUrl: null };
+          return { id: listing.id, imageUrl: null, title: null };
         }
       }),
     );
 
-    const resolved = results.filter(
-      (result): result is { id: string; imageUrl: string } => Boolean(result.imageUrl),
-    );
+    const resolved = results.filter((result) => Boolean(result.imageUrl || result.title));
     if (resolved.length) {
       await prisma.$transaction(
         resolved.map((result) =>
           prisma.ebayActiveListing.update({
             where: { id: result.id },
-            data: { imageUrl: result.imageUrl },
+            data: {
+              ...(result.imageUrl ? { imageUrl: result.imageUrl } : {}),
+              ...(result.title ? { title: result.title } : {}),
+            },
             select: { id: true },
           }),
         ),
       );
       for (const result of resolved) {
-        images[result.id] = result.imageUrl;
+        if (result.imageUrl) images[result.id] = result.imageUrl;
+        if (result.title) titles[result.id] = result.title;
       }
     }
 
     return Response.json({
       images,
+      titles,
       // 남은 건이 있으면 화면이 이어서 요청할 수 있게 알려준다.
       remaining: Math.max(0, pending.length - toFetch.length),
     });

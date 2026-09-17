@@ -1,3 +1,4 @@
+import { PROCUREMENT_REFRESH_MS, procurementCostNeedsVerification } from "@/lib/procurement-freshness";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import {
@@ -157,7 +158,7 @@ export function normalizePocamarketBatchSize(requestedLimit?: number) {
 export async function createPocamarketSyncBatch(
   userId: string,
   requestedLimit?: number,
-  options?: { onlyUnsynced?: boolean },
+  options?: { onlyUnsynced?: boolean; group?: "BTS" | "Stray Kids"; productIds?: string[]; activeOnly?: boolean },
 ) {
   const onlyUnsynced = options?.onlyUnsynced ?? false;
   const active = await prisma.pocamarketSyncBatch.findFirst({
@@ -185,7 +186,15 @@ export async function createPocamarketSyncBatch(
         )
       : new Set<string>();
   const candidates = (await prisma.product.findMany({
-    where: eligibleProductWhere,
+    where: { ...eligibleProductWhere, ...(options?.group ? { brand: options.group } : {}), ...(options?.productIds ? { id: { in: options.productIds } } : {}),
+      ...(options?.activeOnly ? { OR: [
+        { orderItems: { some: { order: { orderDate: { gte: new Date(Date.now() - 14 * 86400000) } } } } },
+        { OR: [
+          { ebayItemId: { not: null }, listingStatus: { in: ["ACTIVE", "PUBLISHED", "LISTED", "OUT_OF_STOCK"] } },
+          { shopifyProductId: { not: null }, shopifyStatus: { notIn: ["ARCHIVED", "archived", "DRAFT", "draft"] } },
+        ] },
+      ] } : {}),
+    },
     select: {
       id: true,
       pocamarketId: true,
@@ -194,11 +203,22 @@ export async function createPocamarketSyncBatch(
       pocamarketAvailableCount: true,
       pocamarketLastAttemptAt: true,
       pocamarketSyncedAt: true,
+      ebayPrice: true, ebayLastSyncedPrice: true, lastUploadedAt: true,
+      stockQuantity: true, ebayItemId: true, shopifyProductId: true, listingStatus: true, shopifyStatus: true,
+      orderItems: { where: { order: { orderDate: { gte: new Date(Date.now() - 14 * 86400000) } } }, select: { id: true }, take: 1 },
     },
   }))
     .filter((product) => /^\d+$/.test(product.pocamarketId ?? ""))
     // "확인 필요만"일 때는 아직 정상 반영되지 않은(한 번도 성공 못 한) 상품만 남긴다.
-    .filter((product) => (onlyUnsynced ? product.pocamarketSyncedAt === null : true));
+    .filter((product) => (onlyUnsynced ? product.pocamarketSyncedAt === null : true))
+    .filter((product) => !options?.activeOnly || (
+      (Boolean(product.orderItems?.length) ||
+        ((
+          (product.ebayItemId && ["ACTIVE", "PUBLISHED", "LISTED", "OUT_OF_STOCK"].includes(product.listingStatus ?? "")) ||
+          (product.shopifyProductId && !["ARCHIVED", "DRAFT"].includes((product.shopifyStatus ?? "").toUpperCase()))))) &&
+      (procurementCostNeedsVerification(product) || !product.pocamarketSyncedAt || (product.pocamarketLastAttemptAt && product.pocamarketLastAttemptAt > product.pocamarketSyncedAt) || Date.now() - product.pocamarketSyncedAt.getTime() >= PROCUREMENT_REFRESH_MS) &&
+      (!product.pocamarketLastAttemptAt || Date.now() - product.pocamarketLastAttemptAt.getTime() >= 15 * 60_000)
+    ));
   // 확인 필요만 돌릴 때는 개수 입력 없이 대상 전체를 담되 안전 상한(MAX)까지만 처리한다.
   const batchSize =
     onlyUnsynced && requestedLimit === undefined
@@ -207,7 +227,7 @@ export async function createPocamarketSyncBatch(
   const timestamp = (value: Date | null) => value?.getTime() ?? 0;
   const priority = (product: (typeof candidates)[number]) => {
     if (settings.priorityStrategy === "MISSING_PRICE") {
-      return product.salePrice === null ? 1 : 0;
+      return product.salePrice === null ? 0 : 1;
     }
     if (settings.priorityStrategy === "NEVER_SYNCED") {
       return product.pocamarketSyncedAt === null ? 0 : 1;
@@ -222,9 +242,22 @@ export async function createPocamarketSyncBatch(
     }
     return 0;
   };
+  const businessPriority = (product: (typeof candidates)[number]) => {
+    if (procurementCostNeedsVerification(product)) return 0;
+    if (product.pocamarketSyncedAt && Date.now() - product.pocamarketSyncedAt.getTime() < PROCUREMENT_REFRESH_MS) return 3;
+    if (product.orderItems?.length) return 0;
+    if ((product.ebayItemId || product.shopifyProductId)) return 1;
+    return 2;
+  };
   const products = candidates
     .sort(
       (left, right) =>
+        (settings.priorityStrategy === "SMART" ? businessPriority(left) - businessPriority(right) : 0) ||
+        // Rotate within each business priority tier; fresh listings cannot starve new cards.
+        // A permanent priced-first tier would starve BTS and newly discovered products.
+        (settings.priorityStrategy === "SMART"
+          ? timestamp(left.pocamarketLastAttemptAt) - timestamp(right.pocamarketLastAttemptAt)
+          : 0) ||
         priority(left) - priority(right) ||
         timestamp(left.pocamarketLastAttemptAt) -
           timestamp(right.pocamarketLastAttemptAt) ||
@@ -664,16 +697,22 @@ async function recoverObservationSaveFailure(
   return recovered.count === 1;
 }
 
-// 한 번의 호출에서 처리할 항목 수. 항목마다 포카마켓 배려용 대기(최대 3초)가
-// 있고 서버리스 함수는 그 대기 시간에도 메모리 요금이 매겨지므로, 호출 횟수를
-// 줄여 호출마다 붙는 고정비용(콜드 스타트, 연결, 배치 조회)을 줄인다.
-// 12개 × 최대 3초 = 36초로 maxDuration 60초 안에 여유를 남긴다.
-const SYNC_CHUNK_SIZE = 12;
+// Leave time for database persistence and reconciliation within the 60s route.
+// The wall-clock budget remains the hard stop; fast responses can fill a larger chunk.
+const SYNC_CHUNK_SIZE = 20;
+// A live cron invocation can run for 300 seconds; reclaim only after it can no
+// longer be running. Otherwise a slow observation can be stolen mid-commit.
+const WORKER_LEASE_MS = 360_000;
+const CHUNK_START_BUDGET_MS = 25_000;
+const ITEM_REQUEST_BUDGET_MS = 8_000;
 
 export async function processPocamarketSyncBatch(
   batchId: string,
   limit = SYNC_CHUNK_SIZE,
+  options?: { startBudgetMs?: number },
 ) {
+  const invocationStartedAt = Date.now();
+  const startBudgetMs = Math.max(1000, Math.min(240_000, options?.startBudgetMs ?? CHUNK_START_BUDGET_MS));
   const workerToken = randomUUID();
   const now = new Date();
   const workerMarker = `WORKER:${workerToken}`;
@@ -684,7 +723,7 @@ export async function processPocamarketSyncBatch(
       OR: [
         { deviceSerial: null },
         { deviceSerial: "SERVER_API" },
-        { updatedAt: { lt: new Date(now.getTime() - 45_000) } },
+        { updatedAt: { lt: new Date(now.getTime() - WORKER_LEASE_MS) } },
       ],
     },
     data: { deviceSerial: workerMarker },
@@ -693,106 +732,91 @@ export async function processPocamarketSyncBatch(
     return { processed: 0, stopped: false, status: "RUNNING", alreadyRunning: true };
   }
 
-  // A serverless invocation can be terminated between claiming and recording an
-  // item. Recover those stale claims when a new worker obtains the expired lease.
-  await prisma.pocamarketSyncItem.updateMany({
-    where: {
+  try {
+    // Bound recovery across invocations too: repeated termination must not loop forever.
+    const staleWhere = {
       batchId,
       status: "RUNNING",
-      updatedAt: { lt: new Date(now.getTime() - 45_000) },
-    },
-    data: {
-      status: "QUEUED",
-      deviceSerial: null,
-      errorCode: "WORKER_TIMEOUT",
-      errorMessage: "이전 작업이 중단되어 자동으로 다시 대기열에 넣었습니다.",
-    },
-  });
-
-  const config = loadPocamarketApiConfig();
-  const batchOwner = await prisma.pocamarketSyncBatch.findUnique({
-    where: { id: batchId },
-    select: {
-      userId: true,
-      startedAt: true,
-      user: { select: { pocamarketSyncSettings: { select: { speedProfile: true } } } },
-    },
-  });
-  const profileName = batchOwner?.user.pocamarketSyncSettings?.speedProfile;
-  if (profileName && profileName in pocamarketSpeedProfiles) {
-    const profile =
-      pocamarketSpeedProfiles[profileName as keyof typeof pocamarketSpeedProfiles];
-    config.minDelayMs = profile.minDelayMs;
-    config.maxDelayMs = profile.maxDelayMs;
-  }
-  let processed = 0;
-  let stopped = false;
-  let adaptivePenaltyMs = 0;
-  const automaticSpeed = profileName === "AUTO";
-  const requests: Promise<{ itemId: string; observation: Observation }>[] = [];
-
-  try {
-  const candidates = await prisma.pocamarketSyncItem.findMany({
-    where: {
-      batchId,
-      status: "QUEUED",
-      batch: { status: { in: ["QUEUED", "RUNNING"] } },
-    },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    take: limit,
-    select: { id: true, productNumber: true, retryCount: true },
-  });
-  if (candidates.length) {
-    const candidateIds = candidates.map((candidate) => candidate.id);
+      updatedAt: { lt: new Date(now.getTime() - WORKER_LEASE_MS) },
+    };
     await prisma.pocamarketSyncItem.updateMany({
-      where: { id: { in: candidateIds }, status: "QUEUED" },
-      data: { status: "RUNNING", deviceSerial: workerMarker },
-    });
-    const running = await prisma.pocamarketSyncBatch.updateMany({
-      where: {
-        id: batchId,
-        deviceSerial: workerMarker,
-        status: { in: ["QUEUED", "RUNNING"] },
-      },
+      where: { ...staleWhere, retryCount: { gte: POCAMARKET_RESULT_SAVE_MAX_ATTEMPTS - 1 } },
       data: {
-        status: "RUNNING",
-        deviceSerial: workerMarker,
-        startedAt: batchOwner?.startedAt ? undefined : new Date(),
+        status: "FAILED", deviceSerial: null, retryCount: { increment: 1 },
+        errorCode: "WORKER_TIMEOUT",
+        errorMessage: "작업 시간 초과가 반복되어 중단했습니다. 확인 후 다시 시도해 주세요.",
       },
     });
-    if (running.count !== 1) {
-      await prisma.pocamarketSyncItem.updateMany({
-        where: { id: { in: candidateIds }, status: "RUNNING" },
-        data: { status: "QUEUED", deviceSerial: null },
-      });
-      candidates.splice(0);
+    await prisma.pocamarketSyncItem.updateMany({
+      where: { ...staleWhere, retryCount: { lt: POCAMARKET_RESULT_SAVE_MAX_ATTEMPTS - 1 } },
+      data: {
+        status: "QUEUED", deviceSerial: null, retryCount: { increment: 1 },
+        errorCode: "WORKER_TIMEOUT",
+        errorMessage: "이전 작업이 중단되어 자동으로 다시 대기열에 넣었습니다.",
+      },
+    });
+
+    const config = loadPocamarketApiConfig();
+    const batchOwner = await prisma.pocamarketSyncBatch.findUnique({
+      where: { id: batchId },
+      select: {
+        userId: true,
+        startedAt: true,
+        user: { select: { pocamarketSyncSettings: { select: { speedProfile: true } } } },
+      },
+    });
+    const profileName = batchOwner?.user.pocamarketSyncSettings?.speedProfile;
+    if (profileName && profileName in pocamarketSpeedProfiles) {
+      const profile =
+        pocamarketSpeedProfiles[profileName as keyof typeof pocamarketSpeedProfiles];
+      config.minDelayMs = profile.minDelayMs;
+      config.maxDelayMs = profile.maxDelayMs;
     }
-  }
+    let processed = 0;
+    let stopped = false;
+    let adaptivePenaltyMs = 0;
+    const automaticSpeed = profileName === "AUTO";
 
-  for (const candidate of candidates) {
-    if (stopped) break;
-    const item = candidate;
+    const candidates = await prisma.pocamarketSyncItem.findMany({
+      where: {
+        batchId,
+        status: "QUEUED",
+        batch: { status: { in: ["QUEUED", "RUNNING"] } },
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: Math.max(1, Math.min(startBudgetMs > CHUNK_START_BUDGET_MS ? 100 : SYNC_CHUNK_SIZE, Math.floor(limit) || SYNC_CHUNK_SIZE)),
+      select: { id: true, productNumber: true, retryCount: true },
+    });
+    for (const candidate of candidates) {
+      if (stopped || Date.now() - invocationStartedAt >= startBudgetMs) break;
+      const item = candidate;
 
-    await apiSleep(
-      randomDelayMs(
-        config.minDelayMs + adaptivePenaltyMs,
-        config.maxDelayMs + adaptivePenaltyMs,
-      ),
-    );
+      await apiSleep(
+        randomDelayMs(
+          config.minDelayMs + adaptivePenaltyMs,
+          config.maxDelayMs + adaptivePenaltyMs,
+        ),
+      );
 
-    if (stopped) {
-      await prisma.pocamarketSyncItem.updateMany({
-        where: { id: item.id, status: "RUNNING", deviceSerial: workerMarker },
-        data: { status: "QUEUED", deviceSerial: null },
+      if (Date.now() - invocationStartedAt >= startBudgetMs) break;
+      const running = await prisma.pocamarketSyncBatch.updateMany({
+        where: { id: batchId, deviceSerial: workerMarker, status: { in: ["QUEUED", "RUNNING"] } },
+        data: { status: "RUNNING", startedAt: batchOwner?.startedAt ? undefined : new Date() },
       });
-      break;
-    }
+      if (running.count !== 1) break;
+      // Claim only the item being processed. Unstarted items stay QUEUED.
+      const claimed = await prisma.pocamarketSyncItem.updateMany({
+        where: { id: item.id, status: "QUEUED" },
+        data: { status: "RUNNING", deviceSerial: workerMarker },
+      });
+      if (claimed.count !== 1) continue;
 
-    requests.push((async () => {
       const requestStartedAt = Date.now();
       let observation: Observation;
       try {
-        const state = await fetchPocamarketProductState(item.productNumber, config);
+        const state = await fetchPocamarketProductState(item.productNumber, config, {
+          deadlineAt: Date.now() + ITEM_REQUEST_BUDGET_MS,
+        });
         const latencyMs = Date.now() - requestStartedAt;
         if (automaticSpeed) {
           adaptivePenaltyMs =
@@ -818,73 +842,55 @@ export async function processPocamarketSyncBatch(
           safetyStop,
         };
       }
-      return { itemId: item.id, observation };
-    })());
-  }
-  const results = await Promise.allSettled(requests);
-  for (const result of results) {
-    if (result.status !== "fulfilled") continue;
-    try {
-      await recordPocamarketObservation(
-        result.value.itemId,
-        workerMarker,
-        result.value.observation,
-      );
-      processed += 1;
-    } catch (error) {
-      const candidate = candidates.find(
-        (item) => item.id === result.value.itemId,
-      );
-      if (candidate) {
+      // Persist each completed item before starting the next external request.
+      try {
+        await recordPocamarketObservation(item.id, workerMarker, observation);
+        processed += 1;
+      } catch (error) {
         await recoverObservationSaveFailure(
-          batchId,
-          candidate.id,
-          workerMarker,
-          candidate.retryCount,
-          error,
+          batchId, item.id, workerMarker, item.retryCount, error,
         );
       }
     }
-  }
 
-  let progress = await reconcilePocamarketSyncBatch(batchId);
-  const batch = progress.status === "READY"
-    ? await prisma.pocamarketSyncBatch.findUnique({
-        where: { id: batchId },
-        select: { userId: true },
-      })
-    : null;
-  if (batch) {
-    try {
-      await applyPocamarketSyncBatch(batch.userId, batchId);
-    } catch {
-      const appliedCount = await prisma.pocamarketSyncItem.count({
-        where: { batchId, appliedAt: { not: null } },
-      });
-      if (appliedCount > 0) {
-        await prisma.pocamarketSyncBatch.update({
+    let progress = await reconcilePocamarketSyncBatch(batchId);
+    const batch = progress.status === "READY"
+      ? await prisma.pocamarketSyncBatch.findUnique({
           where: { id: batchId },
-          data: { status: "APPLIED" },
+          select: { userId: true },
+        })
+      : null;
+    if (batch) {
+      try {
+        await applyPocamarketSyncBatch(batch.userId, batchId);
+      } catch {
+        const appliedCount = await prisma.pocamarketSyncItem.count({
+          where: { batchId, appliedAt: { not: null } },
         });
+        if (appliedCount > 0) {
+          await prisma.pocamarketSyncBatch.update({
+            where: { id: batchId },
+            data: { status: "APPLIED" },
+          });
+        }
+        // A batch containing only failures/anomalies remains READY for inspection.
       }
-      // A batch containing only failures/anomalies remains READY for inspection.
+      progress = await reconcilePocamarketSyncBatch(batchId);
     }
-    progress = await reconcilePocamarketSyncBatch(batchId);
-  }
 
-  const currentBatch = await prisma.pocamarketSyncBatch.findUnique({
-    where: { id: batchId },
-    select: { status: true },
-  });
-  return {
-    processed,
-    stopped,
-    status: currentBatch?.status ?? progress.status,
-    shouldContinue:
-      !stopped &&
-      ["QUEUED", "RUNNING"].includes(currentBatch?.status ?? "") &&
-      progress.queuedCount > 0,
-  };
+    const currentBatch = await prisma.pocamarketSyncBatch.findUnique({
+      where: { id: batchId },
+      select: { status: true },
+    });
+    return {
+      processed,
+      stopped,
+      status: currentBatch?.status ?? progress.status,
+      shouldContinue:
+        !stopped &&
+        ["QUEUED", "RUNNING"].includes(currentBatch?.status ?? "") &&
+        progress.queuedCount > 0,
+    };
   } finally {
     await prisma.pocamarketSyncBatch.updateMany({
       where: { id: batchId, deviceSerial: workerMarker },

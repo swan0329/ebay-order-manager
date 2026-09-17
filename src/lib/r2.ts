@@ -1,7 +1,9 @@
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -125,6 +127,61 @@ export async function getObjectFromR2(
   } catch {
     return null;
   }
+}
+
+// 같은 버킷 안에서 바이트를 그대로 옮긴다. 내려받아 다시 올리면 파일 크기만큼
+// 시간이 들지만 복사는 R2 안에서 끝난다.
+export async function copyObjectInR2(input: {
+  fromKey: string;
+  toKey: string;
+  contentType: string;
+  cacheControl?: string;
+}) {
+  const config = assertR2Configured();
+  const fromKey = normalizeR2Key(input.fromKey);
+  const toKey = normalizeR2Key(input.toKey);
+  if (!fromKey || !toKey) throw new Error("R2 key is required.");
+  await clientFor(config).send(
+    new CopyObjectCommand({
+      Bucket: config.bucketName,
+      CopySource: `${config.bucketName}/${fromKey}`,
+      Key: toKey,
+      ContentType: input.contentType,
+      CacheControl: input.cacheControl ?? "no-cache",
+      MetadataDirective: "REPLACE",
+    }),
+  );
+  return { key: toKey, url: buildPublicR2Url(toKey, config.publicBaseUrl) };
+}
+
+export type R2ObjectSummary = {
+  key: string;
+  size: number;
+  lastModified: Date | null;
+};
+
+// 저장 현황 조사를 위한 읽기 전용 목록. 한 번에 1,000개까지만 돌려주므로
+// 호출한 쪽이 cursor로 이어서 읽는다.
+export async function listObjectsFromR2(cursor?: string | null) {
+  const config = assertR2Configured();
+  const response = await clientFor(config).send(
+    new ListObjectsV2Command({
+      Bucket: config.bucketName,
+      MaxKeys: 1000,
+      ContinuationToken: cursor ?? undefined,
+    }),
+  );
+  const objects: R2ObjectSummary[] = (response.Contents ?? [])
+    .filter((item) => Boolean(item.Key))
+    .map((item) => ({
+      key: item.Key as string,
+      size: Number(item.Size ?? 0),
+      lastModified: item.LastModified ?? null,
+    }));
+  return {
+    objects,
+    cursor: response.IsTruncated ? (response.NextContinuationToken ?? null) : null,
+  };
 }
 
 export async function deleteObjectFromR2(

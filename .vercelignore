@@ -3,3 +3,12 @@
 node_modules
 .next
 *.log
+*.xlsx
+*.csv
+tools
+.policy-cache-index.patch
+.codex-tmp
+BTS_상품번호_JPG
+logs
+pocamarket-bridge.config*.json
+-

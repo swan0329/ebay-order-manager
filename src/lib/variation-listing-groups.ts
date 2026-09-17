@@ -1,3 +1,6 @@
+import { unitCardOption } from "@/lib/unit-card-label";
+import { listingAlbumContext } from "@/lib/listing-title-context";
+
 export type VariationProduct = {
   id: string;
   sku: string;
@@ -7,6 +10,8 @@ export type VariationProduct = {
   optionName: string | null;
   imageUrl: string | null;
   ebayImageUrls?: string[];
+  listingImageIsImageWork?: boolean;
+  featuredMembers?: string | null;
 };
 
 export type VariationListingGroup<T extends VariationProduct = VariationProduct> = {
@@ -49,14 +54,14 @@ export function variationVersionName(product: VariationProduct) {
 }
 
 function titleFor(groupName: string, albumName: string, versionName: string) {
-  const parts = [groupName, albumName, versionName];
+  const parts = [groupName, listingAlbumContext(groupName, albumName, versionName)];
   return [...new Set(parts.map(clean).filter(Boolean))].join(" ").slice(0, 80);
 }
 
 function uniqueVariationNames<T extends VariationProduct>(products: T[]) {
   const used = new Map<string, number>();
   return products.map((product) => {
-    const member = clean(product.optionName) || "Card";
+    const member = unitCardOption(product) || clean(product.optionName) || "Card";
     const count = (used.get(comparable(member)) ?? 0) + 1;
     used.set(comparable(member), count);
     return { ...product, variationName: count === 1 ? member : `${member} ${count}` };
@@ -119,6 +124,16 @@ export function buildVariationListingGroups<T extends VariationProduct>(products
 
 export function relationshipDetails(group: VariationListingGroup) {
   return `Card=${group.products.map((product) => product.variationName.replace(/[;|=]/g, " ")).join(";")}`;
+}
+
+export function variationProductsToUpload<T extends { id: string }>(input: {
+  products: T[];
+  parentItemId: string | null;
+  includedProductIds: string[];
+}) {
+  if (!input.parentItemId) return input.products;
+  const included = new Set(input.includedProductIds);
+  return input.products.filter((product) => !included.has(product.id));
 }
 
 const ACTIVE_LISTING_STATUSES = ["ACTIVE", "PUBLISHED", "LISTED"];

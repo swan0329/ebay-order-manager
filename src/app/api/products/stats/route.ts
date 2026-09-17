@@ -4,10 +4,12 @@ import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await requireApiUser();
-    return Response.json(await getProductStats());
+    const requestedChannel = new URL(request.url).searchParams.get("channel");
+    const channel = requestedChannel === "SHOPIFY" ? "SHOPIFY" : "EBAY";
+    return Response.json(await getProductStats(channel));
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return jsonError("Unauthorized", 401);

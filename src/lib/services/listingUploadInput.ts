@@ -216,6 +216,13 @@ function renderTemplate(template: string | null | undefined, values: ListingUplo
   return template.replace(/\{\{?\s*([a-zA-Z0-9_]+)\s*\}?\}/g, (_, key: string) => replacements[key] ?? "");
 }
 
+export function renderListingTemplate(
+  template: string | null | undefined,
+  values: ListingUploadDraft,
+) {
+  return renderTemplate(template, values) ?? "";
+}
+
 function generatedSku(draft: ListingUploadDraft, rowIndex?: number) {
   const shouldGenerate = toBoolean(draft.autoGenerateSku);
 

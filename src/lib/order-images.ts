@@ -1,5 +1,12 @@
 type JsonRecord = Record<string, unknown>;
 
+// Matched card images identify the exact SKU; a channel listing image can be a group thumbnail.
+export function orderCardImageSources(productImage: string | null | undefined, raw: unknown): string[] {
+  return [...new Set([productImage, orderItemImageUrlFromRaw(raw)]
+    .filter((url): url is string => typeof url === "string" && Boolean(url.trim()))
+    .map(url => url.trim()))];
+}
+
 function asRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as JsonRecord)

@@ -245,6 +245,13 @@ export function ProductListingUploader({
       return;
     }
 
+    if (
+      !previewOnly &&
+      !window.confirm("검증된 내용으로 실제 eBay 상품을 등록하거나 수정할까요?")
+    ) {
+      return;
+    }
+
     const form = new FormData(formElement);
 
     setSingleLoading(true);
@@ -320,6 +327,16 @@ export function ProductListingUploader({
     const file = event.currentTarget.files?.[0];
 
     if (!file) {
+      return;
+    }
+
+    if (
+      !previewOnly &&
+      !window.confirm(
+        `${file.name}의 상품을 실제 eBay에 등록하거나 수정할까요? 전송 전 각 행을 다시 자동검증합니다.`,
+      )
+    ) {
+      event.currentTarget.value = "";
       return;
     }
 

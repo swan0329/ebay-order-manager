@@ -1,0 +1,108 @@
+{
+  "settings": {
+    "logoUrl": "https://pub-c297f3c41a38429e9973fe44e9bf5f2e.r2.dev/settings/cmov263l40000gpbuoc0efeq0/variation-watermark-1784594683533.png",
+    "logoKey": "settings/cmov263l40000gpbuoc0efeq0/variation-watermark-1784594683533.png",
+    "watermarkEnabled": true,
+    "watermarkOpacity": 0.04,
+    "watermarkLogoSize": 290,
+    "watermarkGap": -33,
+    "variationWatermarkOpacity": 0.04,
+    "variationWatermarkLogoSize": 200,
+    "variationWatermarkGap": 32,
+    "imageExposure": 1.05,
+    "imageContrast": 1.05,
+    "imageSaturation": 1.05,
+    "imageRotation": 0,
+    "imageZoom": 0,
+    "imageFlipHorizontal": false,
+    "backgroundEnabled": true,
+    "backgroundUrl": "https://pub-c297f3c41a38429e9973fe44e9bf5f2e.r2.dev/settings/cmov263l40000gpbuoc0efeq0/listing-background-1788410242273.jpg",
+    "backgroundKey": "settings/cmov263l40000gpbuoc0efeq0/listing-background-1788410242273.jpg",
+    "backgroundPadding": 80,
+    "backgroundColor": "#FFFFFF",
+    "paddingTop": 40,
+    "paddingRight": 40,
+    "paddingBottom": 40,
+    "paddingLeft": 40,
+    "shadowEnabled": false,
+    "shadowOpacity": 0.35,
+    "shadowBlur": 20,
+    "shadowOffsetX": 12,
+    "shadowOffsetY": 12
+  },
+  "samples": [
+    {
+      "sku": "15131",
+      "source": [
+        736,
+        1225
+      ],
+      "result": [
+        800,
+        1200
+      ],
+      "backgroundEligible": true
+    },
+    {
+      "sku": "12764",
+      "source": [
+        540,
+        860
+      ],
+      "result": [
+        800,
+        1200
+      ],
+      "backgroundEligible": true
+    },
+    {
+      "sku": "12294",
+      "source": [
+        674,
+        1200
+      ],
+      "result": [
+        800,
+        1200
+      ],
+      "backgroundEligible": true
+    },
+    {
+      "sku": "101214",
+      "source": [
+        540,
+        860
+      ],
+      "result": [
+        800,
+        1200
+      ],
+      "backgroundEligible": true
+    },
+    {
+      "sku": "4625",
+      "source": [
+        1199,
+        1396
+      ],
+      "result": [
+        800,
+        1200
+      ],
+      "backgroundEligible": true
+    },
+    {
+      "sku": "13236",
+      "source": [
+        883,
+        731
+      ],
+      "result": [
+        800,
+        1200
+      ],
+      "backgroundEligible": true
+    }
+  ],
+  "scope": "local preview only; no external channel writes"
+}

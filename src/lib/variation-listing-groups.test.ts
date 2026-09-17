@@ -3,11 +3,31 @@ import {
   buildVariationListingGroups,
   relationshipDetails,
   variationSinglesToEnd,
+  variationProductsToUpload,
 } from "./variation-listing-groups";
 
 const base = { brand: "Stray Kids", category: "HOP", productName: "JYP Shop", imageUrl: "https://example.com/card.jpg" };
 
 describe("buildVariationListingGroups", () => {
+  it("cleans a duplicated BTS display title without changing its saved group key", () => {
+    const category="BTS 3RD MUSTER ARMY.ZIP+ DVD";
+    const result=buildVariationListingGroups(["Jin","V"].map((member,index)=>({
+      ...base,id:String(index),sku:String(index),brand:"BTS",category,optionName:member,
+      productName:`BTS ${category} ${member}`,
+    })));
+    expect(result.groups[0].title).toBe("BTS 3RD MUSTER ARMY.ZIP+ DVD");
+    expect(result.groups[0].key).toBe("bts\u001fbts 3rd muster army.zip+ dvd\u001f3rd muster army.zip+ dvd");
+  });
+  it("keeps the grouping key but gives unit cards stable member/SKU options", () => {
+    const products = [
+      { ...base, id: "u1", sku: "101", optionName: "Unit", featuredMembers: "Felix, Han" },
+      { ...base, id: "u2", sku: "102", optionName: "Unit", featuredMembers: "Hyunjin, I.N" },
+    ];
+    const before = buildVariationListingGroups(products.map(p => ({ ...p, featuredMembers: null })));
+    const after = buildVariationListingGroups(products);
+    expect(after.groups[0].key).toBe(before.groups[0].key);
+    expect(after.groups[0].products.map(p => p.variationName)).toEqual(["Felix + Han #101", "Hyunjin + I.N #102"]);
+  });
   it("groups matching album/version cards and leaves singletons unmatched", () => {
     const result = buildVariationListingGroups([
       { ...base, id: "1", sku: "A-1", optionName: "Bang Chan" },
@@ -106,5 +126,25 @@ describe("variationSinglesToEnd", () => {
         endNewGroupSingles: true,
       }),
     ).toEqual([]);
+  });
+});
+
+describe("variationProductsToUpload", () => {
+  const products = [{ id: "existing" }, { id: "new-option" }];
+
+  it("uploads the whole group when creating a new option listing", () => {
+    expect(variationProductsToUpload({
+      products,
+      parentItemId: null,
+      includedProductIds: [],
+    })).toEqual(products);
+  });
+
+  it("adds only missing options to an existing option listing", () => {
+    expect(variationProductsToUpload({
+      products,
+      parentItemId: "123456789",
+      includedProductIds: ["existing"],
+    })).toEqual([{ id: "new-option" }]);
   });
 });

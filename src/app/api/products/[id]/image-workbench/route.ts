@@ -1,5 +1,3 @@
-import { lookup } from "node:dns/promises";
-import net from "node:net";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 import { z } from "zod";
@@ -8,6 +6,7 @@ import { uploadBufferToR2 } from "@/lib/r2";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { getCurrentUser, UnauthorizedError } from "@/lib/session";
 import { workerCanAccessProduct } from "@/lib/image-work-assignments";
+import { assertSafeRemoteUrl } from "@/lib/safe-remote-url";
 
 export const runtime = "nodejs";
 
@@ -16,22 +15,6 @@ const saveSchema = z.object({
   image: z.string().startsWith("data:image/").max(20_000_000),
   sourceUrl: z.string().url().optional(),
 });
-
-function privateAddress(address: string) {
-  if (net.isIPv4(address)) {
-    const [a, b] = address.split(".").map(Number);
-    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
-  }
-  return address === "::1" || address.startsWith("fc") || address.startsWith("fd") || address.startsWith("fe80:");
-}
-
-async function safeRemoteUrl(raw: string) {
-  const url = new URL(raw);
-  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("http/https URL만 사용할 수 있습니다.");
-  const addresses = await lookup(url.hostname, { all: true });
-  if (!addresses.length || addresses.some((item) => privateAddress(item.address))) throw new Error("내부 네트워크 주소는 사용할 수 없습니다.");
-  return url;
-}
 
 async function authorize(productId: string) {
   const user = await getCurrentUser();
@@ -48,7 +31,7 @@ export async function GET(request: Request, context: Context) {
     await authorize(id);
     const raw = new URL(request.url).searchParams.get("url");
     if (!raw) return jsonError("이미지 URL이 필요합니다.", 400);
-    const url = await safeRemoteUrl(raw);
+    const url = await assertSafeRemoteUrl(raw);
     const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15_000), headers: { "user-agent": "Mozilla/5.0" } });
     if (!response.ok) return jsonError(`후보 이미지 요청 실패: HTTP ${response.status}`, 502);
     const contentType = response.headers.get("content-type") ?? "";
@@ -92,7 +75,10 @@ export async function POST(request: Request, context: Context) {
       ? `image-work-reviews/${safeProductNumber}/${assignmentRows[0].id}-${Date.now()}.jpg`
       : `products/${safeProductNumber}/${safeProductNumber}.jpg`;
     const uploaded = await uploadBufferToR2({ buffer: output, key, contentType: "image/jpeg", cacheControl: "no-cache" });
-    const urls = [uploaded.url, ...product.ebayImageUrls.filter((url) => url !== uploaded.url)];
+    // A saved/approved workbench result is the only channel-approved image.
+    // Keeping the previous gallery here could promote an unreviewed candidate
+    // to Shopify/eBay as a second image.
+    const urls = [uploaded.url];
     if (user.role === "WORKER") {
       await prisma.$transaction([
         prisma.$executeRaw`INSERT INTO "product_image_history" ("id", "product_id", "actor_id", "action", "image_url", "previous_urls", "metadata") VALUES (${randomUUID()}, ${id}, ${user.id}, 'worker_submitted', ${uploaded.url}, ${JSON.stringify(product.ebayImageUrls)}::jsonb, ${JSON.stringify({ sourceUrl: input.sourceUrl ?? null, previewKey: uploaded.key })}::jsonb)`,

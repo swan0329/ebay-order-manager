@@ -1,4 +1,5 @@
-import { ebayApiRequest, getActiveEbayInventoryAccount } from "@/lib/services/ebayApiService";
+import { ebayApplicationFetch } from "@/lib/ebay";
+import { getEbayConfig } from "@/lib/env";
 
 type AspectValueRecord = {
   localizedValue?: string;
@@ -66,14 +67,12 @@ function normalizeAspect(aspect: AspectRecord): EbayCategoryAspect | null {
 }
 
 export async function getDefaultCategoryTreeId(
-  userId: string,
+  _userId: string,
   marketplaceId = "EBAY_US",
 ) {
-  const account = await getActiveEbayInventoryAccount(userId);
-  const result = await ebayApiRequest(account, {
-    path: "/commerce/taxonomy/v1/get_default_category_tree_id",
-    query: { marketplace_id: marketplaceId },
-  });
+  const url = new URL("/commerce/taxonomy/v1/get_default_category_tree_id", getEbayConfig().hosts.api);
+  url.searchParams.set("marketplace_id", marketplaceId);
+  const result = await ebayApplicationFetch(url);
   const body = result.body as { categoryTreeId?: string } | null;
   const categoryTreeId = String(body?.categoryTreeId ?? "").trim();
 
@@ -96,14 +95,13 @@ export async function getCategoryAspects(input: {
   }
 
   const marketplaceId = input.marketplaceId?.trim() || "EBAY_US";
-  const account = await getActiveEbayInventoryAccount(input.userId);
   const categoryTreeId = await getDefaultCategoryTreeId(input.userId, marketplaceId);
-  const result = await ebayApiRequest(account, {
-    path: `/commerce/taxonomy/v1/category_tree/${encodeURIComponent(
-      categoryTreeId,
-    )}/get_item_aspects_for_category`,
-    query: { category_id: categoryId },
-  });
+  const url = new URL(
+    `/commerce/taxonomy/v1/category_tree/${encodeURIComponent(categoryTreeId)}/get_item_aspects_for_category`,
+    getEbayConfig().hosts.api,
+  );
+  url.searchParams.set("category_id", categoryId);
+  const result = await ebayApplicationFetch(url);
   const body = result.body as { aspects?: AspectRecord[] } | null;
   const aspects =
     body?.aspects?.map(normalizeAspect).filter((aspect): aspect is EbayCategoryAspect =>

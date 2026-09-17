@@ -1,10 +1,22 @@
 import type { EbayAccount, Product } from "@/generated/prisma";
 import { EbayApiError } from "@/lib/ebay";
+import { repairKoreaEbayInventoryLocation } from "@/lib/ebay-inventory-location";
+import {
+  buildEbayListingDescription,
+  buildEbayListingCategoryId,
+  buildEbayListingImageUrls,
+  buildEbayListingItemSpecificArrays,
+  buildEbayListingItemSpecifics,
+  buildEbayListingTitle,
+  clampAspectValue,
+} from "@/lib/ebay-listing-fields";
 import { ebayApiRequest } from "@/lib/services/ebayApiService";
 import type { ListingUploadInput } from "@/lib/services/inventoryService";
+import { assertListingPublishSafety } from "@/lib/listing-publish-safety";
 
 type ListingOffer = {
   offerId?: string;
+  status?: string;
   listing?: {
     listingId?: string;
     listingStatus?: string;
@@ -40,6 +52,32 @@ function requiredValue(value: string | null | undefined, label: string) {
   return text;
 }
 
+export function hasEbayErrorId(error: unknown, errorId: number) {
+  if (!(error instanceof EbayApiError)) return false;
+  const body = error.body;
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false;
+  const errors = (body as { errors?: unknown }).errors;
+  return Array.isArray(errors) && errors.some((entry) =>
+    Boolean(entry) && typeof entry === "object" &&
+    Number((entry as { errorId?: unknown }).errorId) === errorId,
+  );
+}
+
+export async function deleteUnavailableOffer(
+  account: EbayAccount,
+  offerId: string,
+) {
+  try {
+    await ebayApiRequest(account, {
+      method: "DELETE",
+      path: `/sell/inventory/v1/offer/${encodeURIComponent(offerId)}`,
+    });
+  } catch (error) {
+    if (error instanceof EbayApiError && error.status === 404) return;
+    throw error;
+  }
+}
+
 function priceString(value: unknown) {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -63,28 +101,22 @@ function cleanObject<T extends Record<string, unknown>>(value: T) {
 }
 
 export function productToListingInput(product: Product): ListingUploadInput {
-  const imageUrls = product.ebayImageUrls.length
-    ? product.ebayImageUrls
-    : product.imageUrl
-      ? [product.imageUrl]
-      : [];
-  const title = product.ebayTitle ?? product.productName;
-  const descriptionHtml =
-    product.descriptionHtml ??
-    product.memo ??
-    `<p>${title.replace(/[<>&]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[char] ?? char)}</p>`;
+  const imageUrls = buildEbayListingImageUrls(product);
+  const title = buildEbayListingTitle(product);
+  const descriptionHtml = buildEbayListingDescription(product);
+  const itemSpecifics = buildEbayListingItemSpecifics(product);
 
   return {
     sku: product.sku,
     title,
     descriptionHtml,
     price: requiredValue(
-      priceString(product.ebayPrice ?? product.salePrice),
+      priceString(product.ebayPrice),
       "price",
     ),
     quantity: product.stockQuantity,
     imageUrls,
-    categoryId: requiredValue(product.ebayCategoryId, "category_id"),
+    categoryId: buildEbayListingCategoryId(product),
     condition: product.ebayCondition ?? "NEW",
     shippingProfile: requiredValue(
       product.ebayShippingProfile ??
@@ -103,6 +135,10 @@ export function productToListingInput(product: Product): ListingUploadInput {
       product.ebayMarketplaceId ?? envValue("EBAY_MARKETPLACE_ID") ?? "EBAY_US",
     currency: product.ebayCurrency ?? envValue("EBAY_CURRENCY") ?? "USD",
     listingFormat: "FIXED_PRICE",
+    brand: itemSpecifics.Brand || product.brand,
+    type: itemSpecifics.Type,
+    countryOfOrigin: itemSpecifics["Country/Region of Manufacture"],
+    itemSpecifics: buildEbayListingItemSpecificArrays(product),
   };
 }
 
@@ -130,6 +166,14 @@ export function inventoryItemPayload(input: ListingUploadInput) {
 
   if (input.customLabel) {
     aspects["Custom Label"] = [input.customLabel];
+  }
+
+  // Saved drafts/templates can bypass the generated product specifics.
+  // Limit only the descriptive Set field; never truncate variant identity values.
+  for (const name of Object.keys(aspects)) {
+    if (name.trim().toLowerCase() === "set") {
+      aspects[name] = aspects[name].map((value) => clampAspectValue(value));
+    }
   }
 
   return cleanObject({
@@ -229,17 +273,45 @@ async function getExistingOffer(
   sku: string,
   marketplaceId: string,
 ) {
-  const result = await ebayApiRequest(account, {
-    path: "/sell/inventory/v1/offer",
-    query: {
-      sku,
-      marketplace_id: marketplaceId,
-      format: "FIXED_PRICE",
-    },
-  });
-  const body = result.body as { offers?: ListingOffer[] } | null;
+  try {
+    const result = await ebayApiRequest(account, {
+      path: "/sell/inventory/v1/offer",
+      query: {
+        sku,
+        marketplace_id: marketplaceId,
+        format: "FIXED_PRICE",
+      },
+    });
+    const body = result.body as { offers?: ListingOffer[] } | null;
+    return body?.offers?.[0] ?? null;
+  } catch (error) {
+    // eBay returns 404/25713 for a SKU that has no usable Inventory API
+    // offer. That is the normal create path, not a registration failure.
+    if (hasEbayErrorId(error, 25713)) return null;
+    if (error instanceof EbayApiError && error.status === 404) return null;
+    throw error;
+  }
+}
 
-  return body?.offers?.[0] ?? null;
+async function getOfferById(account: EbayAccount, offerId: string) {
+  try {
+    const result = await ebayApiRequest(account, {
+      path: `/sell/inventory/v1/offer/${encodeURIComponent(offerId)}`,
+    });
+    return result.body as ListingOffer;
+  } catch (error) {
+    if (hasEbayErrorId(error, 25713)) {
+      // eBay can keep an obsolete offer in getOffers even though it can no
+      // longer be updated. Remove that unusable object and recreate the offer
+      // for the same SKU instead of retrying it forever.
+      await deleteUnavailableOffer(account, offerId);
+      return null;
+    }
+    if (error instanceof EbayApiError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 async function createOrReplaceInventoryItem(
@@ -280,6 +352,13 @@ async function updateOffer(
     });
     return true;
   } catch (error) {
+    if (hasEbayErrorId(error, 25713)) {
+      // The offer can still appear in getOffers after eBay has made it
+      // unavailable for updates. Delete only that unusable offer object so the
+      // caller can recreate a clean offer for the same SKU.
+      await deleteUnavailableOffer(account, offerId);
+      return false;
+    }
     if (error instanceof EbayApiError && error.status === 404) {
       return false;
     }
@@ -288,13 +367,29 @@ async function updateOffer(
   }
 }
 
-async function publishOffer(account: EbayAccount, offerId: string) {
-  const result = await ebayApiRequest(account, {
+async function publishOffer(
+  account: EbayAccount,
+  offerId: string,
+  merchantLocationKey: string | null | undefined,
+) {
+  const request = () => ebayApiRequest(account, {
     method: "POST",
     path: `/sell/inventory/v1/offer/${encodeURIComponent(offerId)}/publish`,
   });
+  let result;
+  try {
+    result = await request();
+  } catch (error) {
+    if (
+      !hasEbayErrorId(error, 25012) ||
+      !merchantLocationKey ||
+      !await repairKoreaEbayInventoryLocation(account, merchantLocationKey)
+    ) {
+      throw error;
+    }
+    result = await request();
+  }
   const body = result.body as { listingId?: string } | null;
-
   return requiredValue(body?.listingId, "listingId");
 }
 
@@ -304,40 +399,57 @@ export async function publishProductListing(
   inputOverride?: ListingUploadInput,
 ): Promise<ListingUploadResult> {
   const input = inputOverride ?? productToListingInput(product);
+  await assertListingPublishSafety(product, input);
   const marketplaceId = input.marketplaceId ?? "EBAY_US";
 
+  // Read before writing. This recovers both stale local IDs and the important
+  // "eBay succeeded but our HTTP response/DB update was lost" retry case.
+  let existing = product.ebayOfferId
+    ? await getOfferById(account, product.ebayOfferId)
+    : null;
+  if (!existing) {
+    existing = await getExistingOffer(account, input.sku, marketplaceId);
+  }
+
+  // SKU-addressed PUT is idempotent and must precede offer creation/publishing.
   await createOrReplaceInventoryItem(account, input);
 
-  const existingOffer = await getExistingOffer(account, input.sku, marketplaceId);
-  const existingOfferId = existingOffer?.offerId ?? product.ebayOfferId;
-  const action = existingOfferId ? "revise" : "create";
-  let offerId = existingOfferId ?? null;
-  let listingId = existingOffer?.listing?.listingId ?? product.ebayItemId ?? null;
-  let listingStatus = existingOffer?.listing?.listingStatus ?? "UNPUBLISHED";
+  let offerId = existing?.offerId ?? null;
+  let action: "create" | "revise" = offerId ? "revise" : "create";
 
   if (offerId) {
     const updated = await updateOffer(account, offerId, input);
-
     if (!updated) {
-      offerId = await createOffer(account, input);
-      listingId = null;
-      listingStatus = "UNPUBLISHED";
+      // The saved offer disappeared between lookup and update. Re-query by SKU
+      // before creating, so a concurrent/retried request cannot duplicate it.
+      existing = await getExistingOffer(account, input.sku, marketplaceId);
+      offerId = existing?.offerId ?? null;
+      if (offerId) {
+        await updateOffer(account, offerId, input);
+      } else {
+        offerId = await createOffer(account, input);
+        action = "create";
+      }
     }
   } else {
     offerId = await createOffer(account, input);
   }
 
-  if (!listingId && offerId) {
-    listingId = await publishOffer(account, offerId);
-    listingStatus = "ACTIVE";
-  } else if (listingId) {
-    listingStatus = listingStatus === "UNPUBLISHED" ? "ACTIVE" : listingStatus;
+  const publishedListingId = existing?.listing?.listingId;
+  if (publishedListingId && action === "revise") {
+    return {
+      action,
+      offerId,
+      listingId: publishedListingId,
+      listingStatus: existing?.listing?.listingStatus ?? "ACTIVE",
+    };
   }
 
+  const listingId = await publishOffer(account, offerId, input.merchantLocationKey);
   return {
     action,
     offerId,
     listingId,
-    listingStatus,
+    listingStatus: "ACTIVE",
   };
 }

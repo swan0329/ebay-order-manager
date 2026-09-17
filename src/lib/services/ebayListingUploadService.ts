@@ -1,4 +1,8 @@
+import { resolveListingPriceUsd } from "@/lib/listing-price";
+import { listingQuantity } from "@/lib/listing-quantity";
+import { refreshProcurementProduct } from "@/lib/procurement-refresh";
 import { Prisma, type ListingDraft } from "@/generated/prisma";
+import { z } from "zod";
 import { EbayApiError } from "@/lib/ebay";
 import { prisma } from "@/lib/prisma";
 import { getActiveEbayInventoryAccount } from "@/lib/services/ebayApiService";
@@ -7,6 +11,7 @@ import { upsertProductFromListingInput } from "@/lib/services/inventoryService";
 import { draftToListingInput } from "@/lib/services/listingDraftService";
 import { publishProductListing } from "@/lib/services/listingService";
 import { validateListingUploadInput } from "@/lib/services/listingValidationService";
+import { prepareProductChannelImages } from "@/lib/listing-source-images";
 
 function toJson(value: unknown): Prisma.InputJsonValue | Prisma.JsonNullValueInput {
   return value === undefined ? Prisma.JsonNull : (value as Prisma.InputJsonValue);
@@ -49,6 +54,23 @@ function errorSummary(error: unknown) {
   return `eBay 오류: HTTP ${error.status}`;
 }
 
+function draftInputErrorSummary(error: unknown) {
+  if (!(error instanceof z.ZodError)) return errorSummary(error);
+  const labels: Record<string, string> = {
+    price: "판매가격",
+    categoryId: "eBay 카테고리",
+    shippingProfile: "배송정책",
+    returnProfile: "반품정책",
+    paymentProfile: "결제정책",
+    merchantLocationKey: "eBay 재고 위치",
+  };
+  const fields = [...new Set(error.issues.map((issue) => {
+    const field = String(issue.path[0] ?? "input");
+    return labels[field] ?? field;
+  }))];
+  return `eBay 등록 필수값을 자동으로 정하지 못했습니다: ${fields.join(", ")}`;
+}
+
 async function upsertListingLink(input: {
   inventoryId: string | null;
   sku: string;
@@ -83,7 +105,52 @@ async function upsertListingLink(input: {
 }
 
 export async function uploadDraft(userId: string, draft: ListingDraft) {
-  const input = await draftToListingInput(userId, draft);
+  let input;
+  let sourcePrimaryImageUrl: string | null = null;
+  try {
+    let refreshedSource;
+    if (draft.sourceInventoryId) {
+      const source = await prisma.product.findUnique({ where: { id: draft.sourceInventoryId } });
+      if (source) refreshedSource = await refreshProcurementProduct(source, userId);
+    }
+    input = await draftToListingInput(userId, draft);
+    if (refreshedSource) {
+      const price = resolveListingPriceUsd(refreshedSource, await prisma.pricingSettings.findUnique({ where: { id: "default" } }) ?? undefined);
+      const quantity = price ? listingQuantity(refreshedSource) : 0;
+      if (!price || quantity <= 0) throw new Error("포카마켓 가격·수량을 확인하지 못했거나 조달 재고가 없어 신규등록을 보류합니다.");
+      input.price = price.priceUsd.toFixed(2);
+      input.quantity = quantity;
+    }
+    if (draft.sourceInventoryId) {
+      const sourceProduct = await prisma.product.findUnique({
+        where: { id: draft.sourceInventoryId },
+        select: {
+          id: true,
+          sku: true,
+          imageUrl: true,
+          ebayImageUrls: true,
+          shopifyProductId: true,
+        },
+      });
+      if (sourceProduct) {
+        const preparedProduct = await prepareProductChannelImages(userId, sourceProduct);
+        const channelReadyImages = preparedProduct.ebayImageUrls;
+        if (channelReadyImages.length) input.imageUrls = [...new Set(channelReadyImages)];
+        sourcePrimaryImageUrl = sourceProduct.imageUrl;
+      }
+    }
+  } catch (error) {
+    const summary = draftInputErrorSummary(error);
+    await prisma.listingDraft.update({
+      where: { id: draft.id },
+      data: {
+        status: "failed",
+        errorSummary: summary,
+        rawErrorJson: Prisma.JsonNull,
+      },
+    });
+    return { draftId: draft.id, error: summary };
+  }
   const validation = await validateListingUploadInput(input, {
     userId,
     checkImageUrls: true,
@@ -173,6 +240,9 @@ export async function uploadDraft(userId: string, draft: ListingDraft) {
         ebayItemId: result.listingId,
         listingStatus: result.listingStatus,
         lastUploadedAt: now,
+        ebayLastSyncedPrice: input.price,
+        ebayLastSyncedQuantity: input.quantity,
+        imageUrl: sourcePrimaryImageUrl ?? undefined,
         uploadError: null,
         uploadErrorSummary: null,
         uploadRawError: Prisma.JsonNull,
@@ -199,11 +269,19 @@ export async function uploadDrafts(userId: string, ids: string[]) {
   const drafts = await prisma.listingDraft.findMany({
     where: { userId, id: { in: ids } },
   });
-  const results = [];
+  const results = new Array<Awaited<ReturnType<typeof uploadDraft>>>(drafts.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(3, drafts.length);
 
-  for (const draft of drafts) {
-    results.push(await uploadDraft(userId, draft));
-  }
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < drafts.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        results[index] = await uploadDraft(userId, drafts[index]);
+      }
+    }),
+  );
 
   return results;
 }

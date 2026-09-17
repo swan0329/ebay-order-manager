@@ -66,16 +66,17 @@ export default async function PriceMissingPage() {
     <div className="min-h-screen bg-zinc-50">
       <TopNav loginId={user.loginId} />
       <main className="mx-auto max-w-[1100px] px-4 py-6">
-        <h1 className="text-2xl font-semibold">가격 미입력 상품</h1>
+        <h1 className="text-2xl font-semibold">최종가 미확정 상품</h1>
         <p className="mb-1 mt-1 text-sm text-zinc-500">
-          공급과 이미지는 끝났는데 포카마켓 가격도, 수동 eBay 판매가도 없어서 신규등록
-          파일에서 빠지는 상품입니다. 판매가(USD)를 넣어 저장하면 목록에서 사라지고 바로
-          신규등록 대상이 됩니다. (현재 {ids.length.toLocaleString()}개
+          공급과 이미지는 끝났지만 관리자가 확정한 최종 판매가(USD)가 없는 상품입니다.
+          이미 판매 중인 과거 상품도 포함되므로, 가격을 확인해 확정한 뒤 채널 가격·수량
+          반영에서 실제 Shopify/eBay 가격을 정정하세요.
+          (현재 {ids.length.toLocaleString()}개
           {ids.length > items.length ? `, 이 화면에 ${items.length.toLocaleString()}개 표시` : ""})
         </p>
         <p className="mb-5 text-xs text-zinc-500">
-          여기서 저장한 금액은 마진 계산을 거치지 않고 그대로 eBay 시작가로 나갑니다.
-          나중에 포카마켓 가격이 확인되면 그때부터는 계산된 권장가가 우선합니다.
+          여기서 확정한 금액은 eBay와 Shopify에 공통으로 적용되는 최종 USD 판매가입니다.
+          포카마켓 가격이 확인되면 가격관리에서 다시 계산·승인해 새 최종가를 확정하세요.
         </p>
         <PriceMissingClient items={items} pricingReady={Boolean(pricingSettings)} />
       </main>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>포카마켓 휴대전화 연결</title>
+  <style>
+    :root{font-family:Pretendard,"Noto Sans KR",Arial,sans-serif;color:#18181b;background:#f4f4f5}*{box-sizing:border-box}body{margin:0}.wrap{max-width:760px;margin:auto;padding:32px 20px 60px}.hero{background:#18181b;color:#fff;border-radius:20px;padding:28px}.hero h1{font-size:25px;margin:0 0 8px}.hero p{margin:0;color:#d4d4d8;line-height:1.6}.status{margin-top:16px;border-radius:14px;padding:16px;background:#fff;border:1px solid #e4e4e7}.status strong{display:block;font-size:17px}.ok{border-color:#86efac;background:#f0fdf4;color:#166534}.bad{border-color:#fecaca;background:#fff1f2;color:#9f1239}.card{margin-top:16px;background:#fff;border:1px solid #e4e4e7;border-radius:16px;padding:20px}.step{display:flex;gap:12px}.number{display:grid;place-items:center;width:30px;height:30px;flex:none;border-radius:50%;background:#18181b;color:#fff;font-weight:800}.step h2{font-size:18px;margin:3px 0 6px}.step p,.hint{font-size:14px;line-height:1.65;color:#52525b;margin:0}.fields{display:grid;grid-template-columns:1fr 150px;gap:10px;margin-top:16px}.fields.one{grid-template-columns:1fr}label{font-size:13px;font-weight:700;color:#3f3f46}input{display:block;width:100%;height:44px;margin-top:6px;padding:0 12px;border:1px solid #d4d4d8;border-radius:10px;font-size:16px}button{height:44px;border:0;border-radius:10px;padding:0 16px;background:#2563eb;color:#fff;font-weight:800;cursor:pointer}button.secondary{background:#fff;color:#27272a;border:1px solid #d4d4d8}button:disabled{opacity:.5;cursor:wait}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.message{min-height:22px;margin-top:12px;font-size:14px;font-weight:700;color:#b91c1c}.tip{margin-top:16px;border-radius:12px;background:#fafafa;padding:14px;font-size:13px;line-height:1.65;color:#52525b}@media(max-width:560px){.wrap{padding:16px 12px}.hero{padding:22px}.fields{grid-template-columns:1fr}.card{padding:16px}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero"><h1>포카마켓 휴대전화 연결</h1><p>어려운 명령어는 입력하지 않아도 됩니다. 휴대전화 화면에 보이는 숫자만 아래에 옮겨 적으세요.</p></section>
+    <section class="card"><h2>무선 디버깅을 다시 켰나요?</h2><p class="hint">같은 Wi-Fi에 연결한 뒤 아래 버튼을 누르세요. 저장된 주소와 새 무선 포트를 찾아 기존 대기 요청을 이어갑니다. 결제 확인 대기·실패 작업은 자동 재구매하지 않습니다.</p><div class="actions"><button id="reconnectButton">다시 연결하고 대기 작업 계속</button><a href="https://ebay-order-manager-lake.vercel.app/orders" target="_blank" rel="noreferrer">주문 화면 열기</a></div></section>
+    <div id="status" class="status"><strong>연결 상태 확인 중…</strong></div>
+    <section class="card">
+      <div class="step"><span class="number">1</span><div><h2>처음 한 번만 페어링</h2><p>휴대전화에서 <b>설정 → 개발자 옵션 → 무선 디버깅 → 페어링 코드로 기기 페어링</b>을 누르세요.</p></div></div>
+      <div class="fields">
+        <label>페어링 화면의 IP 주소 및 포트<input id="pairAddress" placeholder="예: 192.168.0.10:37123" inputmode="decimal"></label>
+        <label>6자리 코드<input id="pairCode" placeholder="123456" inputmode="numeric" maxlength="6"></label>
+      </div>
+      <div class="actions"><button id="pairButton">페어링하기</button></div><p id="pairMessage" class="message"></p>
+    </section>
+    <section class="card">
+      <div class="step"><span class="number">2</span><div><h2>휴대전화 연결</h2><p>페어링 창을 닫고 <b>무선 디버깅 메인 화면</b>으로 돌아가세요. 거기에 보이는 IP 주소 및 포트를 입력합니다.</p></div></div>
+      <div class="tip"><b>중요:</b> 1번의 페어링 포트와 2번의 연결 포트는 서로 다릅니다. 주소 전체를 다시 확인해 주세요.</div>
+      <div class="fields one"><label>무선 디버깅 메인 화면의 IP 주소 및 포트<input id="connectAddress" placeholder="예: 192.168.0.10:42871" inputmode="decimal"></label></div>
+      <div class="actions"><button id="connectButton">연결하고 구매 준비</button><button id="autoButton" class="secondary">자동으로 다시 찾기</button></div><p id="connectMessage" class="message"></p>
+    </section>
+    <section class="card"><div class="step"><span class="number">3</span><div><h2>주문 화면에서 대기 작업 확인</h2><p>상단 상태가 초록색 ‘구매 준비 완료’가 되면 기존 대기 요청이 자동으로 진행됩니다. 요청을 다시 만들지 말고 주문 화면의 진행 상태를 확인하세요. 결제를 끝낸 뒤 ‘휴대폰 결제 1장 완료’를 눌러야 다음 장이 준비됩니다. 결제 비밀번호와 생체 인증은 휴대전화에서 직접 확인합니다.</p></div></div></section>
+  </main>
+  <script>
+    const $=id=>document.getElementById(id);let busy=false;
+    async function api(path,body){const r=await fetch(path,{method:"POST",headers:{"content-type":"application/json","x-pocamarket-helper":"1"},body:JSON.stringify(body||{})});const data=await r.json();if(!r.ok)throw new Error(data.error||"처리하지 못했습니다.");return data}
+    function setBusy(value){busy=value;$("pairButton").disabled=value;$("connectButton").disabled=value;$("autoButton").disabled=value;$("reconnectButton").disabled=value}
+    async function status(){try{const r=await fetch("/api/status",{cache:"no-store"});const data=await r.json();if(data.pairingAddress&&!$("pairAddress").value)$("pairAddress").value=data.pairingAddress;const ready=data.device?.connected&&data.bridge?.state==="running";$("status").className=`status ${ready?"ok":""}`;$("status").innerHTML=ready?`<strong>✓ 구매 준비 완료</strong><span>${data.device.model} · ${data.bridge.message}</span>`:`<strong>휴대전화 연결 필요</strong><span>${data.pairingAddress?"페어링 주소를 자동으로 찾았습니다. 6자리 코드만 입력하세요.":data.bridge?.message||"아래 순서대로 연결해 주세요."}</span>`}catch{$("status").className="status bad";$("status").innerHTML="<strong>연결 상태를 확인하지 못했습니다.</strong>"}}
+    $("pairButton").onclick=async()=>{setBusy(true);$("pairMessage").textContent="";try{const result=await api("/api/pair",{address:$("pairAddress").value,code:$("pairCode").value});$("pairCode").value="";$("pairMessage").style.color="#15803d";$("pairMessage").textContent=result.connected?"페어링과 연결이 모두 끝났습니다. 바로 구매할 수 있습니다.":"페어링 완료. 이제 페어링 창을 닫고 2번으로 진행하세요.";await status()}catch(e){$("pairMessage").style.color="#b91c1c";$("pairMessage").textContent=e.message}finally{setBusy(false)}};
+    $("connectButton").onclick=async()=>{setBusy(true);$("connectMessage").textContent="";try{await api("/api/connect",{address:$("connectAddress").value});$("connectMessage").style.color="#15803d";$("connectMessage").textContent="연결됐습니다. 기존 대기 요청은 자동으로 이어집니다. 주문 화면에서 확인하세요.";await status()}catch(e){$("connectMessage").style.color="#b91c1c";$("connectMessage").textContent=e.message}finally{setBusy(false)}};
+    $("autoButton").onclick=async()=>{setBusy(true);$("connectMessage").textContent="자동으로 찾는 중…";try{await api("/api/auto-connect");$("connectMessage").style.color="#15803d";$("connectMessage").textContent="자동 연결됐습니다.";await status()}catch(e){$("connectMessage").style.color="#b91c1c";$("connectMessage").textContent=e.message}finally{setBusy(false)}};
+    $("reconnectButton").onclick=()=>$("autoButton").click();
+    if(new URLSearchParams(location.search).get("reconnect")==="1")$("autoButton").click();
+    status();setInterval(()=>{if(!busy)status()},4000);
+  </script>
+</body>
+</html>

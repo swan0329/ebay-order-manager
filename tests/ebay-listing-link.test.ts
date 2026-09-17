@@ -54,13 +54,13 @@ describe("수동 리스팅 연결", () => {
       addedAlongside: false,
     });
 
-    // 연결 검토 파일이 matchStatus != MATCHED로 거르므로 MATCHED여야 목록에서 빠진다.
+    // 사람이 이미지까지 확인한 연결은 자동 SKU 일치와 구분해 보존한다.
     // linkedAt은 "방금 연결한 것" 목록의 정렬 기준이므로 함께 기록돼야 한다.
     expect(listingUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           productId: "prod-1",
-          matchStatus: "MATCHED",
+          matchStatus: "MANUALLY_VERIFIED",
           linkedAt: expect.any(Date),
         }),
       }),

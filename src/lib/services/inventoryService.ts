@@ -56,12 +56,8 @@ export async function upsertProductFromListingInput(
     where: { sku: input.sku },
     select: { id: true, stockQuantity: true },
   });
+  // A listing quantity is not a receipt of physical stock; USD is not KRW cost.
   const data: Prisma.ProductUncheckedUpdateInput = {
-    productName: input.title,
-    salePrice: input.price,
-    stockQuantity: input.quantity,
-    imageUrl: firstImageUrl(input.imageUrls),
-    status: input.quantity > 0 ? "active" : "sold_out",
     ebayTitle: input.title,
     descriptionHtml: input.descriptionHtml,
     ebayPrice: input.price,
@@ -82,20 +78,6 @@ export async function upsertProductFromListingInput(
       data,
     });
 
-    if (current.stockQuantity !== input.quantity) {
-      await prisma.inventoryMovement.create({
-        data: {
-          productId: product.id,
-          type: "ADJUST",
-          quantity: Math.abs(input.quantity - current.stockQuantity),
-          beforeQuantity: current.stockQuantity,
-          afterQuantity: input.quantity,
-          reason: "eBay 상품 업로드",
-          createdBy,
-        },
-      });
-    }
-
     return { product, created: false };
   }
 
@@ -103,11 +85,15 @@ export async function upsertProductFromListingInput(
     data: {
       sku: input.sku,
       productName: input.title,
-      salePrice: input.price,
-      stockQuantity: input.quantity,
+      salePrice: null,
+      stockQuantity: 0,
+      ...(createdBy ? { finalListingPriceUsd: input.price, finalListingPriceSource: "MANUAL_USD",
+        finalListingPriceApprovedById: createdBy, finalListingPriceApprovedAt: new Date(),
+        listingPriceApprovals: { create: { priceUsd: input.price, source: "MANUAL_USD", approvedById: createdBy } },
+      } : {}),
       safetyStock: 0,
       imageUrl: firstImageUrl(input.imageUrls),
-      status: input.quantity > 0 ? "active" : "sold_out",
+      status: "sold_out",
       ebayTitle: input.title,
       descriptionHtml: input.descriptionHtml,
       ebayPrice: input.price,
@@ -122,20 +108,6 @@ export async function upsertProductFromListingInput(
       ebayCurrency: input.currency ?? "USD",
     },
   });
-
-  if (input.quantity > 0) {
-    await prisma.inventoryMovement.create({
-      data: {
-        productId: product.id,
-        type: "IN",
-        quantity: input.quantity,
-        beforeQuantity: 0,
-        afterQuantity: input.quantity,
-        reason: "eBay 상품 업로드",
-        createdBy,
-      },
-    });
-  }
 
   return { product, created: true };
 }

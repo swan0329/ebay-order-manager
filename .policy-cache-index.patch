@@ -1,0 +1,153 @@
+﻿diff --git a/src/components/ListingTemplateManager.tsx b/src/components/ListingTemplateManager.tsx
+--- a/src/components/ListingTemplateManager.tsx
++++ b/src/components/ListingTemplateManager.tsx
+@@ -393,9 +393,11 @@ function PolicySelect({
+ export function ListingTemplateManager({
+   initialTemplates,
++  initialPolicies = null,
+ }: {
+   initialTemplates: Template[];
++  initialPolicies?: Policies | null;
+ }) {
+   const router = useRouter();
+   const [templates, setTemplates] = useState(initialTemplates);
+@@ -408,7 +410,7 @@ export function ListingTemplateManager({
+     selected ? formFromTemplate(selected) : emptyForm,
+   );
+   const [message, setMessage] = useState("");
+-  const [policies, setPolicies] = useState<Policies | null>(null);
++  const [policies, setPolicies] = useState<Policies | null>(initialPolicies);
+ 
+   async function refreshTemplates(nextSelectedId?: string) {
+     const response = await fetch("/api/listings/templates");
+diff --git a/src/components/ListingPolicySync.tsx b/src/components/ListingPolicySync.tsx
+--- a/src/components/ListingPolicySync.tsx
++++ b/src/components/ListingPolicySync.tsx
+@@ -1,9 +1,11 @@
+ "use client";
+ 
+ import { useState } from "react";
++import { useRouter } from "next/navigation";
+ import { RefreshCcw } from "lucide-react";
+ 
+ export function ListingPolicySync({ marketplaceId = "EBAY_US" }: { marketplaceId?: string }) {
++  const router = useRouter();
+   const [message, setMessage] = useState("");
+   const [loading, setLoading] = useState(false);
+@@ -51,6 +53,7 @@ export function ListingPolicySync({ marketplaceId = "EBAY_US" }: { marketplaceId
+         data?.inventoryLocations?.length ?? 0
+       }건 동기화${skippedLocation}`,
+     );
++    router.refresh();
+   }
+ 
+   return (
+diff --git a/src/app/listing-upload/templates/page.tsx b/src/app/listing-upload/templates/page.tsx
+--- a/src/app/listing-upload/templates/page.tsx
++++ b/src/app/listing-upload/templates/page.tsx
+@@ -4,19 +4,39 @@ import { ListingTemplateManager } from "@/components/ListingTemplateManager";
+ import { ListingUploadNav } from "@/components/ListingUploadNav";
+ import { TopNav } from "@/components/TopNav";
+ import { listListingTemplates } from "@/lib/services/listingTemplateService";
+-import { getEbayConnectionSummary } from "@/lib/services/ebayAccountService";
++import {
++  getCachedPolicies,
++  getEbayConnectionSummary,
++} from "@/lib/services/ebayAccountService";
+ import { requireUser } from "@/lib/session";
+@@ -13,17 +33,34 @@ export const dynamic = "force-dynamic";
+ export default async function ListingUploadTemplatesPage() {
+   const user = await requireUser();
+-  const [templates, ebayConnection] = await Promise.all([
++  const [templates, ebayConnection, cachedPolicies] = await Promise.all([
+     listListingTemplates(user.id),
+     getEbayConnectionSummary(user.id),
++    getCachedPolicies(user.id),
+   ]);
+   const clientTemplates = templates.map((template) => ({
+     ...template,
+     defaultPrice: template.defaultPrice?.toString() ?? null,
+     minimumOfferPrice: template.minimumOfferPrice?.toString() ?? null,
+     autoAcceptPrice: template.autoAcceptPrice?.toString() ?? null,
+     createdAt: template.createdAt.toISOString(),
+     updatedAt: template.updatedAt.toISOString(),
+   }));
++  const initialPolicies = {
++    paymentPolicies: cachedPolicies.policies
++      .filter((policy) => policy.policyType === "payment")
++      .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
++    fulfillmentPolicies: cachedPolicies.policies
++      .filter((policy) => policy.policyType === "fulfillment")
++      .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
++    returnPolicies: cachedPolicies.policies
++      .filter((policy) => policy.policyType === "return")
++      .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
++    inventoryLocations: cachedPolicies.locations.map((location) => ({
++      id: location.merchantLocationKey,
++      name: location.name ?? location.merchantLocationKey,
++    })),
++  };
+@@ -42,7 +79,10 @@ export default async function ListingUploadTemplatesPage() {
+         </div>
+         <ListingUploadNav active="/listing-upload/templates" />
+-        <ListingTemplateManager initialTemplates={clientTemplates} />
++        <ListingTemplateManager
++          initialTemplates={clientTemplates}
++          initialPolicies={initialPolicies}
++        />
+       </main>
+     </div>
+   );
+diff --git a/src/app/products/templates/page.tsx b/src/app/products/templates/page.tsx
+--- a/src/app/products/templates/page.tsx
++++ b/src/app/products/templates/page.tsx
+@@ -2,20 +2,40 @@ import Link from "next/link";
+ import { ArrowLeft } from "lucide-react";
+ import { ListingTemplateManager } from "@/components/ListingTemplateManager";
+ import { TopNav } from "@/components/TopNav";
++import { getCachedPolicies } from "@/lib/services/ebayAccountService";
+ import { listListingTemplates } from "@/lib/services/listingTemplateService";
+ import { requireUser } from "@/lib/session";
+@@ -9,15 +29,34 @@ export const dynamic = "force-dynamic";
+ export default async function ProductTemplatesPage() {
+   const user = await requireUser();
+-  const templates = await listListingTemplates(user.id);
++  const [templates, cachedPolicies] = await Promise.all([
++    listListingTemplates(user.id),
++    getCachedPolicies(user.id),
++  ]);
+   const clientTemplates = templates.map((template) => ({
+     ...template,
+     defaultPrice: template.defaultPrice?.toString() ?? null,
+     minimumOfferPrice: template.minimumOfferPrice?.toString() ?? null,
+     autoAcceptPrice: template.autoAcceptPrice?.toString() ?? null,
+     createdAt: template.createdAt.toISOString(),
+     updatedAt: template.updatedAt.toISOString(),
+   }));
++  const initialPolicies = {
++    paymentPolicies: cachedPolicies.policies
++      .filter((policy) => policy.policyType === "payment")
++      .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
++    fulfillmentPolicies: cachedPolicies.policies
++      .filter((policy) => policy.policyType === "fulfillment")
++      .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
++    returnPolicies: cachedPolicies.policies
++      .filter((policy) => policy.policyType === "return")
++      .map((policy) => ({ id: policy.policyId, name: policy.name ?? policy.policyId })),
++    inventoryLocations: cachedPolicies.locations.map((location) => ({
++      id: location.merchantLocationKey,
++      name: location.name ?? location.merchantLocationKey,
++    })),
++  };
+@@ -35,7 +74,10 @@ export default async function ProductTemplatesPage() {
+           <h1 className="text-xl font-semibold text-zinc-950">업로드 템플릿</h1>
+         </div>
+ 
+-        <ListingTemplateManager initialTemplates={clientTemplates} />
++        <ListingTemplateManager
++          initialTemplates={clientTemplates}
++          initialPolicies={initialPolicies}
++        />
+       </main>
+     </div>
+   );

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const ebayApiRequestMock = vi.hoisted(() => vi.fn());
 
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/listing-publish-safety", () => ({ assertListingPublishSafety: vi.fn() }));
 vi.mock("@/lib/services/ebayApiService", () => ({
   ebayApiRequest: ebayApiRequestMock,
 }));
@@ -10,6 +12,7 @@ import {
   productToListingInput,
   publishProductListing,
 } from "../src/lib/services/listingService";
+import { EbayApiError } from "../src/lib/ebay";
 
 const account = { id: "account-1" };
 const product = {
@@ -71,79 +74,118 @@ describe("publishProductListing", () => {
     ]);
   });
 
-  it("creates inventory item, offer, and publishes when no offer exists", async () => {
+  it("creates the SKU inventory item, offer, and published listing", async () => {
     ebayApiRequestMock
-      .mockResolvedValueOnce({ body: null, status: 204, headers: new Headers() })
-      .mockResolvedValueOnce({ body: { offers: [] }, status: 200, headers: new Headers() })
-      .mockResolvedValueOnce({ body: { offerId: "offer-1" }, status: 200, headers: new Headers() })
-      .mockResolvedValueOnce({ body: { listingId: "item-1" }, status: 200, headers: new Headers() });
+      .mockResolvedValueOnce({ body: { offers: [] } })
+      .mockResolvedValueOnce({ body: null })
+      .mockResolvedValueOnce({ body: { offerId: "offer-1" } })
+      .mockResolvedValueOnce({ body: { listingId: "item-1" } });
 
     await expect(
       publishProductListing(account as never, product as never, input),
-    ).resolves.toMatchObject({
+    ).resolves.toEqual({
       action: "create",
       offerId: "offer-1",
       listingId: "item-1",
       listingStatus: "ACTIVE",
     });
-    expect(ebayApiRequestMock).toHaveBeenNthCalledWith(
-      1,
-      account,
-      expect.objectContaining({
-        method: "PUT",
-        path: "/sell/inventory/v1/inventory_item/SKU-1",
-      }),
-    );
-    expect(ebayApiRequestMock).toHaveBeenNthCalledWith(
-      3,
-      account,
-      expect.objectContaining({
-        method: "POST",
-        path: "/sell/inventory/v1/offer",
-      }),
-    );
-    expect(ebayApiRequestMock).toHaveBeenNthCalledWith(
-      4,
-      account,
-      expect.objectContaining({
-        method: "POST",
-        path: "/sell/inventory/v1/offer/offer-1/publish",
-      }),
-    );
+    expect(ebayApiRequestMock.mock.calls.map(([, request]) => request.path)).toEqual([
+      "/sell/inventory/v1/offer",
+      "/sell/inventory/v1/inventory_item/SKU-1",
+      "/sell/inventory/v1/offer",
+      "/sell/inventory/v1/offer/offer-1/publish",
+    ]);
   });
 
-  it("updates an existing offer without publishing a second listing", async () => {
+  it("updates a published offer without publishing it a second time", async () => {
     ebayApiRequestMock
-      .mockResolvedValueOnce({ body: null, status: 204, headers: new Headers() })
       .mockResolvedValueOnce({
         body: {
-          offers: [
-            {
-              offerId: "offer-1",
-              listing: { listingId: "item-1", listingStatus: "ACTIVE" },
-            },
-          ],
+          offerId: "offer-1",
+          listing: { listingId: "item-1", listingStatus: "ACTIVE" },
         },
-        status: 200,
-        headers: new Headers(),
       })
-      .mockResolvedValueOnce({ body: null, status: 204, headers: new Headers() });
+      .mockResolvedValueOnce({ body: null })
+      .mockResolvedValueOnce({ body: null });
 
     await expect(
-      publishProductListing(account as never, product as never, input),
-    ).resolves.toMatchObject({
+      publishProductListing(
+        account as never,
+        { ...product, ebayOfferId: "offer-1", ebayItemId: "item-1" } as never,
+        input,
+      ),
+    ).resolves.toEqual({
       action: "revise",
       offerId: "offer-1",
       listingId: "item-1",
       listingStatus: "ACTIVE",
     });
     expect(ebayApiRequestMock).toHaveBeenCalledTimes(3);
-    expect(ebayApiRequestMock).toHaveBeenNthCalledWith(
-      3,
+    expect(ebayApiRequestMock).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ path: expect.stringContaining("/publish") }),
+    );
+  });
+
+  it("recovers an already-published SKU after a lost response instead of duplicating it", async () => {
+    ebayApiRequestMock
+      .mockResolvedValueOnce({
+        body: {
+          offers: [
+            {
+              offerId: "recovered-offer",
+              listing: { listingId: "recovered-item", listingStatus: "ACTIVE" },
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({ body: null })
+      .mockResolvedValueOnce({ body: null });
+
+    const result = await publishProductListing(
+      account as never,
+      product as never,
+      input,
+    );
+
+    expect(result).toMatchObject({
+      action: "revise",
+      offerId: "recovered-offer",
+      listingId: "recovered-item",
+    });
+    expect(
+      ebayApiRequestMock.mock.calls.filter(
+        ([, request]) => request.method === "POST" && request.path === "/sell/inventory/v1/offer",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("deletes an unavailable offer and recreates it for the same SKU", async () => {
+    ebayApiRequestMock
+      .mockResolvedValueOnce({ body: { offers: [{ offerId: "dead-offer" }] } })
+      .mockResolvedValueOnce({ body: null })
+      .mockRejectedValueOnce(new EbayApiError(
+        "This Offer is not available.",
+        400,
+        { errors: [{ errorId: 25713, message: "This Offer is not available." }] },
+      ))
+      .mockResolvedValueOnce({ body: null })
+      .mockResolvedValueOnce({ body: { offers: [] } })
+      .mockResolvedValueOnce({ body: { offerId: "replacement-offer" } })
+      .mockResolvedValueOnce({ body: { listingId: "replacement-item" } });
+
+    await expect(
+      publishProductListing(account as never, product as never, input),
+    ).resolves.toMatchObject({
+      action: "create",
+      offerId: "replacement-offer",
+      listingId: "replacement-item",
+    });
+    expect(ebayApiRequestMock).toHaveBeenCalledWith(
       account,
       expect.objectContaining({
-        method: "PUT",
-        path: "/sell/inventory/v1/offer/offer-1",
+        method: "DELETE",
+        path: "/sell/inventory/v1/offer/dead-offer",
       }),
     );
   });

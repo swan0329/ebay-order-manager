@@ -14,7 +14,7 @@ const confirmSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    await requireApiUser();
+    const user = await requireApiUser();
 
     const input = confirmSchema.parse(await request.json());
     const cardId = input.card_id ?? input.cardId;
@@ -30,6 +30,7 @@ export async function POST(request: Request) {
       userFrontImageUrl,
       userBackImageUrl,
       publicBaseUrl: publicBaseUrl(request),
+      createdBy: user.id,
     });
 
     return Response.json({ product });

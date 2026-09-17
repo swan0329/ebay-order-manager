@@ -24,7 +24,9 @@ export async function GET() {
     orderBy: { orderDate: "desc" },
   });
   const header = [
-    "ebay_order_id",
+    "sales_channel",
+    "order_number",
+    "external_order_id",
     "buyer_name",
     "item_titles",
     "skus",
@@ -37,7 +39,9 @@ export async function GET() {
     "tracking_numbers",
   ];
   const rows = orders.map((order) => [
-    order.ebayOrderId,
+    order.salesChannel,
+    order.orderNumber,
+    order.externalOrderId,
     order.buyerName,
     order.items.map((item) => item.title).join(" | "),
     order.items.map((item) => item.sku ?? "").join(" | "),
@@ -56,7 +60,7 @@ export async function GET() {
   return new Response(csv, {
     headers: {
       "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="ebay-orders-${new Date().toISOString().slice(0, 10)}.csv"`,
+      "content-disposition": `attachment; filename="orders-${new Date().toISOString().slice(0, 10)}.csv"`,
     },
   });
 }

@@ -18,6 +18,8 @@ export type ProductOperationalView =
   | "sold_out"
   | "review";
 
+export type ProductSalesChannel = "EBAY" | "SHOPIFY";
+
 // 이미지 완료 판정은 "최종 이미지가 상품에 실제 적용된 상태"만 인정한다.
 // image_source는 촬영본 연결(r2_user_uploaded)·AI 최종 업로드(approveAiJob)·
 // Lens 검수 승인 시점에만 pocamarket에서 바뀌므로, 이 값이 판정 기준이 된다.
@@ -46,22 +48,45 @@ export const imageReadySql = `(
 
 // eBay 등록됨(판매중) 여부. 신규등록 엑셀의 "미등록" 판정과 정확히 반대가 되도록 맞춘다.
 export const registeredSql = `(
-  COALESCE("ebay_item_id", '') <> ''
-  AND UPPER(COALESCE("listing_status", 'ACTIVE')) NOT IN ('ENDED','INACTIVE','FAILED')
+  (
+    COALESCE("ebay_item_id", '') <> ''
+    AND UPPER(COALESCE("listing_status", 'ACTIVE')) NOT IN ('ENDED','INACTIVE','FAILED','OUT_OF_STOCK')
+  )
+  OR (
+    UPPER(COALESCE("listing_status", '')) <> 'OUT_OF_STOCK'
+    AND "products"."id" IN (
+      SELECT member_id
+      FROM "variation_listing_states" variation_state
+      CROSS JOIN LATERAL jsonb_array_elements_text(
+        CASE WHEN jsonb_typeof(variation_state."included_product_ids"::jsonb) = 'array'
+          THEN variation_state."included_product_ids"::jsonb ELSE '[]'::jsonb END
+      ) AS members(member_id)
+      WHERE COALESCE(variation_state."ebay_item_id", '') <> ''
+        AND member_id IS NOT NULL
+    )
+  )
 )`;
 
-// 가격 없음: 포카마켓 표시가(sale_price)도, 사람이 넣은 eBay 판매가(ebay_price)도 없다.
-// 이 상태면 신규등록 파일을 만들 때 조용히 제외되므로 별도 작업 대상으로 센다.
+export const shopifyRegisteredSql = `(
+  COALESCE("shopify_product_id", '') <> ''
+  AND UPPER(COALESCE("shopify_status", 'ACTIVE')) NOT IN ('ARCHIVED','DRAFT','OUT_OF_STOCK','PUBLICATION_PENDING')
+)`;
+
+// 가격 없음: 관리자가 명시적으로 확정한 최종 USD 판매가가 없다.
+// 원화 원가와 기존 eBay 가격 입력값은 채널 가격으로 사용하지 않는다.
 export const priceMissingSql = `(
-  COALESCE("sale_price", 0) <= 0 AND COALESCE("ebay_price", 0) <= 0
+  COALESCE("sale_price", 0) <= 0
+  AND COALESCE("final_listing_price_usd", 0) <= 0
 )`;
 
 const imageReadyGeneral = Prisma.raw(imageReadyGeneralSql);
 const imageReady = Prisma.raw(imageReadySql);
-const isRegistered = Prisma.raw(registeredSql);
 const priceMissing = Prisma.raw(priceMissingSql);
 
-function condition(view: ProductOperationalView) {
+function condition(view: ProductOperationalView, channel: ProductSalesChannel) {
+  const isRegistered = Prisma.raw(
+    channel === "SHOPIFY" ? shopifyRegisteredSql : registeredSql,
+  );
   switch (view) {
     case "sellable":
       // 신규등록 엑셀 대상과 동일하게 유지: 좁은 판정(Lens 승인 제외).
@@ -74,7 +99,8 @@ function condition(view: ProductOperationalView) {
         "stock_quantity" > 0 OR COALESCE("pocamarket_available_count", 0) > 0
       ) AND ${imageReady} AND ${isRegistered}`;
     case "listable":
-      // 판매 가능(올릴 수 있음): 판매가능 조건 + 아직 미등록
+      // eBay 미등록 후보: 공급·이미지 조건을 갖췄지만 활성 eBay 등록이 없음.
+      // 과거 ENDED/INACTIVE/FAILED 상품도 포함되므로 "신규"라고 부르지 않는다.
       return Prisma.sql`(
         "stock_quantity" > 0 OR COALESCE("pocamarket_available_count", 0) > 0
       ) AND ${imageReady} AND NOT ${isRegistered}`;
@@ -93,11 +119,11 @@ function condition(view: ProductOperationalView) {
         AND LOWER(TRIM(COALESCE("option_name", ''))) = 'unit'
         AND COALESCE("featured_members", '') = ''`;
     case "price_missing":
-      // 판매 가능(공급·이미지 완료·미등록)인데 가격이 없는 상품.
-      // 판매 가능 카드와 같은 기준을 쓰므로 여기서 가격을 넣으면 바로 등록 대상이 된다.
+      // 판매 가능하지만 최종 USD 판매가가 아직 확정되지 않은 상품.
+      // 이미 채널에 올라간 과거 상품도 포함해야 잘못된 기존 가격을 안전하게 정정할 수 있다.
       return Prisma.sql`(
         "stock_quantity" > 0 OR COALESCE("pocamarket_available_count", 0) > 0
-      ) AND ${imageReady} AND NOT ${isRegistered} AND ${priceMissing}`;
+      ) AND ${imageReady} AND ${priceMissing}`;
     case "image_pending":
       return Prisma.sql`(
         "stock_quantity" > 0 OR COALESCE("pocamarket_available_count", 0) > 0
@@ -120,12 +146,20 @@ function condition(view: ProductOperationalView) {
         AND NOT ${isRegistered}
       `;
     case "stop_required":
+      if (channel === "SHOPIFY") {
+        return Prisma.sql`
+          "stock_quantity" <= 0
+          AND "pocamarket_synced_at" IS NOT NULL
+          AND "pocamarket_available_count" = 0
+          AND COALESCE("shopify_product_id", '') <> ''
+          AND UPPER(COALESCE("shopify_status", 'ACTIVE')) NOT IN ('ARCHIVED','DRAFT')
+        `;
+      }
       return Prisma.sql`
         "stock_quantity" <= 0
         AND "pocamarket_synced_at" IS NOT NULL
         AND "pocamarket_available_count" = 0
-        AND COALESCE("ebay_item_id", '') <> ''
-        AND UPPER(COALESCE("listing_status", 'ACTIVE')) IN ('ACTIVE','PUBLISHED','LISTED')
+        AND ${isRegistered}
       `;
     case "sold_out":
       // 품절: 내 재고 없음 + 포카 조달 불가. 단 eBay에 아직 활성 등록된 것은
@@ -134,19 +168,19 @@ function condition(view: ProductOperationalView) {
         "stock_quantity" <= 0
         AND "pocamarket_synced_at" IS NOT NULL
         AND "pocamarket_available_count" = 0
-        AND NOT (
-          COALESCE("ebay_item_id", '') <> ''
-          AND UPPER(COALESCE("listing_status", 'ACTIVE')) IN ('ACTIVE','PUBLISHED','LISTED')
-        )
+        AND NOT ${isRegistered}
       `;
     case "review":
       return Prisma.sql`"pocamarket_synced_at" IS NULL`;
   }
 }
 
-export async function getOperationalProductIds(view: ProductOperationalView) {
+export async function getOperationalProductIds(
+  view: ProductOperationalView,
+  channel: ProductSalesChannel = "EBAY",
+) {
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
-    SELECT "id" FROM "products" WHERE ${condition(view)}
+    SELECT "id" FROM "products" WHERE ${condition(view, channel)}
   `;
   return rows.map((row) => row.id);
 }

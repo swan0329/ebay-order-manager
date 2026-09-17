@@ -1,0 +1,10 @@
+import { beforeEach, expect, it, vi } from "vitest";
+const db=vi.hoisted(()=>({$queryRaw:vi.fn(),$executeRaw:vi.fn()}));
+vi.mock("@/lib/prisma",()=>({prisma:db}));
+vi.mock("@/lib/pocamarket-purchases",()=>({validBridgeToken:()=>true,ensurePocamarketPurchaseJobs:vi.fn()}));
+import { PATCH } from "@/app/api/pocamarket-bridge/jobs/[id]/route";
+beforeEach(()=>{vi.resetAllMocks();db.$queryRaw.mockResolvedValue([{status:"running",maxUnitPrice:"12000",foundUnitPrice:null,purchasedQuantity:1,requestedQuantity:2}]);db.$executeRaw.mockResolvedValue(1);});
+const call=(body:object)=>PATCH(new Request("http://local",{method:"PATCH",body:JSON.stringify(body)}),{params:Promise.resolve({id:"job"})});
+it("rejects resetting completed quantity on reconnect",async()=>{expect((await call({status:"awaiting_confirmation",foundUnitPrice:10000,purchasedQuantity:0})).status).toBe(409);expect(db.$executeRaw).not.toHaveBeenCalled();});
+it("preserves a payment confirmation state against a late worker failure",async()=>{db.$queryRaw.mockResolvedValue([{status:"awaiting_confirmation",maxUnitPrice:"12000",foundUnitPrice:"10000",purchasedQuantity:1,requestedQuantity:2}]);expect((await call({status:"failed"})).status).toBe(409);expect(db.$executeRaw).not.toHaveBeenCalled();});
+it("keeps existing progress when preparing the next payment",async()=>{expect((await call({status:"awaiting_confirmation",foundUnitPrice:10000,purchasedQuantity:1})).status).toBe(200);});

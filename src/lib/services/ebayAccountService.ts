@@ -52,6 +52,13 @@ async function cachePolicies(
 export async function syncPolicies(userId: string, marketplaceId = "EBAY_US") {
   const policies = await getSellerListingPolicies(userId, marketplaceId);
 
+  await prisma.ebayPolicyCache.deleteMany({
+    where: { userId, marketplaceId },
+  });
+  if (!policies.inventoryLocationsSkipped) {
+    await prisma.ebayInventoryLocationCache.deleteMany({ where: { userId } });
+  }
+
   await cachePolicies(userId, "payment", policies.paymentPolicies);
   await cachePolicies(userId, "fulfillment", policies.fulfillmentPolicies);
   await cachePolicies(userId, "return", policies.returnPolicies);

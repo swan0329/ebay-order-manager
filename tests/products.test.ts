@@ -24,7 +24,7 @@ describe("normalizeProductImportRow", () => {
       stockQuantity: 5,
       imageUrl: "https://example.com/card.jpg",
       memo: "",
-      status: "active",
+      status: "unlisted",
     });
   });
 
@@ -37,6 +37,18 @@ describe("normalizeProductImportRow", () => {
         앨범명: "ROCK(樂)-STAR YIZHIYU",
       }),
     ).toMatchObject({ status: "sold_out" });
+  });
+
+  it("normalizes positive stock imports from sold out back to unlisted", () => {
+    expect(
+      normalizeProductImportRow({
+        상품번호: 213259,
+        재고: 1,
+        상태: "품절",
+        그룹명: "Stray Kids",
+        앨범명: "ROCK(樂)-STAR YIZHIYU",
+      }),
+    ).toMatchObject({ status: "unlisted" });
   });
 
   it("keeps the original album name in memo", () => {

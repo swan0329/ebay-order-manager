@@ -1,14 +1,27 @@
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
-import { rebuildProductImageFingerprints } from "@/lib/services/productImageMatchService";
+import {
+  rebuildProductImageFingerprints,
+  resetProductImageFingerprintFailures,
+} from "@/lib/services/productImageMatchService";
+
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
     await requireApiUser();
 
     const url = new URL(request.url);
-    const limit = Math.max(1, Math.min(500, Number(url.searchParams.get("limit")) || 100));
-    const result = await rebuildProductImageFingerprints(limit);
+    if (url.searchParams.get("resetFailed") === "1") {
+      const reset = await resetProductImageFingerprintFailures();
+      return Response.json({ reset });
+    }
+
+    const limit = Math.max(1, Math.min(24, Number(url.searchParams.get("limit")) || 12));
+    const result = await rebuildProductImageFingerprints(limit, {
+      concurrency: 4,
+      timeBudgetMs: 20_000,
+    });
 
     return Response.json(result);
   } catch (error) {

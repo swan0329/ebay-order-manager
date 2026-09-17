@@ -716,11 +716,20 @@ export function ListingTemplateManager({
           </div>
 
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-zinc-600">description_template_html</span>
+            <span className="mb-1 block text-xs font-medium text-zinc-600">description_template_html (상세설명 · {"{title}"} 등 사용 가능)</span>
             <textarea
               value={form.descriptionTemplateHtml}
               rows={5}
               onChange={(event) => updateForm("descriptionTemplateHtml", event.target.value)}
+              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-900"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-zinc-600">condition_description (상태설명 · eBay 상태설명 칸으로 별도 출력)</span>
+            <textarea
+              value={form.conditionDescription}
+              rows={3}
+              onChange={(event) => updateForm("conditionDescription", event.target.value)}
               className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-900"
             />
           </label>

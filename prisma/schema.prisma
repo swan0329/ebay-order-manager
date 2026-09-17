@@ -30,6 +30,11 @@ enum ShipmentStatus {
   FAILED
 }
 
+enum SalesChannel {
+  EBAY
+  SHOPIFY
+}
+
 model User {
   id        String   @id @default(cuid())
   loginId   String   @unique @map("login_id")
@@ -52,10 +57,15 @@ model User {
   pricingReviewsCreated       PricingReview[]              @relation("PricingReviewCreatedBy")
   pricingReviewsApproved      PricingReview[]              @relation("PricingReviewApprovedBy")
   pricingReviewItemsApplied   PricingReviewItem[]          @relation("PricingReviewItemAppliedBy")
+  listingPriceApprovals       ListingPriceApproval[]       @relation("ListingPriceApprovedBy")
+  finalListingPricesApproved  Product[]                    @relation("ProductListingPriceApprovedBy")
   pocamarketSyncBatches       PocamarketSyncBatch[]
   pocamarketSyncItemsApplied  PocamarketSyncItem[]         @relation("PocamarketSyncItemAppliedBy")
   pocamarketSyncSettings      PocamarketSyncSettings?
   ebayReportImports           EbayReportImport[]
+  ebayFeedJobs                EbayFeedJob[]
+  channelPublishJobs          ChannelPublishJob[]
+  pocamarketPurchaseJobs      PocamarketPurchaseJob[]
 
   @@map("users")
 }
@@ -83,36 +93,42 @@ model EbayAccount {
 }
 
 model Order {
-  id                  String    @id @default(cuid())
-  userId              String    @map("user_id")
-  ebayAccountId       String?   @map("ebay_account_id")
-  ebayOrderId         String    @map("ebay_order_id")
-  orderStatus         String    @map("order_status")
-  fulfillmentStatus   String    @map("fulfillment_status")
-  buyerName           String?   @map("buyer_name")
-  buyerUsername       String?   @map("buyer_username")
-  buyerCountry        String?   @map("buyer_country")
-  totalAmount         Decimal   @default(0) @map("total_amount") @db.Decimal(12, 2)
-  currency            String    @default("USD")
-  orderDate           DateTime  @map("order_date")
-  paidAt              DateTime? @map("paid_at")
-  modifiedAt          DateTime? @map("modified_at")
-  shipByDate          DateTime? @map("ship_by_date")
-  tags                String[]  @default([])
-  warningLevel        String    @default("none") @map("warning_level")
-  warningMessage      String?   @map("warning_message") @db.Text
-  automationCheckedAt DateTime? @map("automation_checked_at")
-  rawJson             Json      @map("raw_json")
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
+  id                  String       @id @default(cuid())
+  userId              String       @map("user_id")
+  ebayAccountId       String?      @map("ebay_account_id")
+  ebayOrderId         String?      @map("ebay_order_id")
+  salesChannel        SalesChannel @default(EBAY) @map("sales_channel")
+  externalOrderId     String       @map("external_order_id")
+  orderNumber         String       @map("order_number")
+  orderStatus         String       @map("order_status")
+  fulfillmentStatus   String       @map("fulfillment_status")
+  buyerName           String?      @map("buyer_name")
+  buyerUsername       String?      @map("buyer_username")
+  buyerCountry        String?      @map("buyer_country")
+  totalAmount         Decimal      @default(0) @map("total_amount") @db.Decimal(12, 2)
+  currency            String       @default("USD")
+  orderDate           DateTime     @map("order_date")
+  paidAt              DateTime?    @map("paid_at")
+  modifiedAt          DateTime?    @map("modified_at")
+  shipByDate          DateTime?    @map("ship_by_date")
+  tags                String[]     @default([])
+  warningLevel        String       @default("none") @map("warning_level")
+  warningMessage      String?      @map("warning_message") @db.Text
+  automationCheckedAt DateTime?    @map("automation_checked_at")
+  rawJson             Json         @map("raw_json")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
 
-  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  ebayAccount        EbayAccount?        @relation(fields: [ebayAccountId], references: [id], onDelete: SetNull)
-  items              OrderItem[]
-  shipments          Shipment[]
-  inventoryMovements InventoryMovement[]
+  user                   User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ebayAccount            EbayAccount?            @relation(fields: [ebayAccountId], references: [id], onDelete: SetNull)
+  items                  OrderItem[]
+  shipments              Shipment[]
+  inventoryMovements     InventoryMovement[]
+  pocamarketPurchaseJobs PocamarketPurchaseJob[]
 
   @@unique([ebayAccountId, ebayOrderId])
+  @@unique([userId, salesChannel, externalOrderId])
+  @@index([userId, salesChannel, orderDate])
   @@index([userId, fulfillmentStatus])
   @@index([userId, fulfillmentStatus, orderDate])
   @@index([userId, orderDate])
@@ -136,8 +152,9 @@ model OrderItem {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  order                  Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product                Product?                @relation(fields: [productId], references: [id], onDelete: SetNull)
+  pocamarketPurchaseJobs PocamarketPurchaseJob[]
 
   @@unique([orderId, lineItemId])
   @@index([sku])
@@ -147,63 +164,75 @@ model OrderItem {
 }
 
 model Product {
-  id                       String    @id @default(cuid())
-  sku                      String    @unique
-  pocamarketId             String?   @unique @map("pocamarket_id")
-  isSoldOut                Boolean   @default(false) @map("is_sold_out")
-  pocamarketAvailableCount Int?      @map("pocamarket_available_count")
-  pocamarketSyncedAt       DateTime? @map("pocamarket_synced_at")
-  pocamarketLastAttemptAt  DateTime? @map("pocamarket_last_attempt_at")
-  internalCode             String?   @map("internal_code")
-  productName              String    @map("product_name")
-  optionName               String?   @map("option_name")
-  category                 String?
-  brand                    String?
-  costPrice                Decimal?  @map("cost_price") @db.Decimal(12, 2)
-  salePrice                Decimal?  @map("sale_price") @db.Decimal(12, 2)
-  stockQuantity            Int       @default(0) @map("stock_quantity")
-  safetyStock              Int       @default(0) @map("safety_stock")
-  location                 String?
-  memo                     String?   @db.Text
-  imageUrl                 String?   @map("image_url")
-  status                   String    @default("active")
-  ebayTitle                String?   @map("ebay_title")
-  descriptionHtml          String?   @map("description_html") @db.Text
-  ebayPrice                Decimal?  @map("ebay_price") @db.Decimal(12, 2)
-  ebayImageUrls            String[]  @default([]) @map("ebay_image_urls")
-  ebayCategoryId           String?   @map("ebay_category_id")
-  ebayCondition            String?   @map("ebay_condition")
-  ebayShippingProfile      String?   @map("ebay_shipping_profile")
-  ebayReturnProfile        String?   @map("ebay_return_profile")
-  ebayPaymentProfile       String?   @map("ebay_payment_profile")
-  ebayMerchantLocationKey  String?   @map("ebay_merchant_location_key")
-  ebayMarketplaceId        String?   @map("ebay_marketplace_id")
-  ebayCurrency             String?   @map("ebay_currency")
-  ebayOfferId              String?   @map("ebay_offer_id")
-  ebayItemId               String?   @map("ebay_item_id")
-  listingStatus            String?   @map("listing_status")
-  lastUploadedAt           DateTime? @map("last_uploaded_at")
-  uploadError              String?   @map("upload_error") @db.Text
-  uploadErrorSummary       String?   @map("upload_error_summary") @db.Text
-  uploadRawError           Json?     @map("upload_raw_error")
-  shopifyProductId         String?   @map("shopify_product_id")
-  shopifyVariantId         String?   @map("shopify_variant_id")
-  shopifyInventoryItemId   String?   @map("shopify_inventory_item_id")
-  shopifyStatus            String?   @map("shopify_status")
-  shopifyLastUploadedAt    DateTime? @map("shopify_last_uploaded_at")
-  shopifyUploadError       String?   @map("shopify_upload_error") @db.Text
-  createdAt                DateTime  @default(now()) @map("created_at")
-  updatedAt                DateTime  @updatedAt @map("updated_at")
+  id                        String    @id @default(cuid())
+  sku                       String    @unique
+  pocamarketId              String?   @unique @map("pocamarket_id")
+  isSoldOut                 Boolean   @default(false) @map("is_sold_out")
+  pocamarketAvailableCount  Int?      @map("pocamarket_available_count")
+  pocamarketSyncedAt        DateTime? @map("pocamarket_synced_at")
+  pocamarketLastAttemptAt   DateTime? @map("pocamarket_last_attempt_at")
+  internalCode              String?   @map("internal_code")
+  productName               String    @map("product_name")
+  optionName                String?   @map("option_name")
+  category                  String?
+  brand                     String?
+  costPrice                 Decimal?  @map("cost_price") @db.Decimal(12, 2)
+  salePrice                 Decimal?  @map("sale_price") @db.Decimal(12, 2)
+  stockQuantity             Int       @default(0) @map("stock_quantity")
+  safetyStock               Int       @default(0) @map("safety_stock")
+  location                  String?
+  memo                      String?   @db.Text
+  imageUrl                  String?   @map("image_url")
+  status                    String    @default("active")
+  ebayTitle                 String?   @map("ebay_title")
+  descriptionHtml           String?   @map("description_html") @db.Text
+  featuredMembers           String?   @map("featured_members")
+  ebayPrice                 Decimal?  @map("ebay_price") @db.Decimal(12, 2)
+  finalListingPriceUsd      Decimal?  @map("final_listing_price_usd") @db.Decimal(12, 2)
+  finalListingPriceSource   String?   @map("final_listing_price_source")
+  finalListingPriceApprovedAt DateTime? @map("final_listing_price_approved_at")
+  finalListingPriceApprovedById String? @map("final_listing_price_approved_by_id")
+  ebayImageUrls             String[]  @default([]) @map("ebay_image_urls")
+  ebayCategoryId            String?   @map("ebay_category_id")
+  ebayCondition             String?   @map("ebay_condition")
+  ebayShippingProfile       String?   @map("ebay_shipping_profile")
+  ebayReturnProfile         String?   @map("ebay_return_profile")
+  ebayPaymentProfile        String?   @map("ebay_payment_profile")
+  ebayMerchantLocationKey   String?   @map("ebay_merchant_location_key")
+  ebayMarketplaceId         String?   @map("ebay_marketplace_id")
+  ebayCurrency              String?   @map("ebay_currency")
+  ebayOfferId               String?   @map("ebay_offer_id")
+  ebayItemId                String?   @map("ebay_item_id")
+  listingStatus             String?   @map("listing_status")
+  lastUploadedAt            DateTime? @map("last_uploaded_at")
+  ebayLastSyncedPrice       Decimal?  @map("ebay_last_synced_price") @db.Decimal(12, 2)
+  ebayLastSyncedQuantity    Int?      @map("ebay_last_synced_quantity")
+  uploadError               String?   @map("upload_error") @db.Text
+  uploadErrorSummary        String?   @map("upload_error_summary") @db.Text
+  uploadRawError            Json?     @map("upload_raw_error")
+  shopifyProductId          String?   @map("shopify_product_id")
+  shopifyVariantId          String?   @map("shopify_variant_id")
+  shopifyInventoryItemId    String?   @map("shopify_inventory_item_id")
+  shopifyStatus             String?   @map("shopify_status")
+  shopifyLastUploadedAt     DateTime? @map("shopify_last_uploaded_at")
+  shopifyLastSyncedPrice    Decimal?  @map("shopify_last_synced_price") @db.Decimal(12, 2)
+  shopifyLastSyncedQuantity Int?      @map("shopify_last_synced_quantity")
+  shopifyUploadError        String?   @map("shopify_upload_error") @db.Text
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
 
-  orderItems          OrderItem[]
-  movements           InventoryMovement[]
-  mappings            ProductMapping[]
-  uploadJobs          ProductUploadJob[]
-  listingDrafts       ListingDraft[]
-  listingLinks        InventoryListingLink[]
-  pricingReviewItems  PricingReviewItem[]
-  pocamarketSyncItems PocamarketSyncItem[]
-  ebayActiveListings  EbayActiveListing[]
+  orderItems             OrderItem[]
+  movements              InventoryMovement[]
+  mappings               ProductMapping[]
+  uploadJobs             ProductUploadJob[]
+  listingDrafts          ListingDraft[]
+  listingLinks           InventoryListingLink[]
+  pricingReviewItems     PricingReviewItem[]
+  listingPriceApprovals  ListingPriceApproval[]
+  finalListingPriceApprovedBy User? @relation("ProductListingPriceApprovedBy", fields: [finalListingPriceApprovedById], references: [id], onDelete: Restrict)
+  pocamarketSyncItems    PocamarketSyncItem[]
+  ebayActiveListings     EbayActiveListing[]
+  pocamarketPurchaseJobs PocamarketPurchaseJob[]
 
   @@index([status])
   @@index([stockQuantity])
@@ -214,6 +243,42 @@ model Product {
   @@index([pocamarketLastAttemptAt])
   @@index([pocamarketSyncedAt])
   @@map("products")
+}
+
+model PocamarketPurchaseJob {
+  id                          String    @id
+  userId                      String    @map("user_id")
+  orderId                     String?   @map("order_id")
+  orderItemId                 String?   @map("order_item_id")
+  productId                   String    @map("product_id")
+  productNumber               String    @map("product_number")
+  purpose                     String    @default("ORDER_SHORTAGE")
+  requestedQuantity           Int       @map("requested_quantity")
+  referenceUnitPrice          Decimal   @map("reference_unit_price") @db.Decimal(12, 2)
+  maxUnitPrice                Decimal   @map("max_unit_price") @db.Decimal(12, 2)
+  allowMultipleSellers        Boolean   @default(true) @map("allow_multiple_sellers")
+  requireCheckoutConfirmation Boolean   @default(true) @map("require_checkout_confirmation")
+  status                      String    @default("queued")
+  foundUnitPrice              Decimal?  @map("found_unit_price") @db.Decimal(12, 2)
+  purchasedQuantity           Int       @default(0) @map("purchased_quantity")
+  marketOrderNumber           String?   @map("market_order_number")
+  warningMessage              String?   @map("warning_message") @db.Text
+  errorMessage                String?   @map("error_message") @db.Text
+  deviceSerial                String?   @map("device_serial")
+  createdAt                   DateTime  @default(now()) @map("created_at")
+  startedAt                   DateTime? @map("started_at")
+  confirmationRequestedAt     DateTime? @map("confirmation_requested_at")
+  completedAt                 DateTime? @map("completed_at")
+  updatedAt                   DateTime  @updatedAt @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order     Order?     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+  @@index([productId, status, createdAt])
+  @@map("pocamarket_purchase_jobs")
 }
 
 model EbayReportImport {
@@ -235,30 +300,106 @@ model EbayReportImport {
   @@map("ebay_report_imports")
 }
 
+model EbayFeedJob {
+  id                    String    @id @default(cuid())
+  userId                String    @map("user_id")
+  idempotencyKey        String    @unique @map("idempotency_key")
+  operation             String
+  feedType              String    @map("feed_type")
+  ebayTaskId            String?   @unique @map("ebay_task_id")
+  status                String    @default("PENDING")
+  totalCount            Int       @default(0) @map("total_count")
+  successCount          Int       @default(0) @map("success_count")
+  failureCount          Int       @default(0) @map("failure_count")
+  targetsJson           Json      @map("targets_json")
+  failuresJson          Json?     @map("failures_json")
+  externalStatus        Json?     @map("external_status")
+  error                 String?   @db.Text
+  refreshToken          String?   @map("refresh_token")
+  refreshLeaseExpiresAt DateTime? @map("refresh_lease_expires_at")
+  submittedAt           DateTime? @map("submitted_at")
+  completedAt           DateTime? @map("completed_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, status, createdAt])
+  @@map("ebay_feed_jobs")
+}
+
+model ChannelPublishJob {
+  id                   String    @id @default(cuid())
+  userId               String    @map("user_id")
+  channel              String
+  mode                 String    @default("UPSERT")
+  activeKey            String?   @unique @map("active_key")
+  status               String    @default("QUEUED")
+  totalCount           Int       @default(0) @map("total_count")
+  processedCount       Int       @default(0) @map("processed_count")
+  successCount         Int       @default(0) @map("success_count")
+  failureCount         Int       @default(0) @map("failure_count")
+  startedAt            DateTime? @map("started_at")
+  completedAt          DateTime? @map("completed_at")
+  workerToken          String?   @map("worker_token")
+  workerLeaseExpiresAt DateTime? @map("worker_lease_expires_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  user  User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items ChannelPublishItem[]
+
+  @@index([userId, status, createdAt])
+  @@index([status, createdAt])
+  @@map("channel_publish_jobs")
+}
+
+model ChannelPublishItem {
+  id          String    @id @default(cuid())
+  jobId       String    @map("job_id")
+  targetType  String    @map("target_type")
+  targetId    String    @map("target_id")
+  sku         String
+  status      String    @default("QUEUED")
+  attempts    Int       @default(0)
+  externalId  String?   @map("external_id")
+  error       String?   @db.Text
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  job ChannelPublishJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, targetType, targetId])
+  @@index([jobId, status, createdAt])
+  @@map("channel_publish_items")
+}
+
 model EbayActiveListing {
-  id          String   @id @default(cuid())
-  importId    String   @map("import_id")
-  productId   String?  @map("product_id")
-  itemId      String   @map("item_id")
+  id          String    @id @default(cuid())
+  importId    String    @map("import_id")
+  productId   String?   @map("product_id")
+  itemId      String    @map("item_id")
   sku         String?
   title       String?
   // eBay에서 한 번 받아와 저장해 두는 대표 이미지. 연결 화면에서 카드를 눈으로
   // 대조하는 데 쓰며, 같은 리스팅을 다시 열어도 eBay를 다시 부르지 않는다.
-  imageUrl    String?  @map("image_url")
-  price       Decimal? @db.Decimal(12, 2)
+  imageUrl    String?   @map("image_url")
+  price       Decimal?  @db.Decimal(12, 2)
   quantity    Int?
   currency    String?
-  status      String   @default("ACTIVE")
-  matchStatus String   @default("UNMATCHED") @map("match_status")
+  status      String    @default("ACTIVE")
+  matchStatus String    @default("UNMATCHED") @map("match_status")
   // 사람이 이 리스팅을 상품에 연결한 시각. 방금 한 연결을 되짚어 풀 수 있게 남긴다.
   linkedAt    DateTime? @map("linked_at")
-  rawJson     Json?    @map("raw_json")
-  createdAt   DateTime @default(now()) @map("created_at")
+  rawJson     Json?     @map("raw_json")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   reportImport EbayReportImport @relation(fields: [importId], references: [id], onDelete: Cascade)
   product      Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
 
-  @@unique([importId, itemId])
+  @@unique([importId, itemId, sku])
   @@index([productId, createdAt])
   @@index([sku])
   @@index([matchStatus])
@@ -266,25 +407,25 @@ model EbayActiveListing {
 }
 
 model VariationListingState {
-  id                 String   @id @default(cuid())
-  userId             String   @map("user_id")
-  groupKey           String   @map("group_key")
-  parentSku          String   @map("parent_sku")
-  title              String
-  ebayItemId         String?  @map("ebay_item_id")
-  includedProductIds Json     @default("[]") @map("included_product_ids")
-  pendingProductIds  Json     @default("[]") @map("pending_product_ids")
-  thumbnailStatus    String   @default("MISSING") @map("thumbnail_status")
-  thumbnailUrl       String?  @map("thumbnail_url")
-  thumbnailKey       String?  @map("thumbnail_key")
-  thumbnailHash      String?  @map("thumbnail_hash")
-  thumbnailProductIds Json    @default("[]") @map("thumbnail_product_ids")
-  thumbnailError     String?  @map("thumbnail_error") @db.Text
+  id                   String    @id @default(cuid())
+  userId               String    @map("user_id")
+  groupKey             String    @map("group_key")
+  parentSku            String    @map("parent_sku")
+  title                String
+  ebayItemId           String?   @map("ebay_item_id")
+  includedProductIds   Json      @default("[]") @map("included_product_ids")
+  pendingProductIds    Json      @default("[]") @map("pending_product_ids")
+  thumbnailStatus      String    @default("MISSING") @map("thumbnail_status")
+  thumbnailUrl         String?   @map("thumbnail_url")
+  thumbnailKey         String?   @map("thumbnail_key")
+  thumbnailHash        String?   @map("thumbnail_hash")
+  thumbnailProductIds  Json      @default("[]") @map("thumbnail_product_ids")
+  thumbnailError       String?   @map("thumbnail_error") @db.Text
   thumbnailGeneratedAt DateTime? @map("thumbnail_generated_at")
-  lastExportedAt     DateTime? @map("last_exported_at")
-  lastConfirmedAt    DateTime? @map("last_confirmed_at")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  lastExportedAt       DateTime? @map("last_exported_at")
+  lastConfirmedAt      DateTime? @map("last_confirmed_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
   @@unique([userId, groupKey])
   @@unique([userId, parentSku])
@@ -293,10 +434,37 @@ model VariationListingState {
 }
 
 model VariationThumbnailSetting {
-  userId    String   @id @map("user_id")
-  logoUrl   String?  @map("logo_url")
-  logoKey   String?  @map("logo_key")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  userId             String   @id @map("user_id")
+  logoUrl            String?  @map("logo_url")
+  logoKey            String?  @map("logo_key")
+  watermarkEnabled   Boolean  @default(true) @map("watermark_enabled")
+  watermarkOpacity   Float    @default(0.06) @map("watermark_opacity")
+  watermarkLogoSize  Int      @default(50) @map("watermark_logo_size")
+  watermarkGap       Int      @default(25) @map("watermark_gap")
+  variationWatermarkOpacity  Float    @default(0.06) @map("variation_watermark_opacity")
+  variationWatermarkLogoSize Int      @default(50) @map("variation_watermark_logo_size")
+  variationWatermarkGap      Int      @default(25) @map("variation_watermark_gap")
+  imageExposure      Float    @default(1) @map("image_exposure")
+  imageContrast      Float    @default(1) @map("image_contrast")
+  imageSaturation    Float    @default(1) @map("image_saturation")
+  imageRotation      Float    @default(0) @map("image_rotation")
+  imageZoom          Float    @default(0) @map("image_zoom")
+  imageFlipHorizontal Boolean @default(false) @map("image_flip_horizontal")
+  backgroundEnabled Boolean  @default(false) @map("background_enabled")
+  backgroundUrl     String?  @map("background_url")
+  backgroundKey     String?  @map("background_key")
+  backgroundPadding Int      @default(80) @map("background_padding")
+  backgroundColor   String   @default("#FFFFFF") @map("background_color")
+  paddingTop        Int      @default(80) @map("padding_top")
+  paddingRight      Int      @default(80) @map("padding_right")
+  paddingBottom     Int      @default(80) @map("padding_bottom")
+  paddingLeft       Int      @default(80) @map("padding_left")
+  shadowEnabled     Boolean  @default(false) @map("shadow_enabled")
+  shadowOpacity     Float    @default(0.35) @map("shadow_opacity")
+  shadowBlur        Int      @default(20) @map("shadow_blur")
+  shadowOffsetX     Int      @default(12) @map("shadow_offset_x")
+  shadowOffsetY     Int      @default(12) @map("shadow_offset_y")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   @@map("variation_thumbnail_settings")
 }
@@ -596,11 +764,32 @@ model PricingReviewItem {
   product      Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
   appliedDraft ListingDraft? @relation(fields: [appliedDraftId], references: [id], onDelete: SetNull)
   appliedBy    User?         @relation("PricingReviewItemAppliedBy", fields: [appliedById], references: [id], onDelete: Restrict)
+  listingPriceApprovals ListingPriceApproval[]
 
   @@unique([reviewId, productId])
   @@index([productId, createdAt])
   @@index([appliedDraftId])
   @@map("pricing_review_items")
+}
+
+// Immutable audit trail for every price that may be sent to a sales channel.
+// Legacy ebay_price remains an input/candidate field and is never an approved price.
+model ListingPriceApproval {
+  id                  String   @id @default(cuid())
+  productId           String   @map("product_id")
+  priceUsd            Decimal  @map("price_usd") @db.Decimal(12, 2)
+  source              String
+  pricingReviewItemId String?  @map("pricing_review_item_id")
+  approvedById        String   @map("approved_by_id")
+  approvedAt          DateTime @default(now()) @map("approved_at")
+
+  product           Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+  pricingReviewItem PricingReviewItem? @relation(fields: [pricingReviewItemId], references: [id], onDelete: SetNull)
+  approvedBy        User               @relation("ListingPriceApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+
+  @@index([productId, approvedAt])
+  @@index([pricingReviewItemId])
+  @@map("listing_price_approvals")
 }
 
 model EbayPolicyCache {
@@ -712,4 +901,23 @@ model SyncLog {
   @@index([type, status])
   @@index([createdAt])
   @@map("sync_logs")
+}
+
+model PocamarketCatalogState {
+  groupId Int @id @map("group_id")
+  brand String
+  enabled Boolean @default(true)
+  status String @default("QUEUED")
+  nextPage Int @default(1) @map("next_page")
+  totalCount Int @default(0) @map("total_count")
+  scannedCount Int @default(0) @map("scanned_count")
+  createdCount Int @default(0) @map("created_count")
+  totalCreated Int @default(0) @map("total_created")
+  errorMessage String? @map("error_message")
+  leaseToken String? @map("lease_token")
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz
+  lastCompletedAt DateTime? @map("last_completed_at") @db.Timestamptz
+  nextRunAt DateTime @default(now()) @map("next_run_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  @@map("pocamarket_catalog_states")
 }

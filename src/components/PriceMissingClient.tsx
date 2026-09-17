@@ -355,7 +355,7 @@ export function PriceMissingClient({
       const response = await fetch("/api/products/ebay-price", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ items: payload }),
+        body: JSON.stringify({ items: payload, confirmed: true }),
       });
       const body = (await response.json().catch(() => null)) as
         | { updated?: number; error?: string }
@@ -366,7 +366,7 @@ export function PriceMissingClient({
 
       const savedIds = new Set(payload.map((row) => row.productId));
       setItems((prev) => prev.filter((row) => !savedIds.has(row.id)));
-      setMessage(`${body?.updated ?? payload.length}개 상품의 eBay 판매가를 저장했습니다.`);
+      setMessage(`${body?.updated ?? payload.length}개 상품의 최종 판매가(USD)를 확정했습니다.`);
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "저장에 실패했습니다.");

@@ -21,7 +21,7 @@ const schema = z.object({
     .max(500),
 });
 
-const maxPriceUsd = 100000;
+const maxPriceUsd = 500;
 
 type ParsedPrice =
   | { ok: true; value: Prisma.Decimal | null }
@@ -48,8 +48,8 @@ function parsePriceUsd(value: number | string | null): ParsedPrice {
 
 export async function POST(request: Request) {
   try {
-    await requireApiUser();
-    const input = schema.parse(await request.json());
+    const user = await requireApiUser();
+    const input = schema.extend({ confirmed: z.literal(true) }).parse(await request.json());
     const updates: Array<{ productId: string; ebayPrice: Prisma.Decimal | null }> = [];
     for (const item of input.items) {
       const parsed = parsePriceUsd(item.ebayPriceUsd);
@@ -69,15 +69,25 @@ export async function POST(request: Request) {
       return jsonError("일부 상품을 찾을 수 없습니다.", 404);
     }
 
-    await prisma.$transaction(
-      updates.map((update) =>
-        prisma.product.update({
+    await prisma.$transaction(async (tx) => {
+      for (const update of updates) {
+        await tx.product.update({
           where: { id: update.productId },
-          data: { ebayPrice: update.ebayPrice },
-          select: { id: true },
-        }),
-      ),
-    );
+          data: {
+            ebayPrice: update.ebayPrice,
+            finalListingPriceUsd: update.ebayPrice,
+            finalListingPriceSource: update.ebayPrice ? "MANUAL_USD" : null,
+            finalListingPriceApprovedAt: update.ebayPrice ? new Date() : null,
+            finalListingPriceApprovedById: update.ebayPrice ? user.id : null,
+          },
+        });
+        if (update.ebayPrice) {
+          await tx.listingPriceApproval.create({
+            data: { productId: update.productId, priceUsd: update.ebayPrice, source: "MANUAL_USD", approvedById: user.id },
+          });
+        }
+      }
+    });
 
     return Response.json({ ok: true, updated: updates.length });
   } catch (error) {

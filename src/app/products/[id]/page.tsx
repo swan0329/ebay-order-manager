@@ -1,13 +1,12 @@
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
+import { productDisplayImageUrl, productDisplayImageLabel } from "@/lib/product-display-image";
 import { notFound } from "next/navigation";
 import { PackageOpen } from "lucide-react";
 import { ListingErrorHint } from "@/components/ListingErrorHint";
+import { ShopifyUploadButton } from "@/components/ShopifyUploadButton";
+import { ProductImageWorkbench } from "@/components/ProductImageWorkbench";
 import { TopNav } from "@/components/TopNav";
-import {
-  listingUploadStatusLabel,
-  resolveInventoryListingUploadStatus,
-} from "@/lib/listing-upload-status";
 import { classifyListingError } from "@/lib/listing-error-classification";
 import { productStockLabel } from "@/lib/products";
 import { prisma } from "@/lib/prisma";
@@ -65,8 +64,37 @@ export default async function ProductDetailPage({
       movementUser.name ?? movementUser.loginId,
     ]),
   );
-  const listingUploadStatus = resolveInventoryListingUploadStatus(product);
   const uploadError = product.uploadError ?? product.listingDrafts[0]?.errorSummary;
+  const imageSourceRows = await prisma.$queryRaw<
+    Array<{
+      imageSource: string | null;
+      sourceImageUrl: string | null;
+      userImageRegistered: boolean;
+    }>
+  >`
+    SELECT
+      "image_source" AS "imageSource",
+      "source_image_url" AS "sourceImageUrl",
+      ("user_front_image_url" IS NOT NULL AND "user_front_image_url" <> '') AS "userImageRegistered"
+    FROM "products"
+    WHERE "id" = ${product.id}
+  `;
+  const imageSource = imageSourceRows[0]?.imageSource ?? null;
+  const sourceImageUrl = imageSourceRows[0]?.sourceImageUrl?.trim() || null;
+  const userImageRegistered = imageSourceRows[0]?.userImageRegistered ?? false;
+  const effectiveImageSource =
+    imageSource ?? (userImageRegistered ? "r2_user_uploaded" : null);
+  const displayImage = {
+    id: product.id,
+    userImageRegistered,
+    imageUpdatedAt: product.updatedAt.toISOString(),
+    imageSource,
+    imageUrl: product.imageUrl ?? product.ebayImageUrls[0] ?? null,
+    sourceImageUrl: sourceImageUrl ?? (product.ebayItemId
+      ? product.ebayImageUrls[0] ?? `/api/products/${product.id}/ebay-display-image`
+      : null),
+  };
+  const displayImageUrl = productDisplayImageUrl(displayImage);
   const uploadErrorClassification = classifyListingError({ message: uploadError });
 
   return (
@@ -82,20 +110,27 @@ export default async function ProductDetailPage({
               {product.sku} · {product.optionName ?? "옵션 없음"}
             </p>
           </div>
-          <Link
-            href={`/products/${product.id}/edit`}
-            className="inline-flex h-10 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
-          >
-            수정
-          </Link>
+          <div className="flex items-start gap-2">
+            <ShopifyUploadButton
+              productId={product.id}
+              alreadyUploaded={Boolean(product.shopifyProductId)}
+            />
+            <Link
+              href={`/products/${product.id}/edit`}
+              className="inline-flex h-10 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
+            >
+              수정
+            </Link>
+          </div>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
           <aside className="space-y-4">
             <section className="rounded-lg border border-zinc-200 bg-white p-4">
+              <p className="mb-2 text-sm font-semibold text-zinc-700">대표 이미지 · {productDisplayImageLabel(displayImage)}</p>
               <div className="mb-4 flex aspect-square items-center justify-center overflow-hidden rounded-md bg-zinc-100">
-                {product.imageUrl ? (
-                  <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
+                {displayImageUrl ? (
+                  <img src={displayImageUrl} alt="" className="h-full w-full object-contain" />
                 ) : (
                   <PackageOpen className="h-12 w-12 text-zinc-400" />
                 )}
@@ -117,17 +152,6 @@ export default async function ProductDetailPage({
                   <dt className="text-zinc-500">상태</dt>
                   <dd className="font-semibold text-zinc-950">
                     {productStockLabel(product)}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-zinc-500">eBay 등록</dt>
-                  <dd className="text-right font-semibold text-zinc-950">
-                    {listingUploadStatusLabel(listingUploadStatus)}
-                    {product.ebayItemId ? (
-                      <span className="mt-1 block text-xs text-zinc-500">
-                        {product.ebayItemId}
-                      </span>
-                    ) : null}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-3">
@@ -182,12 +206,6 @@ export default async function ProductDetailPage({
               </h2>
               <dl className="space-y-2 text-sm">
                 <div>
-                  <dt className="text-zinc-500">상태</dt>
-                  <dd className="font-medium text-zinc-950">
-                    {listingUploadStatusLabel(listingUploadStatus)}
-                  </dd>
-                </div>
-                <div>
                   <dt className="text-zinc-500">item_id / offer_id</dt>
                   <dd className="font-medium text-zinc-950">
                     {product.ebayItemId ?? product.listingLinks[0]?.ebayItemId ?? "-"} /{" "}
@@ -215,9 +233,48 @@ export default async function ProductDetailPage({
                 ) : null}
               </dl>
             </section>
+
+            <section className="rounded-lg border border-zinc-200 bg-white p-4">
+              <h2 className="mb-3 text-base font-semibold text-zinc-950">
+                쇼피파이 업로드 연결
+              </h2>
+              <dl className="space-y-2 text-sm">
+                <div>
+                  <dt className="text-zinc-500">product_id</dt>
+                  <dd className="font-medium text-zinc-950">
+                    {product.shopifyProductId ?? "-"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-zinc-500">상태 / 최근 업로드</dt>
+                  <dd className="font-medium text-zinc-950">
+                    {product.shopifyProductId
+                      ? `${product.shopifyStatus ?? "-"} · ${
+                          product.shopifyLastUploadedAt
+                            ? formatDate(product.shopifyLastUploadedAt)
+                            : "-"
+                        }`
+                      : "미업로드"}
+                  </dd>
+                </div>
+                {product.shopifyUploadError ? (
+                  <div>
+                    <dt className="text-zinc-500">오류</dt>
+                    <dd className="whitespace-pre-wrap font-medium text-rose-700">
+                      {product.shopifyUploadError}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+            </section>
           </aside>
 
           <section className="space-y-4">
+            <ProductImageWorkbench
+              productId={product.id}
+              referenceUrl={displayImageUrl}
+              imageSource={effectiveImageSource}
+            />
             <div id="stock-history" className="rounded-lg border border-zinc-200 bg-white p-4">
               <div className="mb-4 flex gap-2 border-b border-zinc-200 pb-3">
                 <span className="rounded-md bg-zinc-950 px-3 py-1.5 text-sm font-semibold text-white">
@@ -268,7 +325,7 @@ export default async function ProductDetailPage({
                                 href={`/orders/${movement.relatedOrder.id}`}
                                 className="underline-offset-4 hover:underline"
                               >
-                                {movement.relatedOrder.ebayOrderId}
+                                {movement.relatedOrder.orderNumber}
                               </Link>
                             ) : (
                               "-"
@@ -304,7 +361,7 @@ export default async function ProductDetailPage({
                     >
                       <span>
                         <span className="block font-medium text-zinc-950">
-                          {item.order.ebayOrderId}
+                          {item.order.orderNumber}
                         </span>
                         <span className="block text-zinc-500">{item.title}</span>
                       </span>

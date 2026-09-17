@@ -32,7 +32,8 @@ export function LoginForm() {
       return;
     }
 
-    window.location.href = "/orders";
+    const data = (await response.json()) as { user?: { role?: string } };
+    window.location.href = data.user?.role === "WORKER" ? "/worker/images" : "/orders";
   }
 
   return (

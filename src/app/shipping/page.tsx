@@ -11,11 +11,12 @@ export default async function ShippingPage() {
   const orders = await prisma.order.findMany({
     where: {
       userId: user.id,
+      salesChannel: "EBAY",
       fulfillmentStatus: { in: ["NOT_STARTED", "IN_PROGRESS"] },
     },
     select: {
       id: true,
-      ebayOrderId: true,
+      orderNumber: true,
       buyerName: true,
       buyerUsername: true,
       buyerCountry: true,

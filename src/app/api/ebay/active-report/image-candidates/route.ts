@@ -18,6 +18,9 @@ export const maxDuration = 60;
 
 const schema = z.object({
   listingId: z.string().min(1),
+  group: z.string().trim().max(120).nullish(),
+  member: z.string().trim().max(120).nullish(),
+  album: z.string().trim().max(200).nullish(),
 });
 
 // 등록된 상품의 멤버 이름 중 리스팅 제목에 단어로 들어 있는 것을 고른다.
@@ -46,7 +49,7 @@ async function memberFromTitle(title: string | null) {
 export async function POST(request: Request) {
   try {
     const user = await requireApiUser();
-    const { listingId } = schema.parse(await request.json());
+    const { listingId, group, member: selectedMember, album } = schema.parse(await request.json());
 
     const listing = await prisma.ebayActiveListing.findFirst({
       where: { id: listingId, reportImport: { userId: user.id } },
@@ -84,15 +87,22 @@ export async function POST(request: Request) {
     // 같은 앨범 카드는 배경·구도가 거의 같아서 사진 지문만으로는 멤버를 가르지
     // 못한다(멤버 얼굴만 다르다). 제목에 멤버 이름이 있으면 그 멤버로 먼저 좁힌 뒤
     // 사진으로 순위를 매긴다.
-    const member = await memberFromTitle(listing.title);
+    const member = selectedMember || await memberFromTitle(listing.title);
     const fingerprint = await computeImageFingerprintFromBuffer(buffer);
     let candidates = await findProductImageCandidates(fingerprint, {
-      limit: 8,
+      limit: 20,
+      group: group || null,
       member,
+      album: album || null,
     });
-    // 좁힌 결과가 비면 멤버 표기가 우리 데이터와 다른 경우다. 전체로 다시 찾는다.
-    if (member && !candidates.length) {
-      candidates = await findProductImageCandidates(fingerprint, { limit: 8 });
+    // 자동으로 제목에서 추정한 멤버만 틀렸을 때에만 멤버 조건을 푼다.
+    // 사용자가 직접 고른 그룹·멤버·앨범 조건은 절대 풀지 않는다.
+    if (!selectedMember && member && !candidates.length) {
+      candidates = await findProductImageCandidates(fingerprint, {
+        limit: 20,
+        group: group || null,
+        album: album || null,
+      });
     }
 
     // 이미 다른 상품번호가 붙은 상품은 연결할 수 없으므로 함께 알려준다.
@@ -109,6 +119,7 @@ export async function POST(request: Request) {
       listingImageUrl: imageUrl,
       // 어떤 멤버로 좁혔는지 알려줘, 좁히기가 틀렸을 때 사람이 알아챌 수 있게 한다.
       memberFilter: member,
+      filters: { group: group || null, member: selectedMember || null, album: album || null },
       candidates: candidates.map((candidate) => ({
         productId: candidate.id,
         sku: candidate.sku,

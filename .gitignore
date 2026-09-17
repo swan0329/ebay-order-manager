@@ -47,6 +47,12 @@ next-env.d.ts
 
 # generated
 /src/generated/prisma/
+# Local Android bridge runtime
+/tools/
 
 # Local project-work metadata and documentation backups
 /.dryforge/
+/.codex-tmp/
+
+# Local BTS photo originals
+/BTS_상품번호_JPG/

@@ -49,7 +49,7 @@ async function main() {
   try {
     const result = await rebuildProductImageFingerprints(limit);
     console.log(
-      `scanned=${result.scanned} updated=${result.updated} skipped=${result.skipped}`,
+      `scanned=${result.scanned} updated=${result.updated} failed=${result.failed} skipped=${result.skipped} clipFailed=${result.clipFailed} remaining=${result.remaining}`,
     );
   } finally {
     await prisma.$disconnect();

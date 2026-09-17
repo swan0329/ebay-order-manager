@@ -2,12 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Image as ImageIcon, Loader2, Upload, X } from "lucide-react";
+import {
+  Image as ImageIcon,
+  Loader2,
+  ShoppingBag,
+  Upload,
+  X,
+} from "lucide-react";
 import {
   ProductQuickEditCard,
   ProductQuickEditRow,
   type ProductQuickEditValue,
 } from "@/components/ProductQuickEdit";
+import { productStatusLabel, productStatusOptions } from "@/lib/product-status";
+import { notifyProductDataChanged } from "@/lib/client-product-refresh";
+
+import { productDisplayImageUrl, productDisplayImageLabel } from "@/lib/product-display-image";
 
 type Column = {
   id: string;
@@ -19,22 +29,43 @@ type Column = {
 
 const columns: Column[] = [
   { id: "select", label: "", width: 52, minWidth: 48, locked: true },
+  { id: "imageSource", label: "이미지 출처", width: 110, minWidth: 96 },
   { id: "sku", label: "상품번호", width: 120, minWidth: 90 },
   { id: "stockQuantity", label: "재고", width: 90, minWidth: 74 },
+  { id: "sellability", label: "판매 가능 경로", width: 150, minWidth: 130 },
+  { id: "uploadStatus", label: "eBay 업로드", width: 145, minWidth: 125 },
+  { id: "shopify", label: "쇼피파이", width: 150, minWidth: 110 },
   { id: "brand", label: "그룹명", width: 140, minWidth: 100 },
   { id: "category", label: "앨범명", width: 240, minWidth: 140 },
   { id: "optionName", label: "멤버", width: 130, minWidth: 100 },
-  { id: "imageUrl", label: "포카마켓 이미지", width: 130, minWidth: 104 },
+  { id: "featuredMembers", label: "유닛 멤버", width: 200, minWidth: 140 },
+  { id: "imageUrl", label: "이미지", width: 130, minWidth: 104 },
+  { id: "ebayPrice", label: "가격 후보(USD)", width: 130, minWidth: 110 },
   { id: "salePrice", label: "포카마켓 가격", width: 130, minWidth: 116 },
+  { id: "pocamarketStock", label: "포카마켓 매물 수", width: 140, minWidth: 120 },
+  { id: "pocamarketSyncedAt", label: "포카 최신화", width: 140, minWidth: 120 },
   { id: "memo", label: "원본 앨범명", width: 190, minWidth: 130 },
   { id: "productName", label: "상품명", width: 320, minWidth: 180 },
   { id: "status", label: "상태", width: 140, minWidth: 120 },
-  { id: "listingStatus", label: "eBay 등록", width: 150, minWidth: 120 },
   { id: "save", label: "저장", width: 90, minWidth: 74, locked: true },
 ];
 
 const widthStorageKey = "products-table-column-widths";
 const visibilityStorageKey = "products-table-visible-columns";
+const shopifyJobStorageKey = "active-product-publish-job";
+const publishTerminal = new Set(["COMPLETED", "COMPLETED_WITH_ERROR", "FAILED"]);
+
+type ChannelPublishJob = {
+  id: string;
+  channel: "EBAY" | "SHOPIFY";
+  mode: string;
+  status: string;
+  totalCount: number;
+  processedCount: number;
+  successCount: number;
+  failureCount: number;
+  items?: Array<{ id: string; sku: string; status: string; error: string | null }>;
+};
 
 function defaultWidths() {
   return Object.fromEntries(columns.map((column) => [column.id, column.width]));
@@ -92,42 +123,166 @@ function bulkUpdateChanges(payload: BulkUpdatePayload) {
 }
 
 function statusLabel(status: string) {
-  if (status === "active") {
-    return "활성";
-  }
-
-  if (status === "inactive") {
-    return "비활성";
-  }
-
-  if (status === "sold_out") {
-    return "품절";
-  }
-
-  return status;
+  return productStatusLabel(status);
 }
 
 export function ResizableProductsTable({
   products,
+  shopifyStoreHandle = null,
 }: {
   products: ProductQuickEditValue[];
+  shopifyStoreHandle?: string | null;
 }) {
   const router = useRouter();
   const [widths, setWidths] = useState<Record<string, number>>(defaultWidths);
+  const [groupMembers, setGroupMembers] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    const unitBrands = [
+      ...new Set(
+        products
+          .filter((p) => (p.optionName ?? "").trim().toLowerCase() === "unit")
+          .map((p) => (p.brand ?? "").trim())
+          .filter(Boolean),
+      ),
+    ];
+    const missing = unitBrands.filter((brand) => !(brand in groupMembers));
+    if (!missing.length) {
+      return;
+    }
+
+    let active = true;
+    void (async () => {
+      for (const brand of missing) {
+        try {
+          const response = await fetch(
+            `/api/inventory/group-members?group=${encodeURIComponent(brand)}`,
+          );
+          const data = (await response.json().catch(() => null)) as
+            | { members?: string[] }
+            | null;
+          if (!active) return;
+          setGroupMembers((current) => ({ ...current, [brand]: data?.members ?? [] }));
+        } catch {
+          if (active) {
+            setGroupMembers((current) => ({ ...current, [brand]: [] }));
+          }
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [products, groupMembers]);
   const [visibility, setVisibility] =
     useState<Record<string, boolean>>(defaultVisibility);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkStatus, setBulkStatus] = useState("active");
+  const [bulkStatus, setBulkStatus] = useState("unlisted");
   const [bulkStock, setBulkStock] = useState("");
   const [bulkPrice, setBulkPrice] = useState("");
   const [bulkLoading, setBulkLoading] = useState(false);
-  const [exportLoading, setExportLoading] = useState(false);
+  const [shopifyJobId, setShopifyJobId] = useState<string | null>(null);
+  const [publishChannel, setPublishChannel] = useState<"EBAY" | "SHOPIFY" | null>(null);
+  const [shopifyLoading, setShopifyLoading] = useState(false);
+  const [shopifyProgress, setShopifyProgress] = useState<{
+    mode: string;
+    total: number;
+    done: number;
+    success: number;
+    failed: number;
+    running: boolean;
+    processing: string[];
+    failures: Array<{ product: string; error: string }>;
+  } | null>(null);
   const [bulkMessage, setBulkMessage] = useState("");
   const [pendingBulkUpdate, setPendingBulkUpdate] =
     useState<PendingBulkUpdate | null>(null);
   const [photoTarget, setPhotoTarget] = useState<ProductQuickEditValue | null>(null);
   const [renderMobileCards, setRenderMobileCards] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const stored = window.localStorage.getItem(shopifyJobStorageKey);
+      if (stored) {
+        setShopifyLoading(true);
+        setShopifyJobId(stored);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!shopifyJobId) return;
+    let active = true;
+    let finished = false;
+    let consecutiveErrors = 0;
+    let timer: number | undefined;
+    const update = async () => {
+      try {
+        const response = await fetch(
+          `/api/channel-publish-jobs?jobId=${encodeURIComponent(shopifyJobId)}`,
+          { cache: "no-store" },
+        );
+        const body = (await response.json().catch(() => null)) as
+          | { job?: ChannelPublishJob; error?: string }
+          | null;
+        if (!response.ok || !body?.job) {
+          throw new Error(body?.error ?? "작업 상태를 조회하지 못했습니다.");
+        }
+        if (!active) return;
+        consecutiveErrors = 0;
+        const job = body.job;
+        setPublishChannel(job.channel);
+        setShopifyProgress({
+          mode: job.mode,
+          total: job.totalCount,
+          done: job.processedCount,
+          success: job.successCount,
+          failed: job.failureCount,
+          running: !publishTerminal.has(job.status),
+          processing: (job.items ?? [])
+            .filter((item) => item.status === "PROCESSING")
+            .map((item) => item.sku),
+          failures: (job.items ?? []).filter((item) => item.status === "FAILED").map((item) => ({
+            product: item.sku,
+            error: item.error ?? "처리 실패",
+          })),
+        });
+        if (publishTerminal.has(job.status)) {
+          finished = true;
+          window.localStorage.removeItem(shopifyJobStorageKey);
+          setShopifyJobId(null);
+          setShopifyLoading(false);
+          setBulkMessage(
+            `${job.channel === "EBAY" ? "eBay" : "Shopify"} 상품 등록 완료: 성공 ${job.successCount}건, 실패 ${job.failureCount}건`,
+          );
+          if (job.successCount) notifyProductDataChanged();
+          router.refresh();
+        }
+      } catch (error) {
+        if (!active) return;
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= 3) {
+          setBulkMessage(
+            error instanceof Error
+              ? `상품 등록 상태 조회 오류: ${error.message} 자동 재확인 중입니다.`
+              : "상품 등록 상태를 조회하지 못해 자동 재확인 중입니다.",
+          );
+        }
+      } finally {
+        if (active && !finished) {
+          timer = window.setTimeout(() => void update(), 2_000);
+        }
+      }
+    };
+    void update();
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [router, shopifyJobId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -319,6 +474,7 @@ export function ResizableProductsTable({
         : `${updated}개 상품을 수정했습니다.`,
     );
     setPendingBulkUpdate(null);
+    notifyProductDataChanged();
     router.refresh();
   }
 
@@ -360,49 +516,93 @@ export function ResizableProductsTable({
 
     setBulkMessage(`${data?.deleted ?? 0}개 상품을 삭제했습니다.`);
     setSelectedIds(new Set());
+    notifyProductDataChanged();
     router.refresh();
   }
 
-  async function downloadSelectedListingXlsx() {
-    // Use checked items if any, otherwise fall back to all current-page products
-    const ids = selectedCount > 0 ? selectedProductIds : products.map((p) => p.id);
-
-    if (ids.length === 0) {
-      setBulkMessage("다운로드할 상품이 없습니다.");
+  async function runBulkShopifyUpload(mode: "UPSERT" | "IMAGES") {
+    if (!selectedCount) {
+      setBulkMessage("쇼피파이에 반영할 상품을 선택해 주세요.");
       return;
     }
 
-    setExportLoading(true);
+    if (
+      !window.confirm(
+        mode === "UPSERT"
+          ? `선택한 상품 ${selectedCount}개를 Shopify에 등록할까요?\n\n이미 등록된 상품은 가격·재고가 갱신됩니다.`
+          : `선택한 상품 ${selectedCount}개의 승인 이미지를 Shopify 대표 이미지로 교체할까요?`,
+      )
+    ) {
+      return;
+    }
+
+    setShopifyLoading(true);
     setBulkMessage("");
 
     try {
-      const response = await fetch("/api/listing-upload/inventory/export", {
+      const response = await fetch("/api/channel-publish-jobs", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ productIds: ids }),
+        body: JSON.stringify({
+          channel: "SHOPIFY",
+          mode,
+          targetIds: selectedProductIds,
+        }),
       });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        setBulkMessage(data?.error ?? "이베이 XLSX 다운로드에 실패했습니다.");
-        return;
+      const body = (await response.json().catch(() => null)) as
+        | { job?: ChannelPublishJob; error?: string }
+        | null;
+      if (!response.ok || !body?.job) {
+        throw new Error(body?.error ?? "쇼피파이 작업을 접수하지 못했습니다.");
       }
+      window.localStorage.setItem(shopifyJobStorageKey, body.job.id);
+      setShopifyJobId(body.job.id);
+      setShopifyProgress({
+        mode,
+        total: body.job.totalCount,
+        done: 0,
+        success: 0,
+        failed: 0,
+        running: true,
+        processing: [],
+        failures: [],
+      });
+      setBulkMessage(
+        `Shopify ${mode === "UPSERT" ? "등록" : "이미지 교체"} 작업 ${body.job.totalCount}개를 접수했습니다.`,
+      );
+    } catch (error) {
+      setShopifyLoading(false);
+      setBulkMessage(error instanceof Error ? error.message : "쇼피파이 작업 접수 실패");
+    }
+  }
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "ebay-category-listing-upload.xlsx";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      setBulkMessage("이베이 XLSX 다운로드 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
-    } finally {
-      setExportLoading(false);
+  async function runProductPublish(channel: "EBAY" | "SHOPIFY") {
+    if (!selectedCount) {
+      setBulkMessage(`${channel === "EBAY" ? "eBay" : "Shopify"}에 등록할 상품을 선택해 주세요.`);
+      return;
+    }
+    const label = channel === "EBAY" ? "eBay" : "Shopify";
+    if (!window.confirm(
+      `선택한 상품 ${selectedCount}개를 ${label}에 바로 등록할까요?\n\n옵션으로 묶을 수 있는 카드는 자동으로 한 상품의 옵션으로 구성하고, 나머지만 단품으로 등록합니다.`,
+    )) return;
+    setShopifyLoading(true);
+    setPublishChannel(channel);
+    setBulkMessage("");
+    try {
+      const response = await fetch("/api/products/publish", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ channel, productIds: selectedProductIds, confirmed: true }),
+      });
+      const body = (await response.json().catch(() => null)) as { job?: ChannelPublishJob; error?: string } | null;
+      if (!response.ok || !body?.job) throw new Error(body?.error ?? `${label} 등록 작업을 접수하지 못했습니다.`);
+      window.localStorage.setItem(shopifyJobStorageKey, body.job.id);
+      setShopifyJobId(body.job.id);
+      setShopifyProgress({ mode: "UPSERT", total: body.job.totalCount, done: 0, success: 0, failed: 0, running: true, processing: [], failures: [] });
+      setBulkMessage(`${label} 상품 등록을 시작했습니다. 옵션 구성과 필요한 썸네일은 자동으로 처리합니다.`);
+    } catch (error) {
+      setShopifyLoading(false);
+      setBulkMessage(error instanceof Error ? error.message : `${label} 등록 작업 접수 실패`);
     }
   }
 
@@ -435,12 +635,34 @@ export function ResizableProductsTable({
             </button>
             <button
               type="button"
-              onClick={() => void downloadSelectedListingXlsx()}
-              disabled={exportLoading || products.length === 0}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-emerald-700 bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
+              onClick={() => void runProductPublish("EBAY")}
+              disabled={shopifyLoading || !selectedCount || selectedCount > 500}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-blue-700 bg-blue-700 px-3 text-xs font-semibold text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
+              title={selectedCount > 500 ? "한 번에 최대 500개까지 등록할 수 있습니다." : undefined}
             >
-              <Download className="h-3.5 w-3.5" />
-              {exportLoading ? "XLSX 준비 중" : selectedCount > 0 ? `이베이 XLSX (${selectedCount}개)` : "이베이 XLSX (전체)"}
+              <Upload className="h-3.5 w-3.5" />
+              {shopifyLoading && publishChannel === "EBAY" ? "eBay 등록 중" : `eBay 상품 등록 (${selectedCount}개)`}
+            </button>
+            <button
+              type="button"
+              onClick={() => void runProductPublish("SHOPIFY")}
+              disabled={shopifyLoading || !selectedCount || selectedCount > 500}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-emerald-700 bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
+              title={selectedCount > 500 ? "한 번에 최대 500개까지 등록할 수 있습니다." : undefined}
+            >
+              <ShoppingBag className="h-3.5 w-3.5" />
+              {shopifyLoading && publishChannel === "SHOPIFY" ? "Shopify 등록 중" : `Shopify 상품 등록 (${selectedCount}개)`}
+            </button>
+            <button
+              type="button"
+              onClick={() => void runBulkShopifyUpload("IMAGES")}
+              disabled={shopifyLoading || !selectedCount}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-violet-600 bg-violet-600 px-3 text-xs font-semibold text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
+            >
+              <ImageIcon className="h-3.5 w-3.5" />
+              {shopifyLoading
+                ? "Shopify 처리 중"
+                : `Shopify 이미지 교체${selectedCount > 0 ? ` (${selectedCount}개)` : ""}`}
             </button>
             <button
               type="button"
@@ -459,9 +681,11 @@ export function ResizableProductsTable({
             onChange={(event) => setBulkStatus(event.currentTarget.value)}
             className="h-10 rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
           >
-            <option value="active">활성</option>
-            <option value="inactive">비활성</option>
-            <option value="sold_out">품절</option>
+            {productStatusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
           <button
             type="button"
@@ -586,6 +810,8 @@ export function ResizableProductsTable({
                   product={product}
                   visibleColumnIds={visibleColumnIds}
                   selected={selectedIds.has(product.id)}
+                  memberOptions={groupMembers[(product.brand ?? "").trim()] ?? []}
+                  shopifyStoreHandle={shopifyStoreHandle}
                   onSelectedChange={(checked) => toggleProduct(product.id, checked)}
                   onPhotoUploadClick={setPhotoTarget}
                 />
@@ -602,12 +828,94 @@ export function ResizableProductsTable({
                 key={productEditKey(product)}
                 product={product}
                 selected={selectedIds.has(product.id)}
+                memberOptions={groupMembers[(product.brand ?? "").trim()] ?? []}
+                shopifyStoreHandle={shopifyStoreHandle}
                 onSelectedChange={(checked) => toggleProduct(product.id, checked)}
                 onPhotoUploadClick={setPhotoTarget}
               />
             ))
           : null}
       </section>
+
+      {shopifyProgress ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+            <div className="border-b border-zinc-200 p-4">
+              <h2 className="flex items-center gap-2 text-base font-semibold text-zinc-950">
+                {shopifyProgress.running ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                ) : (
+                  <ShoppingBag className="h-4 w-4 text-emerald-600" />
+                )}
+                {shopifyProgress.running
+                  ? shopifyProgress.mode === "IMAGES"
+                    ? "Shopify 대표 이미지 교체 중…"
+                    : `${publishChannel === "EBAY" ? "eBay" : "Shopify"} 상품 등록 중…`
+                  : shopifyProgress.mode === "IMAGES"
+                    ? "Shopify 대표 이미지 교체 완료"
+                    : `${publishChannel === "EBAY" ? "eBay" : "Shopify"} 상품 등록 완료`}
+              </h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                {shopifyProgress.done} / {shopifyProgress.total}개 처리됨
+              </p>
+            </div>
+            <div className="space-y-3 p-4">
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-zinc-100">
+                <div
+                  className="h-full rounded-full bg-emerald-600 transition-all duration-300"
+                  style={{
+                    width: `${
+                      shopifyProgress.total
+                        ? Math.round((shopifyProgress.done / shopifyProgress.total) * 100)
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
+              <div className="flex gap-4 text-sm font-medium">
+                <span className="text-emerald-700">성공 {shopifyProgress.success}개</span>
+                <span className={shopifyProgress.failed ? "text-rose-600" : "text-zinc-400"}>
+                  실패 {shopifyProgress.failed}개
+                </span>
+              </div>
+              {shopifyProgress.processing.length ? (
+                <p className="text-xs font-medium text-blue-700">
+                  현재 처리 중: {shopifyProgress.processing.join(", ")}
+                </p>
+              ) : null}
+              <p className="text-xs text-zinc-500">
+                {shopifyProgress.running
+                  ? "다른 화면으로 이동해도 서버에서 계속 처리됩니다."
+                  : shopifyProgress.failed > 0
+                    ? "실패한 상품은 상세페이지에서 오류를 확인하세요."
+                    : shopifyProgress.mode === "IMAGES"
+                      ? "모든 상품의 대표 이미지가 교체됐습니다."
+                      : "선택 상품의 채널 등록이 완료됐습니다."}
+              </p>
+              {shopifyProgress.failures.length ? (
+                <ul className="max-h-40 space-y-2 overflow-auto rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+                  {shopifyProgress.failures.map((failure) => (
+                    <li key={`${failure.product}:${failure.error}`}>
+                      <b>{failure.product}</b>
+                      <span className="block">{failure.error}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+            <div className="flex justify-end border-t border-zinc-200 p-4">
+              <button
+                type="button"
+                onClick={() => setShopifyProgress(null)}
+                disabled={shopifyProgress.running}
+                className="h-9 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
+              >
+                {shopifyProgress.running ? "진행 중…" : "닫기"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {pendingBulkUpdate ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -660,6 +968,7 @@ export function ResizableProductsTable({
           onClose={() => setPhotoTarget(null)}
           onSaved={() => {
             setPhotoTarget(null);
+            notifyProductDataChanged();
             router.refresh();
           }}
         />
@@ -808,7 +1117,7 @@ function InventoryPhotoUploadModal({
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-zinc-950">
-              {product.sku} 촬영본 등록
+              {product.sku} 이미지 확인 · 촬영본 등록
             </h2>
             <p className="mt-1 text-sm text-zinc-600">
               {product.brand ?? "-"} / {product.category ?? "-"} /{" "}
@@ -827,7 +1136,10 @@ function InventoryPhotoUploadModal({
 
         <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
           <div className="space-y-3">
-            <ReadonlyPreview title="포카마켓 이미지" src={sourceImageUrl} />
+            <ReadonlyPreview title={`현재 대표 이미지 · ${productDisplayImageLabel(product)}`} src={productDisplayImageUrl(product)} />
+            {sourceImageUrl && sourceImageUrl !== productDisplayImageUrl(product) ? (
+              <ReadonlyPreview title="포카마켓 원본 (비교용)" src={sourceImageUrl} />
+            ) : null}
             {currentFrontUrl ? (
               <ReadonlyPreview title="현재 촬영본 앞면" src={currentFrontUrl} />
             ) : null}
@@ -1064,4 +1376,3 @@ function loadImage(src: string) {
     image.src = src;
   });
 }
-

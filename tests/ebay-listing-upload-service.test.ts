@@ -8,7 +8,9 @@ const prismaMock = vi.hoisted(() => ({
   inventoryListingLink: {
     upsert: vi.fn(),
   },
+  pricingSettings: { findUnique: vi.fn(async () => null) },
   product: {
+    findUnique: vi.fn(),
     update: vi.fn(),
   },
 }));
@@ -18,6 +20,7 @@ const draftToListingInputMock = vi.hoisted(() => vi.fn());
 const publishProductListingMock = vi.hoisted(() => vi.fn());
 const validateListingUploadInputMock = vi.hoisted(() => vi.fn());
 const addListingToPromotedCampaignMock = vi.hoisted(() => vi.fn());
+const prepareProductChannelImagesMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/prisma", () => ({
   prisma: prismaMock,
@@ -40,6 +43,9 @@ vi.mock("@/lib/services/listingValidationService", () => ({
 vi.mock("@/lib/services/ebayMarketingService", () => ({
   addListingToPromotedCampaign: addListingToPromotedCampaignMock,
 }));
+vi.mock("@/lib/listing-source-images", () => ({
+  prepareProductChannelImages: prepareProductChannelImagesMock,
+}));
 
 import { uploadDraft } from "../src/lib/services/ebayListingUploadService";
 
@@ -61,6 +67,10 @@ const listingInput = {
 beforeEach(() => {
   vi.clearAllMocks();
   draftToListingInputMock.mockResolvedValue(listingInput);
+  prepareProductChannelImagesMock.mockImplementation(async (_userId, product) => ({
+    ...product,
+    ebayImageUrls: ["https://cdn.example.com/central-watermarked.jpg"],
+  }));
   validateListingUploadInputMock.mockResolvedValue({ valid: true, issues: [] });
   getActiveAccountMock.mockResolvedValue({ id: "account-1" });
   upsertProductMock.mockResolvedValue({
@@ -77,6 +87,7 @@ beforeEach(() => {
   prismaMock.listingDraft.update.mockResolvedValue({});
   prismaMock.inventoryListingLink.upsert.mockResolvedValue({});
   prismaMock.product.update.mockResolvedValue({});
+  prismaMock.product.findUnique.mockResolvedValue(null);
 });
 
 describe("uploadDraft", () => {
@@ -128,6 +139,39 @@ describe("uploadDraft", () => {
     });
     expect(publishProductListingMock).not.toHaveBeenCalled();
     expect(prismaMock.inventoryListingLink.upsert).not.toHaveBeenCalled();
+  });
+
+  it("uses the central watermarked image instead of a Shopify gallery", async () => {
+    prismaMock.product.findUnique.mockResolvedValue({
+      id: "inventory-1",
+      stockQuantity: 1, pocamarketAvailableCount: 0, salePrice: null, finalListingPriceUsd: 25,
+      sku: "SKU-1",
+      imageUrl: "https://example.com/products/ebay-watermarked/stale.jpg",
+      ebayImageUrls: ["https://example.com/old-gallery.jpg"],
+      shopifyProductId: "shopify-100",
+    });
+    prepareProductChannelImagesMock.mockResolvedValueOnce({
+      id: "inventory-1",
+      sku: "SKU-1",
+      imageUrl: "https://example.com/products/ebay-watermarked/stale.jpg",
+      ebayImageUrls: ["https://cdn.example.com/central-watermarked.jpg"],
+    });
+
+    await uploadDraft("user-1", {
+      id: "draft-1",
+      sourceInventoryId: "inventory-1",
+      sku: "SKU-1",
+    } as never);
+
+    expect(prepareProductChannelImagesMock).toHaveBeenCalledWith("user-1", expect.objectContaining({ id: "inventory-1" }));
+    expect(validateListingUploadInputMock.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
+      imageUrls: ["https://cdn.example.com/central-watermarked.jpg"],
+    }));
+    expect(prismaMock.product.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        imageUrl: "https://example.com/products/ebay-watermarked/stale.jpg",
+      }),
+    }));
   });
 
   it("keeps the listing uploaded when promoted listing setup fails", async () => {

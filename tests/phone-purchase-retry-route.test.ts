@@ -1,0 +1,11 @@
+import { beforeEach, expect, it, vi } from "vitest";
+const mocks=vi.hoisted(()=>({user:vi.fn(),retry:vi.fn()}));
+vi.mock("@/lib/pocamarket-purchases",()=>({retryPurchaseJob:mocks.retry}));
+vi.mock("@/lib/session",()=>({requireApiUser:mocks.user,UnauthorizedError:class UnauthorizedError extends Error{}}));
+import { UnauthorizedError } from "@/lib/session";
+import { POST } from "@/app/api/pocamarket-purchases/[id]/retry/route";
+const call=(body:object)=>POST(new Request("http://local",{method:"POST",body:JSON.stringify(body)}),{params:Promise.resolve({id:"j"})});
+beforeEach(()=>{vi.resetAllMocks();mocks.user.mockResolvedValue({id:"admin"});mocks.retry.mockResolvedValue({id:"j",status:"queued"});});
+it("requires explicit non-purchase confirmation",async()=>{expect((await call({version:"1",confirmedNotPurchased:false})).status).toBe(422);expect(mocks.retry).not.toHaveBeenCalled();});
+it("requires an authenticated admin",async()=>{mocks.user.mockRejectedValue(new UnauthorizedError());expect((await call({version:"1",confirmedNotPurchased:true})).status).toBe(401);expect(mocks.retry).not.toHaveBeenCalled();});
+it("passes the original job version and administrator to the retry service",async()=>{expect((await call({version:"1",confirmedNotPurchased:true})).status).toBe(200);expect(mocks.retry).toHaveBeenCalledWith("admin","j","1");});

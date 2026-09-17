@@ -1,10 +1,12 @@
 import * as XLSX from "xlsx";
+import { ebayReviseCsvRow } from "@/lib/ebay-operations-csv";
 import { jsonError } from "@/lib/http";
 import { getOperationalProductIds } from "@/lib/product-operations";
 import { prisma } from "@/lib/prisma";
 import { resolveListingPriceUsd } from "@/lib/listing-price";
 import { listingQuantity } from "@/lib/listing-quantity";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
+import { getEbayVariationMembershipByProductId } from "@/lib/variation-listing-products";
 
 function workbookResponse(rows: Record<string, string | number>[], name: string) {
   const workbook = XLSX.utils.book_new();
@@ -70,7 +72,7 @@ export async function GET(request: Request) {
         orderBy: { createdAt: "desc" },
         include: {
           listings: {
-            where: { matchStatus: { not: "MATCHED" } },
+            where: { matchStatus: { notIn: ["MATCHED", "MANUALLY_VERIFIED"] } },
             orderBy: [{ matchStatus: "asc" }, { sku: "asc" }],
           },
         },
@@ -91,13 +93,14 @@ export async function GET(request: Request) {
     }
 
     if (type === "end") {
+      const variationMembership = await getEbayVariationMembershipByProductId(user.id);
       const ids = await getOperationalProductIds("stop_required");
       const products = await prisma.product.findMany({
         where: { id: { in: ids }, ebayItemId: { not: null } },
         orderBy: { sku: "asc" },
       });
       return workbookResponse(
-        products.map((product) => ({
+        products.filter((product) => !variationMembership.has(product.id)).map((product) => ({
           "*Action": "End",
           ItemID: product.ebayItemId ?? "",
           CustomLabel: product.sku,
@@ -136,7 +139,7 @@ export async function GET(request: Request) {
           where: {
             importId: latest.id,
             productId: { in: products.map((product) => product.id) },
-            matchStatus: "MATCHED",
+            matchStatus: { in: ["MATCHED", "MANUALLY_VERIFIED"] },
           },
         })
       : [];
@@ -177,22 +180,24 @@ export async function GET(request: Request) {
           "현재 가격": current.price?.toString() ?? "",
           "현재 수량": current.quantity ?? "",
           // 이 가격이 어디서 나왔는지 검토용 파일에서 바로 보이게 한다.
-          "가격 기준": resolved.source === "pocamarket" ? "포카마켓 계산가" : "수동 입력가",
+          "가격 기준": "관리자 확정 판매가",
         },
       ];
     });
     const limited = rowLimit ? rows.slice(0, rowLimit) : rows;
     if (asCsv) {
-      // eBay가 아는 열만 남긴다. 신규등록 CSV와 같은 Action 헤더를 쓰고,
-      // 리스팅은 상품번호로 지목한다(SKU는 대조용으로 함께 넣는다).
+      // 기존 리스팅은 Item number로 지목한다. Action 헤더에 Country=US를
+      // 넣으면 상품 소재지가 미국이라는 뜻이 되어 한국 판매자의 해외 창고
+      // 정책 차단을 유발하므로 가격·수량 수정 파일에는 소재지를 선언하지 않는다.
       return csvResponse(
-        limited.map((row) => ({
-          "*Action(SiteID=US|Country=US|Currency=USD|Version=1193)": "Revise",
-          "Item number": row.ItemID,
-          "Custom label (SKU)": row.SKU,
-          "Start price": row["*BuyItNowPrice"],
-          Quantity: row["*Quantity"],
-        })),
+        limited.map((row) =>
+          ebayReviseCsvRow({
+            itemId: row.ItemID,
+            sku: String(row.SKU),
+            price: row["*BuyItNowPrice"],
+            quantity: row["*Quantity"],
+          }),
+        ),
         `ebay-revise-${date}.csv`,
       );
     }

@@ -434,6 +434,24 @@ export async function getEbayListingImageUrl({
   return imageUrl;
 }
 
+export async function getEbayListingSummary(input: LegacyListingImageInput) {
+  const config = getEbayConfig();
+  const url = new URL("/buy/browse/v1/item/get_item_by_legacy_id", config.hosts.api);
+  url.searchParams.set("legacy_item_id", input.legacyItemId);
+  if (input.legacyVariationId) url.searchParams.set("legacy_variation_id", input.legacyVariationId);
+  else if (input.legacyVariationSku) url.searchParams.set("legacy_variation_sku", input.legacyVariationSku);
+  const result = await ebayApplicationFetch(url, {
+    headers: { "x-ebay-c-marketplace-id": input.marketplaceId ?? process.env.EBAY_MARKETPLACE_ID ?? "EBAY_US" },
+  });
+  const record = result.body && typeof result.body === "object"
+    ? result.body as Record<string, unknown>
+    : {};
+  return {
+    imageUrl: imageUrlFromBrowseItemPayload(result.body),
+    title: typeof record.title === "string" && record.title.trim() ? record.title.trim() : null,
+  };
+}
+
 export async function createShippingFulfillment(
   account: EbayAccount,
   ebayOrderId: string,

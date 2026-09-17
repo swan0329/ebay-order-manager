@@ -22,6 +22,7 @@ export default async function EditProductPage({
   const formProduct = {
     id: product.id,
     sku: product.sku,
+    pocamarketId: product.pocamarketId,
     internalCode: product.internalCode,
     productName: product.productName,
     optionName: product.optionName,

@@ -1,6 +1,16 @@
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
-import type { Product } from "@/generated/prisma";
+import {
+  buildEbayListingCategoryId,
+  buildEbayListingCategoryName,
+  buildEbayListingConditionId,
+  buildEbayListingDescription,
+  buildEbayListingImageUrls,
+  buildEbayListingItemSpecifics,
+  buildEbayListingPrice,
+  buildEbayListingTitle,
+  type EbayListingFieldProduct,
+} from "@/lib/ebay-listing-fields";
 
 export type EbayFileTemplate = {
   columns: string[];
@@ -32,6 +42,27 @@ const PRODUCT_COLUMN_KEYS = new Set([
   "start price",
   "quantity",
   "*quantity",
+  "category",
+  "*category",
+  "category id",
+  "category name",
+  "conditionid",
+  "*conditionid",
+  "condition id",
+  "*condition id",
+  "duration",
+  "*duration",
+  "format",
+  "*format",
+  "c:artist",
+  "c:brand",
+  "c:country/region of manufacture",
+  "c:featured person/artist",
+  "c:franchise",
+  "c:genre",
+  "c:original/reproduction",
+  "c:set",
+  "c:type",
 ]);
 
 export function isProductColumn(column: string) {
@@ -43,8 +74,9 @@ export function isProductColumn(column: string) {
 
 export function getProductValue(
   column: string,
-  product: Product,
+  product: EbayListingFieldProduct,
   templateDefault: string,
+  baseUrl?: string | null,
 ): string {
   const col = column.toLowerCase();
 
@@ -62,16 +94,12 @@ export function getProductValue(
 
   // Title (max 80 chars)
   if (col === "title" || col === "*title") {
-    return (product.ebayTitle ?? product.productName).slice(0, 80);
+    return buildEbayListingTitle(product);
   }
 
   // Description
   if (col === "description" || col === "*description") {
-    return (
-      product.descriptionHtml ??
-      product.memo ??
-      `<p>${product.productName}</p>`
-    );
+    return buildEbayListingDescription(product);
   }
 
   // Picture URL — pipe-separated for multiple images
@@ -82,9 +110,7 @@ export function getProductValue(
     col === "*pictureurl" ||
     col === "item photo url"
   ) {
-    return product.ebayImageUrls.length > 0
-      ? product.ebayImageUrls.join("|")
-      : (product.imageUrl ?? "");
+    return buildEbayListingImageUrls(product, baseUrl).join("|");
   }
 
   // Price — Start price or Buy It Now price
@@ -96,7 +122,7 @@ export function getProductValue(
     col === "*startprice" ||
     col === "start price"
   ) {
-    return (product.ebayPrice ?? product.salePrice)?.toFixed(2) ?? "";
+    return buildEbayListingPrice(product);
   }
 
   // Quantity
@@ -106,7 +132,20 @@ export function getProductValue(
 
   // Category — use product's eBay category if set
   if (col === "*category" || col === "category" || col === "category id") {
-    return product.ebayCategoryId ?? templateDefault;
+    return buildEbayListingCategoryId(product, templateDefault || undefined);
+  }
+
+  if (col === "category name") {
+    return templateDefault || buildEbayListingCategoryName(product);
+  }
+
+  if (
+    col === "conditionid" ||
+    col === "*conditionid" ||
+    col === "condition id" ||
+    col === "*condition id"
+  ) {
+    return buildEbayListingConditionId(product, templateDefault || undefined);
   }
 
   // Format — always fixed price
@@ -119,15 +158,24 @@ export function getProductValue(
     return templateDefault || "GTC";
   }
 
-  // Brand item specific
-  if (col === "c:brand") return product.brand ?? templateDefault;
+  const itemSpecifics = buildEbayListingItemSpecifics(product);
 
-  // Type item specific (member name)
-  if (col === "c:type") return product.optionName ?? templateDefault;
+  if (col === "c:brand") return itemSpecifics.Brand || templateDefault;
+  if (col === "c:type") return itemSpecifics.Type || templateDefault;
+  if (col === "c:artist") return itemSpecifics.Artist || templateDefault;
+  if (col === "c:featured person/artist") {
+    return itemSpecifics["Featured Person/Artist"] || templateDefault;
+  }
+  if (col === "c:franchise") return itemSpecifics.Franchise || templateDefault;
+  if (col === "c:set") return itemSpecifics.Set || templateDefault;
+  if (col === "c:genre") return itemSpecifics.Genre || templateDefault;
+  if (col === "c:country/region of manufacture") {
+    return itemSpecifics["Country/Region of Manufacture"] || templateDefault;
+  }
 
   // Photocards are originals by default
   if (col === "c:original/reproduction") {
-    return templateDefault || "Original";
+    return itemSpecifics["Original/Reproduction"] || templateDefault;
   }
 
   return templateDefault;

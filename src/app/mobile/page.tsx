@@ -13,12 +13,13 @@ export default async function MobilePage() {
   const orders = await prisma.order.findMany({
     where: {
       userId: user.id,
+      salesChannel: "EBAY",
       fulfillmentStatus: { in: ["NOT_STARTED", "IN_PROGRESS"] },
       OR: [{ shipByDate: null }, { shipByDate: { gte: today } }],
     },
     select: {
       id: true,
-      ebayOrderId: true,
+      orderNumber: true,
       buyerName: true,
       buyerUsername: true,
       buyerCountry: true,

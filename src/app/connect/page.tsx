@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -5,6 +6,7 @@ import {
   PlugZap,
   RotateCcw,
 } from "lucide-react";
+import { EbayConnectionTest } from "@/components/EbayConnectionTest";
 import { EbayManualCodeForm } from "@/components/EbayManualCodeForm";
 import { TopNav } from "@/components/TopNav";
 import { currentEbayEnvironment } from "@/lib/ebay-environment";
@@ -20,6 +22,12 @@ type ConnectSearchParams = Promise<{
   code?: string;
   state?: string;
 }>;
+
+function isRefreshTokenExpired(refreshTokenExpiresAt: Date | null | undefined) {
+  return refreshTokenExpiresAt
+    ? refreshTokenExpiresAt.getTime() <= Date.now()
+    : false;
+}
 
 function ebayConfigStatus() {
   const requiredKeys = ["EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET", "EBAY_RU_NAME"];
@@ -45,6 +53,16 @@ export default async function ConnectPage({
     where: { userId: user.id, environment: currentEbayEnvironment() },
     orderBy: { updatedAt: "desc" },
   });
+
+  const headerList = await headers();
+  const host =
+    headerList.get("x-forwarded-host") ?? headerList.get("host") ?? "";
+  const proto = headerList.get("x-forwarded-proto") ?? "https";
+  const callbackUrl = host
+    ? `${proto}://${host}/api/ebay/callback`
+    : "/api/ebay/callback";
+
+  const refreshExpired = isRefreshTokenExpired(account?.refreshTokenExpiresAt);
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -110,41 +128,78 @@ export default async function ConnectPage({
                 ? "URL처럼 보입니다. eBay가 발급한 RuName 값을 넣어야 합니다."
                 : "확인 필요 없음"}
             </dd>
+            <dt className="text-zinc-500">콜백 URL</dt>
+            <dd className="font-medium text-zinc-950">
+              <code className="break-all rounded bg-zinc-100 px-1.5 py-0.5 text-xs">
+                {callbackUrl}
+              </code>
+              <p className="mt-1 text-xs font-normal text-zinc-500">
+                eBay 개발자 포털 RuName의 “Your auth accepted URL”이 이 주소와
+                정확히 같아야 인증 후 자동으로 돌아옵니다.
+              </p>
+            </dd>
           </dl>
         </section>
 
         <section className="mb-4 rounded-lg border border-zinc-200 bg-white p-5">
           {account ? (
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="mb-3 flex items-center gap-2 text-emerald-700">
-                  <CheckCircle2 className="h-5 w-5" />
-                  <span className="text-sm font-semibold">연결됨</span>
+            <div>
+              {refreshExpired ? (
+                <div className="mb-4 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>
+                    <span className="font-semibold">재연결이 필요합니다.</span>{" "}
+                    eBay refresh token이 만료되어 주문을 불러올 수 없습니다. 아래
+                    “Fresh eBay Connect”로 다시 연결해 주세요.
+                  </p>
                 </div>
-                <dl className="grid gap-2 text-sm sm:grid-cols-[130px_1fr]">
-                  <dt className="text-zinc-500">환경</dt>
-                  <dd className="font-medium text-zinc-950">{account.environment}</dd>
-                  <dt className="text-zinc-500">계정</dt>
-                  <dd className="font-medium text-zinc-950">
-                    {account.username ?? account.ebayUserId ?? "-"}
-                  </dd>
-                  <dt className="text-zinc-500">Access token 만료</dt>
-                  <dd className="font-medium text-zinc-950">
-                    {formatDate(account.expiresAt)}
-                  </dd>
-                  <dt className="text-zinc-500">Refresh token 만료</dt>
-                  <dd className="font-medium text-zinc-950">
-                    {formatDate(account.refreshTokenExpiresAt)}
-                  </dd>
-                </dl>
+              ) : null}
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  {refreshExpired ? (
+                    <div className="mb-3 flex items-center gap-2 text-rose-700">
+                      <AlertTriangle className="h-5 w-5" />
+                      <span className="text-sm font-semibold">재연결 필요</span>
+                    </div>
+                  ) : (
+                    <div className="mb-3 flex items-center gap-2 text-emerald-700">
+                      <CheckCircle2 className="h-5 w-5" />
+                      <span className="text-sm font-semibold">연결됨</span>
+                    </div>
+                  )}
+                  <dl className="grid gap-2 text-sm sm:grid-cols-[130px_1fr]">
+                    <dt className="text-zinc-500">환경</dt>
+                    <dd className="font-medium text-zinc-950">{account.environment}</dd>
+                    <dt className="text-zinc-500">계정</dt>
+                    <dd className="font-medium text-zinc-950">
+                      {account.username ?? account.ebayUserId ?? "-"}
+                    </dd>
+                    <dt className="text-zinc-500">Access token 만료</dt>
+                    <dd className="font-medium text-zinc-950">
+                      {formatDate(account.expiresAt)}
+                    </dd>
+                    <dt className="text-zinc-500">Refresh token 만료</dt>
+                    <dd
+                      className={
+                        refreshExpired
+                          ? "font-medium text-rose-700"
+                          : "font-medium text-zinc-950"
+                      }
+                    >
+                      {formatDate(account.refreshTokenExpiresAt)}
+                      {refreshExpired ? " (만료됨)" : ""}
+                    </dd>
+                  </dl>
+                  <EbayConnectionTest />
+                </div>
+                <a
+                  href="/api/ebay/oauth/start"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Fresh eBay Connect
+                </a>
               </div>
-              <a
-                href="/api/ebay/oauth/start"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Fresh eBay Connect
-              </a>
             </div>
           ) : (
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

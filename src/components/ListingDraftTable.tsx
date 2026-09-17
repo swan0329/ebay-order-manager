@@ -97,6 +97,19 @@ type CampaignOption = {
   fundingModel: string;
 };
 
+type ChannelPublishJob = {
+  id: string;
+  status: string;
+  totalCount: number;
+  processedCount: number;
+  successCount: number;
+  failureCount: number;
+  items?: Array<{ id: string; sku: string; status: string; error: string | null }>;
+};
+
+const publishTerminal = new Set(["COMPLETED", "COMPLETED_WITH_ERROR", "FAILED"]);
+const ebayPublishJobStorageKey = "active-ebay-publish-job";
+
 const emptyPolicyOptions: PolicyOptions = {
   paymentPolicies: [],
   fulfillmentPolicies: [],
@@ -855,8 +868,59 @@ export function ListingDraftTable({
   });
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
+  const [publishJob, setPublishJob] = useState<ChannelPublishJob | null>(null);
   const [confirmUploadOpen, setConfirmUploadOpen] = useState(false);
+  const publishJobId = publishJob?.id;
+  const publishJobStatus = publishJob?.status;
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(ebayPublishJobStorageKey);
+    if (!stored) return;
+    void fetch(`/api/channel-publish-jobs?jobId=${encodeURIComponent(stored)}`, {
+      cache: "no-store",
+    })
+      .then((response) => response.json())
+      .then((body: { job?: ChannelPublishJob }) => {
+        if (body.job) setPublishJob(body.job);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!publishJobId || !publishJobStatus || publishTerminal.has(publishJobStatus)) return;
+    let active = true;
+    let timer: number | undefined;
+    const jobId = publishJobId;
+    const update = async () => {
+      try {
+        const response = await fetch(
+          `/api/channel-publish-jobs?jobId=${encodeURIComponent(jobId)}`,
+          { cache: "no-store" },
+        );
+        const body = (await response.json().catch(() => null)) as
+          | { job?: ChannelPublishJob }
+          | null;
+        if (!active || !response.ok || !body?.job) return;
+        setPublishJob(body.job);
+        if (publishTerminal.has(body.job.status)) {
+          window.localStorage.removeItem(ebayPublishJobStorageKey);
+          router.refresh();
+          return;
+        }
+      } finally {
+        if (active) timer = window.setTimeout(() => void update(), 2_000);
+      }
+    };
+    timer = window.setTimeout(() => void update(), 500);
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [publishJobId, publishJobStatus, router]);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const publishActive = Boolean(
+    publishJob && !publishTerminal.has(publishJob.status),
+  );
   const selectedDrafts = useMemo(
     () => drafts.filter((draft) => selectedSet.has(draft.id)),
     [drafts, selectedSet],
@@ -1037,13 +1101,24 @@ export function ListingDraftTable({
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
-    const data = (await response.json().catch(() => null)) as
-      | { error?: string; uploaded?: number; failed?: number; retried?: number }
-      | null;
+    const data = (await response.json().catch(() => null)) as {
+      error?: string;
+      uploaded?: number;
+      failed?: number;
+      retried?: number;
+      job?: ChannelPublishJob;
+    } | null;
     setBusy("");
 
     if (!response.ok) {
       setMessage(data?.error ?? "처리 실패");
+      return;
+    }
+
+    if (data && "job" in data && data.job) {
+      window.localStorage.setItem(ebayPublishJobStorageKey, data.job.id);
+      setPublishJob(data.job);
+      setMessage(`${successText}: 작업 ${data.job.totalCount}건을 접수했습니다.`);
       return;
     }
 
@@ -1140,7 +1215,7 @@ export function ListingDraftTable({
                 "검증 완료",
               )
             }
-            disabled={Boolean(busy)}
+            disabled={Boolean(busy) || publishActive}
             className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 px-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:text-zinc-400"
           >
             <CheckCircle2 className="h-4 w-4" />
@@ -1149,7 +1224,7 @@ export function ListingDraftTable({
           <button
             type="button"
             onClick={openUploadConfirm}
-            disabled={Boolean(busy)}
+            disabled={Boolean(busy) || publishActive}
             className="inline-flex h-9 items-center gap-2 rounded-md bg-zinc-950 px-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:bg-zinc-400"
           >
             <UploadCloud className="h-4 w-4" />
@@ -1165,7 +1240,7 @@ export function ListingDraftTable({
                   "실패 재시도 완료",
                 )
               }
-              disabled={Boolean(busy)}
+              disabled={Boolean(busy) || publishActive}
               className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 px-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:text-zinc-400"
             >
               <RefreshCcw className="h-4 w-4" />
@@ -1182,7 +1257,35 @@ export function ListingDraftTable({
             선택 {selectedIds.length} / 표시 {drafts.length}
           </span>
           {message ? <span className="text-sm text-zinc-950">{message}</span> : null}
+          {publishJob ? (
+            <div className="min-w-72 space-y-1 text-sm font-medium text-blue-800">
+              <span>
+                eBay 작업 {publishJob.processedCount}/{publishJob.totalCount}
+                {` · 성공 ${publishJob.successCount} · 실패 ${publishJob.failureCount}`}
+              </span>
+              <div className="h-2 overflow-hidden rounded-full bg-blue-100">
+                <div
+                  className="h-full rounded-full bg-blue-600 transition-[width]"
+                  style={{
+                    width: `${publishJob.totalCount ? Math.round((publishJob.processedCount / publishJob.totalCount) * 100) : 0}%`,
+                  }}
+                />
+              </div>
+              {publishJob.items?.some((item) => item.status === "PROCESSING") ? (
+                <span className="block text-xs text-blue-700">
+                  현재 처리 중: {publishJob.items.filter((item) => item.status === "PROCESSING").map((item) => item.sku).join(", ")}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
+        {publishJob?.items?.some((item) => item.status === "FAILED") ? (
+          <ul className="max-h-32 overflow-auto rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+            {publishJob.items.filter((item) => item.status === "FAILED").map((item) => (
+              <li key={item.id}>{item.sku} · {item.error}</li>
+            ))}
+          </ul>
+        ) : null}
 
         <div className="grid gap-2 md:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
           <EditableCell

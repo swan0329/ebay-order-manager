@@ -1,4 +1,16 @@
 import { Prisma, type ListingDraft, type Product } from "@/generated/prisma";
+import { unitMembersDescription } from "@/lib/unit-card-label";
+import {
+  buildEbayListingCategoryId,
+  buildEbayListingDescription,
+  buildEbayListingImageUrls,
+  buildEbayListingItemSpecificArrays,
+  buildEbayListingItemSpecifics,
+  buildEbayListingPrice,
+  buildEbayListingTitle,
+} from "@/lib/ebay-listing-fields";
+import { resolveListingPriceUsd } from "@/lib/listing-price";
+import { isUsableCachedEbayInventoryLocation } from "@/lib/ebay-inventory-location";
 import { prisma } from "@/lib/prisma";
 import type { ListingUploadInput } from "@/lib/services/inventoryService";
 import {
@@ -6,6 +18,7 @@ import {
   mergeListingUploadDrafts,
   parseListingUploadWorkbook,
   readListingUploadRowDraft,
+  renderListingTemplate,
   type ListingUploadDraft,
 } from "@/lib/services/listingUploadInput";
 import {
@@ -17,6 +30,8 @@ import {
 } from "@/lib/services/listingService";
 import { validateListingUploadInput } from "@/lib/services/listingValidationService";
 import { parseCsvObjects, toCsv } from "@/lib/csv";
+import { getVariationCandidateProductIds } from "@/lib/variation-listing-products";
+import { syncPolicies } from "@/lib/services/ebayAccountService";
 
 const draftInsertBatchSize = 200;
 
@@ -60,6 +75,23 @@ function toJson(value: unknown): Prisma.InputJsonValue | Prisma.JsonNullValueInp
 function text(value: unknown) {
   const output = String(value ?? "").trim();
   return output ? output : null;
+}
+
+function firstText(...values: unknown[]) {
+  for (const value of values) {
+    const output = text(value);
+    if (output) return output;
+  }
+  return null;
+}
+
+function mostFrequentText(values: unknown[]) {
+  const counts = new Map<string, number>();
+  for (const value of values) {
+    const output = text(value);
+    if (output) counts.set(output, (counts.get(output) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? null;
 }
 
 function decimal(value: unknown) {
@@ -255,19 +287,16 @@ function renderTitle(template: string | null | undefined, draft: ListingUploadDr
 }
 
 function productDraft(product: Product): ListingUploadDraft {
+  const itemSpecifics = buildEbayListingItemSpecifics(product);
+
   return {
     sku: product.sku,
-    title: product.ebayTitle ?? product.productName,
-    descriptionHtml:
-      product.descriptionHtml ?? product.memo ?? `<p>${product.productName}</p>`,
-    price: product.ebayPrice?.toString() ?? product.salePrice?.toString() ?? null,
+    title: buildEbayListingTitle(product),
+    descriptionHtml: buildEbayListingDescription(product),
+    price: buildEbayListingPrice(product) || null,
     quantity: product.stockQuantity,
-    imageUrls: product.ebayImageUrls.length
-      ? product.ebayImageUrls
-      : product.imageUrl
-        ? [product.imageUrl]
-        : [],
-    categoryId: product.ebayCategoryId,
+    imageUrls: buildEbayListingImageUrls(product),
+    categoryId: buildEbayListingCategoryId(product, "") || null,
     condition: product.ebayCondition,
     paymentProfile: product.ebayPaymentProfile,
     shippingProfile: product.ebayShippingProfile,
@@ -276,7 +305,10 @@ function productDraft(product: Product): ListingUploadDraft {
     marketplaceId: product.ebayMarketplaceId,
     currency: product.ebayCurrency,
     brand: product.brand,
+    type: itemSpecifics.Type,
+    countryOfOrigin: itemSpecifics["Country/Region of Manufacture"],
     customLabel: product.internalCode,
+    itemSpecifics: buildEbayListingItemSpecificArrays(product),
   };
 }
 
@@ -373,13 +405,113 @@ async function createListingDraftsInBatches(
   return created;
 }
 
+export async function resolveAutomaticListingDefaults(
+  userId: string,
+  templateDefaults: ListingUploadDraft | null,
+) {
+  await syncPolicies(userId);
+  const [settings, policies, locations, configuredProducts, uploadedDrafts] = await Promise.all([
+    prisma.pricingSettings.findUnique({ where: { id: "default" } }),
+    prisma.ebayPolicyCache.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.ebayInventoryLocationCache.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.product.findMany({
+      where: {
+        OR: [
+          { ebayPaymentProfile: { not: null } },
+          { ebayShippingProfile: { not: null } },
+          { ebayReturnProfile: { not: null } },
+          { ebayMerchantLocationKey: { not: null } },
+        ],
+      },
+      select: {
+        ebayPaymentProfile: true,
+        ebayShippingProfile: true,
+        ebayReturnProfile: true,
+        ebayMerchantLocationKey: true,
+      },
+      orderBy: { lastUploadedAt: "desc" },
+      take: 1000,
+    }),
+    prisma.listingDraft.findMany({
+      where: { userId, status: "uploaded" },
+      select: { paymentPolicyId: true, fulfillmentPolicyId: true, returnPolicyId: true, merchantLocationKey: true },
+      orderBy: { updatedAt: "desc" },
+      take: 1000,
+    }),
+  ]);
+  if (!settings) throw new Error("자동 등록 전에 가격 설정을 저장해 주세요.");
+
+  const activeLocations = locations.filter(isUsableCachedEbayInventoryLocation);
+  const activeLocationKeys = new Set(activeLocations.map((location) => location.merchantLocationKey));
+  if (!activeLocations.length) {
+    throw new Error("eBay 계정에 활성 재고 위치가 없습니다. eBay 재고 위치를 만든 뒤 다시 등록해 주세요.");
+  }
+
+  const cachedPolicy = (type: string, usedValues: unknown[]) => {
+    const candidates = policies.filter((policy) => policy.policyType === type);
+    const used = mostFrequentText(usedValues);
+    if (used && candidates.some((policy) => policy.policyId === used)) return used;
+    return candidates.length === 1 ? candidates[0].policyId : null;
+  };
+  const automaticDefaults: ListingUploadDraft = {
+    ...(templateDefaults ?? {}),
+    categoryId: firstText(templateDefaults?.categoryId, buildEbayListingCategoryId({})),
+    paymentProfile: firstText(
+      templateDefaults?.paymentProfile,
+      process.env.EBAY_PAYMENT_POLICY_ID,
+      cachedPolicy("payment", [...configuredProducts.map((product) => product.ebayPaymentProfile), ...uploadedDrafts.map((draft) => draft.paymentPolicyId)]),
+    ),
+    shippingProfile: firstText(
+      templateDefaults?.shippingProfile,
+      process.env.EBAY_SHIPPING_POLICY_ID,
+      process.env.EBAY_FULFILLMENT_POLICY_ID,
+      cachedPolicy("fulfillment", [...configuredProducts.map((product) => product.ebayShippingProfile), ...uploadedDrafts.map((draft) => draft.fulfillmentPolicyId)]),
+    ),
+    returnProfile: firstText(
+      templateDefaults?.returnProfile,
+      process.env.EBAY_RETURN_POLICY_ID,
+      cachedPolicy("return", [...configuredProducts.map((product) => product.ebayReturnProfile), ...uploadedDrafts.map((draft) => draft.returnPolicyId)]),
+    ),
+    merchantLocationKey: [
+      templateDefaults?.merchantLocationKey,
+      process.env.EBAY_MERCHANT_LOCATION_KEY,
+      mostFrequentText(configuredProducts.map((product) => product.ebayMerchantLocationKey)),
+      mostFrequentText(uploadedDrafts.map((draft) => draft.merchantLocationKey)),
+      activeLocations[0].merchantLocationKey,
+    ].map(text).find((key): key is string => Boolean(key && activeLocationKeys.has(key))) ?? null,
+  };
+  return { automaticDefaults, activeLocationKeys, pricingSettings: settings };
+}
+
 export async function createDraftsFromInventory(input: {
   userId: string;
   productIds: string[];
   templateId?: string | null;
+  allowAnyProductStatus?: boolean;
+  automaticPublish?: boolean;
 }) {
+  const variationCandidateIds = await getVariationCandidateProductIds();
+  const selectedVariationCount = input.productIds.filter((id) =>
+    variationCandidateIds.has(id),
+  ).length;
+  if (selectedVariationCount) {
+    throw new Error(
+      `선택한 상품 중 ${selectedVariationCount}개는 옵션상품으로 등록할 수 있습니다. 개별 Draft 대신 ‘옵션상품 구성’에서 먼저 처리해 주세요.`,
+    );
+  }
   const products = await prisma.product.findMany({
-    where: { id: { in: input.productIds } },
+    where: {
+      id: { in: input.productIds },
+      ...(input.allowAnyProductStatus
+        ? {}
+        : { OR: [{ status: "unlisted" }, { status: "inactive" }] }),
+    },
     orderBy: { updatedAt: "desc" },
   });
   const template = input.templateId
@@ -390,24 +522,114 @@ export async function createDraftsFromInventory(input: {
         where: { userId: input.userId, isDefault: true },
       });
   const templateDefaults = template ? listingTemplateToDefaults(template) : null;
+  let automaticDefaults: ListingUploadDraft | null = null;
+  let activeLocationKeys = new Set<string>();
+  let pricingSettings = null;
+  if (input.automaticPublish) {
+    ({ automaticDefaults, activeLocationKeys, pricingSettings } =
+      await resolveAutomaticListingDefaults(input.userId, templateDefaults));
+  }
+  const existingDrafts = input.automaticPublish
+    ? await prisma.listingDraft.findMany({
+        where: { userId: input.userId, sourceInventoryId: { in: input.productIds } },
+        orderBy: { updatedAt: "desc" },
+      })
+    : [];
+  const existingByProduct = new Map<string, ListingDraft>();
+  for (const draft of existingDrafts) {
+    if (draft.sourceInventoryId && !existingByProduct.has(draft.sourceInventoryId)) {
+      existingByProduct.set(draft.sourceInventoryId, draft);
+    }
+  }
   const rows: Prisma.ListingDraftCreateManyInput[] = [];
+  const repairs: Array<Promise<ListingDraft>> = [];
 
   for (const product of products) {
     const primary = productDraft(product);
-    const merged = mergeListingUploadDrafts(primary, templateDefaults);
-    const title = renderTitle(template?.titleTemplate, merged);
-    rows.push(
-      draftCreateData({
-        userId: input.userId,
-        sourceInventoryId: product.id,
-        templateId: template?.id ?? null,
-        draft: { ...merged, title: title || merged.title },
-        fieldSource: buildFieldSource(primary, templateDefaults, "inventory"),
-      }),
+    if (input.automaticPublish && pricingSettings) {
+      const resolved = resolveListingPriceUsd(product, pricingSettings);
+      if (!resolved) throw new Error(`${product.sku}: 자동 계산할 등록 가격이 없습니다.`);
+      primary.price = resolved.priceUsd.toFixed(2);
+    }
+    const merged = mergeListingUploadDrafts(
+      primary,
+      input.automaticPublish ? automaticDefaults : templateDefaults,
     );
+    if (
+      input.automaticPublish &&
+      (!merged.merchantLocationKey || !activeLocationKeys.has(merged.merchantLocationKey))
+    ) {
+      merged.merchantLocationKey = automaticDefaults?.merchantLocationKey ?? null;
+    }
+    const title = renderTitle(template?.titleTemplate, merged);
+    const finalDraft = {
+      ...merged,
+      title: title || merged.title,
+    };
+    if (template?.descriptionTemplateHtml?.trim()) {
+      finalDraft.descriptionHtml = renderListingTemplate(
+        template.descriptionTemplateHtml,
+        finalDraft,
+      ) + unitMembersDescription(product);
+    }
+    const row = draftCreateData({
+      userId: input.userId,
+      sourceInventoryId: product.id,
+      templateId: template?.id ?? null,
+      draft: finalDraft,
+      fieldSource: buildFieldSource(
+        primary,
+        input.automaticPublish ? automaticDefaults : templateDefaults,
+        "inventory",
+      ),
+    });
+    const existing = existingByProduct.get(product.id);
+    if (existing) {
+      repairs.push(prisma.listingDraft.update({
+        where: { id: existing.id },
+        data: {
+          templateId: row.templateId,
+          sku: row.sku,
+          title: row.title,
+          descriptionHtml: row.descriptionHtml,
+          price: row.price,
+          quantity: row.quantity,
+          imageUrlsJson: row.imageUrlsJson,
+          categoryId: row.categoryId,
+          condition: row.condition,
+          conditionDescription: row.conditionDescription,
+          itemSpecificsJson: row.itemSpecificsJson,
+          marketplaceId: row.marketplaceId,
+          currency: row.currency,
+          paymentPolicyId: row.paymentPolicyId,
+          fulfillmentPolicyId: row.fulfillmentPolicyId,
+          returnPolicyId: row.returnPolicyId,
+          merchantLocationKey: row.merchantLocationKey,
+          bestOfferEnabled: row.bestOfferEnabled,
+          minimumOfferPrice: row.minimumOfferPrice,
+          autoAcceptPrice: row.autoAcceptPrice,
+          privateListing: row.privateListing,
+          immediatePayRequired: row.immediatePayRequired,
+          listingFormat: row.listingFormat,
+          promotedListingEnabled: row.promotedListingEnabled,
+          promotedCampaignId: row.promotedCampaignId,
+          promotedAdRate: row.promotedAdRate,
+          fieldSourceJson: row.fieldSourceJson,
+          status: "draft",
+          errorSummary: null,
+          rawErrorJson: Prisma.JsonNull,
+        },
+      }));
+    } else {
+      rows.push(row);
+    }
   }
 
-  return createListingDraftsInBatches(rows);
+  const [created] = await Promise.all([
+    createListingDraftsInBatches(rows),
+    Promise.all(repairs),
+  ]);
+  return created;
 }
 
 export async function createDraftsFromRows(input: {

@@ -2,10 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  normalizeProductStatus,
+  productStatusOptions,
+} from "@/lib/product-status";
 
 type ProductFormValues = {
   id?: string;
   sku?: string;
+  pocamarketId?: string | null;
   internalCode?: string | null;
   productName?: string;
   optionName?: string | null;
@@ -77,6 +82,22 @@ export function ProductForm({ product }: { product?: ProductFormValues }) {
           </label>
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-zinc-700">
+              포카마켓 상품번호
+            </span>
+            <input
+              name="pocamarketId"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              defaultValue={valueOf(product?.pocamarketId)}
+              placeholder="예: 491203"
+              className="h-10 w-full rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
+            />
+            <span className="mt-1 block text-xs text-zinc-500">
+              포카마켓 카드 상세주소에 표시되는 숫자 ID입니다.
+            </span>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-zinc-700">
               내부코드
             </span>
             <input
@@ -110,12 +131,14 @@ export function ProductForm({ product }: { product?: ProductFormValues }) {
             <span className="mb-1 block text-sm font-medium text-zinc-700">상태</span>
             <select
               name="status"
-              defaultValue={product?.status ?? "active"}
+              defaultValue={normalizeProductStatus(product?.status)}
               className="h-10 w-full rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-900"
             >
-              <option value="active">활성</option>
-              <option value="inactive">비활성</option>
-              <option value="sold_out">품절</option>
+              {productStatusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
           <label className="block">

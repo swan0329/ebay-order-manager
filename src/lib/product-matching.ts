@@ -386,6 +386,16 @@ export async function saveManualProductMapping(input: {
   });
 }
 
+const productMatchSelect = {
+  id: true,
+  sku: true,
+  productName: true,
+  optionName: true,
+  category: true,
+  brand: true,
+  memo: true,
+} as const;
+
 export async function matchOrderItemsForOrder(orderId: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -408,33 +418,61 @@ export async function matchOrderItemsForOrder(orderId: string) {
     return { matched: 0, needsReview: 0 };
   }
 
+  // 상품번호가 그대로 일치하는 항목은 전체 상품을 훑을 필요가 없다. 주문 동기화가
+  // 주문마다 상품 16,700여 건을 불러오느라 1건에 수 초씩 쓰던 구간이다.
+  const itemSkus = [
+    ...new Set(
+      order.items
+        .map((item) => item.sku?.trim())
+        .filter((sku): sku is string => Boolean(sku)),
+    ),
+  ];
+  const skuProducts = itemSkus.length
+    ? await prisma.product.findMany({
+        where: { sku: { in: itemSkus }, status: { not: "inactive" } },
+        select: productMatchSelect,
+      })
+    : [];
+  const productBySku = new Map(
+    skuProducts.map((product) => [product.sku.trim(), product] as const),
+  );
+  let matched = 0;
+  let needsReview = 0;
+  const pending: typeof order.items = [];
+  for (const item of order.items) {
+    const sku = item.sku?.trim();
+    const direct = sku ? productBySku.get(sku) : undefined;
+    if (!direct) {
+      pending.push(item);
+      continue;
+    }
+    await prisma.orderItem.update({
+      where: { id: item.id },
+      data: { productId: direct.id, matchedBy: "sku", matchScore: null },
+    });
+    matched += 1;
+  }
+
+  if (!pending.length) return { matched, needsReview };
+
+  // 남은 항목만 전체 상품과 연결 기록으로 다시 본다.
   const products = await prisma.product.findMany({
     where: { status: { not: "inactive" } },
-    select: {
-      id: true,
-      sku: true,
-      productName: true,
-      optionName: true,
-      category: true,
-      brand: true,
-      memo: true,
-    },
+    select: productMatchSelect,
   });
 
   if (!products.length) {
-    return { matched: 0, needsReview: order.items.length };
+    return { matched, needsReview: needsReview + pending.length };
   }
 
-  const references = order.items
+  const references = pending
     .map((item) => legacyListingReferenceFromOrderItemRaw(item.rawJson))
     .filter((reference): reference is NonNullable<typeof reference> =>
       Boolean(reference),
     );
   const normalizedTitles = [
     ...new Set(
-      order.items
-        .map((item) => normalizeComparableTitle(item.title))
-        .filter(Boolean),
+      pending.map((item) => normalizeComparableTitle(item.title)).filter(Boolean),
     ),
   ];
   const itemIds = [...new Set(references.map((reference) => reference.legacyItemId))];
@@ -448,25 +486,11 @@ export async function matchOrderItemsForOrder(orderId: string) {
           userId: order.userId,
           OR: mappingConditions,
         },
-        include: {
-          product: {
-            select: {
-              id: true,
-              sku: true,
-              productName: true,
-              optionName: true,
-              category: true,
-              brand: true,
-              memo: true,
-            },
-          },
-        },
+        include: { product: { select: productMatchSelect } },
       })
     : [];
-  let matched = 0;
-  let needsReview = 0;
 
-  for (const item of order.items) {
+  for (const item of pending) {
     const result = resolveOrderItemProductMatch(item, products, mappings);
 
     if (!result.product) {

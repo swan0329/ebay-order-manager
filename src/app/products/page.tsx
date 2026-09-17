@@ -1,3 +1,4 @@
+import { memberOptions } from "@/lib/product-member";
 import { Prisma } from "@/generated/prisma";
 import type { ProductQuickEditValue } from "@/components/ProductQuickEdit";
 import { ProductStatsCards } from "@/components/ProductStatsCards";
@@ -14,8 +15,10 @@ import { productImageExtrasById } from "@/lib/product-export-image-extras";
 import {
   getOperationalProductIds,
   type ProductOperationalView,
+  type ProductSalesChannel,
 } from "@/lib/product-operations";
-import { productOrderBy, productWhere } from "@/lib/products";
+import { productOrderBy } from "@/lib/products";
+import { productSearchWhere } from "@/lib/product-search-where";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 
@@ -35,6 +38,52 @@ type PocamarketChange = {
   previousAvailableCount: number | null;
   observedAvailableCount: number | null;
 };
+
+type VariationMembership = {
+  itemId: string | null;
+  state: "INCLUDED" | "PENDING";
+  title: string;
+};
+
+function jsonStringIds(value: Prisma.JsonValue) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+async function fetchVariationMembershipByProductId(userId: string) {
+  const states = await prisma.variationListingState.findMany({
+    where: { userId },
+    select: {
+      ebayItemId: true,
+      includedProductIds: true,
+      pendingProductIds: true,
+      title: true,
+    },
+  });
+  const result = new Map<string, VariationMembership>();
+
+  for (const state of states) {
+    for (const productId of jsonStringIds(state.pendingProductIds)) {
+      if (!result.has(productId)) {
+        result.set(productId, {
+          itemId: state.ebayItemId,
+          state: "PENDING",
+          title: state.title,
+        });
+      }
+    }
+    for (const productId of jsonStringIds(state.includedProductIds)) {
+      result.set(productId, {
+        itemId: state.ebayItemId,
+        state: "INCLUDED",
+        title: state.title,
+      });
+    }
+  }
+
+  return result;
+}
 
 async function fetchPhotoStatusByIds(ids: string[]): Promise<Map<string, ProductPhotoStatus>> {
   if (!ids.length) return new Map();
@@ -96,6 +145,7 @@ type ProductsSearchParams = Promise<{
   freshness?: string;
   upload?: string;
   operation?: string;
+  channel?: string;
 }>;
 
 const pageSizeOptions = [25, 50, 100, 200, 500, 1000, 2000];
@@ -127,7 +177,7 @@ function facetsFromProducts(
 ): ProductFacetOptions {
   return {
     groups: uniqueOptions(products.map((product) => product.brand)),
-    members: uniqueOptions(products.map((product) => product.optionName)),
+    members: memberOptions(products.map((product) => product.optionName)),
     albums: uniqueOptions(products.map((product) => product.category)),
     versions: uniqueOptions(products.map((product) => product.productName)),
   };
@@ -142,7 +192,8 @@ export default async function ProductsPage({
   const params = await searchParams;
   const pageSize = parsePageSize(params.pageSize);
   const requestedPage = Math.max(1, Number(params.page) || 1);
-  const where = productWhere(params);
+  const channel: ProductSalesChannel = params.channel === "SHOPIFY" ? "SHOPIFY" : "EBAY";
+  const where = await productSearchWhere(params, user.id);
   const operationalViews = new Set<ProductOperationalView>([
     "sellable",
     "selling",
@@ -164,6 +215,7 @@ export default async function ProductsPage({
   ) {
     const operationIds = await getOperationalProductIds(
       params.operation as ProductOperationalView,
+      channel,
     );
     const existingAnd = Array.isArray(where.AND)
       ? where.AND
@@ -172,10 +224,14 @@ export default async function ProductsPage({
         : [];
     where.AND = [...existingAnd, { id: { in: operationIds } }];
   }
-  const currentPage = requestedPage;
+  const [totalFiltered, productStats] = await Promise.all([
+    prisma.product.count({ where }),
+    getProductStats(channel),
+  ]);
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const currentPage = Math.min(requestedPage, totalPages);
   const skip = (currentPage - 1) * pageSize;
-  const [fetchedProducts, productStats] = await Promise.all([
-    prisma.product.findMany({
+  const fetchedProducts = await prisma.product.findMany({
       where,
       select: {
         id: true,
@@ -200,6 +256,7 @@ export default async function ProductsPage({
         status: true,
         updatedAt: true,
         shopifyProductId: true,
+        shopifyStatus: true,
         shopifyLastUploadedAt: true,
         ebayItemId: true,
         listingStatus: true,
@@ -207,24 +264,27 @@ export default async function ProductsPage({
       },
       orderBy: productOrderBy(params.sort),
       skip,
-      take: pageSize + 1,
-    }),
-    getProductStats(),
-  ]);
-  const hasNextPage = fetchedProducts.length > pageSize;
-  const products = fetchedProducts.slice(0, pageSize);
+      take: pageSize,
+    });
+  const hasNextPage = currentPage < totalPages;
+  const products = fetchedProducts;
   const initialFacets = facetsFromProducts(products);
-  const totalFiltered = skip + products.length + (hasNextPage ? 1 : 0);
-  const totalPages = Math.max(1, hasNextPage ? currentPage + 1 : currentPage);
   const productIds = products.map((p) => p.id);
-  const [photoStatusById, extrasById, changeById] = await Promise.all([
+  const [
+    photoStatusById,
+    extrasById,
+    changeById,
+    variationByProductId,
+  ] = await Promise.all([
     fetchPhotoStatusByIds(productIds),
     productImageExtrasById(productIds),
     fetchPocamarketChanges(productIds),
+    fetchVariationMembershipByProductId(user.id),
   ]);
   const productRows: ProductQuickEditValue[] = products.map((product) => {
     const photo = photoStatusById.get(product.id);
     const change = changeById.get(product.id);
+    const variation = variationByProductId.get(product.id);
 
     return {
       id: product.id,
@@ -249,9 +309,14 @@ export default async function ProductsPage({
       memo: product.memo,
       imageUrl:
         photo?.imageSource === "lens_workbench"
-          ? product.ebayImageUrls[0] ?? product.imageUrl
+          ? product.imageUrl ?? product.ebayImageUrls[0]
           : product.imageUrl,
-      sourceImageUrl: photo?.sourceImageUrl ?? null,
+      sourceImageUrl:
+        photo?.sourceImageUrl && photo.sourceImageUrl !== product.imageUrl
+          ? photo.sourceImageUrl
+          : product.ebayItemId
+            ? product.ebayImageUrls[0] ?? `/api/products/${product.id}/ebay-display-image`
+            : photo?.sourceImageUrl ?? null,
       imageSource: photo?.imageSource ?? null,
       userImageRegistered: photo?.userImageRegistered ?? false,
       hasBackImage: photo?.hasBackImage ?? false,
@@ -264,25 +329,37 @@ export default async function ProductsPage({
       status: product.status,
       featuredMembers: extrasById.get(product.id)?.featuredMembers ?? null,
       shopifyProductId: product.shopifyProductId,
+      shopifyStatus: product.shopifyStatus,
       shopifyLastUploadedAt: product.shopifyLastUploadedAt?.toISOString() ?? null,
       ebayItemId: product.ebayItemId,
       listingStatus: product.listingStatus,
+      ebayVariationItemId: variation?.itemId ?? null,
+      ebayVariationState: variation?.state ?? null,
+      ebayVariationTitle: variation?.title ?? null,
       lastUploadedAt: product.lastUploadedAt?.toISOString() ?? null,
     };
   });
-  const shopifyStoreHandle =
-    process.env.SHOPIFY_STORE_DOMAIN?.split(".")[0] ?? null;
+  const shopifyStoreHandle = process.env.SHOPIFY_STORE_DOMAIN ?? null;
+  const shortcutLabels: Record<string, string> = {
+    image_pending: "판매 이미지 작업 필요",
+    price_missing: "판매가격 입력 필요",
+    review: "포카 정보 확인 필요",
+    in_stock: "내 재고 중 이미지 준비 완료",
+  };
+  const resultLabel = shortcutLabels[params.operation ?? ""] ?? "상품 조회 결과";
   const start = totalFiltered ? (currentPage - 1) * pageSize + 1 : 0;
   const end = totalFiltered ? start + products.length - 1 : 0;
 
   return (
     <div className="min-h-screen bg-zinc-50">
       <TopNav loginId={user.loginId} />
-      <ProductsControls initialFacets={initialFacets} />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        <ProductStatsCards pageSize={pageSize} stats={productStats} />
+        <ProductStatsCards key={channel} pageSize={pageSize} stats={productStats} channel={channel} />
         <EbayActiveReportPanel />
-
+      </main>
+      <ProductsControls initialFacets={initialFacets} />
+      <main id="product-results" tabIndex={-1} className="mx-auto max-w-7xl scroll-mt-16 px-4 py-6 outline-none sm:px-6">
+        <h1 className="mb-4 text-lg font-bold text-zinc-900">{resultLabel} <span className="text-sm font-medium text-zinc-500">{totalFiltered.toLocaleString()}개</span></h1>
         <ResizableProductsTable
           products={productRows}
           shopifyStoreHandle={shopifyStoreHandle}

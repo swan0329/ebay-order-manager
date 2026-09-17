@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { variationMembersDescription } from "@/lib/unit-card-label";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 import { asErrorMessage, jsonError } from "@/lib/http";
@@ -8,11 +9,13 @@ import {
   buildEbayListingCategoryId,
   buildEbayListingConditionId,
   buildEbayListingDescription,
+  buildEbayVariationListingTitle,
 } from "@/lib/ebay-listing-fields";
 import {
   buildVariationListingGroups,
   relationshipDetails,
   variationParentSku,
+  variationProductsToUpload,
   variationSinglesToEnd,
 } from "@/lib/variation-listing-groups";
 import { getVariationListingReadyImages } from "@/lib/variation-listing-products";
@@ -82,7 +85,11 @@ export async function POST(request: Request) {
         return jsonError(`${group.title}: 현재 카드 구성의 썸네일을 먼저 만들어 주세요.`, 409);
       }
       const includedIds = Array.isArray(state?.includedProductIds) ? state.includedProductIds.filter((id): id is string => typeof id === "string") : [];
-      const exportProducts = state?.ebayItemId ? group.products.filter((product) => !includedIds.includes(product.id)) : group.products;
+      const exportProducts = variationProductsToUpload({
+        products: group.products,
+        parentItemId: state?.ebayItemId ?? null,
+        includedProductIds: includedIds,
+      });
       if (!exportProducts.length) continue;
       if (group.products.length > 40) return jsonError(`${group.title}: 옵션은 최대 40장까지 지원합니다.`, 422);
       const priced = group.products.map((product) => ({
@@ -96,11 +103,11 @@ export async function POST(request: Request) {
         [headers[1]]: state?.ebayItemId ?? "",
         [headers[2]]: variationParentSku(group.key),
         [headers[3]]: buildEbayListingCategoryId(first),
-        [headers[4]]: group.title,
+        [headers[4]]: buildEbayVariationListingTitle(group),
         [headers[6]]: relationshipDetails(group),
         [headers[10]]: state.thumbnailUrl,
         [headers[11]]: buildEbayListingConditionId({ ebayCondition: first.ebayCondition }),
-        [headers[12]]: buildEbayListingDescription(first),
+        [headers[12]]: buildEbayListingDescription(first) + variationMembersDescription(group.products),
         [headers[13]]: "FixedPrice", [headers[14]]: "GTC", [headers[15]]: "1",
         [headers[16]]: "1", [headers[17]]: "South Korea", [headers[18]]: "KR",
         [headers[19]]: "Kpop PC New", [headers[20]]: "No Return Accepted (411199464022)",

@@ -1,18 +1,20 @@
 import { jsonError } from "@/lib/http";
-import { productsCsv, productWhere } from "@/lib/products";
+import { productsCsv } from "@/lib/products";
+import { productSearchWhere } from "@/lib/product-search-where";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
 export async function GET(request: Request) {
   try {
-    await requireApiUser();
+    const user = await requireApiUser();
     const url = new URL(request.url);
     const stock = url.searchParams.get("stock");
     const csv = await productsCsv(
-      productWhere({
+      await productSearchWhere({
         q: url.searchParams.get("q"),
         status: url.searchParams.get("status"),
         stock,
-      }),
+        upload: url.searchParams.get("upload"),
+      }, user.id),
       stock,
     );
 

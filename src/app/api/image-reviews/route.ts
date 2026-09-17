@@ -102,10 +102,9 @@ export async function POST(request: Request) {
       if (locked[0]?.status !== "submitted") {
         return { conflict: true };
       }
-      const urls = [
-        uploaded.url,
-        ...(assignment.urls ?? []).filter((url) => url !== uploaded.url),
-      ];
+      // Only the reviewed result is approved. assignment.urls is historical
+      // context and must never become a published gallery automatically.
+      const urls = [uploaded.url];
       await tx.product.update({
         where: { id: assignment.productId },
         data: { imageUrl: uploaded.url, ebayImageUrls: urls },

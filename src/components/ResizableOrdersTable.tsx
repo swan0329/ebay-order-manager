@@ -1,10 +1,12 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ImageOff } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { PocamarketPurchaseButton } from "@/components/PocamarketPurchaseButton";
+import { OrderCardImage } from "@/components/OrderCardImage";
+import { formatOrderMoney, type OrderItemSale } from "@/lib/order-money";
 
 type Column = {
   id: string;
@@ -16,7 +18,8 @@ type Column = {
 
 export type OrderListRow = {
   id: string;
-  ebayOrderId: string;
+  orderNumber: string;
+  salesChannel: "EBAY" | "SHOPIFY";
   buyerName: string | null;
   buyerUsername: string | null;
   buyerCountry: string | null;
@@ -27,7 +30,9 @@ export type OrderListRow = {
   paidAt: string | null;
   orderDate: string;
   fulfillmentStatus: string;
+  ebayCategory: string;
   totalAmount: string;
+  merchandiseTotal: number | null;
   currency: string;
   trackingNumbers: string[];
   tags: string[];
@@ -35,6 +40,9 @@ export type OrderListRow = {
   warningMessage: string | null;
   itemImages: {
     src: string | null;
+    sources: string[];
+    quantity: number;
+    sale: OrderItemSale | null;
     title: string;
     sku: string | null;
     productSku: string | null;
@@ -59,14 +67,14 @@ export type OrderListRow = {
 
 const columns: Column[] = [
   { id: "orderId", label: "주문번호", width: 150, minWidth: 120, locked: true },
-  { id: "image", label: "이미지", width: 96, minWidth: 82 },
+  { id: "image", label: "카드 사진 · SKU", width: 166, minWidth: 82 },
   { id: "buyer", label: "구매자", width: 160, minWidth: 120 },
   { id: "items", label: "상품명", width: 320, minWidth: 180 },
   { id: "ebaySku", label: "eBay SKU", width: 160, minWidth: 110 },
   { id: "matchStatus", label: "상품매칭", width: 260, minWidth: 170 },
   { id: "quantity", label: "수량", width: 70, minWidth: 60 },
   { id: "paidAt", label: "결제일", width: 150, minWidth: 120 },
-  { id: "fulfillmentStatus", label: "배송상태", width: 120, minWidth: 100 },
+  { id: "fulfillmentStatus", label: "주문상태", width: 120, minWidth: 100 },
   { id: "country", label: "국가", width: 80, minWidth: 64 },
   { id: "total", label: "총액", width: 110, minWidth: 90 },
   { id: "tracking", label: "송장번호", width: 170, minWidth: 120 },
@@ -96,6 +104,7 @@ function formatDate(value: string | null) {
   }
 
   return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
@@ -211,16 +220,7 @@ function ProductThumb({
     : "이미지 없음";
 
   return (
-    <div
-      className={`${size} flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-zinc-200 bg-zinc-100`}
-      title={label}
-    >
-      {image?.src ? (
-        <img src={image.src} alt={label} className="h-full w-full object-cover" />
-      ) : (
-        <ImageOff className="h-5 w-5 text-zinc-400" />
-      )}
-    </div>
+    <OrderCardImage sources={image?.sources ?? (image?.src ? [image.src] : [])} title={label} className={size} />
   );
 }
 
@@ -230,13 +230,13 @@ function ProductThumbs({ images }: { images: OrderListRow["itemImages"] }) {
   }
 
   return (
-    <div className="flex items-center gap-1">
-      {images.slice(0, 3).map((image, index) => (
-        <ProductThumb key={`${image.title}-${index}`} image={image} />
+    <div className="flex flex-wrap gap-2">
+      {images.map((image, index) => (
+        <div key={`${image.title}-${index}`} className="space-y-1">
+          <ProductThumb image={image} size="h-20 w-14" />
+          <p className="text-[10px] font-semibold text-zinc-600">{image.productSku ?? image.sku ?? "SKU 없음"}</p>
+        </div>
       ))}
-      {images.length > 3 ? (
-        <span className="text-xs font-medium text-zinc-500">+{images.length - 3}</span>
-      ) : null}
     </div>
   );
 }
@@ -351,16 +351,28 @@ export function ResizableOrdersTable({
 
     switch (columnId) {
       case "orderId":
-        return <span className="font-medium text-zinc-950">{order.ebayOrderId}</span>;
+        return (
+          <div>
+            <span className="font-medium text-zinc-950">{order.orderNumber}</span>
+            <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold ${order.salesChannel === "SHOPIFY" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700"}`}>
+              {order.salesChannel === "SHOPIFY" ? "Shopify" : "eBay"}
+            </span>
+            <p className="mt-2 font-semibold text-zinc-950">주문 총액 {formatOrderMoney(order.totalAmount, order.currency)}</p>
+            <p className="mt-1 text-xs text-zinc-500">상품 합계 {order.merchandiseTotal === null ? "미확인" : formatOrderMoney(order.merchandiseTotal, order.currency)}</p>
+          </div>
+        );
       case "image":
         return <ProductThumbs images={order.itemImages} />;
       case "buyer":
         return order.buyerName ?? order.buyerUsername ?? "-";
       case "items":
         return (
-          <span className="line-clamp-2" title={order.itemTitles.join(" | ")}>
-            {order.itemTitles.join(" | ") || "-"}
-          </span>
+          <div className="space-y-3">{order.itemImages.map((item, index) => <div key={index}>
+            <p className="text-xs font-semibold">{item.productSku ?? item.sku ?? "SKU 없음"} · {item.quantity}장</p>
+            <p className="line-clamp-2 text-xs text-zinc-500" title={item.title}>{item.title}</p>
+            <p className="mt-1 font-semibold text-zinc-900">{item.sale ? `장당 ${formatOrderMoney(item.sale.unitAmount, item.sale.currency)}` : "판매금액 미수집"}</p>
+            {item.sale && item.quantity > 1 ? <p className="text-xs">상품 합계 {formatOrderMoney(item.sale.lineAmount, item.sale.currency)}</p> : null}
+          </div>)}</div>
         );
       case "ebaySku":
         return order.ebaySkus.length ? order.ebaySkus.join(" | ") : "SKU 없음";
@@ -378,11 +390,11 @@ export function ResizableOrdersTable({
       case "paidAt":
         return formatDate(order.paidAt ?? order.orderDate);
       case "fulfillmentStatus":
-        return <StatusBadge status={order.fulfillmentStatus} />;
+        return <StatusBadge status={order.ebayCategory} />;
       case "country":
         return order.buyerCountry ?? "-";
       case "total":
-        return `${order.totalAmount} ${order.currency}`;
+        return formatOrderMoney(order.totalAmount, order.currency);
       case "tracking":
         return order.trackingNumbers.length ? order.trackingNumbers.join(" | ") : "-";
       case "inventory":
@@ -392,6 +404,7 @@ export function ResizableOrdersTable({
               {inventory.label}
             </span>
             <DetailLines lines={inventory.details} />
+            {order.ebayCategory === "AWAITING_SHIPMENT" && order.shortageItems.length ? <PocamarketPurchaseButton orderId={order.id} /> : null}
           </div>
         );
       case "warnings":
@@ -424,6 +437,7 @@ export function ResizableOrdersTable({
         return (
           <Link
             href={`/orders/${order.id}`}
+            prefetch={false}
             className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
             title="상세"
           >
@@ -539,35 +553,39 @@ export function ResizableOrdersTable({
             <Link
               key={order.id}
               href={`/orders/${order.id}`}
+              prefetch={false}
               className="block rounded-lg border border-zinc-200 bg-white p-4"
             >
               <div className="mb-3 flex items-start gap-3">
-                <ProductThumb image={order.itemImages[0]} size="h-16 w-16" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-zinc-950">
-                        {order.ebayOrderId}
+                        {order.orderNumber}
                       </p>
                       <p className="mt-1 text-sm text-zinc-600">
                         {order.buyerName ?? order.buyerUsername ?? "-"}
                       </p>
                     </div>
-                    <StatusBadge status={order.fulfillmentStatus} />
+                    <StatusBadge status={order.ebayCategory} />
                   </div>
                   <p className="mt-2 line-clamp-2 text-sm text-zinc-600">
                     {order.itemTitles.join(" | ")}
                   </p>
                 </div>
               </div>
-              <div className="grid gap-2 text-xs text-zinc-600">
-                <div>
+              <div className="mb-3 space-y-2">{order.itemImages.map((item, index) => <div key={index} className="flex items-center gap-3">
+                <ProductThumb image={item} size="h-20 w-14" />
+                <div className="min-w-0 text-xs"><p className="font-semibold">{item.productSku ?? item.sku ?? "SKU 없음"} · {item.quantity}장</p><p className="line-clamp-2 text-zinc-500">{item.title}</p><p className="mt-1 font-semibold">{item.sale ? `장당 ${formatOrderMoney(item.sale.unitAmount, item.sale.currency)} · 합계 ${formatOrderMoney(item.sale.lineAmount, item.sale.currency)}` : "판매금액 미수집"}</p></div>
+              </div>)}</div>
+              <div className="grid min-w-0 grid-cols-1 gap-2 text-xs text-zinc-600">
+                <div className="min-w-0">
                   <span className={`rounded-full px-2 py-1 font-semibold ring-1 ${match.className}`}>
                     {match.label}
                   </span>
                   <DetailLines lines={match.details} />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <span className={`rounded-full px-2 py-1 font-semibold ring-1 ${inventory.className}`}>
                     {inventory.label}
                   </span>
@@ -576,7 +594,7 @@ export function ResizableOrdersTable({
               </div>
               <div className="mt-3 flex items-center justify-between text-xs text-zinc-500">
                 <span>{formatDate(order.orderDate)}</span>
-                <span>{order.totalAmount} {order.currency}</span>
+                <span className="font-semibold text-zinc-900">주문 총액 {formatOrderMoney(order.totalAmount, order.currency)}</span>
               </div>
             </Link>
           );

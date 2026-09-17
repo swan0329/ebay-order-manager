@@ -24,6 +24,7 @@ import { prisma } from "@/lib/prisma";
 import { getOperationalProductIds } from "@/lib/product-operations";
 import { ensureImageWorkAssignments } from "@/lib/image-work-assignments";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
+import { getVariationCandidateProductIds } from "@/lib/variation-listing-products";
 import {
   mergeListingUploadDrafts,
   type ListingUploadDraft,
@@ -425,7 +426,7 @@ function emptyDraft(): ListingUploadDraft {
 function csvResponse(
   rows: string[][],
   filename: string,
-  counts: { exported: number; excluded: number; reportImportedAt: Date },
+  counts: { exported: number; excluded: number; optionCandidates: number; reportImportedAt: Date },
 ) {
   // eBay's bulk upload parses a delimited text file ("use comma/semicolon/tab").
   // An xlsx re-encoded outside the original template gets rejected, so emit CSV.
@@ -440,6 +441,7 @@ function csvResponse(
       "content-disposition": `attachment; filename="${filename}"`,
       "x-exported-count": String(counts.exported),
       "x-excluded-count": String(counts.excluded),
+      "x-option-candidate-count": String(counts.optionCandidates),
       "x-ebay-report-imported-at": counts.reportImportedAt.toISOString(),
       "cache-control": "no-store",
     },
@@ -491,7 +493,20 @@ export async function POST(request: Request) {
     if (!pricingSettings) {
       return jsonError("가격 설정을 먼저 저장해 주세요.", 422);
     }
-    const imageExtras = await productImageExtrasById(products.map((product) => product.id));
+    const variationCandidateIds = await getVariationCandidateProductIds();
+    const optionCandidateCount = products.filter((product) =>
+      variationCandidateIds.has(product.id),
+    ).length;
+    const individualProducts = products.filter(
+      (product) => !variationCandidateIds.has(product.id),
+    );
+    if (!individualProducts.length && optionCandidateCount > 0) {
+      return jsonError(
+        `선택한 ${optionCandidateCount}개는 옵션상품으로 묶을 수 있어 개별 등록에서 제외했습니다. ‘옵션상품 구성’에서 기존 옵션에 추가하거나 새 옵션상품으로 등록해 주세요.`,
+        409,
+      );
+    }
+    const imageExtras = await productImageExtrasById(individualProducts.map((product) => product.id));
     // Preserve the requested order; for "all unlisted" keep the DB (SKU) order.
     const orderIds =
       input.allUnlisted || input.lensOnly || input.combined || input.ownPhotoOnly
@@ -499,7 +514,7 @@ export async function POST(request: Request) {
         : requestedIds;
     const productOrder = new Map(orderIds.map((id, index) => [id, index]));
     const baseUrl = publicBaseUrl(request);
-    const sortedProducts = withProductImageExtras(products, imageExtras)
+    const sortedProducts = withProductImageExtras(individualProducts, imageExtras)
       .filter(
         (product) =>
           hasListingPrice(product) &&
@@ -600,6 +615,7 @@ export async function POST(request: Request) {
             ? products.length
             : requestedIds.length) - rows.length,
         ),
+        optionCandidates: optionCandidateCount,
         reportImportedAt: latestCompleteReport.createdAt,
       },
     );
