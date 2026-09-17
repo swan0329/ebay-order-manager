@@ -650,7 +650,7 @@ export async function repairAiPreviewCorners({
   >`
     SELECT j."id",p."sku",j."preview_url" AS "previewUrl"
     FROM "ai_image_jobs" j JOIN "products" p ON p."id"=j."product_id"
-    WHERE ${aiJobAllowedSql} AND j."status" IN ('review','held','pass_ready')
+    WHERE ${aiJobAllowedSql} AND j."status" IN ('review','held','pass_ready','rework')
       AND COALESCE(j."preview_url",'')<>''
     ORDER BY j."created_at",j."id"
     LIMIT ${limit} OFFSET ${offset}`;
@@ -679,7 +679,7 @@ export async function repairAiPreviewCorners({
       });
       // 검수 순서를 흔들지 않도록 created_at과 상태는 그대로 둔다.
       await prisma.$executeRaw`UPDATE "ai_image_jobs" SET "preview_url"=${uploaded.url}
-        WHERE "id"=${job.id} AND "status" IN ('review','held','pass_ready')`;
+        WHERE "id"=${job.id} AND "status" IN ('review','held','pass_ready','rework')`;
       repaired += 1;
     } catch (error) {
       failed += 1;
