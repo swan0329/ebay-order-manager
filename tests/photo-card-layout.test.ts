@@ -68,6 +68,30 @@ describe("포토카드 배치 판정", () => {
     expect((await detectCardLayout(await grey(narrow))).kind).toBe("unknown");
   });
 
+  it("카드 안에 흰 부분이 있어도 카드 전체를 상자에 담는다", async () => {
+    // 왼쪽 위 카드의 아래쪽 왼편에 흰 소매 같은 밝은 덩어리가 있는 사진
+    const sleeve = canvas(
+      `<rect x="0" y="0" width="140" height="217" fill="#303030"/>` +
+        `<rect x="0" y="150" width="40" height="67" fill="#fdfdfd"/>` +
+        `<rect x="110" y="171" width="140" height="217" fill="#101010"/>`,
+    );
+    const layout = detectCardLayout(await grey(sleeve));
+    expect(layout.kind).toBe("cards");
+    if (layout.kind !== "cards") return;
+    // 흰 소매에서 끊기면 0.4 근처가 된다. 카드 아래 끝인 0.55 근처여야 한다.
+    expect(layout.boxes[0].y1).toBeGreaterThan(0.5);
+  });
+
+  it("상자가 덮지 못한 카드 내용이 있으면 깎지 않는다", async () => {
+    // 배경 한가운데에 카드가 아닌 내용이 남아 있는 사진. 그대로 깎으면 지워진다.
+    const extra = canvas(
+      `<rect x="0" y="0" width="140" height="217" fill="#303030"/>` +
+        `<rect x="110" y="171" width="140" height="217" fill="#101010"/>` +
+        `<rect x="160" y="60" width="80" height="100" fill="#202020"/>`,
+    );
+    expect((await detectCardLayout(await grey(extra))).kind).toBe("unknown");
+  });
+
   it("귀퉁이에 작은 표식만 있으면 대각선으로 보지 않는다", async () => {
     const mark = canvas(
       `<rect x="0" y="0" width="140" height="217" fill="#303030"/><rect x="230" y="370" width="18" height="16" fill="#101010"/>`,

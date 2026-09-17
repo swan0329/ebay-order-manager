@@ -660,7 +660,13 @@ export async function repairAiPreviewCorners({
   for (const job of jobs) {
     try {
       const current = await downloadImage(job.previewUrl);
-      if (!(await hasBlackCorner(current))) {
+      // 두 장짜리 배치는 예전 기준으로는 배경과 카드를 가리지 못해 아예 깎지
+      // 않았다. 검은 모서리가 없어도 두 장으로 읽히면 다시 깎는다. 이미 제대로
+      // 깎인 그림을 다시 깎아도 결과는 같다.
+      const { layout } = await cardCornerMask(
+        await sharp(current).resize(CARD_WIDTH, CARD_HEIGHT, { fit: "fill" }).png().toBuffer(),
+      );
+      if (layout.kind !== "cards" && !(await hasBlackCorner(current))) {
         skipped += 1;
         continue;
       }

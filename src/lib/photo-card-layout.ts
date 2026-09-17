@@ -14,7 +14,10 @@ export type GreyscaleImage = {
   data: Uint8Array | Buffer;
 };
 
-const BACKGROUND_LEVEL = 232;
+// 배경 밝기는 사진마다 다르다. 어떤 사진은 배경이 246이고 카드 안의 흰 벽이 233이다.
+// 고정된 기준을 쓰면 카드 속 밝은 부분을 배경으로 착각해 경계를 잘못 잡는다.
+const BACKGROUND_TOLERANCE = 4;
+const MIN_BACKGROUND_SHARE = 0.1;
 // 사분면이 아니라 네 귀퉁이를 본다. 두 카드가 가운데서 맞닿아 사분면을 침범하기
 // 때문에 사분면 밝기로는 배치를 가릴 수 없다.
 const CORNER_WIDTH = 0.18;
@@ -24,14 +27,44 @@ const CARD_CORNER = 0.35;
 const MIN_SIDE = 0.25;
 const MIN_ASPECT = 0.4;
 const MAX_ASPECT = 1.0;
+// 경계는 한 줄만 보고 정하지 않는다. 카드 안에 밝은 부분이 있으면 그 줄만 짧게
+// 끊긴다. 맞닿은 쪽 끝에서 여러 줄을 훑어 흔한 값을 쓴다.
+const EDGE_BAND = 0.14;
+const EDGE_PERCENTILE = 0.8;
+// 상자가 못 덮은 카드 내용이 이보다 많으면 깎지 않는다. 깎으면 그만큼 지워진다.
+const MAX_UNCOVERED = 0.01;
 
-function reader(image: GreyscaleImage) {
-  const { width, data } = image;
-  return (x: number, y: number) => data[y * width + x] >= BACKGROUND_LEVEL;
+/**
+ * 이 사진의 배경 밝기를 찾는다. 배경은 넓고 고른 한 가지 밝기로 깔려 있으므로
+ * 밝은 쪽에서 가장 흔한 값이 배경이다. 배경이라 할 만한 넓이가 없으면 두 장
+ * 배치가 아니므로 판정하지 않는다.
+ */
+function backgroundThreshold(image: GreyscaleImage) {
+  const histogram = new Uint32Array(256);
+  for (let index = 0; index < image.width * image.height; index += 1)
+    histogram[image.data[index]] += 1;
+  let mode = -1;
+  let best = 0;
+  for (let value = 200; value < 256; value += 1)
+    if (histogram[value] > best) {
+      best = histogram[value];
+      mode = value;
+    }
+  if (mode < 0) return null;
+  const floor = Math.max(0, mode - BACKGROUND_TOLERANCE);
+  let share = 0;
+  for (let value = floor; value < 256; value += 1) share += histogram[value];
+  if (share / (image.width * image.height) < MIN_BACKGROUND_SHARE) return null;
+  return floor;
 }
 
-function cornerBrightness(image: GreyscaleImage) {
-  const bright = reader(image);
+function reader(image: GreyscaleImage, threshold: number) {
+  const { width, data } = image;
+  return (x: number, y: number) => data[y * width + x] >= threshold;
+}
+
+function cornerBrightness(image: GreyscaleImage, threshold: number) {
+  const bright = reader(image, threshold);
   const cornerWidth = Math.max(2, Math.round(image.width * CORNER_WIDTH));
   const cornerHeight = Math.max(2, Math.round(image.height * CORNER_HEIGHT));
   const ratio = (x0: number, y0: number) => {
@@ -61,6 +94,51 @@ function contentEdge(isBright: (index: number) => boolean, length: number, forwa
   return forward ? length : 0;
 }
 
+/**
+ * 여러 줄에서 잰 경계 중 하나를 고른다. 앞에서 재는 값은 클수록, 뒤에서 재는 값은
+ * 작을수록 카드가 크다. 카드 안의 밝은 부분 때문에 짧게 끊긴 줄에 끌려가지 않도록
+ * 카드가 큰 쪽으로 치우친 값을 쓴다.
+ */
+function edgeEstimate(values: number[], forward: boolean) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const ratio = forward ? EDGE_PERCENTILE : 1 - EDGE_PERCENTILE;
+  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * ratio))];
+}
+
+function bandIndexes(length: number, fromStart: boolean, share = EDGE_BAND) {
+  const band = Math.max(3, Math.round(length * share));
+  const indexes: number[] = [];
+  for (let step = 1; step < band; step += 1)
+    indexes.push(fromStart ? step : length - 1 - step);
+  return indexes;
+}
+
+/**
+ * 마스크가 카드 내용을 덮지 못하면 그 부분은 지워져 흰색으로 남는다. 잘못 깎느니
+ * 깎지 않는 편이 낫다. 배경이 아닌 점이 상자 밖에 얼마나 있는지 센다.
+ */
+function uncoveredShare(image: GreyscaleImage, threshold: number, boxes: CardBox[]) {
+  const bright = reader(image, threshold);
+  const inside = (x: number, y: number) =>
+    boxes.some(
+      (box) =>
+        x >= box.x0 * image.width &&
+        x <= box.x1 * image.width &&
+        y >= box.y0 * image.height &&
+        y <= box.y1 * image.height,
+    );
+  let content = 0;
+  let uncovered = 0;
+  for (let y = 0; y < image.height; y += 1)
+    for (let x = 0; x < image.width; x += 1) {
+      if (bright(x, y)) continue;
+      content += 1;
+      if (!inside(x, y)) uncovered += 1;
+    }
+  return content ? uncovered / content : 0;
+}
+
 function validBox(box: CardBox, frameAspect: number) {
   const width = box.x1 - box.x0;
   const height = box.y1 - box.y0;
@@ -78,13 +156,11 @@ function validBox(box: CardBox, frameAspect: number) {
  */
 export function detectCardLayout(image: GreyscaleImage): CardLayout {
   if (image.width < 16 || image.height < 16) return { kind: "single" };
-  const corners = cornerBrightness(image);
-  const bright = reader(image);
+  const threshold = backgroundThreshold(image);
+  if (threshold === null) return { kind: "single" };
+  const corners = cornerBrightness(image, threshold);
+  const bright = reader(image, threshold);
   const { width, height } = image;
-  const topRow = Math.round(height * 0.03);
-  const bottomRow = height - 1 - topRow;
-  const leftColumn = Math.round(width * 0.03);
-  const rightColumn = width - 1 - leftColumn;
 
   const leftDiagonal =
     corners.topRight >= BACKGROUND_CORNER &&
@@ -98,39 +174,72 @@ export function detectCardLayout(image: GreyscaleImage): CardLayout {
     corners.bottomLeft <= CARD_CORNER;
   if (!leftDiagonal && !rightDiagonal) return { kind: "single" };
 
-  const boxes: CardBox[] = leftDiagonal
-    ? [
-        {
-          x0: 0,
-          y0: 0,
-          x1: contentEdge((x) => bright(x, topRow), width, true) / width,
-          y1: contentEdge((y) => bright(leftColumn, y), height, true) / height,
-        },
-        {
-          x0: contentEdge((x) => bright(x, bottomRow), width, false) / width,
-          y0: contentEdge((y) => bright(rightColumn, y), height, false) / height,
-          x1: 1,
-          y1: 1,
-        },
-      ]
-    : [
-        {
-          x0: contentEdge((x) => bright(x, topRow), width, false) / width,
-          y0: 0,
-          x1: 1,
-          y1: contentEdge((y) => bright(rightColumn, y), height, true) / height,
-        },
-        {
-          x0: 0,
-          y0: contentEdge((y) => bright(leftColumn, y), height, false) / height,
-          x1: contentEdge((x) => bright(x, bottomRow), width, true) / width,
-          y1: 1,
-        },
-      ];
+  // 경계는 두 번 잰다. 먼저 맞닿은 쪽 끝에서 대강 잡고, 다음에는 그 카드만 있는
+  // 구간의 줄을 모두 훑어 다시 잰다. 한 번만 재면 카드 안의 흰 소매 같은 밝은
+  // 부분에 끌려가 카드가 실제보다 작게 잡히고, 작게 잡힌 만큼 나중에 지워진다.
+  // 다른 카드까지 걸친 줄을 쓰면 반대로 카드가 화면 끝까지 늘어난다.
+  const horizontal = (rows: number[], forward: boolean) =>
+    edgeEstimate(
+      rows.map((y) => contentEdge((x) => bright(x, y), width, forward)),
+      forward,
+    ) / width;
+  const vertical = (columns: number[], forward: boolean) =>
+    edgeEstimate(
+      columns.map((x) => contentEdge((y) => bright(x, y), height, forward)),
+      forward,
+    ) / height;
+  /** from~to 구간(0~1)의 줄 번호. 구간이 비면 빈 배열을 돌려준다. */
+  const span = (from: number, to: number, length: number) => {
+    const first = Math.max(1, Math.round(from * length));
+    const last = Math.min(length - 2, Math.round(to * length));
+    const indexes: number[] = [];
+    for (let index = first; index <= last; index += 1) indexes.push(index);
+    return indexes;
+  };
+  const refine = (indexes: number[], forward: boolean, rough: number, axis: "x" | "y") =>
+    indexes.length
+      ? axis === "x"
+        ? horizontal(indexes, forward)
+        : vertical(indexes, forward)
+      : rough;
+
+  // 1차: 맞닿은 쪽 끝의 몇 줄만 보고 대강 잡는다.
+  const topLeftSide = leftDiagonal;
+  const roughTop = {
+    across: horizontal(bandIndexes(height, true), topLeftSide),
+    down: vertical(bandIndexes(width, topLeftSide), true),
+  };
+  const roughBottom = {
+    across: horizontal(bandIndexes(height, false), !topLeftSide),
+    up: vertical(bandIndexes(width, !topLeftSide), false),
+  };
+
+  // 2차: 위 카드는 아래 카드가 시작되기 전까지, 아래 카드는 위 카드가 끝난 뒤부터.
+  const topRows = span(0, roughBottom.up, height);
+  const bottomRows = span(roughTop.down, 1, height);
+  const topColumns = topLeftSide
+    ? span(0, roughBottom.across, width)
+    : span(roughBottom.across, 1, width);
+  const bottomColumns = topLeftSide
+    ? span(roughTop.across, 1, width)
+    : span(0, roughTop.across, width);
+
+  const topAcross = refine(topRows, topLeftSide, roughTop.across, "x");
+  const topDown = refine(topColumns, true, roughTop.down, "y");
+  const bottomAcross = refine(bottomRows, !topLeftSide, roughBottom.across, "x");
+  const bottomUp = refine(bottomColumns, false, roughBottom.up, "y");
+
+  const topBox: CardBox = topLeftSide
+    ? { x0: 0, y0: 0, x1: topAcross, y1: topDown }
+    : { x0: topAcross, y0: 0, x1: 1, y1: topDown };
+  const bottomBox: CardBox = topLeftSide
+    ? { x0: bottomAcross, y0: bottomUp, x1: 1, y1: 1 }
+    : { x0: 0, y0: bottomUp, x1: bottomAcross, y1: 1 };
+  const boxes: CardBox[] = [topBox, bottomBox];
   const frameAspect = width / height;
-  return boxes.every((box) => validBox(box, frameAspect))
-    ? { kind: "cards", boxes }
-    : { kind: "unknown" };
+  if (!boxes.every((box) => validBox(box, frameAspect))) return { kind: "unknown" };
+  if (uncoveredShare(image, threshold, boxes) > MAX_UNCOVERED) return { kind: "unknown" };
+  return { kind: "cards", boxes };
 }
 
 /** 카드마다 자기 크기에 맞는 반경으로 둥글게 만드는 마스크. */
