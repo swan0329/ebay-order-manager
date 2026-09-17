@@ -18,6 +18,8 @@ export type GreyscaleImage = {
 // 고정된 기준을 쓰면 카드 속 밝은 부분을 배경으로 착각해 경계를 잘못 잡는다.
 const BACKGROUND_TOLERANCE = 4;
 const MIN_BACKGROUND_SHARE = 0.1;
+// 배경이 이만큼 연달아 나와야 카드가 끝난 것으로 본다.
+const BACKGROUND_RUN = 4;
 // 사분면이 아니라 네 귀퉁이를 본다. 두 카드가 가운데서 맞닿아 사분면을 침범하기
 // 때문에 사분면 밝기로는 배치를 가릴 수 없다.
 const CORNER_WIDTH = 0.18;
@@ -36,35 +38,56 @@ const MAX_UNCOVERED = 0.01;
 
 /**
  * 이 사진의 배경 밝기를 찾는다. 배경은 넓고 고른 한 가지 밝기로 깔려 있으므로
- * 밝은 쪽에서 가장 흔한 값이 배경이다. 배경이라 할 만한 넓이가 없으면 두 장
- * 배치가 아니므로 판정하지 않는다.
+ * 밝은 쪽에서 가장 흔한 밝기가 배경이다. 다만 흰 뒷면 카드(255)가 배경(246)보다
+ * 넓은 사진도 있어 어느 쪽이 배경인지 한 번에 정할 수 없다. 넓은 순서로 후보를
+ * 돌려주고 두 장 배치가 만들어지는 쪽을 쓴다.
  */
-function backgroundThreshold(image: GreyscaleImage) {
+function backgroundCandidates(image: GreyscaleImage) {
   const histogram = new Uint32Array(256);
   for (let index = 0; index < image.width * image.height; index += 1)
     histogram[image.data[index]] += 1;
-  let mode = -1;
-  let best = 0;
-  for (let value = 200; value < 256; value += 1)
-    if (histogram[value] > best) {
-      best = histogram[value];
-      mode = value;
+  const band = (level: number) => {
+    let count = 0;
+    for (
+      let value = Math.max(0, level - BACKGROUND_TOLERANCE);
+      value <= Math.min(255, level + BACKGROUND_TOLERANCE);
+      value += 1
+    )
+      count += histogram[value];
+    return count;
+  };
+  const pixels = image.width * image.height;
+  const candidates: number[] = [];
+  const taken: number[] = [];
+  for (let round = 0; round < 3; round += 1) {
+    let best = -1;
+    let bestCount = 0;
+    for (let level = 200; level < 256; level += 1) {
+      if (taken.some((used) => Math.abs(used - level) <= BACKGROUND_TOLERANCE)) continue;
+      const count = band(level);
+      if (count > bestCount) {
+        bestCount = count;
+        best = level;
+      }
     }
-  if (mode < 0) return null;
-  const floor = Math.max(0, mode - BACKGROUND_TOLERANCE);
-  let share = 0;
-  for (let value = floor; value < 256; value += 1) share += histogram[value];
-  if (share / (image.width * image.height) < MIN_BACKGROUND_SHARE) return null;
-  return floor;
+    if (best < 0 || bestCount / pixels < MIN_BACKGROUND_SHARE) break;
+    candidates.push(best);
+    taken.push(best);
+  }
+  return candidates;
 }
 
-function reader(image: GreyscaleImage, threshold: number) {
+/**
+ * 배경인지 본다. "밝으면 배경"으로 보면 안 된다. 배경보다 더 흰 뒷면 카드를
+ * 배경으로 삼아 카드 경계를 통째로 놓친다. 배경 밝기 언저리만 배경으로 본다.
+ */
+function reader(image: GreyscaleImage, level: number) {
   const { width, data } = image;
-  return (x: number, y: number) => data[y * width + x] >= threshold;
+  return (x: number, y: number) => Math.abs(data[y * width + x] - level) <= BACKGROUND_TOLERANCE;
 }
 
-function cornerBrightness(image: GreyscaleImage, threshold: number) {
-  const bright = reader(image, threshold);
+function cornerBrightness(image: GreyscaleImage, level: number) {
+  const bright = reader(image, level);
   const cornerWidth = Math.max(2, Math.round(image.width * CORNER_WIDTH));
   const cornerHeight = Math.max(2, Math.round(image.height * CORNER_HEIGHT));
   const ratio = (x0: number, y0: number) => {
@@ -85,11 +108,21 @@ function cornerBrightness(image: GreyscaleImage, threshold: number) {
   };
 }
 
-/** 한 줄을 따라가며 배경이 시작되는 지점을 찾는다. */
+/**
+ * 한 줄을 따라가며 배경이 시작되는 지점을 찾는다. 배경 한 점만 보고 멈추면 안 된다.
+ * 흰 카드에 찍힌 검은 글씨 둘레는 압축 때문에 배경과 같은 밝기를 스쳐 지나가고,
+ * 그 한 점에서 멈추면 카드가 반 토막 난다. 배경이 연달아 나올 때만 끝으로 본다.
+ */
 function contentEdge(isBright: (index: number) => boolean, length: number, forward: boolean) {
+  let run = 0;
   for (let step = 0; step < length; step += 1) {
     const index = forward ? step : length - 1 - step;
-    if (isBright(index)) return forward ? index : index + 1;
+    if (!isBright(index)) {
+      run = 0;
+      continue;
+    }
+    run += 1;
+    if (run >= BACKGROUND_RUN) return forward ? index - run + 1 : index + run;
   }
   return forward ? length : 0;
 }
@@ -118,8 +151,8 @@ function bandIndexes(length: number, fromStart: boolean, share = EDGE_BAND) {
  * 마스크가 카드 내용을 덮지 못하면 그 부분은 지워져 흰색으로 남는다. 잘못 깎느니
  * 깎지 않는 편이 낫다. 배경이 아닌 점이 상자 밖에 얼마나 있는지 센다.
  */
-function uncoveredShare(image: GreyscaleImage, threshold: number, boxes: CardBox[]) {
-  const bright = reader(image, threshold);
+function uncoveredShare(image: GreyscaleImage, level: number, boxes: CardBox[]) {
+  const bright = reader(image, level);
   const inside = (x: number, y: number) =>
     boxes.some(
       (box) =>
@@ -156,10 +189,20 @@ function validBox(box: CardBox, frameAspect: number) {
  */
 export function detectCardLayout(image: GreyscaleImage): CardLayout {
   if (image.width < 16 || image.height < 16) return { kind: "single" };
-  const threshold = backgroundThreshold(image);
-  if (threshold === null) return { kind: "single" };
-  const corners = cornerBrightness(image, threshold);
-  const bright = reader(image, threshold);
+  let result: CardLayout = { kind: "single" };
+  for (const level of backgroundCandidates(image)) {
+    const attempt = layoutForBackground(image, level);
+    if (attempt.kind === "cards") return attempt;
+    // 한 후보로 두 장을 만들지 못하면 다음 후보를 본다. 판정을 포기한 결과는
+    // 남겨 둔다. 두 장처럼 보이는데 경계를 못 잡은 것이므로 깎으면 안 된다.
+    if (attempt.kind === "unknown") result = attempt;
+  }
+  return result;
+}
+
+function layoutForBackground(image: GreyscaleImage, level: number): CardLayout {
+  const corners = cornerBrightness(image, level);
+  const bright = reader(image, level);
   const { width, height } = image;
 
   const leftDiagonal =
@@ -238,7 +281,7 @@ export function detectCardLayout(image: GreyscaleImage): CardLayout {
   const boxes: CardBox[] = [topBox, bottomBox];
   const frameAspect = width / height;
   if (!boxes.every((box) => validBox(box, frameAspect))) return { kind: "unknown" };
-  if (uncoveredShare(image, threshold, boxes) > MAX_UNCOVERED) return { kind: "unknown" };
+  if (uncoveredShare(image, level, boxes) > MAX_UNCOVERED) return { kind: "unknown" };
   return { kind: "cards", boxes };
 }
 

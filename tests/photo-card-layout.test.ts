@@ -82,6 +82,19 @@ describe("포토카드 배치 판정", () => {
     expect(layout.boxes[0].y1).toBeGreaterThan(0.5);
   });
 
+  it("배경보다 더 흰 뒷면 카드도 카드로 본다", async () => {
+    // 배경은 246, 뒷면 카드는 255인 사진. "밝으면 배경"으로 보면 뒷장을 통째로 놓친다.
+    const whiteBack =
+      `<svg width="250" height="388"><rect width="250" height="388" fill="#f6f6f6"/>` +
+      `<rect x="0" y="0" width="140" height="217" fill="#303030"/>` +
+      `<rect x="110" y="171" width="140" height="217" fill="#ffffff"/>` +
+      `<text x="140" y="300" font-size="30" fill="#000000">ABC</text></svg>`;
+    const layout = detectCardLayout(await grey(whiteBack));
+    expect(layout.kind).toBe("cards");
+    if (layout.kind !== "cards") return;
+    expect(layout.boxes[1].y0).toBeLessThan(0.5);
+  });
+
   it("상자가 덮지 못한 카드 내용이 있으면 깎지 않는다", async () => {
     // 배경 한가운데에 카드가 아닌 내용이 남아 있는 사진. 그대로 깎으면 지워진다.
     const extra = canvas(
