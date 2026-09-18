@@ -153,7 +153,7 @@ export async function getFinanceFeeBreakdown(
             : [transaction.feeType];
           return types.some((value) => text(value) === rawFeeType);
         })
-        .slice(0, 5)
+        .slice(0, 400)
     : [];
 
   return {

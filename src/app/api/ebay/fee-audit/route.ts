@@ -25,6 +25,27 @@ export async function GET(request: Request) {
   try {
     const user = await requireApiUser();
     const url = new URL(request.url);
+    // 특정 리스팅이 언제 만들어졌는지 바로 본다. 수수료가 새 등록 때문인지
+    // 이미 있던 리스팅 때문인지는 생성일로 갈린다.
+    const lookup = url.searchParams.get("item");
+    if (lookup)
+      return Response.json({
+        ok: true,
+        items: await Promise.all(
+          lookup
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean)
+            .slice(0, 12)
+            .map(async (itemId) => {
+              try {
+                return { itemId, ...(await getEbayItemSummary(itemId)) };
+              } catch (error) {
+                return { itemId, error: asErrorMessage(error) };
+              }
+            }),
+        ),
+      });
     const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
     const days = Math.min(365, Math.max(1, Number(url.searchParams.get("days") ?? 90)));
     // 정산 기준 항목별 내역. 광고비·구독료처럼 주문에 딸리지 않는 비용까지 보인다.
