@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     const settings = await prisma.pricingSettings.findUnique({ where: { id: "default" } });
     const allowance = settings?.freeListingAllowance ?? 250;
 
-    const finance = await getFinanceFeeBreakdown(user.id, days, true);
+    const finance = await getFinanceFeeBreakdown(user.id, days, true, "INSERTION_FEE");
     const account = await getActiveEbayAccount(user.id);
     const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
     const orderBody = await getOrdersFromEbay(account, { creationDateFrom: from }, 200, 0);
@@ -75,15 +75,26 @@ export async function GET(request: Request) {
       where: { ebayItemId: { not: null }, updatedAt: { gte: monthStart } },
     });
     const paidThisMonth = byMonth.get(thisMonth) ?? { count: 0, amount: 0 };
-    // 우리 리스팅은 모두 GTC(무기한)라 30일마다 자동으로 다시 등록된다. 그때마다
-    // 무료 한도를 넘긴 만큼 등록수수료가 또 나간다. 활성 건수로 앞으로 나갈 돈을 본다.
+    // 우리가 마지막으로 수집한 활성 리스팅 수. eBay의 현재 값과 다를 수 있으므로
+    // 언제 수집한 것인지 함께 보내고, 이 숫자로 앞으로 나갈 돈을 추정하지 않는다.
     const latestReport = await prisma.ebayReportImport.findFirst({
       where: { completeSnapshot: true },
       orderBy: { createdAt: "desc" },
       select: { rowCount: true, createdAt: true },
     });
-    const activeListings = latestReport?.rowCount ?? 0;
-    const perListing = paidThisMonth.count > 0 ? paidThisMonth.amount / paidThisMonth.count : 0.35;
+    // 최근 30일 동안 실제로 청구된 등록수수료. 추정이 아니라 청구된 금액이다.
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const recent = (finance.charges ?? []).filter(
+      (charge) => charge.feeType === "INSERTION_FEE" && new Date(charge.date) >= since,
+    );
+    // 어떤 리스팅에 붙었는지 사람이 eBay에서 직접 확인할 수 있게 번호를 남긴다.
+    const chargedItemIds = (finance.raw ?? [])
+      .flatMap((transaction: Record<string, unknown>) =>
+        Array.isArray(transaction.references) ? transaction.references : [],
+      )
+      .map((reference) => String((reference as { referenceId?: string }).referenceId ?? ""))
+      .filter(Boolean)
+      .slice(0, 10);
 
     return Response.json({
       ok: true,
@@ -111,12 +122,11 @@ export async function GET(request: Request) {
       },
       listing: {
         allowance,
-        activeListings,
+        activeListings: latestReport?.rowCount ?? 0,
         activeListingsAt: latestReport?.createdAt ?? null,
-        // 활성 리스팅이 모두 한 번씩 갱신될 때 나갈 돈
-        projectedMonthlyInsertionFee: Number(
-          (Math.max(0, activeListings - allowance) * perListing).toFixed(2),
-        ),
+        recentCount: recent.length,
+        recentAmount: Number(recent.reduce((sum, charge) => sum + charge.amount, 0).toFixed(2)),
+        chargedItemIds,
         publishedThisMonth,
         paidThisMonth: paidThisMonth.count,
         paidAmountThisMonth: Number(paidThisMonth.amount.toFixed(2)),

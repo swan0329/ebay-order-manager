@@ -387,6 +387,34 @@ export async function getOrdersFromEbay(
   return result.body as { orders?: unknown[]; total?: number; href?: string };
 }
 
+/**
+ * 리스팅이 어떤 물건인지 최소한만 읽는다. 수수료가 왜 붙었는지 사람이 판단하려면
+ * 그 리스팅의 분류와 형식을 봐야 한다.
+ */
+export async function getEbayItemSummary(legacyItemId: string, marketplaceId?: string) {
+  const config = getEbayConfig();
+  const url = new URL("/buy/browse/v1/item/get_item_by_legacy_id", config.hosts.api);
+  url.searchParams.set("legacy_item_id", legacyItemId);
+  const result = await ebayApplicationFetch(url, {
+    headers: {
+      "x-ebay-c-marketplace-id":
+        marketplaceId ?? process.env.EBAY_MARKETPLACE_ID ?? "EBAY_US",
+    },
+  });
+  const body = (result.body ?? {}) as Record<string, unknown>;
+  const price = (body.price ?? {}) as { value?: unknown };
+  return {
+    title: typeof body.title === "string" ? body.title : null,
+    categoryId: typeof body.categoryId === "string" ? body.categoryId : null,
+    categoryPath: typeof body.categoryPath === "string" ? body.categoryPath : null,
+    buyingOptions: Array.isArray(body.buyingOptions) ? body.buyingOptions : [],
+    itemCreationDate:
+      typeof body.itemCreationDate === "string" ? body.itemCreationDate : null,
+    price: typeof price.value === "string" ? price.value : null,
+    seller: (body.seller as { username?: string } | undefined)?.username ?? null,
+  };
+}
+
 export async function getEbayListingImageUrl({
   legacyItemId,
   legacyVariationId,

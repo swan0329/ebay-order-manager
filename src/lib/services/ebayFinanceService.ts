@@ -30,7 +30,12 @@ export type FeeBreakdownRow = {
  * eBay가 실제로 떼 간 금액을 항목별로 읽는다. 주문 API의 합계만 보면 광고비·구독료처럼
  * 주문에 딸리지 않는 비용이 빠져 실제 정산과 어긋난다. 읽기만 하며 아무것도 바꾸지 않는다.
  */
-export async function getFinanceFeeBreakdown(userId: string, days: number, detail = false) {
+export async function getFinanceFeeBreakdown(
+  userId: string,
+  days: number,
+  detail = false,
+  rawFeeType?: string,
+) {
   const account = await getActiveEbayAccount(userId);
   if (!accountHasScope(account, sellFinancesScope)) {
     throw new Error(
@@ -139,9 +144,22 @@ export async function getFinanceFeeBreakdown(userId: string, days: number, detai
     }
   }
 
+  // 무엇 때문에 청구됐는지 사람이 직접 봐야 할 때가 있다. 원본을 그대로 돌려준다.
+  const raw = rawFeeType
+    ? transactions
+        .filter((transaction) => {
+          const types = Array.isArray(transaction.feeType)
+            ? transaction.feeType
+            : [transaction.feeType];
+          return types.some((value) => text(value) === rawFeeType);
+        })
+        .slice(0, 5)
+    : [];
+
   return {
     days,
     transactionCount: transactions.length,
+    ...(rawFeeType ? { raw } : {}),
     byTransactionType: [...byType.entries()]
       .map(([type, value]) => ({ type, ...value, amount: Number(value.amount.toFixed(2)) }))
       .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)),

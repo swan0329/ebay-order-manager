@@ -44,7 +44,10 @@ type Usage = {
   listing: {
     allowance: number;
     activeListings: number;
-    projectedMonthlyInsertionFee: number;
+    activeListingsAt: string | null;
+    recentCount: number;
+    recentAmount: number;
+    chargedItemIds: string[];
     publishedThisMonth: number;
     paidThisMonth: number;
     paidAmountThisMonth: number;
@@ -110,7 +113,7 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
     buyerShippingUsd: initial?.buyerShippingUsd ?? "0",
     salesTaxUpliftPercent: initial ? String(Number(initial.salesTaxUpliftRate) * 100) : "0",
     insertionFeeUsd: initial?.insertionFeeUsd ?? "0",
-    freeListingAllowance: initial?.freeListingAllowance ?? "250",
+    freeListingAllowance: initial?.freeListingAllowance ?? "50000",
     minimumSalePriceUsd: initial?.minimumSalePriceUsd ?? "",
   });
   const [message, setMessage] = useState("");
@@ -325,41 +328,28 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
                 )}
               </p>
             </div>
-            {/* GTC는 30일마다 다시 등록된다. 앞으로 매달 나갈 돈을 미리 본다. */}
-            {listing.activeListings > 0 && (
-              <div
-                className={`mt-4 rounded-xl p-4 text-sm ${
-                  listing.projectedMonthlyInsertionFee > 0
-                    ? "border border-rose-200 bg-rose-50"
-                    : "bg-zinc-50"
-                }`}
-              >
-                <p className="font-bold">
-                  지금 올라가 있는 리스팅 {listing.activeListings.toLocaleString()}건
-                </p>
-                <p className="mt-1 text-zinc-700">
-                  우리 리스팅은 모두 <strong>GTC(무기한)</strong>라 30일마다 자동으로 다시 등록되고, 그때마다 무료
-                  한도를 넘긴 만큼 등록수수료가 또 나갑니다.
-                </p>
-                {listing.projectedMonthlyInsertionFee > 0 ? (
-                  <p className="mt-2 text-base font-bold text-rose-700">
-                    모두 한 번씩 갱신되면 매달 약 {money(listing.projectedMonthlyInsertionFee)}
-                    <span className="ml-1 text-xs font-normal text-rose-900">
-                      ({(listing.activeListings - listing.allowance).toLocaleString()}건 × $
-                      {(listing.insertionFeePerListing ?? 0.35).toFixed(2)})
-                    </span>
-                  </p>
-                ) : (
-                  <p className="mt-2 font-semibold text-emerald-700">
-                    무료 한도 안이라 갱신해도 등록수수료가 없습니다.
-                  </p>
-                )}
+            {/* 앞으로 얼마 나갈지는 eBay 정책에 달려 있어 추정하지 않는다. 실제로
+                청구된 것만 보여 주고, 어떤 리스팅이었는지 번호를 남긴다. */}
+            <div className="mt-4 rounded-xl bg-zinc-50 p-4 text-sm">
+              <p className="font-bold">최근 30일 실제 청구 {money(listing.recentAmount)}</p>
+              <p className="mt-1 text-zinc-700">
+                {listing.recentCount.toLocaleString()}건에 등록수수료가 붙었습니다. 무료 한도가 남아 있는데도
+                청구됐다면 카테고리나 리스팅이 새로 만들어진 경우일 수 있어 eBay에 확인이 필요합니다.
+              </p>
+              {listing.chargedItemIds.length > 0 && (
                 <p className="mt-2 text-xs text-zinc-600">
-                  무료 한도는 eBay 스토어 구독 등급에 따라 다릅니다. 아래 설정에서 실제 한도를 넣어야 이 금액이
-                  맞습니다.
+                  청구된 리스팅 번호(일부): {listing.chargedItemIds.join(", ")}
                 </p>
-              </div>
-            )}
+              )}
+              {listing.activeListings > 0 && (
+                <p className="mt-2 text-xs text-zinc-500">
+                  참고 · 우리가 마지막으로 수집한 활성 리스팅 {listing.activeListings.toLocaleString()}건
+                  {listing.activeListingsAt
+                    ? ` (${listing.activeListingsAt.slice(0, 10)} 기준, eBay 현재 값과 다를 수 있습니다)`
+                    : ""}
+                </p>
+              )}
+            </div>
             {listing.months.length > 0 && (
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full min-w-[420px] text-sm">
@@ -575,7 +565,7 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
 
         <h3 className="mt-6 text-sm font-bold text-zinc-900">3. 등록수수료</h3>
         <div className="mt-3 grid gap-5 sm:grid-cols-3">
-          {field("freeListingAllowance", "한 달 무료 등록 한도", "구독 등급에 따라 다릅니다", "건")}
+          {field("freeListingAllowance", "한 달 무료 등록 한도", "내 스토어 구독 등급의 한도를 넣으세요", "건")}
           {field("insertionFeeUsd", "판매 1건에 얹을 등록수수료", "한도 안이면 0으로 두세요", "$")}
         </div>
 

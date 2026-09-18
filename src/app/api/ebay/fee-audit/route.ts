@@ -1,5 +1,5 @@
 import { getActiveEbayAccount } from "@/lib/services/ebayApiService";
-import { getOrdersFromEbay } from "@/lib/ebay";
+import { getEbayItemSummary, getOrdersFromEbay } from "@/lib/ebay";
 import { getFinanceFeeBreakdown } from "@/lib/services/ebayFinanceService";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
@@ -28,11 +28,38 @@ export async function GET(request: Request) {
     const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
     const days = Math.min(365, Math.max(1, Number(url.searchParams.get("days") ?? 90)));
     // 정산 기준 항목별 내역. 광고비·구독료처럼 주문에 딸리지 않는 비용까지 보인다.
-    if (url.searchParams.get("source") === "finances")
-      return Response.json({
-        ok: true,
-        ...(await getFinanceFeeBreakdown(user.id, days, url.searchParams.get("detail") === "1")),
-      });
+    if (url.searchParams.get("source") === "finances") {
+      const breakdown = await getFinanceFeeBreakdown(
+        user.id,
+        days,
+        url.searchParams.get("detail") === "1",
+        url.searchParams.get("raw") ?? undefined,
+      );
+      // 무엇 때문에 청구됐는지 알려면 그 리스팅이 어떤 물건인지 봐야 한다.
+      const items =
+        url.searchParams.get("items") === "1" && "raw" in breakdown
+          ? await Promise.all(
+              (breakdown.raw as Array<Record<string, unknown>>)
+                .flatMap((transaction) =>
+                  Array.isArray(transaction.references) ? transaction.references : [],
+                )
+                .filter(
+                  (reference) =>
+                    (reference as { referenceType?: string }).referenceType === "ITEM_ID",
+                )
+                .slice(0, 5)
+                .map(async (reference) => {
+                  const itemId = String((reference as { referenceId?: string }).referenceId);
+                  try {
+                    return { itemId, ...(await getEbayItemSummary(itemId)) };
+                  } catch (error) {
+                    return { itemId, error: asErrorMessage(error) };
+                  }
+                }),
+            )
+          : [];
+      return Response.json({ ok: true, ...breakdown, ...(items.length ? { items } : {}) });
+    }
     const account = await getActiveEbayAccount(user.id);
     const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
     const body = await getOrdersFromEbay(account, { creationDateFrom: from }, limit, 0);
