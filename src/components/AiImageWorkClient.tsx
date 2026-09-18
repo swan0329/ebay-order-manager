@@ -41,6 +41,9 @@ function duration(seconds: number) {
     ? `약 ${value}초`
     : `약 ${Math.floor(value / 60)}분 ${value % 60}초`;
 }
+// 렌즈 창은 하나만 띄운다. 검수하며 여러 장을 볼 때 창이 계속 늘어나지 않게 한다.
+let lensWindow: Window | null = null;
+
 export function AiImageWorkClient({
   items,
   billingUrl,
@@ -62,6 +65,7 @@ export function AiImageWorkClient({
   const [creditError, setCreditError] = useState("");
   const [reworkCount, setReworkCount] = useState(5);
   const [lensUrl, setLensUrl] = useState("");
+  const lensWaitingRef = useRef<{ item: Item; clipboard: string; notified?: boolean } | null>(null);
   const [cropTarget, setCropTarget] = useState<{
     item: Item;
     url: string;
@@ -383,13 +387,52 @@ export function AiImageWorkClient({
 
   function openLens(item: Item) {
     if (!item.sourceUrl) return;
-    window.open(
-      `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(item.sourceUrl)}`,
-      "photocard-google-lens",
-    );
+    const url = `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(item.sourceUrl)}`;
+    // 돌아왔을 때 새로 복사한 주소인지 가리려고 지금 클립보드를 적어 둔다. 이 읽기는
+    // 사람이 버튼을 누른 순간에 일어나므로 브라우저가 클립보드 권한을 물어본다.
+    lensWaitingRef.current = { item, clipboard: "" };
+    void navigator.clipboard
+      ?.readText()
+      .then((value) => {
+        lensWaitingRef.current = { item, clipboard: value.trim() };
+      })
+      .catch(() => undefined);
+    if (!lensWindow || lensWindow.closed) lensWindow = window.open(url, "photocard-google-lens");
+    else {
+      try {
+        lensWindow.location.href = url;
+      } catch {
+        lensWindow = window.open(url, "photocard-google-lens");
+      }
+    }
+    lensWindow?.focus();
     setMsg(
-      "렌즈 창에서 쓸 사진을 마우스 오른쪽으로 눌러 '이미지 복사'(또는 '이미지 주소 복사')를 고르고, 이 화면으로 돌아와 Ctrl+V 를 누르세요.",
+      "렌즈 창에서 쓸 사진을 마우스 오른쪽으로 눌러 '이미지 주소 복사'를 고르고 이 화면으로 돌아오세요. 자동으로 가져옵니다.",
     );
+  }
+
+  /** 클립보드의 주소를 가져와 잘라내기 창을 연다. */
+  function applyClipboardUrl(item: Item, value: string, silent: boolean) {
+    const url = value.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      if (!silent)
+        setMsg("복사한 것이 이미지 주소가 아닙니다. 사진 위에서 '이미지 주소 복사'를 골라 주세요.");
+      return false;
+    }
+    setLensUrl(url);
+    setCropTarget({ item, url });
+    setMsg("복사한 주소를 가져왔습니다. 카드 네 모서리를 맞춰 주세요.");
+    return true;
+  }
+
+  async function importFromClipboard(item: Item) {
+    try {
+      applyClipboardUrl(item, await navigator.clipboard.readText(), false);
+    } catch {
+      setMsg(
+        "브라우저가 클립보드 읽기를 막았습니다. 주소 칸을 누르고 Ctrl+V 로 붙여넣어 주세요.",
+      );
+    }
   }
 
   async function excludeProduct(item: Item) {
@@ -635,11 +678,39 @@ export function AiImageWorkClient({
       if (target instanceof HTMLElement && target.closest("input,textarea")) return;
       event.preventDefault();
       setLensUrl(text);
-      setMsg("붙여넣은 주소를 받았습니다. 카드 영역 선택을 눌러 주세요.");
+      setCropTarget({ item: current, url: text });
+      setMsg("붙여넣은 주소를 가져왔습니다. 카드 네 모서리를 맞춰 주세요.");
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
   }, [current, busy, upload]);
+  useEffect(() => {
+    // 렌즈 창에서 돌아오면 복사한 주소를 그대로 가져온다. 브라우저가 클립보드 읽기를
+    // 허용한 뒤에는 이것만으로 끝난다. 아직 허용 전이면 조용히 실패하므로 화면의
+    // '복사한 주소 가져오기'로 한 번 눌러 허용을 받는다.
+    const onFocus = async () => {
+      const waiting = lensWaitingRef.current;
+      if (!waiting || busy || upload) return;
+      try {
+        const value = (await navigator.clipboard.readText()).trim();
+        if (!value || value === waiting.clipboard) return;
+        if (!/^https?:\/\//i.test(value)) return;
+        lensWaitingRef.current = null;
+        setLensUrl(value);
+        setCropTarget({ item: waiting.item, url: value });
+        setMsg("복사한 주소를 가져왔습니다. 카드 네 모서리를 맞춰 주세요.");
+      } catch {
+        // 허용 전이라 읽지 못했다. 안내는 렌즈 창을 연 뒤 한 번만 한다.
+        if (waiting.notified) return;
+        waiting.notified = true;
+        setMsg(
+          "복사한 주소를 자동으로 읽으려면 브라우저에서 클립보드 읽기를 한 번 허용해야 합니다. 아래 '복사한 주소 가져오기'를 누르고 허용을 골라 주세요. 그 뒤로는 자동으로 들어옵니다.",
+        );
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [busy, upload]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!current || busy || upload) return;
@@ -989,9 +1060,17 @@ export function AiImageWorkClient({
               <input
                 value={lensUrl}
                 onChange={(event) => setLensUrl(event.target.value)}
-                placeholder="Ctrl+V 로 붙여넣거나 이미지 주소를 입력하세요"
+                placeholder="렌즈에서 복사하면 자동으로 들어옵니다 · Ctrl+V 도 됩니다"
                 className="min-w-0 flex-1 rounded border px-3 py-2 text-sm"
               />
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => importFromClipboard(current)}
+                className="cursor-pointer rounded border border-violet-400 px-4 py-2 text-sm font-bold text-violet-800 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                복사한 주소 가져오기
+              </button>
               <button
                 type="button"
                 disabled={busy || !lensUrl.trim()}
