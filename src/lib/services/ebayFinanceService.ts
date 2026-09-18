@@ -27,7 +27,7 @@ export type FeeBreakdownRow = {
  * eBay가 실제로 떼 간 금액을 항목별로 읽는다. 주문 API의 합계만 보면 광고비·구독료처럼
  * 주문에 딸리지 않는 비용이 빠져 실제 정산과 어긋난다. 읽기만 하며 아무것도 바꾸지 않는다.
  */
-export async function getFinanceFeeBreakdown(userId: string, days: number) {
+export async function getFinanceFeeBreakdown(userId: string, days: number, detail = false) {
   const account = await getActiveEbayAccount(userId);
   if (!accountHasScope(account, sellFinancesScope)) {
     throw new Error(
@@ -65,6 +65,14 @@ export async function getFinanceFeeBreakdown(userId: string, days: number) {
     fees.set(key, row);
   };
   const byType = new Map<string, { count: number; amount: number }>();
+  const sales: Array<{
+    date: string;
+    orderId: string;
+    amount: number;
+    feeBasis: number;
+    fees: Array<{ type: string; amount: number }>;
+  }> = [];
+  const charges: Array<{ date: string; feeType: string; amount: number; orderId: string }> = [];
   let saleTotal = 0;
   let saleFeeBasis = 0;
 
@@ -82,21 +90,40 @@ export async function getFinanceFeeBreakdown(userId: string, days: number) {
       const lineItems = Array.isArray(transaction.orderLineItems)
         ? transaction.orderLineItems
         : [];
+      const saleFees: Array<{ type: string; amount: number }> = [];
       for (const rawLine of lineItems) {
         const line = record(rawLine);
         const marketplaceFees = Array.isArray(line.marketplaceFees) ? line.marketplaceFees : [];
         for (const rawFee of marketplaceFees) {
           const fee = record(rawFee);
           addFee(text(fee.feeType), amount(fee.amount));
+          saleFees.push({ type: text(fee.feeType), amount: amount(fee.amount) });
         }
       }
+      if (detail)
+        sales.push({
+          date: text(transaction.transactionDate).slice(0, 10),
+          orderId: text(transaction.orderId),
+          amount: value,
+          feeBasis: amount(transaction.totalFeeBasisAmount),
+          fees: saleFees,
+        });
     }
     // 광고비·구독료처럼 주문에 딸리지 않는 비용은 별도 거래로 내려온다.
     if (type === "NON_SALE_CHARGE") {
       const feeTypes = Array.isArray(transaction.feeType)
         ? transaction.feeType
         : [transaction.feeType];
-      for (const feeType of feeTypes) addFee(text(feeType) || "NON_SALE_CHARGE", value);
+      for (const feeType of feeTypes) {
+        addFee(text(feeType) || "NON_SALE_CHARGE", value);
+        if (detail)
+          charges.push({
+            date: text(transaction.transactionDate).slice(0, 10),
+            feeType: text(feeType) || "NON_SALE_CHARGE",
+            amount: value,
+            orderId: text(transaction.orderId),
+          });
+      }
     }
   }
 
@@ -111,5 +138,6 @@ export async function getFinanceFeeBreakdown(userId: string, days: number) {
     fees: [...fees.values()]
       .map((row) => ({ ...row, amount: Number(row.amount.toFixed(2)) }))
       .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)),
+    ...(detail ? { sales, charges } : {}),
   };
 }

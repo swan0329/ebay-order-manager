@@ -29,7 +29,10 @@ export async function GET(request: Request) {
     const days = Math.min(365, Math.max(1, Number(url.searchParams.get("days") ?? 90)));
     // 정산 기준 항목별 내역. 광고비·구독료처럼 주문에 딸리지 않는 비용까지 보인다.
     if (url.searchParams.get("source") === "finances")
-      return Response.json({ ok: true, ...(await getFinanceFeeBreakdown(user.id, days)) });
+      return Response.json({
+        ok: true,
+        ...(await getFinanceFeeBreakdown(user.id, days, url.searchParams.get("detail") === "1")),
+      });
     const account = await getActiveEbayAccount(user.id);
     const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
     const body = await getOrdersFromEbay(account, { creationDateFrom: from }, limit, 0);
