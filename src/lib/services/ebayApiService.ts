@@ -11,11 +11,14 @@ export const sellAccountReadonlyScope =
 export const sellMarketingScope = "https://api.ebay.com/oauth/api_scope/sell.marketing";
 export const sellMarketingReadonlyScope =
   "https://api.ebay.com/oauth/api_scope/sell.marketing.readonly";
+export const sellFinancesScope = "https://api.ebay.com/oauth/api_scope/sell.finances";
 const EBAY_REQUEST_TIMEOUT_MS = 25_000;
 
 type EbayApiRequestInput = {
   method?: string;
   path: string;
+  /** Finances API는 apiz.ebay.com을 쓴다. 기본 호스트로 부르면 찾지 못한다. */
+  host?: "api" | "identity";
   query?: Record<string, string | number | null | undefined>;
   body?: unknown;
   headers?: Record<string, string>;
@@ -132,7 +135,7 @@ async function ebayApiRequestOnce(
   input: EbayApiRequestInput,
 ): Promise<{ body: unknown; status: number; headers: Headers }> {
   const config = getEbayConfig();
-  const url = new URL(input.path, config.hosts.api);
+  const url = new URL(input.path, config.hosts[input.host ?? "api"]);
 
   for (const [key, value] of Object.entries(input.query ?? {})) {
     if (value !== null && value !== undefined && String(value) !== "") {
