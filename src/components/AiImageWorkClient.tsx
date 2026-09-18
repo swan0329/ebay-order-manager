@@ -66,6 +66,9 @@ export function AiImageWorkClient({
   const [reworkCount, setReworkCount] = useState(5);
   const [lensUrl, setLensUrl] = useState("");
   const lensWaitingRef = useRef<{ item: Item; clipboard: string; notified?: boolean } | null>(null);
+  // 미통과 카드에서 직접 작업할 때 그 카드를 가리킨다. 검수 카드가 아니라 이쪽에
+  // 붙여넣어야 하므로 붙여넣기·클립보드 읽기가 이 카드를 대상으로 삼는다.
+  const [handTarget, setHandTarget] = useState<Item | null>(null);
   const [cropTarget, setCropTarget] = useState<{
     item: Item;
     url: string;
@@ -260,6 +263,8 @@ export function AiImageWorkClient({
     }
   }
   async function choose(action: "pass" | "hold" | "rework", id: string) {
+    // 검수 카드로 판정을 내렸으면 미통과 카드를 붙들고 있던 손작업 대상을 놓는다.
+    setHandTarget(null);
     const previous = localItems;
     const decided: AiImageDecision =
       action === "pass" ? "pass_ready" : action === "hold" ? "held" : "rework";
@@ -335,6 +340,8 @@ export function AiImageWorkClient({
       const response = await call({ action: "lensCandidate", id, image });
       setLensUrl("");
       setCropTarget(null);
+      setHandTarget(null);
+      lensWaitingRef.current = null;
       setLocalItems((current) =>
         current.map((item) =>
           item.id === id
@@ -387,6 +394,7 @@ export function AiImageWorkClient({
 
   function openLens(item: Item) {
     if (!item.sourceUrl) return;
+    setHandTarget(item);
     const url = `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(item.sourceUrl)}`;
     // 돌아왔을 때 새로 복사한 주소인지 가리려고 지금 클립보드를 적어 둔다. 이 읽기는
     // 사람이 버튼을 누른 순간에 일어나므로 브라우저가 클립보드 권한을 물어본다.
@@ -426,6 +434,7 @@ export function AiImageWorkClient({
   }
 
   async function importFromClipboard(item: Item) {
+    setHandTarget(item);
     try {
       applyClipboardUrl(item, await navigator.clipboard.readText(), false);
     } catch {
@@ -655,19 +664,14 @@ export function AiImageWorkClient({
     // 순간에는 허락 없이도 내용을 받을 수 있으므로 붙여넣기를 받아 처리한다.
     // 렌즈에서 '이미지 복사'를 하면 그림 자체가, '이미지 주소 복사'를 하면 주소가 온다.
     const onPaste = (event: ClipboardEvent) => {
-      if (!current || busy || upload) return;
+      const item = lensWaitingRef.current?.item ?? handTarget ?? current;
+      if (!item || busy || upload) return;
       const data = event.clipboardData;
       if (!data) return;
-      const file = Array.from(data.files).find((item) =>
-        item.type.startsWith("image/"),
-      );
+      const file = Array.from(data.files).find((entry) => entry.type.startsWith("image/"));
       if (file) {
         event.preventDefault();
-        setCropTarget({
-          item: current,
-          url: URL.createObjectURL(file),
-          local: true,
-        });
+        setCropTarget({ item, url: URL.createObjectURL(file), local: true });
         setMsg("붙여넣은 사진에서 카드 네 모서리를 찍어 주세요.");
         return;
       }
@@ -678,12 +682,12 @@ export function AiImageWorkClient({
       if (target instanceof HTMLElement && target.closest("input,textarea")) return;
       event.preventDefault();
       setLensUrl(text);
-      setCropTarget({ item: current, url: text });
+      setCropTarget({ item, url: text });
       setMsg("붙여넣은 주소를 가져왔습니다. 카드 네 모서리를 맞춰 주세요.");
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, [current, busy, upload]);
+  }, [current, handTarget, busy, upload]);
   useEffect(() => {
     // 렌즈 창에서 돌아오면 복사한 주소를 그대로 가져온다. 브라우저가 클립보드 읽기를
     // 허용한 뒤에는 이것만으로 끝난다. 아직 허용 전이면 조용히 실패하므로 화면의
@@ -1178,6 +1182,37 @@ export function AiImageWorkClient({
                 >
                   즉시 자동 재처리
                 </button>
+                {/* 자동 재처리로 안 되는 카드는 여기서 바로 손으로 고친다. */}
+                <div className="mt-1 grid grid-cols-2 gap-1">
+                  <button
+                    disabled={busy || !item.sourceUrl}
+                    onClick={() => openLens(item)}
+                    className="cursor-pointer rounded border border-violet-300 px-1 py-1.5 text-[11px] font-bold text-violet-800 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    구글렌즈
+                  </button>
+                  <button
+                    disabled={busy}
+                    onClick={() => importFromClipboard(item)}
+                    className="cursor-pointer rounded border border-violet-300 px-1 py-1.5 text-[11px] font-bold text-violet-800 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    주소 가져오기
+                  </button>
+                </div>
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    setCropTarget({ item, url: item.previewUrl || item.sourceUrl })
+                  }
+                  className="mt-1 w-full cursor-pointer rounded border border-emerald-300 px-2 py-1.5 text-[11px] font-bold text-emerald-800 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {item.previewUrl ? "결과에서 다시 잘라내기" : "원본에서 잘라내기"}
+                </button>
+                {handTarget?.id === item.id ? (
+                  <p className="mt-1 text-[11px] font-semibold text-violet-800">
+                    이 카드로 작업 중 · 복사한 주소를 Ctrl+V 하면 이 카드에 들어갑니다
+                  </p>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -1196,6 +1231,34 @@ export function AiImageWorkClient({
                   className="cursor-pointer rounded border px-3 py-1.5 font-semibold hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   즉시 자동 재처리
+                </button>
+                <button
+                  disabled={busy || !item.sourceUrl}
+                  onClick={() => openLens(item)}
+                  className="cursor-pointer rounded border border-violet-300 px-3 py-1.5 font-semibold text-violet-800 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  구글렌즈로 검색
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => importFromClipboard(item)}
+                  className="cursor-pointer rounded border border-violet-300 px-3 py-1.5 font-semibold text-violet-800 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  복사한 주소 가져오기
+                </button>
+                <button
+                  disabled={busy || !item.previewUrl}
+                  onClick={() => setCropTarget({ item, url: item.previewUrl ?? "" })}
+                  className="cursor-pointer rounded border border-emerald-300 px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  결과에서 다시 잘라내기
+                </button>
+                <button
+                  disabled={busy || !item.sourceUrl}
+                  onClick={() => setCropTarget({ item, url: item.sourceUrl })}
+                  className="cursor-pointer rounded border border-emerald-300 px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  원본에서 잘라내기
                 </button>
                 <a
                   href={`/products/${item.productId}`}
