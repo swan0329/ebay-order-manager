@@ -633,6 +633,18 @@ model PricingSettings {
   targetMarginRate      Decimal  @map("target_margin_rate") @db.Decimal(9, 6)
   ebayFeeRate           Decimal  @map("ebay_fee_rate") @db.Decimal(9, 6)
   advertisingRate       Decimal  @map("advertising_rate") @db.Decimal(9, 6)
+  /** eBay가 최종가치수수료와 별도로 떼는 국제 판매 수수료 */
+  internationalFeeRate  Decimal  @default(0) @map("international_fee_rate") @db.Decimal(9, 6)
+  /** 주문 1건마다 붙는 고정비 */
+  perOrderFeeUsd        Decimal  @default(0) @map("per_order_fee_usd") @db.Decimal(12, 2)
+  /** 구매자에게 받는 배송비. eBay는 이 금액에도 수수료를 매긴다. */
+  buyerShippingUsd      Decimal  @default(0) @map("buyer_shipping_usd") @db.Decimal(12, 2)
+  /** eBay가 걷는 판매세만큼 수수료 기준이 커지는 비율 */
+  salesTaxUpliftRate    Decimal  @default(0) @map("sales_tax_uplift_rate") @db.Decimal(9, 6)
+  /** 무료 한도를 넘겨 등록할 때 1건당 내는 등록수수료 */
+  insertionFeeUsd       Decimal  @default(0) @map("insertion_fee_usd") @db.Decimal(12, 2)
+  /** 한 달 무료 등록 한도 */
+  freeListingAllowance  Int      @default(250) @map("free_listing_allowance")
   minimumSalePriceUsd   Decimal? @map("minimum_sale_price_usd") @db.Decimal(12, 2)
   roundingIncrementUsd  Decimal  @default(0.10) @map("rounding_increment_usd") @db.Decimal(12, 2)
   allocationMethod      String   @default("PER_CARD_FIXED") @map("allocation_method")

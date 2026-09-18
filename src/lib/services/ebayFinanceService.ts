@@ -20,7 +20,10 @@ export type FeeBreakdownRow = {
   /** eBay가 붙인 항목 이름 그대로 쓴다. 우리가 지어낸 이름으로 바꾸지 않는다. */
   feeType: string;
   count: number;
+  /** 실제로 나간 금액(청구 − 환급) */
   amount: number;
+  charged: number;
+  credited: number;
 };
 
 /**
@@ -57,11 +60,19 @@ export async function getFinanceFeeBreakdown(userId: string, days: number, detai
   }
 
   const fees = new Map<string, FeeBreakdownRow>();
-  const addFee = (feeType: string, value: number) => {
+  // eBay는 청구와 환급을 같은 항목 이름으로 내려보내고 방향만 bookingEntry로 구분한다.
+  // 방향을 보지 않고 더하면 취소된 등록수수료까지 나간 돈으로 세게 된다.
+  const addFee = (feeType: string, value: number, credit: boolean) => {
     const key = feeType || "UNKNOWN";
-    const row = fees.get(key) ?? { feeType: key, count: 0, amount: 0 };
+    const row = fees.get(key) ?? { feeType: key, count: 0, amount: 0, charged: 0, credited: 0 };
     row.count += 1;
-    row.amount += value;
+    if (credit) {
+      row.credited += value;
+      row.amount -= value;
+    } else {
+      row.charged += value;
+      row.amount += value;
+    }
     fees.set(key, row);
   };
   const byType = new Map<string, { count: number; amount: number }>();
@@ -79,6 +90,7 @@ export async function getFinanceFeeBreakdown(userId: string, days: number, detai
   for (const transaction of transactions) {
     const type = text(transaction.transactionType) || "UNKNOWN";
     const value = amount(transaction.amount);
+    const credit = text(transaction.bookingEntry).toUpperCase() === "CREDIT";
     const entry = byType.get(type) ?? { count: 0, amount: 0 };
     entry.count += 1;
     entry.amount += value;
@@ -96,7 +108,7 @@ export async function getFinanceFeeBreakdown(userId: string, days: number, detai
         const marketplaceFees = Array.isArray(line.marketplaceFees) ? line.marketplaceFees : [];
         for (const rawFee of marketplaceFees) {
           const fee = record(rawFee);
-          addFee(text(fee.feeType), amount(fee.amount));
+          addFee(text(fee.feeType), amount(fee.amount), false);
           saleFees.push({ type: text(fee.feeType), amount: amount(fee.amount) });
         }
       }
@@ -115,12 +127,12 @@ export async function getFinanceFeeBreakdown(userId: string, days: number, detai
         ? transaction.feeType
         : [transaction.feeType];
       for (const feeType of feeTypes) {
-        addFee(text(feeType) || "NON_SALE_CHARGE", value);
+        addFee(text(feeType) || "NON_SALE_CHARGE", value, credit);
         if (detail)
           charges.push({
             date: text(transaction.transactionDate).slice(0, 10),
             feeType: text(feeType) || "NON_SALE_CHARGE",
-            amount: value,
+            amount: credit ? -value : value,
             orderId: text(transaction.orderId),
           });
       }
@@ -136,7 +148,12 @@ export async function getFinanceFeeBreakdown(userId: string, days: number, detai
     saleTotal: Number(saleTotal.toFixed(2)),
     saleFeeBasis: Number(saleFeeBasis.toFixed(2)),
     fees: [...fees.values()]
-      .map((row) => ({ ...row, amount: Number(row.amount.toFixed(2)) }))
+      .map((row) => ({
+        ...row,
+        amount: Number(row.amount.toFixed(2)),
+        charged: Number(row.charged.toFixed(2)),
+        credited: Number(row.credited.toFixed(2)),
+      }))
       .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)),
     ...(detail ? { sales, charges } : {}),
   };

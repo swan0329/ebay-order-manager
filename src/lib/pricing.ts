@@ -8,6 +8,16 @@ export type PricingInputs = {
   targetMarginRate: Prisma.Decimal.Value;
   ebayFeeRate: Prisma.Decimal.Value;
   advertisingRate: Prisma.Decimal.Value;
+  /** 최종가치수수료와 별도로 붙는 국제 판매 수수료 */
+  internationalFeeRate?: Prisma.Decimal.Value;
+  /** 주문 1건마다 붙는 고정비(USD) */
+  perOrderFeeUsd?: Prisma.Decimal.Value;
+  /** 구매자에게 받는 배송비(USD). eBay는 여기에도 수수료를 매긴다. */
+  buyerShippingUsd?: Prisma.Decimal.Value;
+  /** eBay가 걷는 판매세만큼 수수료 기준이 커지는 비율 */
+  salesTaxUpliftRate?: Prisma.Decimal.Value;
+  /** 판매 1건에 얹을 등록수수료(USD) */
+  insertionFeeUsd?: Prisma.Decimal.Value;
   minimumSalePriceUsd?: Prisma.Decimal.Value | null;
   roundingIncrementUsd?: Prisma.Decimal.Value;
 };
@@ -27,9 +37,23 @@ export function validatePricingSettings(input: Omit<PricingInputs, "pocaPriceKrw
   if (exchangeRate.lessThanOrEqualTo(0)) {
     throw new Error("환율은 0보다 커야 합니다.");
   }
-  const feeTotal = new Prisma.Decimal(input.ebayFeeRate).plus(input.advertisingRate);
-  if (feeTotal.greaterThanOrEqualTo(1)) {
-    throw new Error("eBay 판매수수료율과 광고율의 합은 100% 미만이어야 합니다.");
+  const feeTotal = new Prisma.Decimal(input.ebayFeeRate)
+    .plus(input.advertisingRate)
+    .plus(input.internationalFeeRate ?? 0);
+  const uplift = new Prisma.Decimal(1).plus(input.salesTaxUpliftRate ?? 0);
+  if (feeTotal.times(uplift).greaterThanOrEqualTo(1)) {
+    throw new Error("수수료율의 합은 100% 미만이어야 합니다.");
+  }
+  for (const value of [
+    input.internationalFeeRate ?? 0,
+    input.perOrderFeeUsd ?? 0,
+    input.buyerShippingUsd ?? 0,
+    input.salesTaxUpliftRate ?? 0,
+    input.insertionFeeUsd ?? 0,
+  ]) {
+    if (new Prisma.Decimal(value).isNegative()) {
+      throw new Error("비용과 비율은 0 이상이어야 합니다.");
+    }
   }
   const increment = new Prisma.Decimal(input.roundingIncrementUsd ?? "0.10");
   if (increment.lessThanOrEqualTo(0)) {
@@ -55,10 +79,27 @@ export function calculateRecommendedPrice(input: PricingInputs) {
     .plus(input.domesticShippingKrw)
     .plus(input.buyingAgencyFeeKrw);
   const costUsd = totalCostKrw.div(input.exchangeRateKrwPerUsd);
-  const feeTotal = new Prisma.Decimal(input.ebayFeeRate).plus(input.advertisingRate);
+  const feeRate = new Prisma.Decimal(input.ebayFeeRate)
+    .plus(input.internationalFeeRate ?? 0)
+    .plus(input.advertisingRate);
+  // eBay는 상품값만이 아니라 배송비와 자기가 걷은 판매세에도 수수료를 매긴다.
+  // 판매세만큼 수수료 기준이 커지는 몫을 uplift로 반영한다.
+  const uplift = new Prisma.Decimal(1).plus(input.salesTaxUpliftRate ?? 0);
+  const shipping = new Prisma.Decimal(input.buyerShippingUsd ?? 0);
+  const perOrderFee = new Prisma.Decimal(input.perOrderFeeUsd ?? 0);
+  const insertionFee = new Prisma.Decimal(input.insertionFeeUsd ?? 0);
+  // 판매가에 붙는 수수료 몫. 이만큼은 판매가에서 먼저 빠져나간다.
+  const priceFeeRate = feeRate.times(uplift);
+  // 배송비·주문 고정비·등록수수료는 판매가와 상관없이 나가므로 원가 쪽에 더한다.
+  const fixedCostUsd = shipping
+    .times(uplift)
+    .times(feeRate)
+    .plus(perOrderFee)
+    .plus(insertionFee);
   const rawRecommendedPriceUsd = costUsd
     .times(new Prisma.Decimal(1).plus(input.targetMarginRate))
-    .div(new Prisma.Decimal(1).minus(feeTotal));
+    .plus(fixedCostUsd)
+    .div(new Prisma.Decimal(1).minus(priceFeeRate));
   const increment = new Prisma.Decimal(input.roundingIncrementUsd ?? "0.10");
   let recommendedPriceUsd = rawRecommendedPriceUsd.div(increment).ceil().times(increment);
   if (input.minimumSalePriceUsd !== undefined && input.minimumSalePriceUsd !== null) {
@@ -67,9 +108,14 @@ export function calculateRecommendedPrice(input: PricingInputs) {
       new Prisma.Decimal(input.minimumSalePriceUsd),
     );
   }
-  const expectedProceedsUsd = recommendedPriceUsd.times(
-    new Prisma.Decimal(1).minus(feeTotal),
-  );
+  // 실제로 eBay가 떼는 금액. 판매가와 배송비를 합친 금액에 판매세를 얹은 것이 기준이다.
+  const feeBasisUsd = recommendedPriceUsd.plus(shipping).times(uplift);
+  const ebayFeeUsd = feeBasisUsd
+    .times(new Prisma.Decimal(input.ebayFeeRate).plus(input.internationalFeeRate ?? 0))
+    .plus(perOrderFee);
+  const advertisingFeeUsd = feeBasisUsd.times(input.advertisingRate);
+  const totalFeeUsd = ebayFeeUsd.plus(advertisingFeeUsd).plus(insertionFee);
+  const expectedProceedsUsd = recommendedPriceUsd.minus(totalFeeUsd);
   const expectedNetMarginUsd = expectedProceedsUsd.minus(costUsd);
   const expectedNetMarginRate = costUsd.isZero()
     ? new Prisma.Decimal(0)
@@ -81,6 +127,11 @@ export function calculateRecommendedPrice(input: PricingInputs) {
     costUsd,
     rawRecommendedPriceUsd,
     recommendedPriceUsd,
+    feeBasisUsd,
+    ebayFeeUsd,
+    advertisingFeeUsd,
+    insertionFeeUsd: insertionFee,
+    totalFeeUsd,
     expectedProceedsUsd,
     expectedNetMarginUsd,
     expectedNetMarginRate,
