@@ -15,6 +15,8 @@ export type MarketingCampaignOption = {
   name: string;
   status: string;
   fundingModel: string;
+  /** 판매가 광고에 연결됐을 때 떼는 비율(%). 캠페인 이름과 다를 수 있어 그대로 읽는다. */
+  adRatePercent: string;
 };
 
 function text(value: unknown) {
@@ -49,6 +51,7 @@ function simplifyCampaign(campaign: CampaignRecord): MarketingCampaignOption | n
     name: text(campaign.campaignName) || id,
     status: text(campaign.campaignStatus),
     fundingModel: text(fundingStrategy.fundingModel),
+    adRatePercent: text(fundingStrategy.bidPercentage),
   };
 }
 
