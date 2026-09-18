@@ -43,6 +43,8 @@ type Usage = {
   };
   listing: {
     allowance: number;
+    activeListings: number;
+    projectedMonthlyInsertionFee: number;
     publishedThisMonth: number;
     paidThisMonth: number;
     paidAmountThisMonth: number;
@@ -323,6 +325,41 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
                 )}
               </p>
             </div>
+            {/* GTC는 30일마다 다시 등록된다. 앞으로 매달 나갈 돈을 미리 본다. */}
+            {listing.activeListings > 0 && (
+              <div
+                className={`mt-4 rounded-xl p-4 text-sm ${
+                  listing.projectedMonthlyInsertionFee > 0
+                    ? "border border-rose-200 bg-rose-50"
+                    : "bg-zinc-50"
+                }`}
+              >
+                <p className="font-bold">
+                  지금 올라가 있는 리스팅 {listing.activeListings.toLocaleString()}건
+                </p>
+                <p className="mt-1 text-zinc-700">
+                  우리 리스팅은 모두 <strong>GTC(무기한)</strong>라 30일마다 자동으로 다시 등록되고, 그때마다 무료
+                  한도를 넘긴 만큼 등록수수료가 또 나갑니다.
+                </p>
+                {listing.projectedMonthlyInsertionFee > 0 ? (
+                  <p className="mt-2 text-base font-bold text-rose-700">
+                    모두 한 번씩 갱신되면 매달 약 {money(listing.projectedMonthlyInsertionFee)}
+                    <span className="ml-1 text-xs font-normal text-rose-900">
+                      ({(listing.activeListings - listing.allowance).toLocaleString()}건 × $
+                      {(listing.insertionFeePerListing ?? 0.35).toFixed(2)})
+                    </span>
+                  </p>
+                ) : (
+                  <p className="mt-2 font-semibold text-emerald-700">
+                    무료 한도 안이라 갱신해도 등록수수료가 없습니다.
+                  </p>
+                )}
+                <p className="mt-2 text-xs text-zinc-600">
+                  무료 한도는 eBay 스토어 구독 등급에 따라 다릅니다. 아래 설정에서 실제 한도를 넣어야 이 금액이
+                  맞습니다.
+                </p>
+              </div>
+            )}
             {listing.months.length > 0 && (
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full min-w-[420px] text-sm">

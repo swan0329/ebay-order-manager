@@ -75,6 +75,15 @@ export async function GET(request: Request) {
       where: { ebayItemId: { not: null }, updatedAt: { gte: monthStart } },
     });
     const paidThisMonth = byMonth.get(thisMonth) ?? { count: 0, amount: 0 };
+    // 우리 리스팅은 모두 GTC(무기한)라 30일마다 자동으로 다시 등록된다. 그때마다
+    // 무료 한도를 넘긴 만큼 등록수수료가 또 나간다. 활성 건수로 앞으로 나갈 돈을 본다.
+    const latestReport = await prisma.ebayReportImport.findFirst({
+      where: { completeSnapshot: true },
+      orderBy: { createdAt: "desc" },
+      select: { rowCount: true, createdAt: true },
+    });
+    const activeListings = latestReport?.rowCount ?? 0;
+    const perListing = paidThisMonth.count > 0 ? paidThisMonth.amount / paidThisMonth.count : 0.35;
 
     return Response.json({
       ok: true,
@@ -102,6 +111,12 @@ export async function GET(request: Request) {
       },
       listing: {
         allowance,
+        activeListings,
+        activeListingsAt: latestReport?.createdAt ?? null,
+        // 활성 리스팅이 모두 한 번씩 갱신될 때 나갈 돈
+        projectedMonthlyInsertionFee: Number(
+          (Math.max(0, activeListings - allowance) * perListing).toFixed(2),
+        ),
         publishedThisMonth,
         paidThisMonth: paidThisMonth.count,
         paidAmountThisMonth: Number(paidThisMonth.amount.toFixed(2)),
