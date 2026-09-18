@@ -5,14 +5,12 @@ import {
   useEffect,
   useRef,
   useState,
-  type MouseEvent,
-  type PointerEvent,
 } from "react";
 import { useRouter } from "next/navigation";
+import { useCardCorners } from "@/components/useCardCorners";
 import { LocalAiStatusBadge } from "@/components/LocalAiStatusBadge";
 import { fetchWithTimeout } from "@/lib/client-fetch-timeout";
 import {
-  detectCardBounds,
   distance,
   normalizeFourCorners,
   roundCanvasCorners,
@@ -22,13 +20,6 @@ import {
 
 type Candidate = { url: string; score?: number; reason?: string };
 let lensSearchWindow: Window | null = null;
-
-function clampCanvasPoint(point: Point, canvas: HTMLCanvasElement): Point {
-  return {
-    x: Math.max(0, Math.min(canvas.width - 1, point.x)),
-    y: Math.max(0, Math.min(canvas.height - 1, point.y)),
-  };
-}
 
 function applyCanvasSharpness(canvas: HTMLCanvasElement, sharpness: number) {
   if (sharpness <= 0) return;
@@ -76,11 +67,6 @@ export function ProductImageWorkbench({
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
-  const draggingPointRef = useRef<number | null>(null);
-  const rectangleStartRef = useRef<Point | null>(null);
-  const rectangleHistoryRecordedRef = useRef(false);
-  const dragMovedRef = useRef(false);
-  const suppressClickRef = useRef(false);
   const pendingWatermarkRemovalRef = useRef(false);
   const watermarkStrengthRef = useRef(110);
   const localAiEnabledRef = useRef(false);
@@ -89,13 +75,28 @@ export function ProductImageWorkbench({
   const watermarkWorkerRef = useRef<Worker | null>(null);
   const waitingForLensClipboardRef = useRef(false);
   const clipboardBeforeLensRef = useRef("");
+  const [result, setResult] = useState<string | null>(null);
+  // 네 모서리를 고르는 방식은 AI 이미지 작업과 같은 것을 쓴다. 두 화면이 따로
+  // 구현하면 손에 익은 조작이 화면마다 달라진다.
+  const {
+    points,
+    pointHistory,
+    undoPoints,
+    clearPoints,
+    resetPoints,
+    autoDetect,
+    autoDetecting,
+    canvasHandlers,
+  } = useCardCorners({
+    canvasRef,
+    imageRef,
+    onChange: () => setResult(null),
+    onMessage: (message) => setMessage(message),
+  });
   const [candidateUrl, setCandidateUrl] = useState("");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
   const [selectedCandidateUrl, setSelectedCandidateUrl] = useState("");
-  const [points, setPoints] = useState<Point[]>([]);
-  const [pointHistory, setPointHistory] = useState<Point[][]>([]);
-  const [result, setResult] = useState<string | null>(null);
   const [rawExtractedCard, setRawExtractedCard] = useState<string | null>(null);
   const [extractedCard, setExtractedCard] = useState<string | null>(null);
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
@@ -114,13 +115,9 @@ export function ProductImageWorkbench({
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const [autoDetecting, setAutoDetecting] = useState(false);
   const [watermarkRemoving, setWatermarkRemoving] = useState(false);
   const [watermarkRemoved, setWatermarkRemoved] = useState(false);
-  const autoDetectAttemptRef = useRef(0);
-  const autoDetectWorkerRef = useRef<Worker | null>(null);
 
-  useEffect(() => () => autoDetectWorkerRef.current?.terminate(), []);
   useEffect(() => () => watermarkWorkerRef.current?.terminate(), []);
 
   useEffect(() => {
@@ -293,68 +290,6 @@ export function ProductImageWorkbench({
     shadowOpacity,
   ]);
 
-  const rememberPoints = () =>
-    setPointHistory((history) => [
-      ...history.slice(-49),
-      points.map((p) => ({ ...p })),
-    ]);
-  const undoPoints = () => {
-    setPointHistory((history) => {
-      const previous = history[history.length - 1];
-      if (previous) {
-        setPoints(previous);
-        setResult(null);
-      }
-      return previous ? history.slice(0, -1) : history;
-    });
-  };
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z")
-        return;
-      const tag = (document.activeElement as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      event.preventDefault();
-      undoPoints();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  });
-
-  useEffect(() => {
-    if (!loadedUrl) return;
-    const image = new Image();
-    image.onload = () => {
-      imageRef.current = image;
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const scale = Math.min(
-        1,
-        1000 / image.naturalWidth,
-        1000 / image.naturalHeight,
-      );
-      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-      canvas
-        .getContext("2d")
-        ?.drawImage(image, 0, 0, canvas.width, canvas.height);
-      if (pendingWatermarkRemovalRef.current) {
-        pendingWatermarkRemovalRef.current = false;
-        window.setTimeout(() => void removePocamarketWatermark(), 0);
-      }
-    };
-    image.onerror = () =>
-      setMessage(
-        "후보 이미지를 불러오지 못했습니다. 다른 이미지 주소를 사용해 주세요.",
-      );
-    image.src = loadedUrl;
-    return () => {
-      image.onload = null;
-      image.onerror = null;
-    };
-  }, [loadedUrl]);
-
   useEffect(() => {
     const canvas = canvasRef.current;
     const image = imageRef.current;
@@ -391,8 +326,7 @@ export function ProductImageWorkbench({
       setMessage("http 또는 https 이미지 주소를 입력해 주세요.");
       return;
     }
-    setPoints([]);
-    setPointHistory([]);
+    resetPoints();
     setRawExtractedCard(null);
     setExtractedCard(null);
     setWatermarkRemoved(false);
@@ -420,8 +354,7 @@ export function ProductImageWorkbench({
     reader.onload = () => {
       if (typeof reader.result !== "string") return;
       pendingWatermarkRemovalRef.current = false;
-      setPoints([]);
-      setPointHistory([]);
+      resetPoints();
       setRawExtractedCard(null);
       setExtractedCard(null);
       setWatermarkRemoved(false);
@@ -565,8 +498,7 @@ export function ProductImageWorkbench({
         if (run !== watermarkRemovalRunRef.current) return;
         setLoadedUrl(body.image);
         setWatermarkRemoved(true);
-        setPoints([]);
-        setPointHistory([]);
+        resetPoints();
         setRawExtractedCard(null);
         setExtractedCard(null);
         setResult(null);
@@ -606,8 +538,7 @@ export function ProductImageWorkbench({
       output.getContext("2d")?.putImageData(result, 0, 0);
       setLoadedUrl(output.toDataURL("image/jpeg", .92));
       setWatermarkRemoved(true);
-      setPoints([]);
-      setPointHistory([]);
+      resetPoints();
       setRawExtractedCard(null);
       setExtractedCard(null);
       setResult(null);
@@ -623,207 +554,6 @@ export function ProductImageWorkbench({
       }
     }
   }
-
-  const autoDetectOpenCv = () => {
-    if (autoDetecting) {
-      autoDetectAttemptRef.current += 1;
-      autoDetectWorkerRef.current?.terminate();
-      autoDetectWorkerRef.current = null;
-      setAutoDetecting(false);
-      setMessage("자동 모서리 탐지를 취소했습니다.");
-      return;
-    }
-    const canvas = canvasRef.current;
-    const image = imageRef.current;
-    if (!canvas || !image) return;
-    const attempt = ++autoDetectAttemptRef.current;
-    setAutoDetecting(true);
-    setMessage("OpenCV가 카드 외곽선을 분석하는 중입니다...");
-    const fail = (error: string) => {
-      if (attempt !== autoDetectAttemptRef.current) return;
-      rememberPoints();
-      setPoints(
-        normalizeFourCorners(
-          detectCardBounds(canvas),
-          canvas.width,
-          canvas.height,
-        ) ?? [],
-      );
-      setMessage(
-        `${error} 기본 경계를 표시했습니다. 손잡이를 직접 끌어 맞춰 주세요.`,
-      );
-      setAutoDetecting(false);
-      autoDetectWorkerRef.current?.terminate();
-      autoDetectWorkerRef.current = null;
-    };
-    const detectionCanvas = document.createElement("canvas");
-    detectionCanvas.width = canvas.width;
-    detectionCanvas.height = canvas.height;
-    const context = detectionCanvas.getContext("2d", {
-      willReadFrequently: true,
-    });
-    if (!context) return fail("이미지를 분석할 수 없습니다.");
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const worker = new Worker("/opencv-card-worker.js");
-    autoDetectWorkerRef.current = worker;
-    const timeout = window.setTimeout(
-      () => fail("자동 탐지 시간이 초과됐습니다."),
-      15000,
-    );
-    worker.onerror = () => {
-      window.clearTimeout(timeout);
-      fail("자동 탐지 모듈을 불러오지 못했습니다.");
-    };
-    worker.onmessage = (
-      event: MessageEvent<{
-        ok: boolean;
-        points?: Point[];
-        confidence?: number;
-        error?: string;
-      }>,
-    ) => {
-      window.clearTimeout(timeout);
-      if (attempt !== autoDetectAttemptRef.current) return;
-      if (!event.data.ok || !event.data.points)
-        return fail(event.data.error ?? "자동 탐지에 실패했습니다.");
-      const normalized = normalizeFourCorners(
-        event.data.points,
-        canvas.width,
-        canvas.height,
-      );
-      if (!normalized) return fail("올바른 네 모서리를 찾지 못했습니다.");
-      rememberPoints();
-      setPoints(normalized);
-      setResult(null);
-      setMessage(
-        `OpenCV 자동 탐지 완료 · 신뢰도 ${Math.round((event.data.confidence ?? 0) * 100)}%. 손잡이를 끌어서 미세 조정하세요.`,
-      );
-      setAutoDetecting(false);
-      worker.terminate();
-      autoDetectWorkerRef.current = null;
-    };
-    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    worker.postMessage({ imageData }, [imageData.data.buffer]);
-    setResult(null);
-  };
-
-  const pointerCanvasPoint = (event: PointerEvent<HTMLCanvasElement>) => {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    return clampCanvasPoint(
-      {
-        x:
-          ((event.clientX - bounds.left) * event.currentTarget.width) /
-          bounds.width,
-        y:
-          ((event.clientY - bounds.top) * event.currentTarget.height) /
-          bounds.height,
-      },
-      event.currentTarget,
-    );
-  };
-  const startPointDrag = (event: PointerEvent<HTMLCanvasElement>) => {
-    const point = pointerCanvasPoint(event);
-    const bounds = event.currentTarget.getBoundingClientRect();
-    let nearest = 0;
-    for (let i = 1; i < points.length; i += 1)
-      if (distance(points[i], point) < distance(points[nearest], point))
-        nearest = i;
-    if (
-      points.length &&
-      distance(points[nearest], point) <=
-        (64 * event.currentTarget.width) / bounds.width
-    ) {
-      rememberPoints();
-      draggingPointRef.current = nearest;
-      rectangleStartRef.current = null;
-      dragMovedRef.current = false;
-      event.currentTarget.setPointerCapture(event.pointerId);
-      event.currentTarget.style.cursor = "grabbing";
-      setPoints((current) =>
-        current.map((item, index) => (index === nearest ? point : item)),
-      );
-      setResult(null);
-      event.preventDefault();
-      return;
-    }
-    // Starting away from a corner enters box-selection mode. Dragging diagonally
-    // creates all four corners; users can still adjust each handle afterwards.
-    rectangleStartRef.current = point;
-    rectangleHistoryRecordedRef.current = false;
-    dragMovedRef.current = false;
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-  const movePointDrag = (event: PointerEvent<HTMLCanvasElement>) => {
-    const index = draggingPointRef.current;
-    const point = pointerCanvasPoint(event);
-    const rectangleStart = rectangleStartRef.current;
-    if (index === null && rectangleStart) {
-      if (distance(rectangleStart, point) < 3) return;
-      if (!rectangleHistoryRecordedRef.current) {
-        rememberPoints();
-        rectangleHistoryRecordedRef.current = true;
-      }
-      const left = Math.min(rectangleStart.x, point.x);
-      const right = Math.max(rectangleStart.x, point.x);
-      const top = Math.min(rectangleStart.y, point.y);
-      const bottom = Math.max(rectangleStart.y, point.y);
-      setPoints([
-        { x: left, y: top },
-        { x: right, y: top },
-        { x: right, y: bottom },
-        { x: left, y: bottom },
-      ]);
-      dragMovedRef.current = true;
-      setResult(null);
-      return;
-    }
-    if (index === null) return;
-    event.preventDefault();
-    dragMovedRef.current = true;
-    setPoints((current) =>
-      current.map((item, i) => (i === index ? point : item)),
-    );
-    setResult(null);
-  };
-  const stopPointDrag = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (event.currentTarget.hasPointerCapture(event.pointerId))
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    draggingPointRef.current = null;
-    event.currentTarget.style.cursor = "crosshair";
-    rectangleStartRef.current = null;
-    rectangleHistoryRecordedRef.current = false;
-    suppressClickRef.current = dragMovedRef.current;
-  };
-
-  const addPoint = (event: MouseEvent<HTMLCanvasElement>) => {
-    if (suppressClickRef.current) {
-      suppressClickRef.current = false;
-      return;
-    }
-    // A click only repositions an existing corner. Creating the four corners
-    // is exclusively a drag gesture on empty canvas space.
-    if (points.length !== 4) return;
-    const canvas = event.currentTarget;
-    const bounds = canvas.getBoundingClientRect();
-    const point = clampCanvasPoint(
-      {
-        x: ((event.clientX - bounds.left) * canvas.width) / bounds.width,
-        y: ((event.clientY - bounds.top) * canvas.height) / bounds.height,
-      },
-      canvas,
-    );
-    rememberPoints();
-    setPoints((current) => {
-      let nearest = 0;
-      for (let index = 1; index < current.length; index += 1)
-        if (distance(current[index], point) < distance(current[nearest], point))
-          nearest = index;
-      return current.map((existing, index) =>
-        index === nearest ? point : existing,
-      );
-    });
-    setResult(null);
-  };
 
   const crop = () => {
     const image = imageRef.current;
@@ -1079,11 +809,7 @@ export function ProductImageWorkbench({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    rememberPoints();
-                    setPoints([]);
-                    setResult(null);
-                  }}
+                  onClick={clearPoints}
                   className="text-zinc-600 underline"
                 >
                   점 초기화
@@ -1100,7 +826,7 @@ export function ProductImageWorkbench({
             </button>
             <button
               type="button"
-              onClick={autoDetectOpenCv}
+              onClick={autoDetect}
               className={`mb-2 mr-3 rounded px-3 py-1.5 text-xs font-semibold text-white ${autoDetecting ? "bg-red-600" : "bg-violet-700"}`}
             >
               {autoDetecting ? "자동 탐지 취소" : "OpenCV 자동 모서리 탐지"}
@@ -1108,11 +834,7 @@ export function ProductImageWorkbench({
             <div className="mx-auto flex h-[clamp(440px,58vw,680px)] w-full items-center justify-center overflow-auto rounded-md bg-zinc-100 xl:h-[620px]">
               <canvas
                 ref={canvasRef}
-                onClick={addPoint}
-                onPointerDown={startPointDrag}
-                onPointerMove={movePointDrag}
-                onPointerUp={stopPointDrag}
-                onPointerCancel={stopPointDrag}
+                {...canvasHandlers}
                 style={{ touchAction: "none" }}
                 className="block h-auto max-h-full max-w-full cursor-crosshair rounded-md border"
               />

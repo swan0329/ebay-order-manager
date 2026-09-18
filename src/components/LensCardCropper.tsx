@@ -1,19 +1,20 @@
 "use client";
-/* eslint-disable @next/next/no-img-element */
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  detectCardBounds,
+  distance,
   normalizeFourCorners,
   roundCanvasCorners,
   seamlessQuadrilateralCrop,
   type Point,
 } from "@/lib/card-crop";
+import { useCardCorners } from "@/components/useCardCorners";
 
 const CANVAS_WIDTH = 720;
 
 /**
  * 구글렌즈에서 찾은 사진에는 배경과 다른 물건이 함께 들어 있다. 카드 네 모서리를
- * 찍어 카드만 뽑아내야 상품 이미지로 쓸 수 있다. 이미지 작업대와 같은 계산을 쓴다.
+ * 찍어 카드만 뽑아내야 상품 이미지로 쓸 수 있다. 고르는 방식과 잘라내는 계산은
+ * 이미지 작업대와 같은 것을 쓴다(`useCardCorners`, `card-crop`).
  */
 export function LensCardCropper({
   productId,
@@ -31,38 +32,18 @@ export function LensCardCropper({
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
-  const [points, setPoints] = useState<Point[]>([]);
   const [status, setStatus] = useState("이미지를 불러오는 중입니다…");
   const [ready, setReady] = useState(false);
-
-  const draw = useCallback((corners: Point[]) => {
-    const canvas = canvasRef.current;
-    const image = imageRef.current;
-    if (!canvas || !image) return;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    if (corners.length) {
-      context.strokeStyle = "#7c3aed";
-      context.lineWidth = 2;
-      context.beginPath();
-      corners.forEach((point, index) =>
-        index === 0 ? context.moveTo(point.x, point.y) : context.lineTo(point.x, point.y),
-      );
-      if (corners.length === 4) context.closePath();
-      context.stroke();
-      corners.forEach((point, index) => {
-        context.fillStyle = "#7c3aed";
-        context.beginPath();
-        context.arc(point.x, point.y, 7, 0, Math.PI * 2);
-        context.fill();
-        context.fillStyle = "#ffffff";
-        context.font = "bold 11px sans-serif";
-        context.fillText(String(index + 1), point.x - 3, point.y + 4);
-      });
-    }
-  }, []);
+  const {
+    points,
+    setPoints,
+    pointHistory,
+    undoPoints,
+    clearPoints,
+    autoDetect,
+    autoDetecting,
+    canvasHandlers,
+  } = useCardCorners({ canvasRef, imageRef, onMessage: setStatus });
 
   useEffect(() => {
     let cancelled = false;
@@ -82,17 +63,8 @@ export function LensCardCropper({
       );
       imageRef.current = image;
       setReady(true);
-      const detected = detectCardBounds(canvas) ?? [];
-      const context = canvas.getContext("2d");
-      context?.drawImage(image, 0, 0, canvas.width, canvas.height);
-      const guess = detected.length === 4 ? detected : [];
-      setPoints(guess);
-      draw(guess);
-      setStatus(
-        guess.length
-          ? "자동으로 잡은 네 모서리입니다. 점을 눌러 옮기거나 다시 찍어 주세요."
-          : "카드의 네 모서리를 차례로 눌러 주세요.",
-      );
+      setPoints([]);
+      setStatus("카드 영역을 대각선으로 끌어 사각형을 만드세요. 손잡이로 모서리를 맞춥니다.");
     };
     image.onerror = () => {
       if (!cancelled)
@@ -103,44 +75,47 @@ export function LensCardCropper({
     return () => {
       cancelled = true;
     };
-  }, [productId, imageUrl, local, draw]);
+  }, [productId, imageUrl, local, setPoints]);
 
-  const addPoint = (event: MouseEvent<HTMLCanvasElement>) => {
+  // 점이 바뀔 때마다 다시 그린다. 이미지 작업대와 같은 모양의 손잡이를 쓴다.
+  useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !ready) return;
-    const rect = canvas.getBoundingClientRect();
-    const point = {
-      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
-      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
-    };
-    setPoints((current) => {
-      // 네 점을 다 찍었으면 가장 가까운 점을 옮긴다.
-      if (current.length >= 4) {
-        let nearest = 0;
-        current.forEach((item, index) => {
-          if (
-            Math.hypot(item.x - point.x, item.y - point.y) <
-            Math.hypot(current[nearest].x - point.x, current[nearest].y - point.y)
-          )
-            nearest = index;
-        });
-        const moved = current.map((item, index) => (index === nearest ? point : item));
-        draw(moved);
-        return moved;
-      }
-      const next = [...current, point];
-      draw(next);
-      return next;
+    const image = imageRef.current;
+    if (!canvas || !image || !ready) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    context.font = "bold 14px sans-serif";
+    context.strokeStyle = "#ef4444";
+    context.lineWidth = 3;
+    points.forEach((point, index) => {
+      context.beginPath();
+      context.arc(point.x, point.y, 11, 0, Math.PI * 2);
+      context.fillStyle = "white";
+      context.fill();
+      context.lineWidth = 4;
+      context.strokeStyle = "#ef4444";
+      context.stroke();
+      context.fillStyle = "#dc2626";
+      context.fillText(String(index + 1), point.x + 10, point.y - 10);
     });
-  };
+    if (points.length > 1) {
+      context.beginPath();
+      context.moveTo(points[0].x, points[0].y);
+      points.slice(1).forEach((point) => context.lineTo(point.x, point.y));
+      if (points.length === 4) context.closePath();
+      context.stroke();
+    }
+  }, [points, ready]);
 
   const crop = () => {
     const canvas = canvasRef.current;
     const image = imageRef.current;
-    if (!canvas || !image) return;
+    if (!canvas || !image || points.length !== 4) return;
     const ordered = normalizeFourCorners(points, canvas.width, canvas.height);
     if (!ordered) {
-      setStatus("서로 떨어진 네 점으로 사각형을 만들어 주세요.");
+      setStatus("네 모서리가 겹쳐 있습니다. 네 개의 서로 다른 점으로 사각형을 만들어 주세요.");
       return;
     }
     const scaleX = image.naturalWidth / canvas.width;
@@ -149,10 +124,7 @@ export function LensCardCropper({
       x: point.x * scaleX,
       y: point.y * scaleY,
     })) as [Point, Point, Point, Point];
-    const measured = Math.max(
-      Math.hypot(source[0].x - source[3].x, source[0].y - source[3].y),
-      Math.hypot(source[1].x - source[2].x, source[1].y - source[2].y),
-    );
+    const measured = Math.max(distance(source[0], source[3]), distance(source[1], source[2]));
     // 실제 포토카드 비율(54×86mm)로 고정한다. 선택이 조금 비뚤어도 늘어나지 않는다.
     const height = Math.max(860, Math.min(1720, Math.round(measured)));
     const width = Math.round(height * (54 / 86));
@@ -175,54 +147,52 @@ export function LensCardCropper({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <strong>구글렌즈 후보에서 카드 잘라내기</strong>
-          <span className="text-sm text-zinc-500">{status}</span>
-          <span className="ml-auto text-sm font-semibold text-violet-800">
-            찍은 점 {Math.min(points.length, 4)}/4
+          <strong>구글렌즈 후보 · 대각선으로 드래그해 사각형 만들기</strong>
+          <span className="ml-auto flex gap-3 text-sm">
+            <button
+              type="button"
+              onClick={undoPoints}
+              disabled={!pointHistory.length}
+              className="cursor-pointer font-semibold text-violet-700 underline disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              되돌리기 (Ctrl+Z)
+            </button>
+            <button
+              type="button"
+              onClick={clearPoints}
+              className="cursor-pointer text-zinc-600 underline"
+            >
+              점 초기화
+            </button>
           </span>
         </div>
-        <canvas
-          ref={canvasRef}
-          onClick={addPoint}
-          className="mt-3 w-full cursor-crosshair rounded border bg-zinc-100"
-        />
+        <p className="mt-1 break-all text-sm text-zinc-600">{status}</p>
+        <button
+          type="button"
+          onClick={autoDetect}
+          disabled={!ready}
+          className={`mt-2 mb-2 cursor-pointer rounded px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300 ${
+            autoDetecting ? "bg-red-600" : "bg-violet-700"
+          }`}
+        >
+          {autoDetecting ? "자동 탐지 취소" : "OpenCV 자동 모서리 탐지"}
+        </button>
+        <div className="mx-auto flex max-h-[60vh] w-full items-center justify-center overflow-auto rounded-md bg-zinc-100">
+          <canvas
+            ref={canvasRef}
+            {...canvasHandlers}
+            style={{ touchAction: "none" }}
+            className="block h-auto max-h-full max-w-full cursor-crosshair rounded-md border"
+          />
+        </div>
         <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setPoints([]);
-              draw([]);
-              setStatus("카드의 네 모서리를 차례로 눌러 주세요.");
-            }}
-            className="cursor-pointer rounded border px-4 py-2 font-semibold hover:bg-zinc-50"
-          >
-            다시 찍기
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const canvas = canvasRef.current;
-              if (!canvas) return;
-              const detected = detectCardBounds(canvas) ?? [];
-              setPoints(detected);
-              draw(detected);
-              setStatus(
-                detected.length === 4
-                  ? "자동으로 네 모서리를 다시 잡았습니다."
-                  : "자동으로 찾지 못했습니다. 직접 눌러 주세요.",
-              );
-            }}
-            className="cursor-pointer rounded border px-4 py-2 font-semibold hover:bg-zinc-50"
-          >
-            자동 모서리 찾기
-          </button>
           <button
             type="button"
             disabled={points.length !== 4}
             onClick={crop}
-            className="cursor-pointer rounded bg-violet-700 px-5 py-2 font-bold text-white hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="cursor-pointer rounded bg-emerald-600 px-5 py-2 font-bold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            이 영역으로 교체
+            네 점 기준 카드 추출
           </button>
           <button
             type="button"

@@ -28,6 +28,8 @@
 
 주소만 받아 그대로 규격을 맞추면 안 된다. 구글렌즈로 찾은 사진에는 배경과 다른 물건이 함께 들어 있어 카드만 뽑아야 한다. 이미지 작업대가 쓰던 네 모서리 선택 계산(`detectCardBounds`·`seamlessQuadrilateralCrop`·`normalizeFourCorners`·`roundCanvasCorners`)을 `src/lib/card-crop.ts`로 옮겨 작업대와 AI 이미지 작업이 같은 계산을 쓴다. 화면(`LensCardCropper`)이 네 모서리를 받아 실제 카드 비율(54×86)로 잘라 보내고, 서버는 받은 그림을 `toRoundedCardJpeg`로 마무리한다.
 
+네 모서리를 고르는 방식은 두 화면이 반드시 같아야 한다. 계산만 나눠 쓰고 조작을 따로 만들면 손에 익은 방식이 화면마다 달라진다. 조작 전체를 `src/components/useCardCorners.ts`에 모았다: 빈 곳에서 대각선으로 끌면 네 모서리가 한 번에 생기고, 손잡이를 끌면 그 점만 움직이고, 네 점이 있을 때 누르면 가장 가까운 점이 그 자리로 오고, `/opencv-card-worker.js`가 외곽선을 찾아 주며(실패하면 `detectCardBounds`로 기본 경계), Ctrl+Z로 직전 배치로 돌아간다. 이미지 작업대(`ProductImageWorkbench`)와 AI 이미지 작업의 잘라내기 창(`LensCardCropper`)이 이 훅을 함께 쓴다.
+
 다른 도메인 이미지는 캔버스를 오염시켜 `toDataURL`이 막힌다. 후보 이미지는 반드시 `GET /api/products/<id>/image-workbench?url=…` 프록시로 불러온다. 이 경로에는 내부망 차단(`assertSafeRemoteUrl`)이 걸려 있다.
 
 되돌리기: `ai_image_jobs.backup_preview_url`에 사람이 손대기 전의 AI 결과를 한 번만 보관한다. 렌즈 결과를 연달아 바꿔도 되돌릴 대상은 언제나 AI가 만든 결과다. 되돌리면 보관본을 비워 같은 작업을 두 번 되돌리지 않는다.
