@@ -211,13 +211,30 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
   }
 
   const sample = simulate(values, Number(samplePoca) || 0);
+  const saleFeeTotal = usage
+    ? usage.measured.fees.finalValue +
+      usage.measured.fees.international +
+      usage.measured.fees.perOrder +
+      usage.measured.fees.advertising
+    : 0;
   const listing = usage?.listing;
   const overAllowance = listing ? listing.paidThisMonth > 0 : false;
+  // 유료 청구가 한 건이라도 있으면 무료 한도는 이미 다 쓴 것이다. eBay 청구가
+  // 우리 기록보다 정확하므로 한도 사용은 청구를 기준으로 본다.
   const allowanceUsed = listing
-    ? Math.min(listing.allowance, listing.freeUsedThisMonth || listing.publishedThisMonth)
+    ? overAllowance
+      ? listing.allowance
+      : Math.min(listing.allowance, listing.publishedThisMonth)
     : 0;
   const allowancePercent = listing?.allowance
     ? Math.min(100, (allowanceUsed / listing.allowance) * 100)
+    : 0;
+  // eBay가 청구한 건수로 되짚은 이번 달 등록 수. 우리 기록은 피드 업로드처럼
+  // 다른 경로로 올린 것을 놓칠 수 있어 참고로만 쓴다.
+  const listedByEbay = listing
+    ? overAllowance
+      ? listing.allowance + listing.paidThisMonth
+      : listing.publishedThisMonth
     : 0;
 
   const field = (
@@ -259,8 +276,11 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
           <>
             <div className="mt-4 grid gap-3 sm:grid-cols-4">
               <div className="rounded-xl bg-zinc-50 p-4">
-                <p className="text-xs text-zinc-500">이번 달 등록</p>
-                <p className="mt-1 text-2xl font-bold">{listing.publishedThisMonth.toLocaleString()}건</p>
+                <p className="text-xs text-zinc-500">이번 달 등록 (eBay 기준)</p>
+                <p className="mt-1 text-2xl font-bold">{listedByEbay.toLocaleString()}건</p>
+                <p className="mt-1 text-[11px] text-zinc-500">
+                  우리 기록 {listing.publishedThisMonth.toLocaleString()}건
+                </p>
               </div>
               <div className="rounded-xl bg-zinc-50 p-4">
                 <p className="text-xs text-zinc-500">무료 한도</p>
@@ -394,19 +414,72 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
                   <td className="py-2 text-right">{money(usage.measured.fees.insertion)}</td>
                 </tr>
                 <tr className="bg-zinc-50 font-semibold">
-                  <td className="py-2">합계</td>
+                  <td className="py-2">판매에 붙는 수수료 합계</td>
                   <td className="py-2 text-right" colSpan={2}>
                     상품값 {money(usage.measured.itemSubtotal)} 대비{" "}
                     {usage.measured.itemSubtotal
-                      ? ((usage.measured.totalFee / usage.measured.itemSubtotal) * 100).toFixed(1)
+                      ? ((saleFeeTotal / usage.measured.itemSubtotal) * 100).toFixed(1)
+                      : "—"}
+                    % · 구매자 결제액 대비{" "}
+                    {usage.measured.buyerPaid
+                      ? ((saleFeeTotal / usage.measured.buyerPaid) * 100).toFixed(1)
                       : "—"}
                     %
                   </td>
-                  <td className="py-2 text-right">{money(usage.measured.totalFee)}</td>
+                  <td className="py-2 text-right">{money(saleFeeTotal)}</td>
+                </tr>
+                <tr className="font-semibold text-zinc-600">
+                  <td className="py-2">등록수수료 (팔리든 말든 나감)</td>
+                  <td className="py-2 text-right" colSpan={2}>
+                    판매와 무관하게 등록 건수만큼
+                  </td>
+                  <td className="py-2 text-right">{money(usage.measured.fees.insertion)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
+          {/* 비율만 보면 믿기 어렵다. 평균 주문 한 건으로 풀어서 보여 준다. */}
+          {usage.measured.orders > 0 && (
+            <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm">
+              <p className="font-bold">평균 주문 한 건으로 보면</p>
+              <div className="mt-2 grid gap-1 sm:grid-cols-2">
+                <span className="text-zinc-600">상품값</span>
+                <span className="sm:text-right">
+                  {money(usage.measured.itemSubtotal / usage.measured.orders)}
+                </span>
+                <span className="text-zinc-600">+ 배송비</span>
+                <span className="sm:text-right">
+                  {money(usage.measured.shipping / usage.measured.orders)}
+                </span>
+                <span className="text-zinc-600">+ eBay가 걷는 판매세</span>
+                <span className="sm:text-right">
+                  {money((usage.measured.feeBasis - usage.measured.buyerPaid) / usage.measured.orders)}
+                </span>
+                <span className="font-semibold">= 수수료가 걸리는 금액</span>
+                <span className="font-semibold sm:text-right">
+                  {money(usage.measured.feeBasis / usage.measured.orders)}
+                </span>
+                <span className="mt-2 text-rose-700">− 수수료 합계</span>
+                <span className="mt-2 text-rose-700 sm:text-right">
+                  {money(saleFeeTotal / usage.measured.orders)}
+                </span>
+              </div>
+              <p className="mt-3 text-zinc-700">
+                수수료가 <strong>상품값이 아니라 배송비·판매세까지 더한 금액</strong>에 붙기 때문에, 요율은{" "}
+                {percent(
+                  (usage.measured.finalValueRate ?? 0) + (usage.measured.internationalRate ?? 0),
+                )}
+                인데 상품값 대비로는{" "}
+                <strong>
+                  {usage.measured.itemSubtotal
+                    ? ((saleFeeTotal / usage.measured.itemSubtotal) * 100).toFixed(1)
+                    : "—"}
+                  %
+                </strong>
+                가 됩니다. 배송비가 상품값에 가까울수록 이 차이가 커집니다.
+              </p>
+            </div>
+          )}
           <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
             수수료는 상품값이 아니라 <strong>상품값 + 배송비 + eBay가 걷은 판매세</strong>에 붙습니다. 이 기간
             구매자 결제액 {money(usage.measured.buyerPaid)} 가운데 배송비가 {money(usage.measured.shipping)}이고,
