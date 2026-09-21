@@ -28,6 +28,7 @@ import { requestEbayActiveReport } from "@/lib/ebay-active-report-task";
 import { safeLog } from "@/lib/safe-log";
 import { resolveListingPriceUsd } from "@/lib/listing-price";
 import { channelPublishLeaseMs, PublishContinuationError } from "@/lib/channel-publish-runtime";
+import { publishJobLabel } from "@/lib/channel-publish-labels";
 
 export type PublishChannel = "EBAY" | "SHOPIFY";
 export type PublishMode = "REGISTER" | "UPSERT" | "PRICE_INVENTORY" | "IMAGES" | "ARCHIVE";
@@ -72,7 +73,14 @@ async function createExclusivePublishJob(input: {
     if (!active || terminalStatuses.includes(active.status)) throw error;
     const requested = new Set(input.items.map(item => `${item.targetType}:${item.targetId}`));
     if (active.items.length !== requested.size || active.items.some(item => !requested.has(`${item.targetType}:${item.targetId}`))) {
-      throw new Error("다른 대상의 같은 채널 작업이 진행 중입니다. 완료 후 지정 상품으로 다시 실행해 주세요.");
+      // 무엇이 막고 있는지 말해 주지 않으면 사람이 기다릴지 중단할지 정할 수 없다.
+      // 화면에 진행 중 작업이 안 보이는 경우가 많아 진행률까지 함께 붙인다.
+      const done = active.items.filter(item => item.status !== "QUEUED" && item.status !== "PROCESSING").length;
+      throw new Error(
+        `이미 ${publishJobLabel(active.channel, active.mode)} 작업이 진행 중이라 다른 대상으로 새로 시작할 수 없습니다` +
+        ` (${done}/${active.items.length}건 처리됨).` +
+        " 완료를 기다리거나 진행 중 작업의 중단을 누른 뒤 다시 실행해 주세요.",
+      );
     }
     return { ...active, reusedActiveJob: true };
   }

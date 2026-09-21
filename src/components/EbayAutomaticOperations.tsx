@@ -95,6 +95,38 @@ export function ChannelAutomaticOperations() {
     } finally { pollingIds.current.delete(jobId); }
   }, [receiveJob]);
 
+  // 브라우저 저장소만 보면 이 화면은 서버에서 돌고 있는 작업을 모른다. 다른 기기에서
+  // 시작했거나, 오래 걸려 자동 확인이 끊겼거나, 저장소가 비워졌으면 화면은 놀고 있는
+  // 것처럼 보이는데 새 작업은 "이미 진행 중"이라며 거부된다. 서버에 직접 물어본다.
+  const adoptServerJobs = useCallback(async () => {
+    try {
+      const response = await fetch("/api/channel-publish-jobs", { cache: "no-store" });
+      const body = (await response.json().catch(() => null)) as
+        | { jobs?: Array<AutomaticJob & { channel: string; mode: string }> }
+        | null;
+      if (!response.ok || !Array.isArray(body?.jobs)) return;
+      for (const job of body.jobs) {
+        if (terminal.has(job.status)) continue;
+        if (job.mode === "IMAGES") {
+          setImageJobs((prev) => ({ ...prev, [job.channel]: job }));
+          window.localStorage.setItem(`active-change-images-${job.channel}`, job.id);
+        } else if (job.channel === "SHOPIFY") {
+          // eBay 가격·재고는 Feed 작업이라 다른 경로로 조회한다. 여기서 받아들이면
+          // 엉뚱한 곳에 상태를 물어보게 되므로 Shopify 것만 가져온다.
+          receiveJob("SHOPIFY", job);
+        }
+      }
+    } catch {
+      // 조회 실패는 화면 표시 문제일 뿐이다. 작업 시작을 막지 않는다.
+    }
+  }, [receiveJob]);
+
+  useEffect(() => {
+    // 이 파일의 다른 조회와 같은 방식으로 렌더 뒤에 미룬다.
+    const timer = window.setTimeout(() => void adoptServerJobs(), 0);
+    return () => window.clearTimeout(timer);
+  }, [adoptServerJobs]);
+
   useEffect(() => {
     const saved = [
       ["EBAY", window.localStorage.getItem(ebayStorageKey)],
@@ -191,6 +223,8 @@ export function ChannelAutomaticOperations() {
       ? [result.reason instanceof Error ? result.reason.message : String(result.reason)]
       : []);
     setMessage([...failures, ...results.flatMap(r => r.status === "fulfilled" && r.value ? [r.value] : [])].join(" / "));
+    // 거부당했으면 무엇이 막고 있는지 바로 보여 준다. 중단 버튼도 그때 함께 나타난다.
+    if (failures.length) await adoptServerJobs();
     setStarting(false);
   }
 
