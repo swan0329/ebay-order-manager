@@ -14,12 +14,12 @@ type Settings = {
   buyerShippingUsd: string;
   salesTaxUpliftRate: string;
   insertionFeeUsd: string;
-  freeListingAllowance: string;
   minimumSalePriceUsd: string | null;
 };
 
 type Usage = {
   days: number;
+  finance: { available: boolean; error: string | null; transactionCount: number };
   measured: {
     orders: number;
     itemSubtotal: number;
@@ -41,20 +41,34 @@ type Usage = {
     };
     totalFee: number;
   };
-  listing: {
-    allowance: number;
-    activeListings: number;
-    activeListingsAt: string | null;
+  /** eBay 정산에서 확인된 등록수수료만 담긴다. 추정값은 들어오지 않는다. */
+  insertionFee: {
+    available: boolean;
+    month: string;
+    chargedCount: number;
+    refundedCount: number;
+    amount: number;
+    perChargeUsd: number | null;
     recentCount: number;
     recentAmount: number;
     chargedItemIds: string[];
-    publishedThisMonth: number;
-    paidThisMonth: number;
-    paidAmountThisMonth: number;
-    freeUsedThisMonth: number;
-    insertionFeePerListing: number | null;
-    months: Array<{ month: string; count: number; amount: number }>;
+    months: Array<{ month: string; count: number; refunded: number; amount: number }>;
   };
+  reference: {
+    publishedThisMonth: number;
+    activeListings: number;
+    activeListingsAt: string | null;
+  };
+};
+
+/** 판매 한도. 무료 등록 한도가 아니며 등록수수료와 이어 붙이지 않는다. */
+type SellingLimit = {
+  available: boolean;
+  error?: string | null;
+  quantityRemaining: number | null;
+  amountRemainingUsd: number | null;
+  soldCount: number | null;
+  soldValueUsd: number | null;
 };
 
 const money = (value: number) => `$${value.toFixed(2)}`;
@@ -113,7 +127,6 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
     buyerShippingUsd: initial?.buyerShippingUsd ?? "0",
     salesTaxUpliftPercent: initial ? String(Number(initial.salesTaxUpliftRate) * 100) : "0",
     insertionFeeUsd: initial?.insertionFeeUsd ?? "0",
-    freeListingAllowance: initial?.freeListingAllowance ?? "50000",
     minimumSalePriceUsd: initial?.minimumSalePriceUsd ?? "",
   });
   const [message, setMessage] = useState("");
@@ -122,6 +135,7 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
   const [rateLoading, setRateLoading] = useState(false);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [usageError, setUsageError] = useState("");
+  const [sellingLimit, setSellingLimit] = useState<SellingLimit | null>(null);
   const [samplePoca, setSamplePoca] = useState("10000");
 
   const set = (key: keyof typeof values, value: string) =>
@@ -138,6 +152,23 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
       } catch (error) {
         if (!cancelled)
           setUsageError(error instanceof Error ? error.message : "실제 수수료를 불러오지 못했습니다.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 판매 한도는 등록수수료와 별개다. 따로 읽고 실패해도 수수료 표시에 영향을 주지 않는다.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch("/api/ebay/selling-limit", { cache: "no-store" });
+        const body = await response.json();
+        if (!cancelled && response.ok) setSellingLimit(body as SellingLimit);
+      } catch {
+        // 못 읽으면 표시하지 않는다.
       }
     })();
     return () => {
@@ -164,7 +195,6 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
         buyerShippingUsd: values.buyerShippingUsd,
         salesTaxUpliftRate: String(Number(values.salesTaxUpliftPercent) / 100),
         insertionFeeUsd: values.insertionFeeUsd,
-        freeListingAllowance: values.freeListingAllowance,
         minimumSalePriceUsd: values.minimumSalePriceUsd,
       }),
     });
@@ -222,25 +252,10 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
       usage.measured.fees.perOrder +
       usage.measured.fees.advertising
     : 0;
-  const listing = usage?.listing;
-  const overAllowance = listing ? listing.paidThisMonth > 0 : false;
-  // 유료 청구가 한 건이라도 있으면 무료 한도는 이미 다 쓴 것이다. eBay 청구가
-  // 우리 기록보다 정확하므로 한도 사용은 청구를 기준으로 본다.
-  const allowanceUsed = listing
-    ? overAllowance
-      ? listing.allowance
-      : Math.min(listing.allowance, listing.publishedThisMonth)
-    : 0;
-  const allowancePercent = listing?.allowance
-    ? Math.min(100, (allowanceUsed / listing.allowance) * 100)
-    : 0;
-  // eBay가 청구한 건수로 되짚은 이번 달 등록 수. 우리 기록은 피드 업로드처럼
-  // 다른 경로로 올린 것을 놓칠 수 있어 참고로만 쓴다.
-  const listedByEbay = listing
-    ? overAllowance
-      ? listing.allowance + listing.paidThisMonth
-      : listing.publishedThisMonth
-    : 0;
+  // 등록수수료는 eBay 정산에 찍힌 것만 쓴다. 판매 한도나 우리가 올린 건수로
+  // 무료 한도·예상 청구액을 만들지 않는다.
+  const insertionFee = usage?.insertionFee;
+  const financeAvailable = usage?.finance.available ?? false;
 
   const field = (
     key: keyof typeof values,
@@ -267,104 +282,99 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
 
   return (
     <div className="space-y-5">
-      {/* 등록 사용량 ─ 무료 한도를 넘겼는지 한눈에 본다 */}
+      {/* 등록수수료 ─ eBay 정산에 실제로 찍힌 청구만 보여 준다 */}
       <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-bold">이번 달 eBay 등록 사용량</h2>
-          <span className="text-xs text-zinc-500">eBay 정산 내역에서 직접 읽은 값입니다</span>
+          <h2 className="text-lg font-bold">이번 달 eBay 등록수수료</h2>
+          <span className="text-xs text-zinc-500">
+            eBay 정산(Finances) 거래에서 확인된 INSERTION_FEE만 합산합니다
+          </span>
         </div>
         {usageError ? (
           <p className="mt-3 text-sm text-rose-700">{usageError}</p>
-        ) : !listing ? (
+        ) : !insertionFee ? (
           <p className="mt-3 text-sm text-zinc-500">불러오는 중입니다…</p>
+        ) : !insertionFee.available ? (
+          <div className="mt-4 rounded-xl bg-amber-50 p-4">
+            <p className="text-2xl font-bold text-amber-900">확인 불가</p>
+            <p className="mt-1 text-sm text-amber-900">
+              eBay 정산 데이터를 읽지 못해 이번 달 등록수수료를 확인할 수 없습니다. 추정하지 않습니다.
+              {usage?.finance.error ? ` (${usage.finance.error})` : ""}
+            </p>
+          </div>
         ) : (
           <>
-            <div className="mt-4 grid gap-3 sm:grid-cols-4">
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl bg-zinc-50 p-4">
-                <p className="text-xs text-zinc-500">이번 달 등록 (eBay 기준)</p>
-                <p className="mt-1 text-2xl font-bold">{listedByEbay.toLocaleString()}건</p>
+                <p className="text-xs text-zinc-500">이번 달 실제 등록수수료 ({insertionFee.month})</p>
+                <p className="mt-1 text-3xl font-bold">{money(insertionFee.amount)}</p>
+                <p className="mt-1 text-[11px] text-zinc-500">eBay가 실제로 청구한 금액</p>
+              </div>
+              <div className="rounded-xl bg-zinc-50 p-4">
+                <p className="text-xs text-zinc-500">청구 건수</p>
+                <p className="mt-1 text-3xl font-bold">{insertionFee.chargedCount.toLocaleString()}건</p>
                 <p className="mt-1 text-[11px] text-zinc-500">
-                  우리 기록 {listing.publishedThisMonth.toLocaleString()}건
-                </p>
-              </div>
-              <div className="rounded-xl bg-zinc-50 p-4">
-                <p className="text-xs text-zinc-500">무료 한도</p>
-                <p className="mt-1 text-2xl font-bold">{listing.allowance.toLocaleString()}건</p>
-              </div>
-              <div className={`rounded-xl p-4 ${overAllowance ? "bg-rose-50" : "bg-emerald-50"}`}>
-                <p className="text-xs text-zinc-600">유료로 청구된 등록</p>
-                <p className={`mt-1 text-2xl font-bold ${overAllowance ? "text-rose-700" : "text-emerald-700"}`}>
-                  {listing.paidThisMonth.toLocaleString()}건
-                </p>
-              </div>
-              <div className={`rounded-xl p-4 ${overAllowance ? "bg-rose-50" : "bg-emerald-50"}`}>
-                <p className="text-xs text-zinc-600">이번 달 등록수수료</p>
-                <p className={`mt-1 text-2xl font-bold ${overAllowance ? "text-rose-700" : "text-emerald-700"}`}>
-                  {money(listing.paidAmountThisMonth)}
-                </p>
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-xs text-zinc-600">
-                <span>무료 한도 사용 {allowanceUsed.toLocaleString()} / {listing.allowance.toLocaleString()}건</span>
-                <span>{allowancePercent.toFixed(0)}%</span>
-              </div>
-              <div className="mt-1 h-3 w-full overflow-hidden rounded-full bg-zinc-200">
-                <div
-                  className={`h-full ${overAllowance ? "bg-rose-500" : "bg-emerald-500"}`}
-                  style={{ width: `${allowancePercent}%` }}
-                />
-              </div>
-              <p className="mt-2 text-sm">
-                {overAllowance ? (
-                  <span className="font-semibold text-rose-700">
-                    무료 한도를 넘겨 {listing.paidThisMonth.toLocaleString()}건에 {money(listing.paidAmountThisMonth)}가 청구됐습니다
-                    {listing.insertionFeePerListing ? ` (건당 ${money(listing.insertionFeePerListing)})` : ""}.
-                  </span>
-                ) : (
-                  <span className="font-semibold text-emerald-700">
-                    아직 무료 한도 안입니다. 이번 달 등록수수료 청구가 없습니다.
-                  </span>
-                )}
-              </p>
-            </div>
-            {/* 앞으로 얼마 나갈지는 eBay 정책에 달려 있어 추정하지 않는다. 실제로
-                청구된 것만 보여 주고, 어떤 리스팅이었는지 번호를 남긴다. */}
-            <div className="mt-4 rounded-xl bg-zinc-50 p-4 text-sm">
-              <p className="font-bold">최근 30일 실제 청구 {money(listing.recentAmount)}</p>
-              <p className="mt-1 text-zinc-700">
-                {listing.recentCount.toLocaleString()}건에 등록수수료가 붙었습니다. 무료 한도가 남아 있는데도
-                청구됐다면 카테고리나 리스팅이 새로 만들어진 경우일 수 있어 eBay에 확인이 필요합니다.
-              </p>
-              {listing.chargedItemIds.length > 0 && (
-                <p className="mt-2 text-xs text-zinc-600">
-                  청구된 리스팅 번호(일부): {listing.chargedItemIds.join(", ")}
-                </p>
-              )}
-              {listing.activeListings > 0 && (
-                <p className="mt-2 text-xs text-zinc-500">
-                  참고 · 우리가 마지막으로 수집한 활성 리스팅 {listing.activeListings.toLocaleString()}건
-                  {listing.activeListingsAt
-                    ? ` (${listing.activeListingsAt.slice(0, 10)} 기준, eBay 현재 값과 다를 수 있습니다)`
+                  {insertionFee.perChargeUsd ? `건당 ${money(insertionFee.perChargeUsd)}` : "청구 없음"}
+                  {insertionFee.refundedCount > 0
+                    ? ` · 환급 ${insertionFee.refundedCount.toLocaleString()}건 상계됨`
                     : ""}
                 </p>
+              </div>
+              <div className="rounded-xl bg-zinc-50 p-4">
+                <p className="text-xs text-zinc-500">최근 30일 실제 청구</p>
+                <p className="mt-1 text-3xl font-bold">{money(insertionFee.recentAmount)}</p>
+                <p className="mt-1 text-[11px] text-zinc-500">
+                  {insertionFee.recentCount.toLocaleString()}건
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 rounded-xl bg-zinc-50 p-4 text-sm">
+              {insertionFee.chargedCount === 0 ? (
+                <p className="text-zinc-700">
+                  이번 달 eBay 정산에 등록수수료 청구가 없습니다. 앞으로 청구될 금액은 추정하지 않습니다.
+                </p>
+              ) : (
+                <p className="text-zinc-700">
+                  등록수수료는 새로 올린 리스팅뿐 아니라 Good &apos;Til Cancelled 리스팅이 다음 달로 자동
+                  갱신될 때도 붙습니다. 그래서 등록 건수로는 청구액을 맞힐 수 없고, 위 금액은 eBay 정산
+                  거래에 찍힌 청구(환급은 상계)만 더한 값입니다.
+                </p>
+              )}
+              {insertionFee.chargedItemIds.length > 0 && (
+                <p className="mt-2 text-xs text-zinc-600">
+                  청구된 리스팅 번호(일부): {insertionFee.chargedItemIds.join(", ")}
+                </p>
+              )}
+              {usage && usage.reference.activeListings > 0 && (
+                <p className="mt-2 text-xs text-zinc-500">
+                  참고 · 우리가 마지막으로 수집한 활성 리스팅{" "}
+                  {usage.reference.activeListings.toLocaleString()}건
+                  {usage.reference.activeListingsAt
+                    ? ` (${usage.reference.activeListingsAt.slice(0, 10)} 기준)`
+                    : ""}
+                  , 우리 기록상 이번 달 올린 리스팅{" "}
+                  {usage.reference.publishedThisMonth.toLocaleString()}건. 등록수수료 계산에는 쓰지 않습니다.
+                </p>
               )}
             </div>
-            {listing.months.length > 0 && (
+            {insertionFee.months.length > 0 && (
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full min-w-[420px] text-sm">
                   <thead>
                     <tr className="border-b text-left text-xs text-zinc-500">
                       <th className="py-1.5">달</th>
-                      <th className="py-1.5 text-right">유료 등록 건수</th>
+                      <th className="py-1.5 text-right">청구 건수</th>
                       <th className="py-1.5 text-right">등록수수료</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {listing.months.map((row) => (
+                    {insertionFee.months.map((row) => (
                       <tr key={row.month} className="border-b last:border-0">
                         <td className="py-1.5">{row.month}</td>
-                        <td className="py-1.5 text-right">{row.count.toLocaleString()}건</td>
+                        <td className="py-1.5 text-right">
+                          {row.count.toLocaleString()}건
+                          {row.refunded > 0 ? ` (환급 ${row.refunded.toLocaleString()}건)` : ""}
+                        </td>
                         <td className="py-1.5 text-right font-semibold">{money(row.amount)}</td>
                       </tr>
                     ))}
@@ -376,8 +386,50 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
         )}
       </section>
 
-      {/* 실측 대조 ─ 설정값이 현실과 맞는지 */}
-      {usage && (
+      {/* 판매 한도 ─ 등록수수료와 무관한 별도 정보 */}
+      {sellingLimit && sellingLimit.available && sellingLimit.quantityRemaining !== null && (
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-bold">판매 한도 (Selling Limit)</h2>
+            <span className="text-xs text-zinc-500">
+              eBay Trading API GetMyeBaySelling · 이번 달 기준
+            </span>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-zinc-50 p-4">
+              <p className="text-xs text-zinc-500">이번 달 더 등록·판매할 수 있는 수량</p>
+              <p className="mt-1 text-2xl font-bold">
+                {sellingLimit.quantityRemaining.toLocaleString()}개
+              </p>
+            </div>
+            <div className="rounded-xl bg-zinc-50 p-4">
+              <p className="text-xs text-zinc-500">이번 달 더 판매할 수 있는 금액</p>
+              <p className="mt-1 text-2xl font-bold">
+                {sellingLimit.amountRemainingUsd === null
+                  ? "—"
+                  : money(sellingLimit.amountRemainingUsd)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-zinc-50 p-4">
+              <p className="text-xs text-zinc-500">이번 달 판매</p>
+              <p className="mt-1 text-2xl font-bold">
+                {sellingLimit.soldCount === null ? "—" : `${sellingLimit.soldCount.toLocaleString()}건`}
+              </p>
+              <p className="mt-1 text-[11px] text-zinc-500">
+                {sellingLimit.soldValueUsd === null ? "" : money(sellingLimit.soldValueUsd)}
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
+            판매 한도는 <strong>계정이 한 달에 팔 수 있는 상한</strong>이며{" "}
+            <strong>무료 등록 한도가 아닙니다</strong>. 등록수수료 계산에 쓰지 않습니다. 한도 총량은 eBay
+            Seller Hub의 판매 한도 화면에서 확인하세요. eBay는 남은 양만 내려줍니다.
+          </p>
+        </section>
+      )}
+
+      {/* 실측 대조 ─ 설정값이 현실과 맞는지. 정산을 못 읽으면 아예 보여 주지 않는다. */}
+      {usage && financeAvailable && (
         <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-bold">eBay가 실제로 뗀 수수료</h2>
@@ -436,7 +488,9 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
                 </tr>
                 <tr className="border-b">
                   <td className="py-2">등록수수료</td>
-                  <td className="py-2 text-right font-semibold">건당 $0.35</td>
+                  <td className="py-2 text-right font-semibold">
+                    {insertionFee?.perChargeUsd ? `건당 ${money(insertionFee.perChargeUsd)}` : "—"}
+                  </td>
                   <td className="py-2 text-right text-zinc-500">${values.insertionFeeUsd}</td>
                   <td className="py-2 text-right">{money(usage.measured.fees.insertion)}</td>
                 </tr>
@@ -458,7 +512,7 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
                 <tr className="font-semibold text-zinc-600">
                   <td className="py-2">등록수수료 (팔리든 말든 나감)</td>
                   <td className="py-2 text-right" colSpan={2}>
-                    판매와 무관하게 등록 건수만큼
+                    판매와 무관 · eBay 정산에 찍힌 청구만
                   </td>
                   <td className="py-2 text-right">{money(usage.measured.fees.insertion)}</td>
                 </tr>
@@ -564,9 +618,16 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
         </div>
 
         <h3 className="mt-6 text-sm font-bold text-zinc-900">3. 등록수수료</h3>
+        <p className="mt-1 text-xs text-zinc-500">
+          위 <strong>실제 청구 내역</strong>을 보고 직접 정하세요. 판매 한도나 등록 건수로 자동 계산하지 않습니다.
+        </p>
         <div className="mt-3 grid gap-5 sm:grid-cols-3">
-          {field("freeListingAllowance", "한 달 무료 등록 한도", "내 스토어 구독 등급의 한도를 넣으세요", "건")}
-          {field("insertionFeeUsd", "판매 1건에 얹을 등록수수료", "한도 안이면 0으로 두세요", "$")}
+          {field(
+            "insertionFeeUsd",
+            "판매 1건에 얹을 등록수수료",
+            "청구가 없으면 0으로 두세요",
+            "$",
+          )}
         </div>
 
         <h3 className="mt-6 text-sm font-bold text-zinc-900">4. 목표</h3>

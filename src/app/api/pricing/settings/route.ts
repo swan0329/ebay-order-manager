@@ -43,7 +43,6 @@ export async function PUT(request: Request) {
       buyerShippingUsd: String(body.buyerShippingUsd ?? "0"),
       salesTaxUpliftRate: String(body.salesTaxUpliftRate ?? "0"),
       insertionFeeUsd: String(body.insertionFeeUsd ?? "0"),
-      freeListingAllowance: Math.max(0, Math.round(Number(body.freeListingAllowance ?? 250))),
       minimumSalePriceUsd:
         body.minimumSalePriceUsd === "" || body.minimumSalePriceUsd == null
           ? null

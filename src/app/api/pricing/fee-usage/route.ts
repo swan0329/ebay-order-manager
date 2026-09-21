@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 import { getActiveEbayAccount } from "@/lib/services/ebayApiService";
 import { getFinanceFeeBreakdown } from "@/lib/services/ebayFinanceService";
+import { chargedListingIds, summarizeInsertionFees } from "@/lib/ebay-insertion-fees";
 
 export const maxDuration = 60;
 
@@ -13,23 +14,30 @@ function money(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function monthKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
 /**
- * eBay가 실제로 떼 간 수수료와 등록 사용량을 한 번에 돌려준다. 가격 설정에 넣어 둔
- * 숫자가 현실과 맞는지 사람이 화면에서 바로 대조할 수 있어야 한다. 읽기만 한다.
+ * eBay가 실제로 떼 간 수수료와 등록수수료 청구 내역을 한 번에 돌려준다. 가격 설정에
+ * 넣어 둔 숫자가 현실과 맞는지 사람이 화면에서 바로 대조할 수 있어야 한다. 읽기만 한다.
+ *
+ * 등록수수료(INSERTION_FEE)는 eBay 정산 거래에서 확인된 것만 센다. 계정의 판매 한도
+ * (Selling Limit)나 우리가 올린 리스팅 수로 예상 금액을 만들지 않는다. 둘 다 무료 등록
+ * 한도가 아니고, Good 'Til Cancelled 리스팅이 다음 달로 자동 갱신될 때도 등록수수료가
+ * 붙기 때문에 등록 건수만으로는 청구를 맞힐 수 없다.
  */
 export async function GET(request: Request) {
   try {
     const user = await requireApiUser();
     const url = new URL(request.url);
     const days = Math.min(365, Math.max(30, Number(url.searchParams.get("days") ?? 180)));
-    const settings = await prisma.pricingSettings.findUnique({ where: { id: "default" } });
-    const allowance = settings?.freeListingAllowance ?? 250;
 
-    const finance = await getFinanceFeeBreakdown(user.id, days, true, "INSERTION_FEE");
+    // 정산을 못 읽으면 수수료는 "확인 불가"다. 다른 값으로 추정하지 않는다.
+    let finance: Awaited<ReturnType<typeof getFinanceFeeBreakdown>> | null = null;
+    let financeError = "";
+    try {
+      finance = await getFinanceFeeBreakdown(user.id, days, true, "INSERTION_FEE");
+    } catch (error) {
+      financeError = asErrorMessage(error);
+    }
+
     const account = await getActiveEbayAccount(user.id);
     const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
     const orderBody = await getOrdersFromEbay(account, { creationDateFrom: from }, 200, 0);
@@ -49,32 +57,21 @@ export async function GET(request: Request) {
     }
 
     const feeOf = (type: string) =>
-      finance.fees.find((row) => row.feeType === type)?.amount ?? 0;
+      finance?.fees.find((row) => row.feeType === type)?.amount ?? 0;
     const finalValue = feeOf("FINAL_VALUE_FEE");
     const international = feeOf("INTERNATIONAL_FEE");
     const perOrder = feeOf("FINAL_VALUE_FEE_FIXED_PER_ORDER");
     const advertising = feeOf("AD_FEE");
     const insertion = feeOf("INSERTION_FEE");
 
-    // 등록수수료는 월마다 무료 한도를 넘긴 만큼만 청구된다. 달별로 나눠 보여 준다.
-    const byMonth = new Map<string, { count: number; amount: number }>();
-    for (const charge of finance.charges ?? []) {
-      if (charge.feeType !== "INSERTION_FEE") continue;
-      const key = charge.date.slice(0, 7);
-      const row = byMonth.get(key) ?? { count: 0, amount: 0 };
-      row.count += 1;
-      row.amount += charge.amount;
-      byMonth.set(key, row);
-    }
-    const thisMonth = monthKey(new Date());
-    const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
-    // 우리가 이번 달에 실제로 올린 건수. eBay 청구 건수와 함께 봐야 한도가 보인다.
+    // eBay 정산에 찍힌 등록수수료만 모은다. 집계식은 src/lib에 하나만 둔다.
+    const insertionSummary = summarizeInsertionFees(finance?.charges ?? []);
+    const monthStart = new Date(`${insertionSummary.month}-01T00:00:00.000Z`);
+
+    // 우리가 이번 달에 올린 건수. 참고용이며 등록수수료 계산에는 쓰지 않는다.
     const publishedThisMonth = await prisma.listingDraft.count({
       where: { ebayItemId: { not: null }, updatedAt: { gte: monthStart } },
     });
-    const paidThisMonth = byMonth.get(thisMonth) ?? { count: 0, amount: 0 };
     // 우리가 마지막으로 수집한 활성 리스팅 수. eBay의 현재 값과 다를 수 있으므로
     // 언제 수집한 것인지 함께 보내고, 이 숫자로 앞으로 나갈 돈을 추정하지 않는다.
     const latestReport = await prisma.ebayReportImport.findFirst({
@@ -82,23 +79,18 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "desc" },
       select: { rowCount: true, createdAt: true },
     });
-    // 최근 30일 동안 실제로 청구된 등록수수료. 추정이 아니라 청구된 금액이다.
-    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const recent = (finance.charges ?? []).filter(
-      (charge) => charge.feeType === "INSERTION_FEE" && new Date(charge.date) >= since,
-    );
     // 어떤 리스팅에 붙었는지 사람이 eBay에서 직접 확인할 수 있게 번호를 남긴다.
-    const chargedItemIds = (finance.raw ?? [])
-      .flatMap((transaction: Record<string, unknown>) =>
-        Array.isArray(transaction.references) ? transaction.references : [],
-      )
-      .map((reference) => String((reference as { referenceId?: string }).referenceId ?? ""))
-      .filter(Boolean)
-      .slice(0, 10);
+    const chargedItemIds = chargedListingIds(finance?.raw ?? []);
 
     return Response.json({
       ok: true,
       days,
+      finance: {
+        // 출처: Sell Finances API GET /sell/finances/v1/transaction
+        available: finance !== null,
+        error: financeError || null,
+        transactionCount: finance?.transactionCount ?? 0,
+      },
       measured: {
         orders: orders.length,
         itemSubtotal: Number(itemSubtotal.toFixed(2)),
@@ -120,28 +112,17 @@ export async function GET(request: Request) {
           (finalValue + international + perOrder + advertising + insertion).toFixed(2),
         ),
       },
-      listing: {
-        allowance,
+      insertionFee: {
+        // eBay 정산에서 확인된 등록수수료만 담는다. 확인 불가면 available이 false다.
+        available: finance !== null,
+        ...insertionSummary,
+        chargedItemIds,
+      },
+      // 참고 숫자. 등록수수료 계산에는 쓰지 않는다.
+      reference: {
+        publishedThisMonth,
         activeListings: latestReport?.rowCount ?? 0,
         activeListingsAt: latestReport?.createdAt ?? null,
-        recentCount: recent.length,
-        recentAmount: Number(recent.reduce((sum, charge) => sum + charge.amount, 0).toFixed(2)),
-        chargedItemIds,
-        publishedThisMonth,
-        paidThisMonth: paidThisMonth.count,
-        paidAmountThisMonth: Number(paidThisMonth.amount.toFixed(2)),
-        freeUsedThisMonth: Math.max(0, publishedThisMonth - paidThisMonth.count),
-        insertionFeePerListing:
-          paidThisMonth.count > 0
-            ? Number((paidThisMonth.amount / paidThisMonth.count).toFixed(2))
-            : null,
-        months: [...byMonth.entries()]
-          .map(([month, value]) => ({
-            month,
-            count: value.count,
-            amount: Number(value.amount.toFixed(2)),
-          }))
-          .sort((a, b) => a.month.localeCompare(b.month)),
       },
     });
   } catch (error) {
