@@ -356,32 +356,37 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
                   </p>
                   <p className="mt-1 text-[11px] text-zinc-500">eBay 공표 요금제 기준</p>
                 </div>
-                <div
-                  className={`rounded-xl p-4 ${
-                    insertionFee?.auto.allowanceExhausted ? "bg-rose-50" : "bg-emerald-50"
-                  }`}
-                >
-                  <p className="text-xs text-zinc-600">추가요금 없이 더 올릴 수 있는 수</p>
-                  <p
-                    className={`mt-1 text-2xl font-bold ${
-                      insertionFee?.auto.allowanceExhausted ? "text-rose-700" : "text-emerald-700"
-                    }`}
-                  >
-                    {insertionFee?.auto.allowanceExhausted
-                      ? "0건"
-                      : `최대 ${store.remainingAtMost.toLocaleString()}건`}
+                <div className="rounded-xl bg-zinc-50 p-4">
+                  <p className="text-xs text-zinc-600">추가요금 없이 더 올릴 수 있는 수 (참고)</p>
+                  <p className="mt-1 text-2xl font-bold">
+                    약 {store.remainingAtMost.toLocaleString()}건
                   </p>
                   <p className="mt-1 text-[11px] text-zinc-500">
-                    이번 달 우리 등록 {store.usedAtLeast.toLocaleString()}건 기준
+                    한도 {store.freeListingAllowance.toLocaleString()} − 이번 달 우리 등록{" "}
+                    {store.usedAtLeast.toLocaleString()}건
                   </p>
                 </div>
               </div>
+              {insertionFee && (
+                <p
+                  className={`mt-3 rounded-xl p-3 text-sm font-semibold ${
+                    insertionFee.auto.allowanceExhausted
+                      ? "bg-rose-50 text-rose-700"
+                      : "bg-emerald-50 text-emerald-700"
+                  }`}
+                >
+                  {insertionFee.auto.allowanceExhausted
+                    ? `지금 등록수수료가 붙고 있습니다 · 최근 ${insertionFee.auto.signalDays}일 청구 ${insertionFee.auto.recentChargedCount.toLocaleString()}건`
+                    : `지금은 등록수수료가 붙지 않습니다 · 최근 ${insertionFee.auto.signalDays}일 청구 없음`}
+                </p>
+              )}
               <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
-                남은 수는 <strong>eBay가 확인해 준 값이 아닙니다.</strong> 요금제 한도에서 이번 달 우리
-                등록 수를 뺀 값이라 어긋날 수 있습니다. Good &apos;Til Cancelled 리스팅의 자동 갱신도 무료
-                할당량을 쓰므로 실제로는 더 적을 수 있고, 반대로 이번 달에 스토어를 새로 구독했다면 eBay가
-                그 달 할당량을 통째로 새로 주므로 더 많을 수도 있습니다. <strong>확실한 것은 실제 청구뿐
-                입니다</strong> — 아래 등록수수료가 다시 붙기 시작하면 그때 한도를 넘긴 것입니다.
+                남은 수는 <strong>eBay가 알려주는 값이 아닙니다.</strong> 남은 무료 등록 수를 돌려주는 eBay
+                API는 없어서, 요금제 한도에서 이번 달 우리 등록 수를 뺀 참고치입니다. Good &apos;Til
+                Cancelled 리스팅의 자동 갱신도 할당량을 쓰므로 실제로는 더 적을 수 있고, 이번 달에 스토어를
+                새로 구독했다면 eBay가 그 달 할당량을 통째로 새로 주므로 더 많을 수도 있습니다.
+                <strong> 믿을 수 있는 것은 위의 실제 청구 여부입니다.</strong> 정확한 잔여 수는 eBay Seller
+                Hub의 무료 등록 한도 화면에서 확인하세요.
               </p>
             </>
           )}
@@ -749,7 +754,12 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
 
         <h3 className="mt-6 text-sm font-bold text-zinc-900">4. 목표</h3>
         <div className="mt-3 grid gap-5 sm:grid-cols-3">
-          {field("targetMarginPercent", "목표 마진율", "원가 대비 남길 비율", "%")}
+          {field(
+            "targetMarginPercent",
+            "목표 마진율",
+            "수수료를 모두 뺀 뒤 원가 대비 남길 비율입니다. 30%면 원가 1만원짜리에서 3천원이 남습니다.",
+            "%",
+          )}
           <label className="text-sm font-medium text-zinc-700">
             <span className="block">공통 최소 판매가</span>
             <span className="mt-1.5 flex items-center gap-2">
@@ -840,10 +850,21 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
                 <span>판매가에서 남는 돈</span>
                 <span>{money(sample.proceeds)}</span>
               </div>
-              <div className="flex justify-between py-1.5 font-bold">
-                <span>원가를 뺀 이익</span>
+              <div className="flex justify-between border-b py-1.5 font-bold">
+                <span>내 순수익 (수수료 다 뺀 뒤)</span>
                 <span className={sample.proceeds - sample.costUsd >= 0 ? "text-emerald-700" : "text-rose-700"}>
-                  {money(sample.proceeds - sample.costUsd)} · 마진 {(sample.margin * 100).toFixed(1)}%
+                  {money(sample.proceeds - sample.costUsd)}
+                </span>
+              </div>
+              {/* 같은 이익도 무엇으로 나누냐에 따라 숫자가 달라진다. 둘 다 보여 준다. */}
+              <div className="flex justify-between py-1.5 text-xs text-zinc-600">
+                <span>원가 대비 (= 목표 마진율 설정값)</span>
+                <span className="font-semibold">{(sample.margin * 100).toFixed(1)}%</span>
+              </div>
+              <div className="flex justify-between text-xs text-zinc-600">
+                <span>판매가 대비</span>
+                <span className="font-semibold">
+                  {sample.price ? (((sample.proceeds - sample.costUsd) / sample.price) * 100).toFixed(1) : "—"}%
                 </span>
               </div>
             </div>

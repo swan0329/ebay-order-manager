@@ -140,10 +140,10 @@ export async function GET(request: Request) {
             // 요금제 한도에서 우리가 이번 달 올린 수를 뺀 값. eBay가 확인해 준 잔여가
             // 아니다. GTC 자동 갱신도 할당량을 쓰므로 실제 잔여는 이보다 적을 수 있다.
             usedAtLeast: publishedThisMonth,
-            remainingAtMost:
-              insertionSummary.chargedCount > 0
-                ? 0
-                : Math.max(0, subscription.freeListingAllowance - publishedThisMonth),
+            // 이번 달 청구가 있었다고 0으로 만들지 않는다. 달 중간에 구독하면 그 달
+            // 할당량을 새로 받으므로 구독 전 청구는 지금 한도와 무관하다. 지금도
+            // 청구되고 있는지는 insertionFee.auto가 최근 며칠로 따로 판단한다.
+            remainingAtMost: Math.max(0, subscription.freeListingAllowance - publishedThisMonth),
           }
         : { available: false, error: subscriptionError || null },
       // 참고 숫자. 등록수수료 계산에는 쓰지 않는다.
