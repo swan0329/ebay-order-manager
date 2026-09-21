@@ -131,7 +131,7 @@ export async function GET(request: Request) {
         ...insertionSummary,
         chargedItemIds,
         // 가격 계산에 자동으로 들어가는 금액. 사람이 손으로 넣지 않는다.
-        auto: recommendedInsertionFeeUsd(insertionSummary),
+        auto: recommendedInsertionFeeUsd(finance?.charges ?? []),
       },
       store: subscription
         ? {

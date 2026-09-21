@@ -97,26 +97,51 @@ export function chargedListingIds(raw: Array<Record<string, unknown>>, limit = 1
 }
 
 /**
+ * 가격 계산에 넣을 등록수수료를 정하는 기준 기간.
+ *
+ * "이번 달에 청구가 있었나"로 보면 안 된다. eBay 스토어 약관은 달 중간에 구독해도 그
+ * 달의 무료 등록 할당량을 통째로 새로 준다고 밝히고 있다("You receive your entire ZIF
+ * allotment for the calendar month when you sign up, regardless of when you sign up").
+ * 그래서 구독 전에 청구된 건이 같은 달에 남아 있어도 지금은 무료일 수 있다. 달 전체가
+ * 아니라 최근 며칠을 봐야 구독·한도 변화를 따라간다.
+ */
+export const INSERTION_FEE_SIGNAL_DAYS = 7;
+
+/**
  * 가격 계산에 넣을 등록수수료.
  *
- * 이번 달 정산에 등록수수료 청구가 있으면 무료 할당량을 이미 다 쓴 달이므로, 지금
- * 올리는 리스팅에도 같은 단가가 붙는다. 그 단가를 그대로 쓴다. 청구가 없으면 아직
- * 무료 구간이므로 0이다.
- *
- * 이번 달 청구가 없더라도 지난 달에 청구가 있었다면 단가만 참고로 돌려준다. 가격에
- * 넣을 금액(usd)은 어디까지나 이번 달 실제 청구 여부로 정한다.
+ * 최근 며칠 안에 실제로 청구가 있었으면 지금도 할당량 밖이므로 그 단가를 판매가에
+ * 얹는다. 청구가 멎었으면 0이다. 판단 근거는 언제나 정산에 찍힌 청구뿐이고, 할당량
+ * 잔여를 추측해서 정하지 않는다.
  */
-export function recommendedInsertionFeeUsd(summary: InsertionFeeSummary) {
-  const lastCharged = [...summary.months].reverse().find((month) => month.count > 0);
+export function recommendedInsertionFeeUsd(
+  charges: InsertionCharge[],
+  now: Date = new Date(),
+) {
+  const insertion = charges.filter(
+    (charge) => charge.feeType === "INSERTION_FEE" && charge.amount > 0,
+  );
+  const since = new Date(now.getTime() - INSERTION_FEE_SIGNAL_DAYS * 24 * 60 * 60 * 1000);
+  const recent = insertion.filter((charge) => new Date(charge.date) >= since);
+  const unitOf = (rows: InsertionCharge[]) =>
+    rows.length > 0
+      ? Number((rows.reduce((sum, row) => sum + row.amount, 0) / rows.length).toFixed(2))
+      : null;
+  // 최근 청구가 없어도 단가는 마지막으로 청구된 날의 값으로 알 수 있다. 설명에만 쓴다.
+  const lastDate = insertion.map((charge) => charge.date).sort().at(-1);
   const knownUnitUsd =
-    summary.perChargeUsd ??
-    (lastCharged ? Number((lastCharged.amount / lastCharged.count).toFixed(2)) : null);
+    unitOf(recent) ?? unitOf(insertion.filter((charge) => charge.date === lastDate));
   return {
     /** 판매가에 얹을 금액 */
-    usd: summary.chargedCount > 0 ? (summary.perChargeUsd ?? 0) : 0,
+    usd: recent.length > 0 ? (unitOf(recent) ?? 0) : 0,
     /** 최근에 확인된 건당 단가. 화면 설명용이다. */
     knownUnitUsd,
-    /** 이번 달 무료 할당량을 다 썼는지. 청구가 한 건이라도 있으면 다 쓴 것이다. */
-    allowanceExhausted: summary.chargedCount > 0,
+    /** 지금도 할당량 밖인지. 최근 며칠 안의 실제 청구로만 판단한다. */
+    allowanceExhausted: recent.length > 0,
+    /** 판단에 쓴 최근 청구 건수 */
+    recentChargedCount: recent.length,
+    signalDays: INSERTION_FEE_SIGNAL_DAYS,
+    /** 마지막으로 등록수수료가 청구된 날 */
+    lastChargedDate: lastDate ?? null,
   };
 }

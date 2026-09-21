@@ -73,34 +73,56 @@ describe("chargedListingIds", () => {
 });
 
 describe("recommendedInsertionFeeUsd", () => {
-  it("이번 달 청구가 있으면 그 단가를 판매가에 얹는다", () => {
-    const summary = summarizeInsertionFees(
-      [{ date: "2026-09-11", feeType: "INSERTION_FEE", amount: 0.35 }],
+  it("최근에 청구가 있으면 그 단가를 판매가에 얹는다", () => {
+    const result = recommendedInsertionFeeUsd(
+      [{ date: "2026-09-20", feeType: "INSERTION_FEE", amount: 0.35 }],
       now,
     );
-    expect(recommendedInsertionFeeUsd(summary)).toEqual({
-      usd: 0.35,
-      knownUnitUsd: 0.35,
-      allowanceExhausted: true,
-    });
+    expect(result.usd).toBe(0.35);
+    expect(result.allowanceExhausted).toBe(true);
+    expect(result.recentChargedCount).toBe(1);
   });
 
-  it("이번 달 청구가 없으면 0을 얹되 지난 단가는 참고로 남긴다", () => {
-    const summary = summarizeInsertionFees(
-      [{ date: "2026-07-02", feeType: "INSERTION_FEE", amount: 0.35 }],
+  // 달 중간에 스토어를 구독하면 그 달 할당량을 통째로 새로 받는다. 같은 달 앞부분의
+  // 청구가 남아 있어도 지금은 무료일 수 있으므로 판매가에 얹으면 안 된다.
+  it("구독 전 같은 달 청구는 판매가에 얹지 않는다", () => {
+    const result = recommendedInsertionFeeUsd(
+      [
+        { date: "2026-09-11", feeType: "INSERTION_FEE", amount: 0.35 },
+        { date: "2026-09-12", feeType: "INSERTION_FEE", amount: 0.35 },
+      ],
       now,
     );
-    const result = recommendedInsertionFeeUsd(summary);
     expect(result.usd).toBe(0);
     expect(result.allowanceExhausted).toBe(false);
     expect(result.knownUnitUsd).toBe(0.35);
+    expect(result.lastChargedDate).toBe("2026-09-12");
   });
 
   it("청구 기록이 아예 없으면 단가를 지어내지 않는다", () => {
-    expect(recommendedInsertionFeeUsd(summarizeInsertionFees([], now))).toEqual({
+    expect(recommendedInsertionFeeUsd([], now)).toMatchObject({
       usd: 0,
       knownUnitUsd: null,
       allowanceExhausted: false,
+      lastChargedDate: null,
     });
+  });
+
+  it("환급은 청구 신호로 세지 않는다", () => {
+    const result = recommendedInsertionFeeUsd(
+      [{ date: "2026-09-20", feeType: "INSERTION_FEE", amount: -0.35 }],
+      now,
+    );
+    expect(result.usd).toBe(0);
+    expect(result.allowanceExhausted).toBe(false);
+  });
+
+  it("다른 수수료 항목은 보지 않는다", () => {
+    const result = recommendedInsertionFeeUsd(
+      [{ date: "2026-09-20", feeType: "AD_FEE", amount: 4.25 }],
+      now,
+    );
+    expect(result.usd).toBe(0);
+    expect(result.allowanceExhausted).toBe(false);
   });
 });

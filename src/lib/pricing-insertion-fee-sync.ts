@@ -23,7 +23,7 @@ export async function syncInsertionFeeSetting(userId: string) {
 
   const finance = await getFinanceFeeBreakdown(userId, LOOKBACK_DAYS, true);
   const summary = summarizeInsertionFees(finance.charges ?? []);
-  const recommended = recommendedInsertionFeeUsd(summary);
+  const recommended = recommendedInsertionFeeUsd(finance.charges ?? []);
 
   const current = Number(settings.insertionFeeUsd);
   // 1센트 미만 차이는 반올림 잡음이다. 저장 이력을 늘리지 않는다.

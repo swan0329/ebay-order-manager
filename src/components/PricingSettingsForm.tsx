@@ -54,7 +54,14 @@ type Usage = {
     chargedItemIds: string[];
     months: Array<{ month: string; count: number; refunded: number; amount: number }>;
     /** 가격 계산에 자동으로 들어가는 금액 */
-    auto: { usd: number; knownUnitUsd: number | null; allowanceExhausted: boolean };
+    auto: {
+      usd: number;
+      knownUnitUsd: number | null;
+      allowanceExhausted: boolean;
+      recentChargedCount: number;
+      signalDays: number;
+      lastChargedDate: string | null;
+    };
   };
   /** 스토어 구독 등급과 그 등급의 무료 등록 한도 */
   store:
@@ -370,11 +377,11 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
                 </div>
               </div>
               <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
-                남은 수는 <strong>eBay가 확인해 준 값이 아니라 요금제 한도에서 우리 등록 수를 뺀
-                값</strong>입니다. Good &apos;Til Cancelled 리스팅이 다음 달로 자동 갱신될 때도 무료
-                할당량을 쓰기 때문에 <strong>실제로는 이보다 적을 수 있습니다</strong>. 한도를 정말
-                넘겼는지는 아래 실제 등록수수료 청구로 판단합니다. 이번 달 청구가 한 건이라도 있으면
-                이미 소진된 것입니다.
+                남은 수는 <strong>eBay가 확인해 준 값이 아닙니다.</strong> 요금제 한도에서 이번 달 우리
+                등록 수를 뺀 값이라 어긋날 수 있습니다. Good &apos;Til Cancelled 리스팅의 자동 갱신도 무료
+                할당량을 쓰므로 실제로는 더 적을 수 있고, 반대로 이번 달에 스토어를 새로 구독했다면 eBay가
+                그 달 할당량을 통째로 새로 주므로 더 많을 수도 있습니다. <strong>확실한 것은 실제 청구뿐
+                입니다</strong> — 아래 등록수수료가 다시 붙기 시작하면 그때 한도를 넘긴 것입니다.
               </p>
             </>
           )}
@@ -728,13 +735,15 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
             {!insertionFee
               ? "eBay 정산을 읽는 중입니다."
               : insertionFee.auto.allowanceExhausted
-                ? `이번 달 무료 등록 한도를 이미 다 썼습니다. eBay가 건당 ${money(insertionFee.auto.usd)}씩 청구하고 있어 그 금액을 판매가에 얹습니다.`
-                : insertionFee.auto.knownUnitUsd
-                  ? `이번 달은 아직 무료 한도 안이라 0을 얹습니다. 한도를 넘기면 건당 ${money(insertionFee.auto.knownUnitUsd)}가 자동으로 반영됩니다.`
+                ? `최근 ${insertionFee.auto.signalDays}일 안에 등록수수료가 ${insertionFee.auto.recentChargedCount.toLocaleString()}건 청구됐습니다. 지금도 무료 한도 밖이므로 건당 ${money(insertionFee.auto.usd)}를 판매가에 얹습니다.`
+                : insertionFee.auto.lastChargedDate
+                  ? `최근 ${insertionFee.auto.signalDays}일 안에는 등록수수료 청구가 없어 0을 얹습니다. 마지막 청구는 ${insertionFee.auto.lastChargedDate}였고, 다시 청구되기 시작하면 건당 ${money(insertionFee.auto.knownUnitUsd ?? 0)}가 자동으로 반영됩니다.`
                   : "등록수수료가 청구된 기록이 없어 0을 얹습니다."}
           </p>
           <p className="mt-1 text-xs text-zinc-500">
-            eBay 정산 내역을 보고 하루 한 번 자동으로 맞춥니다. 직접 입력하지 않습니다.
+            eBay 정산 내역을 보고 하루 한 번 자동으로 맞춥니다. 직접 입력하지 않습니다. 달 중간에 스토어를
+            구독하면 그 달 무료 한도를 통째로 새로 받기 때문에, 달 전체가 아니라 최근 며칠의 실제 청구로
+            판단합니다.
           </p>
         </div>
 
