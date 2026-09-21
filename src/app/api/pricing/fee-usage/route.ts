@@ -4,7 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 import { getActiveEbayAccount } from "@/lib/services/ebayApiService";
 import { getFinanceFeeBreakdown } from "@/lib/services/ebayFinanceService";
-import { chargedListingIds, summarizeInsertionFees } from "@/lib/ebay-insertion-fees";
+import {
+  chargedListingIds,
+  recommendedInsertionFeeUsd,
+  summarizeInsertionFees,
+} from "@/lib/ebay-insertion-fees";
+import { getStoreSubscription, type StoreSubscription } from "@/lib/ebay-store-subscription";
 
 export const maxDuration = 60;
 
@@ -39,6 +44,14 @@ export async function GET(request: Request) {
     }
 
     const account = await getActiveEbayAccount(user.id);
+    // 스토어 구독 등급. 등급이 바뀌면 무료 등록 할당량도 바뀐다.
+    let subscription: StoreSubscription | null = null;
+    let subscriptionError = "";
+    try {
+      subscription = await getStoreSubscription(account);
+    } catch (error) {
+      subscriptionError = asErrorMessage(error);
+    }
     const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
     const orderBody = await getOrdersFromEbay(account, { creationDateFrom: from }, 200, 0);
     const orders = (orderBody.orders ?? []) as Array<Record<string, unknown>>;
@@ -117,7 +130,22 @@ export async function GET(request: Request) {
         available: finance !== null,
         ...insertionSummary,
         chargedItemIds,
+        // 가격 계산에 자동으로 들어가는 금액. 사람이 손으로 넣지 않는다.
+        auto: recommendedInsertionFeeUsd(insertionSummary),
       },
+      store: subscription
+        ? {
+            available: true,
+            ...subscription,
+            // 요금제 한도에서 우리가 이번 달 올린 수를 뺀 값. eBay가 확인해 준 잔여가
+            // 아니다. GTC 자동 갱신도 할당량을 쓰므로 실제 잔여는 이보다 적을 수 있다.
+            usedAtLeast: publishedThisMonth,
+            remainingAtMost:
+              insertionSummary.chargedCount > 0
+                ? 0
+                : Math.max(0, subscription.freeListingAllowance - publishedThisMonth),
+          }
+        : { available: false, error: subscriptionError || null },
       // 참고 숫자. 등록수수료 계산에는 쓰지 않는다.
       reference: {
         publishedThisMonth,

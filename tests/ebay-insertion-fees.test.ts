@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chargedListingIds, summarizeInsertionFees } from "@/lib/ebay-insertion-fees";
+import { chargedListingIds, recommendedInsertionFeeUsd, summarizeInsertionFees } from "@/lib/ebay-insertion-fees";
 
 const now = new Date("2026-09-21T00:00:00.000Z");
 
@@ -69,5 +69,38 @@ describe("chargedListingIds", () => {
         { references: null },
       ]),
     ).toEqual(["285000000001", "285000000002"]);
+  });
+});
+
+describe("recommendedInsertionFeeUsd", () => {
+  it("이번 달 청구가 있으면 그 단가를 판매가에 얹는다", () => {
+    const summary = summarizeInsertionFees(
+      [{ date: "2026-09-11", feeType: "INSERTION_FEE", amount: 0.35 }],
+      now,
+    );
+    expect(recommendedInsertionFeeUsd(summary)).toEqual({
+      usd: 0.35,
+      knownUnitUsd: 0.35,
+      allowanceExhausted: true,
+    });
+  });
+
+  it("이번 달 청구가 없으면 0을 얹되 지난 단가는 참고로 남긴다", () => {
+    const summary = summarizeInsertionFees(
+      [{ date: "2026-07-02", feeType: "INSERTION_FEE", amount: 0.35 }],
+      now,
+    );
+    const result = recommendedInsertionFeeUsd(summary);
+    expect(result.usd).toBe(0);
+    expect(result.allowanceExhausted).toBe(false);
+    expect(result.knownUnitUsd).toBe(0.35);
+  });
+
+  it("청구 기록이 아예 없으면 단가를 지어내지 않는다", () => {
+    expect(recommendedInsertionFeeUsd(summarizeInsertionFees([], now))).toEqual({
+      usd: 0,
+      knownUnitUsd: null,
+      allowanceExhausted: false,
+    });
   });
 });

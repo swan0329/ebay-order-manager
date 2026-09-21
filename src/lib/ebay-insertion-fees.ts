@@ -95,3 +95,28 @@ export function chargedListingIds(raw: Array<Record<string, unknown>>, limit = 1
     .filter(Boolean)
     .slice(0, limit);
 }
+
+/**
+ * 가격 계산에 넣을 등록수수료.
+ *
+ * 이번 달 정산에 등록수수료 청구가 있으면 무료 할당량을 이미 다 쓴 달이므로, 지금
+ * 올리는 리스팅에도 같은 단가가 붙는다. 그 단가를 그대로 쓴다. 청구가 없으면 아직
+ * 무료 구간이므로 0이다.
+ *
+ * 이번 달 청구가 없더라도 지난 달에 청구가 있었다면 단가만 참고로 돌려준다. 가격에
+ * 넣을 금액(usd)은 어디까지나 이번 달 실제 청구 여부로 정한다.
+ */
+export function recommendedInsertionFeeUsd(summary: InsertionFeeSummary) {
+  const lastCharged = [...summary.months].reverse().find((month) => month.count > 0);
+  const knownUnitUsd =
+    summary.perChargeUsd ??
+    (lastCharged ? Number((lastCharged.amount / lastCharged.count).toFixed(2)) : null);
+  return {
+    /** 판매가에 얹을 금액 */
+    usd: summary.chargedCount > 0 ? (summary.perChargeUsd ?? 0) : 0,
+    /** 최근에 확인된 건당 단가. 화면 설명용이다. */
+    knownUnitUsd,
+    /** 이번 달 무료 할당량을 다 썼는지. 청구가 한 건이라도 있으면 다 쓴 것이다. */
+    allowanceExhausted: summary.chargedCount > 0,
+  };
+}

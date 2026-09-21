@@ -31,6 +31,9 @@ export async function PUT(request: Request) {
   try {
     const user = await requireApiUser();
     const body = await request.json();
+    // 등록수수료는 eBay 정산을 보고 자동으로 맞춘다. 화면이 보내지 않으면 지금 값을
+    // 지킨다. 없는 값을 0으로 밀면 판매가가 조용히 낮아진다.
+    const existing = await prisma.pricingSettings.findUnique({ where: { id: "default" } });
     const input = {
       domesticShippingKrw: String(body.domesticShippingKrw ?? ""),
       buyingAgencyFeeKrw: String(body.buyingAgencyFeeKrw ?? ""),
@@ -42,7 +45,7 @@ export async function PUT(request: Request) {
       perOrderFeeUsd: String(body.perOrderFeeUsd ?? "0"),
       buyerShippingUsd: String(body.buyerShippingUsd ?? "0"),
       salesTaxUpliftRate: String(body.salesTaxUpliftRate ?? "0"),
-      insertionFeeUsd: String(body.insertionFeeUsd ?? "0"),
+      insertionFeeUsd: String(body.insertionFeeUsd ?? existing?.insertionFeeUsd ?? "0"),
       minimumSalePriceUsd:
         body.minimumSalePriceUsd === "" || body.minimumSalePriceUsd == null
           ? null
