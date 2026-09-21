@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-import { calculateRecommendedPrice } from "@/lib/pricing";
+import { calculateRecommendedPrice, pricingInputsFromSettings } from "@/lib/pricing";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
 // 원화 원가를 넣으면 저장된 가격 설정으로 권장 판매가(USD)를 계산해 보여준다.
@@ -25,17 +25,7 @@ export async function POST(request: Request) {
       return jsonError("가격 설정을 먼저 저장해 주세요.", 422);
     }
 
-    const result = calculateRecommendedPrice({
-      pocaPriceKrw: priceKrw,
-      domesticShippingKrw: settings.domesticShippingKrw,
-      buyingAgencyFeeKrw: settings.buyingAgencyFeeKrw,
-      exchangeRateKrwPerUsd: settings.exchangeRateKrwPerUsd,
-      targetMarginRate: settings.targetMarginRate,
-      ebayFeeRate: settings.ebayFeeRate,
-      advertisingRate: settings.advertisingRate,
-      minimumSalePriceUsd: settings.minimumSalePriceUsd,
-      roundingIncrementUsd: settings.roundingIncrementUsd,
-    });
+    const result = calculateRecommendedPrice(pricingInputsFromSettings(settings, priceKrw));
 
     return Response.json({
       recommendedPriceUsd: result.recommendedPriceUsd.toFixed(2),

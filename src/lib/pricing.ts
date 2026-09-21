@@ -22,6 +22,53 @@ export type PricingInputs = {
   roundingIncrementUsd?: Prisma.Decimal.Value;
 };
 
+/**
+ * 저장된 가격 설정을 계산 입력으로 옮긴다.
+ *
+ * 계산에 쓰는 설정은 반드시 이 함수 하나를 거친다. 호출부마다 필드를 손으로 나열하면
+ * 새 수수료 항목이 추가될 때 조용히 빠져 실제 판매가만 낮아진다. 2026-09-18에
+ * 국제수수료·주문당 고정비·구매자 배송비·판매세 가산·등록수수료를 계산식에 넣었지만
+ * 등록·변동 경로가 옛 필드 목록을 그대로 쓰는 바람에 그 다섯 항목이 전부 0으로
+ * 계산됐다. 같은 일이 반복되지 않도록 입력 구성을 한곳에 둔다.
+ */
+export type PricingSettingsRow = {
+  domesticShippingKrw: Prisma.Decimal.Value;
+  buyingAgencyFeeKrw: Prisma.Decimal.Value;
+  exchangeRateKrwPerUsd: Prisma.Decimal.Value;
+  targetMarginRate: Prisma.Decimal.Value;
+  ebayFeeRate: Prisma.Decimal.Value;
+  advertisingRate: Prisma.Decimal.Value;
+  internationalFeeRate?: Prisma.Decimal.Value;
+  perOrderFeeUsd?: Prisma.Decimal.Value;
+  buyerShippingUsd?: Prisma.Decimal.Value;
+  salesTaxUpliftRate?: Prisma.Decimal.Value;
+  insertionFeeUsd?: Prisma.Decimal.Value;
+  minimumSalePriceUsd?: Prisma.Decimal.Value | null;
+  roundingIncrementUsd?: Prisma.Decimal.Value;
+};
+
+export function pricingInputsFromSettings(
+  settings: PricingSettingsRow,
+  pocaPriceKrw: Prisma.Decimal.Value,
+): PricingInputs {
+  return {
+    pocaPriceKrw,
+    domesticShippingKrw: settings.domesticShippingKrw,
+    buyingAgencyFeeKrw: settings.buyingAgencyFeeKrw,
+    exchangeRateKrwPerUsd: settings.exchangeRateKrwPerUsd,
+    targetMarginRate: settings.targetMarginRate,
+    ebayFeeRate: settings.ebayFeeRate,
+    advertisingRate: settings.advertisingRate,
+    internationalFeeRate: settings.internationalFeeRate ?? 0,
+    perOrderFeeUsd: settings.perOrderFeeUsd ?? 0,
+    buyerShippingUsd: settings.buyerShippingUsd ?? 0,
+    salesTaxUpliftRate: settings.salesTaxUpliftRate ?? 0,
+    insertionFeeUsd: settings.insertionFeeUsd ?? 0,
+    minimumSalePriceUsd: settings.minimumSalePriceUsd,
+    roundingIncrementUsd: settings.roundingIncrementUsd,
+  };
+}
+
 export function validatePricingSettings(input: Omit<PricingInputs, "pocaPriceKrw">) {
   const values = [
     input.domesticShippingKrw,

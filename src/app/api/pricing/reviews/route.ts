@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { calculateRecommendedPrice } from "@/lib/pricing";
+import { calculateRecommendedPrice, pricingInputsFromSettings } from "@/lib/pricing";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
 
 function itemJson(item: {
@@ -51,19 +51,24 @@ export async function POST(request: Request) {
     ]);
     if (!settings) throw new Error("가격 설정을 먼저 저장해 주세요.");
     if (products.length !== productIds.length) throw new Error("일부 상품을 찾을 수 없습니다.");
+    // 저장할 열만 골라 담는다. 계산 결과를 통째로 펼치면 열에 없는 항목까지 들어가
+    // Prisma가 저장을 거부한다.
     const calculated = products.map((product) => {
       if (product.salePrice == null) throw new Error("포카마켓 가격이 없는 상품이 포함되어 있습니다.");
-      return { productId: product.id, ...calculateRecommendedPrice({
-        pocaPriceKrw: product.salePrice,
-        domesticShippingKrw: settings.domesticShippingKrw,
-        buyingAgencyFeeKrw: settings.buyingAgencyFeeKrw,
-        exchangeRateKrwPerUsd: settings.exchangeRateKrwPerUsd,
-        targetMarginRate: settings.targetMarginRate,
-        ebayFeeRate: settings.ebayFeeRate,
-        advertisingRate: settings.advertisingRate,
-        minimumSalePriceUsd: settings.minimumSalePriceUsd,
-        roundingIncrementUsd: settings.roundingIncrementUsd,
-      }) };
+      const result = calculateRecommendedPrice(
+        pricingInputsFromSettings(settings, product.salePrice),
+      );
+      return {
+        productId: product.id,
+        pocaPriceKrw: result.pocaPriceKrw,
+        totalCostKrw: result.totalCostKrw,
+        costUsd: result.costUsd,
+        rawRecommendedPriceUsd: result.rawRecommendedPriceUsd,
+        recommendedPriceUsd: result.recommendedPriceUsd,
+        expectedProceedsUsd: result.expectedProceedsUsd,
+        expectedNetMarginUsd: result.expectedNetMarginUsd,
+        expectedNetMarginRate: result.expectedNetMarginRate,
+      };
     });
     const review = await prisma.pricingReview.create({
       data: {
@@ -72,6 +77,12 @@ export async function POST(request: Request) {
         exchangeRateKrwPerUsd: settings.exchangeRateKrwPerUsd,
         targetMarginRate: settings.targetMarginRate, ebayFeeRate: settings.ebayFeeRate,
         advertisingRate: settings.advertisingRate,
+        // 계산 당시 쓴 수수료 설정을 빠짐없이 남긴다.
+        internationalFeeRate: settings.internationalFeeRate,
+        perOrderFeeUsd: settings.perOrderFeeUsd,
+        buyerShippingUsd: settings.buyerShippingUsd,
+        salesTaxUpliftRate: settings.salesTaxUpliftRate,
+        insertionFeeUsd: settings.insertionFeeUsd,
         minimumSalePriceUsd: settings.minimumSalePriceUsd,
         roundingIncrementUsd: settings.roundingIncrementUsd,
         allocationMethod: settings.allocationMethod, createdById: user.id,

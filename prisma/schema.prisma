@@ -735,6 +735,12 @@ model PricingReview {
   targetMarginRate      Decimal   @map("target_margin_rate") @db.Decimal(9, 6)
   ebayFeeRate           Decimal   @map("ebay_fee_rate") @db.Decimal(9, 6)
   advertisingRate       Decimal   @map("advertising_rate") @db.Decimal(9, 6)
+  /** 계산 당시 쓴 수수료 설정. 나중에 설정이 바뀌어도 이 검토가 무엇으로 계산됐는지 남는다. */
+  internationalFeeRate  Decimal   @default(0) @map("international_fee_rate") @db.Decimal(9, 6)
+  perOrderFeeUsd        Decimal   @default(0) @map("per_order_fee_usd") @db.Decimal(12, 2)
+  buyerShippingUsd      Decimal   @default(0) @map("buyer_shipping_usd") @db.Decimal(12, 2)
+  salesTaxUpliftRate    Decimal   @default(0) @map("sales_tax_uplift_rate") @db.Decimal(9, 6)
+  insertionFeeUsd       Decimal   @default(0) @map("insertion_fee_usd") @db.Decimal(12, 2)
   minimumSalePriceUsd   Decimal?  @map("minimum_sale_price_usd") @db.Decimal(12, 2)
   roundingIncrementUsd  Decimal   @map("rounding_increment_usd") @db.Decimal(12, 2)
   allocationMethod      String    @map("allocation_method")

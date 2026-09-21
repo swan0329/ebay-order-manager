@@ -1,6 +1,6 @@
 import { Prisma } from "@/generated/prisma";
 import { hasPocamarketPrice } from "@/lib/ebay-listing-fields";
-import { calculateRecommendedPrice } from "@/lib/pricing";
+import { calculateRecommendedPrice, pricingInputsFromSettings, type PricingSettingsRow } from "@/lib/pricing";
 import { procurementHoldReason, procurementCostNeedsVerification, type ProcurementFreshness } from "@/lib/procurement-freshness";
 export type ListingPriceProduct = ProcurementFreshness & {
   stockQuantity?: number;
@@ -12,16 +12,9 @@ export type ListingPriceProduct = ProcurementFreshness & {
   salePrice: Prisma.Decimal | null;
 };
 
-export type ListingPriceSettings = {
-  domesticShippingKrw: Prisma.Decimal.Value;
-  buyingAgencyFeeKrw: Prisma.Decimal.Value;
-  exchangeRateKrwPerUsd: Prisma.Decimal.Value;
-  targetMarginRate: Prisma.Decimal.Value;
-  ebayFeeRate: Prisma.Decimal.Value;
-  advertisingRate: Prisma.Decimal.Value;
-  minimumSalePriceUsd?: Prisma.Decimal.Value | null;
-  roundingIncrementUsd?: Prisma.Decimal.Value;
-};
+// 채널로 나가는 가격의 설정 입력. 계산식이 쓰는 항목과 같아야 하므로 목록을 따로
+// 들고 있지 않는다.
+export type ListingPriceSettings = PricingSettingsRow;
 
 export type ListingPrice = {
   priceUsd: Prisma.Decimal;
@@ -48,17 +41,11 @@ export function resolveListingPriceUsd(
   if (product.stockQuantity === 0 && procurementHoldReason(product)) return null;
   if (hasPocamarketPrice(product)) {
     if (!settings) return null;
-    const result = calculateRecommendedPrice({
-      pocaPriceKrw: product.salePrice!,
-      domesticShippingKrw: settings.domesticShippingKrw,
-      buyingAgencyFeeKrw: settings.buyingAgencyFeeKrw,
-      exchangeRateKrwPerUsd: settings.exchangeRateKrwPerUsd,
-      targetMarginRate: settings.targetMarginRate,
-      ebayFeeRate: settings.ebayFeeRate,
-      advertisingRate: settings.advertisingRate,
-      minimumSalePriceUsd: settings.minimumSalePriceUsd,
-      roundingIncrementUsd: settings.roundingIncrementUsd,
-    });
+    // 설정의 모든 수수료 항목을 그대로 넘긴다. 여기서 항목을 골라 쓰면 판매가가
+    // 설정 화면에서 본 값보다 낮아진다.
+    const result = calculateRecommendedPrice(
+      pricingInputsFromSettings(settings, product.salePrice!),
+    );
     return { priceUsd: result.recommendedPriceUsd, source: "pocamarket" };
   }
   const priceUsd = approvedListingPriceUsd(product);
