@@ -177,12 +177,19 @@ export function LensCardCropper({
         >
           {autoDetecting ? "자동 탐지 취소" : "OpenCV 자동 모서리 탐지"}
         </button>
-        <div className="mx-auto flex max-h-[60vh] w-full items-center justify-center overflow-auto rounded-md bg-zinc-100">
+        {/*
+          높이 한도를 캔버스에 직접 건다. 바깥 상자에 max-height만 주면 안쪽 canvas의
+          max-h-full이 기준 높이를 찾지 못해 줄어들지 않는다. 그러면 세로로 긴 사진은
+          원래 크기로 그려진 뒤 가운데만 남고 위아래가 잘려 확대된 것처럼 보이며,
+          가운데 정렬 때문에 위쪽은 스크롤로도 닿지 않는다. vh는 언제나 기준이 있으므로
+          사진 전체가 화면 안에 들어온다.
+        */}
+        <div className="mx-auto flex w-full justify-center rounded-md bg-zinc-100 p-1">
           <canvas
             ref={canvasRef}
             {...canvasHandlers}
             style={{ touchAction: "none" }}
-            className="block h-auto max-h-full max-w-full cursor-crosshair rounded-md border"
+            className="block h-auto max-h-[70vh] w-auto max-w-full cursor-crosshair rounded-md border"
           />
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
