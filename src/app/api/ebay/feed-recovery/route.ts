@@ -14,8 +14,11 @@ type Target = {
   inventoryError?: string;
 };
 
-function summarize(targetsJson: unknown) {
+function summarize(targetsJson: unknown, submitted: boolean) {
   const targets = Array.isArray(targetsJson) ? (targetsJson as Target[]) : [];
+  // eBay에 보내지 못하고 끝난 작업은 수량을 건드린 적이 없다. 그 대상을 "잠김"으로
+  // 세면 멀쩡한 상품이 품절로 잡혀 숫자가 부풀고 화면이 빨갛게 찬다.
+  if (!submitted) return { total: targets.length, restored: 0, failed: 0, stillHeld: 0, firstErrors: [] };
   const applied = targets.filter((target) => target.inventoryApplied).length;
   const failed = targets.filter((target) => target.inventoryError).length;
   return {
@@ -50,7 +53,11 @@ export async function GET() {
     });
     return Response.json({
       ok: true,
-      jobs: jobs.map(({ targetsJson, ...job }) => ({ ...job, reflection: summarize(targetsJson) })),
+      jobs: jobs.map(({ targetsJson, ...job }) => ({
+        ...job,
+        submitted: Boolean(job.ebayTaskId),
+        reflection: summarize(targetsJson, Boolean(job.ebayTaskId)),
+      })),
     });
   } catch (error) {
     if (error instanceof UnauthorizedError) return jsonError("Unauthorized", 401);
