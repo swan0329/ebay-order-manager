@@ -1,5 +1,6 @@
 import { jsonError } from "@/lib/http";
 import { drainChannelPublishJob } from "@/lib/channel-publish-jobs";
+import { WAITING_STATUS } from "@/lib/channel-publish-constants";
 import { prisma } from "@/lib/prisma";
 import { maintainProcurementChannels } from "@/lib/procurement-maintenance";
 
@@ -24,7 +25,8 @@ export async function GET(request: Request) {
   }
   const jobId = new URL(request.url).searchParams.get("jobId") ?? (await prisma.channelPublishJob.findFirst({
     where: {
-      status: { in: ["QUEUED", "RUNNING"] },
+      // 대기 중인 작업도 집어야 앞 작업이 비정상 종료해도 줄이 이어진다.
+      status: { in: ["QUEUED", "RUNNING", WAITING_STATUS] },
       OR: [{ workerLeaseExpiresAt: null }, { workerLeaseExpiresAt: { lt: new Date() } }],
     },
     orderBy: { updatedAt: "asc" },

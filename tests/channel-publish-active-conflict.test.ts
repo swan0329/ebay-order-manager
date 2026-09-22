@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { publishJobLabel } from "@/lib/channel-publish-labels";
+import { publishJobLabel } from "@/lib/channel-publish-constants";
 
 // 진행 중 작업에 막혔을 때 사람이 기다릴지 중단할지 정하려면 무엇이 막는지 알아야 한다.
 describe("publishJobLabel", () => {

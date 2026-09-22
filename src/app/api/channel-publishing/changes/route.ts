@@ -7,6 +7,7 @@ import { requireApiUser, UnauthorizedError } from "@/lib/session";
 import { jsonError, asErrorMessage } from "@/lib/http";
 import { getChannelImageChanges } from "@/lib/channel-image-changes";
 import { createChannelPublishJob, createShopifyAutomaticOperationJob, drainChannelPublishJob, getShopifyAutomaticOperationProductIds } from "@/lib/channel-publish-jobs";
+import { WAITING_STATUS } from "@/lib/channel-publish-constants";
 import { getEbayFeedOperationTargets, submitEbayFeedOperation } from "@/lib/ebay-feed-operations";
 
 export const maxDuration = 300;
@@ -53,7 +54,13 @@ export async function POST(request: Request) {
     return Response.json({
       job: results[0].status === "fulfilled" ? results[0].value : null,
       imageJob: results[1].status === "fulfilled" ? results[1].value : null,
-      notes: unlinked.length ? [`채널 미등록으로 제외: ${unlinked.join(", ")}`] : [],
+      notes: [
+        ...(unlinked.length ? [`채널 미등록으로 제외: ${unlinked.join(", ")}`] : []),
+        // 거절이 아니라 줄을 섰다는 사실을 알려 줘야 사람이 다시 누르지 않는다.
+        ...(results[0].status === "fulfilled" && results[0].value?.status === WAITING_STATUS
+          ? ["앞 작업이 진행 중이라 대기열에 넣었습니다. 끝나면 이어서 자동으로 처리합니다."]
+          : []),
+      ],
       errors: results.flatMap((r, i) => r.status === "rejected" ? [`${i ? "이미지" : "가격·재고"}: ${asErrorMessage(r.reason)}`] : []),
     }, { status: 202 });
   } catch (error) {

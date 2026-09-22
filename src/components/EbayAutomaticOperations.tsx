@@ -285,7 +285,7 @@ export function ChannelAutomaticOperations() {
           <strong>{kind === "EBAY" ? "eBay" : "Shopify"} 변동처리</strong>
           {entries.map(({label, job}) => {
             const processed = job.processedCount ?? job.successCount + job.failureCount;
-            const status = ({ COMPLETED: "완료", COMPLETED_WITH_ERROR: "일부 실패", FAILED: "실패", CANCELLED: "중단", CANCELED: "중단", QUEUED: "대기", RUNNING: "진행 중" } as Record<string,string>)[job.status] ?? "결과 확인 중";
+            const status = ({ COMPLETED: "완료", COMPLETED_WITH_ERROR: "일부 실패", FAILED: "실패", CANCELLED: "중단", CANCELED: "중단", QUEUED: "대기", RUNNING: "진행 중", WAITING: "차례 대기 중" } as Record<string,string>)[job.status] ?? "결과 확인 중";
             const failures = job.failures ?? job.items?.filter(i => i.status === "FAILED").map(i => ({sku:i.sku,itemId:i.id,message:i.error ?? "처리 실패"})) ?? [];
             return <div key={job.id} className="mt-2 border-t border-current/10 pt-2">
               <p className="font-semibold">{label} · {status}</p>

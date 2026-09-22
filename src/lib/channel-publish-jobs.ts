@@ -28,11 +28,13 @@ import { requestEbayActiveReport } from "@/lib/ebay-active-report-task";
 import { safeLog } from "@/lib/safe-log";
 import { resolveListingPriceUsd } from "@/lib/listing-price";
 import { channelPublishLeaseMs, PublishContinuationError } from "@/lib/channel-publish-runtime";
-import { publishJobLabel } from "@/lib/channel-publish-labels";
+import { publishJobLabel, WAITING_STATUS } from "@/lib/channel-publish-constants";
 
 export type PublishChannel = "EBAY" | "SHOPIFY";
 export type PublishMode = "REGISTER" | "UPSERT" | "PRICE_INVENTORY" | "IMAGES" | "ARCHIVE";
 const terminalStatuses = ["COMPLETED", "COMPLETED_WITH_ERROR", "FAILED", "CANCELLED"];
+/** 줄이 끝없이 길어지지 않게 한 채널·작업당 대기 수를 제한한다. */
+const maxWaitingJobsPerKey = 5;
 
 type PublishJobItem = { targetType: string; targetId: string; sku: string };
 
@@ -71,18 +73,41 @@ async function createExclusivePublishJob(input: {
       include: { items: true },
     });
     if (!active || terminalStatuses.includes(active.status)) throw error;
-    const requested = new Set(input.items.map(item => `${item.targetType}:${item.targetId}`));
-    if (active.items.length !== requested.size || active.items.some(item => !requested.has(`${item.targetType}:${item.targetId}`))) {
-      // 무엇이 막고 있는지 말해 주지 않으면 사람이 기다릴지 중단할지 정할 수 없다.
-      // 화면에 진행 중 작업이 안 보이는 경우가 많아 진행률까지 함께 붙인다.
-      const done = active.items.filter(item => item.status !== "QUEUED" && item.status !== "PROCESSING").length;
+    const sameItems = (items: Array<{ targetType: string; targetId: string }>) => {
+      const requested = new Set(input.items.map(item => `${item.targetType}:${item.targetId}`));
+      return items.length === requested.size &&
+        items.every(item => requested.has(`${item.targetType}:${item.targetId}`));
+    };
+    if (sameItems(active.items)) return { ...active, reusedActiveJob: true };
+
+    // 같은 대상이 이미 줄을 서 있으면 또 세우지 않는다.
+    const waiting = await prisma.channelPublishJob.findMany({
+      where: { userId: input.userId, channel: input.channel, mode: input.mode, status: WAITING_STATUS },
+      orderBy: { createdAt: "asc" },
+      include: { items: true },
+    });
+    const duplicate = waiting.find(job => sameItems(job.items));
+    if (duplicate) return { ...duplicate, reusedActiveJob: true };
+    if (waiting.length >= maxWaitingJobsPerKey) {
       throw new Error(
-        `이미 ${publishJobLabel(active.channel, active.mode)} 작업이 진행 중이라 다른 대상으로 새로 시작할 수 없습니다` +
-        ` (${done}/${active.items.length}건 처리됨).` +
-        " 완료를 기다리거나 진행 중 작업의 중단을 누른 뒤 다시 실행해 주세요.",
+        `${publishJobLabel(input.channel, input.mode)} 작업이 이미 ${waiting.length}건 대기 중입니다.` +
+        " 대기 중인 작업이 끝난 뒤 다시 실행하거나, 진행 중 작업을 중단해 주세요.",
       );
     }
-    return { ...active, reusedActiveJob: true };
+    // 거절하지 않고 줄을 세운다. activeKey는 차례가 됐을 때 잡는다.
+    const queued = await prisma.channelPublishJob.create({
+      data: {
+        userId: input.userId,
+        channel: input.channel,
+        mode: input.mode,
+        activeKey: null,
+        status: WAITING_STATUS,
+        totalCount: input.items.length,
+        items: { create: input.items },
+      },
+      include: { items: true },
+    });
+    return { ...queued, reusedActiveJob: false, waitingBehind: waiting.length + 1 };
   }
 }
 
@@ -670,10 +695,44 @@ async function processItem(
   }
 }
 
+/** 실행 권리(activeKey)를 잡아 본다. 이미 다른 작업이 쥐고 있으면 false. */
+async function claimJobTurn(job: { id: string; userId: string; channel: string; mode: string }) {
+  const activeKey = `${job.userId}:${job.channel}:${job.mode}`;
+  try {
+    await prisma.channelPublishJob.update({
+      where: { id: job.id },
+      data: { activeKey, status: "QUEUED" },
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return false;
+    throw error;
+  }
+}
+
+/** 같은 채널·작업에서 가장 먼저 줄을 선 작업을 깨운다. */
+async function wakeNextWaitingJob(userId: string, channel: string, mode: string) {
+  const next = await prisma.channelPublishJob.findFirst({
+    where: { userId, channel, mode, status: WAITING_STATUS },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, userId: true, channel: true, mode: true },
+  });
+  if (!next) return null;
+  if (!(await claimJobTurn(next))) return null;
+  return next.id;
+}
+
 export async function processChannelPublishJob(jobId: string, limit = 1) {
   const job = await prisma.channelPublishJob.findUnique({ where: { id: jobId } });
   if (!job || terminalStatuses.includes(job.status)) {
     return { job, shouldContinue: false, busy: false };
+  }
+
+  // 줄을 선 작업은 앞 작업이 activeKey를 놓아야 실행할 수 있다. 고유 키라 둘이
+  // 동시에 잡을 수 없고, 못 잡으면 아직 차례가 아니므로 아무것도 하지 않는다.
+  if (job.status === WAITING_STATUS || job.activeKey === null) {
+    const claimed = await claimJobTurn(job);
+    if (!claimed) return { job, shouldContinue: false, busy: true };
   }
 
   const staleMs = channelPublishLeaseMs;
@@ -762,7 +821,12 @@ export async function processChannelPublishJob(jobId: string, limit = 1) {
         });
       }
     }
-    return { job: updated, shouldContinue: queued && !stillProcessing, busy: false };
+    // 앞 작업이 끝났으면 줄 선 다음 작업을 바로 깨운다. 1분짜리 정기 실행을
+    // 기다리게 두면 사람이 보기에 멈춘 것처럼 보인다.
+    const wokeJobId = finished || cancelled
+      ? await wakeNextWaitingJob(job.userId, job.channel, job.mode)
+      : null;
+    return { job: updated, shouldContinue: queued && !stillProcessing, busy: false, wokeJobId };
   } finally {
     await prisma.channelPublishJob.updateMany({
       where: { id: jobId, workerToken },
@@ -775,7 +839,13 @@ export async function drainChannelPublishJob(jobId: string) {
   // A group is one job item but can contain 40 cards. Never start another group
   // in the remaining time of an invocation. UI polling / independent cron resumes.
   const startedAt = Date.now();
-  let result = await processChannelPublishJob(jobId, 3);
+  let result: Awaited<ReturnType<typeof processChannelPublishJob>> =
+    await processChannelPublishJob(jobId, 3);
+  // 앞 작업이 끝나며 다음 차례를 깨웠으면 남은 시간으로 이어서 돌린다. 사람이
+  // 다시 누르지 않아도 줄이 저절로 흘러가야 한다.
+  if (result.wokeJobId && Date.now() - startedAt < 120_000) {
+    return drainChannelPublishJob(result.wokeJobId);
+  }
   // Cheap price/quantity work uses the remaining invocation in small batches;
   // keep image/group publishing at its original one-batch budget.
   for (let chunk = 1; chunk < 20 && result.shouldContinue && !result.busy &&
