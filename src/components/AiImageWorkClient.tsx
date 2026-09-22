@@ -1116,6 +1116,23 @@ export function AiImageWorkClient({
                   {current.lensSourceUrl ? "영역 다시 잡기" : "원본에서 영역 잡기"}
                 </button>
               ) : null}
+              {/*
+                결과 이미지에서 직접 잡는 길도 둔다. 배경이 정리된 결과가 카드 경계를
+                보기 쉬울 때가 있다. 다만 이미 잘리고 둥글려진 그림이라, 넓게 다시
+                잡는 것은 원본 쪽 버튼으로만 된다.
+              */}
+              {current.previewUrl ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    setCropTarget({ item: current, url: current.previewUrl!, corners: null })
+                  }
+                  className="cursor-pointer rounded border border-zinc-400 px-4 py-2 text-sm font-bold text-zinc-800 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  결과에서 영역 잡기
+                </button>
+              ) : null}
               {current.canRestore ? (
                 <button
                   type="button"
