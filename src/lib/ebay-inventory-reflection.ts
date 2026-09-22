@@ -29,6 +29,16 @@ export function ebayTargetMatchesGetItem(value: unknown, target: EbayFeedTarget)
     Math.abs(Number(price["#text"]) - Number(target.price)) < 0.01;
 }
 
+/**
+ * eBay가 호출 한도 때문에 확인에 답해 주지 않는 상태.
+ *
+ * 쓰기(Inventory API)와 확인(Trading GetItem)은 서로 다른 한도를 쓴다. 확인만 막혔다고
+ * 판매를 통째로 멈추면 가게가 닫힌 채로 며칠이 간다. 이때는 Inventory API가 SKU별로
+ * 돌려준 처리 결과를 근거로 진행하고, 실제 값은 다음 활성상품 보고서가 대조한다.
+ * 어긋나면 그 상품은 다시 변동 대상이 되어 바로잡힌다.
+ */
+export class EbayVerificationUnavailable extends Error {}
+
 /** eBay Trading 응답의 오류 코드와 문구를 사람이 읽을 수 있게 모은다. */
 function ebayErrorText(result: unknown) {
   const raw = result && typeof result === "object" ? (result as { Errors?: unknown }).Errors : undefined;
@@ -65,10 +75,11 @@ async function verifyActualListing(account: EbayAccount, target: EbayFeedTarget)
       if (lastError.includes("518")) break;
     }
   }
-  throw new Error(
-    `${target.sku}: eBay 실제 판매 가격·수량을 확인하지 못했습니다` +
-    (lastError ? ` · ${lastError}` : " · 목표값과 일치하지 않습니다"),
-  );
+  const message = `${target.sku}: eBay 실제 판매 가격·수량을 확인하지 못했습니다` +
+    (lastError ? ` · ${lastError}` : " · 목표값과 일치하지 않습니다");
+  // 한도 때문에 답을 못 받은 것과, 답을 받았는데 값이 다른 것은 전혀 다른 상황이다.
+  if (lastError.includes("518")) throw new EbayVerificationUnavailable(message);
+  throw new Error(message);
 }
 
 // Trading updates alone can leave the Inventory stock pool unchanged. Mirror
@@ -98,7 +109,12 @@ async function reflectTarget(account: EbayAccount, target: EbayFeedTarget) {
   if (!rows?.length || rows.some(row => row.sku !== target.sku || !row.statusCode || row.statusCode >= 300)) throw new Error("eBay Inventory 가격·수량 반영을 확인하지 못했습니다.");
   // eBay가 받았다고 답해도 실제 리스팅 가격이 그대로일 수 있다. 그 상태에서 수량을
   // 되살리면 옛 가격으로 팔린다. 호출을 아끼려고 이 확인을 빼면 안 된다.
-  await verifyActualListing(account, target);
+  try {
+    await verifyActualListing(account, target);
+  } catch (error) {
+    if (!(error instanceof EbayVerificationUnavailable)) throw error;
+    return { legacy: false, offerId: offer.offerId, unverified: true };
+  }
   return { legacy: false, offerId: offer.offerId };
 }
 
@@ -133,6 +149,9 @@ export async function holdEbayInventoryTarget(account: EbayAccount, target: Ebay
   await ensureEbayOutOfStockControl(account);
   return reflectTarget(account, { ...target, quantity: 0, price: undefined });
 }
+
+/** 확인이 한도로 막혀 쓰기 결과만 믿고 넘어간 경우를 화면과 기록에 남긴다. */
+export type ReflectionResult = { legacy: boolean; offerId?: string; unverified?: boolean };
 
 export async function reflectEbayInventoryTarget(account: EbayAccount, target: EbayFeedTarget) {
   try {

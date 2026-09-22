@@ -386,10 +386,14 @@ async function applyCompletedJob(jobId: string, resultXml: string, summary: { su
         target.price = currentPrice;
         target.quantity = currentQuantity;
         reflectionAttempted = true;
-        const reflected = await reflectEbayInventoryTarget(account, target);
+        const reflected = await reflectEbayInventoryTarget(account, target) as { legacy: boolean; unverified?: boolean };
+        // 확인만 한도로 막힌 경우에도 판매는 되살린다. 실제 값 대조는 다음 활성상품
+        // 보고서가 맡고, 어긋나면 그 상품이 다시 변동 대상이 된다.
         await prisma.syncLog.create({ data: { userId: job.userId, type: "EBAY_INVENTORY_REFLECTION", status: "SUCCESS",
-          message: `${target.sku}: Inventory 가격·수량 반영`, rawJson: { jobId: job.id, productId: target.productId, itemId: target.itemId, quantity: target.quantity,
-            ...(target.price ? { price: target.price } : {}), legacy: reflected.legacy } } });
+          message: `${target.sku}: Inventory 가격·수량 반영${reflected.unverified ? " (호출 한도로 실제값 확인은 다음 보고서에서)" : ""}`,
+          rawJson: { jobId: job.id, productId: target.productId, itemId: target.itemId, quantity: target.quantity,
+            ...(target.price ? { price: target.price } : {}), legacy: reflected.legacy,
+            ...(reflected.unverified ? { unverified: true } : {}) } } });
         target.inventoryApplied = true;
       } catch (error) {
         target.inventoryError = error instanceof Error ? error.message : "eBay Inventory 반영 실패";
