@@ -36,6 +36,119 @@ function statusClass(status: string) {
   return "border-blue-200 bg-blue-50 text-blue-900";
 }
 
+type FeedRecoveryJob = {
+  id: string;
+  operation: string;
+  status: string;
+  error: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  reflection: {
+    total: number;
+    restored: number;
+    failed: number;
+    stillHeld: number;
+    firstErrors: string[];
+  };
+};
+
+/**
+ * 변동처리는 먼저 모든 대상의 수량을 0으로 보내고, 그다음 실제 수량을 되돌린다.
+ * 되돌리기 전까지 상품은 eBay에서 품절로 보이므로, 얼마나 남았는지 보이고 사람이
+ * 직접 재촉할 수 있어야 한다.
+ */
+function EbayQuantityRecovery() {
+  const [jobs, setJobs] = useState<FeedRecoveryJob[] | null>(null);
+  const [running, setRunning] = useState(false);
+  const [note, setNote] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const response = await fetch("/api/ebay/feed-recovery", { cache: "no-store" });
+      const body = await response.json();
+      if (response.ok && Array.isArray(body.jobs)) setJobs(body.jobs as FeedRecoveryJob[]);
+    } catch {
+      // 조회 실패는 표시 문제일 뿐이다.
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
+
+  const held = (jobs ?? []).reduce((sum, job) => sum + job.reflection.stillHeld, 0);
+
+  // 되돌릴 것이 남아 있는 동안에는 짧게 다시 확인한다.
+  useEffect(() => {
+    if (!held) return;
+    const timer = window.setInterval(() => void load(), 15_000);
+    return () => window.clearInterval(timer);
+  }, [held, load]);
+
+  async function recoverNow() {
+    setRunning(true);
+    setNote("되돌리는 중입니다. 이 화면을 닫아도 계속됩니다…");
+    try {
+      const response = await fetch("/api/ebay/feed-recovery", { method: "POST" });
+      const body = await response.json();
+      setNote(response.ok ? `되돌리기를 실행했습니다 (작업 ${body.recovered}건).` : body.error ?? "실행하지 못했습니다.");
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : "실행하지 못했습니다.");
+    } finally {
+      setRunning(false);
+      void load();
+    }
+  }
+
+  if (!jobs || (!held && !jobs.some((job) => job.reflection.failed))) return null;
+
+  return (
+    <div className={`m-3 rounded-md border p-3 text-sm ${held ? "border-rose-200 bg-rose-50" : "border-zinc-200 bg-white"}`} role="status">
+      <div className="flex flex-wrap items-center gap-2">
+        <strong className={held ? "text-rose-800" : ""}>
+          {held
+            ? `eBay 수량이 0으로 잠긴 상품 ${held.toLocaleString()}건 — 되돌리는 중`
+            : "eBay 수량 되돌리기 완료"}
+        </strong>
+        <button
+          type="button"
+          onClick={recoverNow}
+          disabled={running}
+          className="ml-auto cursor-pointer rounded bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+        >
+          {running ? "실행 중…" : "지금 되돌리기"}
+        </button>
+      </div>
+      <p className="mt-1 text-xs text-zinc-700">
+        변동처리는 가격을 바꾸는 동안 판매를 잠그려고 수량을 0으로 보냅니다. 아래 숫자가 0이 되면
+        상품이 eBay에서 다시 보입니다. 5분마다 자동으로 되돌리며, 급하면 위 버튼으로 바로 실행할 수 있습니다.
+      </p>
+      <ul className="mt-2 space-y-1 text-xs">
+        {jobs
+          .filter((job) => job.reflection.stillHeld > 0 || job.reflection.failed > 0)
+          .map((job) => (
+            <li key={job.id} className="rounded bg-white/70 px-2 py-1">
+              <span className="font-semibold">{job.createdAt.slice(0, 16).replace("T", " ")}</span>
+              {" · "}
+              {job.operation === "revise" ? "가격·재고" : job.operation}
+              {" · "}
+              되돌림 {job.reflection.restored.toLocaleString()} / 잠김{" "}
+              <span className="font-bold text-rose-700">{job.reflection.stillHeld.toLocaleString()}</span>
+              {job.reflection.failed > 0 ? ` / 실패 ${job.reflection.failed.toLocaleString()}` : ""}
+              {job.status ? ` · ${job.status}` : ""}
+              {job.reflection.firstErrors.length > 0 && (
+                <span className="block text-rose-700">{job.reflection.firstErrors[0]}</span>
+              )}
+              {job.error && <span className="block text-zinc-600">{job.error}</span>}
+            </li>
+          ))}
+      </ul>
+      {note && <p className="mt-2 text-xs font-semibold">{note}</p>}
+    </div>
+  );
+}
+
 export function ChannelAutomaticOperations() {
   const router = useRouter();
   const [channel, setChannel] = useState<ChannelChoice>("BOTH");
@@ -231,6 +344,7 @@ export function ChannelAutomaticOperations() {
   const active = [ebayJob, shopifyJob, ...Object.values(imageJobs)].some((job) => job && !terminal.has(job.status) && !pollingStopped.has(job.id));
   return (
     <section className="overflow-hidden rounded-xl border border-zinc-200">
+      <EbayQuantityRecovery />
       <details className="group/changes" open>
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50 px-4 py-4">
           <span className="flex items-center gap-3"><RefreshCw className="h-5 w-5 shrink-0 text-blue-700" /><span><span className="block text-sm font-bold text-zinc-900">기존 상품 변동처리</span><span className="mt-1 block text-xs text-zinc-500">가격·재고·이미지 변경 및 판매중단</span></span></span>
