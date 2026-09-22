@@ -29,9 +29,25 @@ export function ebayTargetMatchesGetItem(value: unknown, target: EbayFeedTarget)
     Math.abs(Number(price["#text"]) - Number(target.price)) < 0.01;
 }
 
+/** eBay Trading 응답의 오류 코드와 문구를 사람이 읽을 수 있게 모은다. */
+function ebayErrorText(result: unknown) {
+  const raw = result && typeof result === "object" ? (result as { Errors?: unknown }).Errors : undefined;
+  const rows = raw === undefined || raw === null ? [] : Array.isArray(raw) ? raw : [raw];
+  const parts = rows.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const row = entry as Record<string, unknown>;
+    const message = String(row.LongMessage ?? row.ShortMessage ?? "").trim();
+    if (!message) return [];
+    const code = String(row.ErrorCode ?? "").trim();
+    return [code ? `${message} (오류코드 ${code})` : message];
+  });
+  return parts.length ? parts.join(" / ") : `Ack=${(result as { Ack?: unknown })?.Ack ?? "없음"}`;
+}
+
 async function verifyActualListing(account: EbayAccount, target: EbayFeedTarget) {
   const token = await getValidAccessToken(account);
   const itemId = target.itemId.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  let lastError = "";
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt) await new Promise(resolve => setTimeout(resolve, 750));
     const response = await fetch(new URL("/ws/api.dll", getEbayConfig().hosts.api), {
@@ -41,8 +57,16 @@ async function verifyActualListing(account: EbayAccount, target: EbayFeedTarget)
     });
     const result = new XMLParser({ ignoreAttributes: false, parseTagValue: false }).parse(await response.text()).GetItemResponse;
     if (response.ok && ["Success", "Warning"].includes(result?.Ack) && ebayTargetMatchesGetItem(result.Item, target)) return;
+    if (!response.ok || !["Success", "Warning"].includes(result?.Ack)) {
+      lastError = `GetItem 실패 (HTTP ${response.status}) · ${ebayErrorText(result)}`;
+      // 호출 한도를 넘긴 상태라면 두 번 더 불러도 같은 답이다. 한도만 더 태운다.
+      if (lastError.includes("518")) break;
+    }
   }
-  throw new Error(`${target.sku}: eBay 실제 판매 가격·수량이 목표값과 일치하지 않아 완료 처리하지 않았습니다.`);
+  throw new Error(
+    `${target.sku}: eBay 실제 판매 가격·수량을 확인하지 못했습니다` +
+    (lastError ? ` · ${lastError}` : " · 목표값과 일치하지 않습니다"),
+  );
 }
 
 // Trading updates alone can leave the Inventory stock pool unchanged. Mirror
@@ -84,7 +108,10 @@ async function reflectLegacyTarget(account: EbayAccount, target: EbayFeedTarget)
       body: `<?xml version="1.0" encoding="UTF-8"?><${name}Request xmlns="urn:ebay:apis:eBLBaseComponents">${fields}</${name}Request>`,
     });
     const result = new XMLParser({ ignoreAttributes: false, parseTagValue: false }).parse(await response.text())[`${name}Response`];
-    if (!response.ok || !["Success", "Warning"].includes(result?.Ack)) throw new Error("eBay 가격·수량 요청 실패");
+    if (!response.ok || !["Success", "Warning"].includes(result?.Ack)) {
+      // eBay가 말한 이유를 버리면 호출 한도 초과인지 리스팅 문제인지 알 수 없다.
+      throw new Error(`${name} 실패 (HTTP ${response.status}) · ${ebayErrorText(result)}`);
+    }
     return result;
   };
   const item = node((await call("GetItem", `<ItemID>${escapeXml(target.itemId)}</ItemID><DetailLevel>ReturnAll</DetailLevel>`)).Item);
@@ -112,8 +139,14 @@ export async function reflectEbayInventoryTarget(account: EbayAccount, target: E
     if (!target.price || !Number.isFinite(Number(target.price)) || Number(target.price) <= 0) throw new Error("판매 재개 가격이 없습니다.");
     return await reflectTarget(account, target);
   } catch (error) {
+    const cause = error instanceof Error ? error.message : "가격·수량 반영 실패";
     try { await holdEbayInventoryTarget(account, target); }
-    catch { throw new Error(`${target.sku}: 가격·수량 반영 실패 후 판매 수량 0도 확인하지 못했습니다. 판매 보류 미확인·재시도 필요`); }
+    catch (holdError) {
+      throw new Error(
+        `${target.sku}: 가격·수량 반영도 판매 수량 0도 확인하지 못했습니다 · 반영 실패: ${cause}` +
+        ` · 보류 실패: ${holdError instanceof Error ? holdError.message : "알 수 없음"}`,
+      );
+    }
     throw new Error(`${error instanceof Error ? error.message : "가격·수량 반영 실패"} 해당 옵션 판매 수량 0 확인 완료`);
   }
 }

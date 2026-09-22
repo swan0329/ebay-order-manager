@@ -156,3 +156,40 @@ export async function ensureEbayOutOfStockControl(account: EbayAccount) {
     );
   }
 }
+
+/**
+ * eBay가 허용한 호출 횟수와 지금까지 쓴 횟수를 읽는다. 518 오류가 났을 때 무엇이
+ * 얼마나 남았는지 사람이 직접 보고 판단할 수 있어야 한다. 읽기만 한다.
+ */
+export async function readEbayApiAccessRules(account: EbayAccount) {
+  const token = await getValidAccessToken(account);
+  try {
+    const response = await fetch(new URL('/ws/api.dll', getEbayConfig().hosts.api), {
+      method: 'POST', signal: AbortSignal.timeout(25000),
+      headers: { 'Content-Type': 'text/xml', 'X-EBAY-API-CALL-NAME': 'GetAPIAccessRules',
+        'X-EBAY-API-SITEID': '0', 'X-EBAY-API-COMPATIBILITY-LEVEL': '1423', 'X-EBAY-API-IAF-TOKEN': token },
+      body: '<?xml version="1.0" encoding="UTF-8"?><GetAPIAccessRulesRequest xmlns="urn:ebay:apis:eBLBaseComponents"/>',
+    });
+    const data = new XMLParser().parse(await response.text())?.GetAPIAccessRulesResponse;
+    const rules = list(data?.APIAccessRule).map((entry) => {
+      const row = (entry ?? {}) as Record<string, unknown>;
+      return {
+        callName: String(row.CallName ?? '전체'),
+        dailyLimit: Number(row.DailyHardLimit ?? 0),
+        dailyUsage: Number(row.DailyUsage ?? 0),
+        hourlyLimit: Number(row.HourlyHardLimit ?? 0),
+        hourlyUsage: Number(row.HourlyUsage ?? 0),
+      };
+    });
+    return {
+      ok: ['Success', 'Warning'].includes(String(data?.Ack ?? '')),
+      // 한도에 가까운 것부터 보여 준다.
+      rules: rules
+        .filter((rule) => rule.dailyLimit > 0 || rule.dailyUsage > 0)
+        .sort((a, b) => (b.dailyUsage / (b.dailyLimit || 1)) - (a.dailyUsage / (a.dailyLimit || 1)))
+        .slice(0, 15),
+    };
+  } catch (error) {
+    return { ok: false, rules: [], error: error instanceof Error ? error.message : '조회 실패' };
+  }
+}

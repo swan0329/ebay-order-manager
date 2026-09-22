@@ -1,7 +1,7 @@
 import { asErrorMessage, jsonError } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, UnauthorizedError } from "@/lib/session";
-import { readEbayOutOfStockPreference } from "@/lib/ebay-out-of-stock";
+import { readEbayApiAccessRules, readEbayOutOfStockPreference } from "@/lib/ebay-out-of-stock";
 import { getActiveEbayAccount } from "@/lib/services/ebayApiService";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,11 @@ export async function GET() {
     const user = await requireApiUser();
     const account = await getActiveEbayAccount(user.id);
     const result = await readEbayOutOfStockPreference(account);
+    // 호출 한도가 원인일 때 남은 횟수를 직접 보여 준다. eBay가 518 오류에서
+    // 안내하는 GetAPIAccessRules를 그대로 부른다.
+    const usage = await readEbayApiAccessRules(account);
     return Response.json({
+      usage,
       ok: result.ok,
       enabled: result.enabled,
       httpStatus: result.httpStatus,
