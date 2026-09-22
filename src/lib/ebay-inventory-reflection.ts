@@ -142,9 +142,12 @@ export async function reflectEbayInventoryTarget(account: EbayAccount, target: E
     const cause = error instanceof Error ? error.message : "가격·수량 반영 실패";
     try { await holdEbayInventoryTarget(account, target); }
     catch (holdError) {
+      // "판매 보류 미확인"은 수량 0조차 확인되지 않았다는 안전 신호다. 원인을 덧붙이되
+      // 이 문구는 반드시 남긴다.
       throw new Error(
         `${target.sku}: 가격·수량 반영도 판매 수량 0도 확인하지 못했습니다 · 반영 실패: ${cause}` +
-        ` · 보류 실패: ${holdError instanceof Error ? holdError.message : "알 수 없음"}`,
+        ` · 보류 실패: ${holdError instanceof Error ? holdError.message : "알 수 없음"}` +
+        " · 판매 보류 미확인·재시도 필요",
       );
     }
     throw new Error(`${error instanceof Error ? error.message : "가격·수량 반영 실패"} 해당 옵션 판매 수량 0 확인 완료`);
