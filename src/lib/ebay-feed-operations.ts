@@ -362,7 +362,11 @@ async function applyCompletedJob(jobId: string, resultXml: string, summary: { su
     const account = await getActiveEbayInventoryAccount(job.userId);
     const pricing = await prisma.pricingSettings.findUnique({ where: { id: "default" } });
     const pending = targets.filter(target => !target.inventoryApplied && !target.inventoryError);
-    const chunk = pending.slice(0, 25);
+    // 변동처리는 먼저 모든 대상의 수량을 0으로 보내고, 여기서 실제 수량을 되돌린다.
+    // 되돌리기 전까지 상품은 eBay에서 품절로 보인다. 그래서 한 번에 최대한 많이
+    // 처리하고, 실제 중단은 아래 150초 시간 예산이 맡는다. 25개로 묶어 두면 큰
+    // 작업에서 복구가 몇 시간씩 걸린다.
+    const chunk = pending.slice(0, 400);
     const currentProducts = await withVerifiedProcurementEvidence(await prisma.product.findMany({ where: { id: { in: chunk.map(target => target.productId) } } }));
     const currentById = new Map(currentProducts.map(product => [product.id, product]));
     const started = Date.now();
@@ -545,9 +549,17 @@ export async function recoverIncompleteEbayFeedJobs(userId: string) {
     orderBy: { createdAt: "desc" },
     take: 50,
   });
-  const recoverable = jobs.filter((job) => !job.completedAt || hasUnaccountedFailures(job)).slice(0, 1);
+  // 수량 복구가 밀린 작업이 여러 건일 수 있다. 한 번에 하나만 집으면 품절 상태가
+  // 그만큼 길어진다. 각 작업이 자체 시간 예산 안에서 멈추므로 몇 건은 안전하다.
+  const recoverable = jobs.filter((job) => !job.completedAt || hasUnaccountedFailures(job)).slice(0, 3);
+  // 한 번의 실행 안에서만 이어 간다. 작업마다 자체 시간 예산이 있으므로 남은 시간이
+  // 없으면 다음 작업은 다음 실행에 맡긴다.
+  const deadline = Date.now() + 200_000;
+  let recovered = 0;
   for (const job of recoverable) {
+    if (Date.now() > deadline) break;
     await refreshEbayFeedJob(userId, job.id);
+    recovered += 1;
   }
-  return recoverable.length;
+  return recovered;
 }
