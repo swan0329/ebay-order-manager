@@ -123,31 +123,42 @@ export async function shopifyApiRequest(
   const accessToken = await getShopifyAccessToken(config);
 
   let response: Response;
-  try {
-    response = await fetch(url, {
-      method: input.method ?? "GET",
-      headers: {
-        "X-Shopify-Access-Token": accessToken,
-        accept: "application/json",
-        ...(hasBody ? { "content-type": "application/json" } : {}),
-      },
-      body: hasBody ? JSON.stringify(input.body) : undefined,
-      signal: AbortSignal.timeout(SHOPIFY_REQUEST_TIMEOUT_MS),
-    });
-  } catch (error) {
-    const timedOut =
-      error instanceof Error &&
-      (error.name === "TimeoutError" || error.name === "AbortError");
-    throw new ShopifyApiError(
-      timedOut
-        ? "Shopify 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요."
-        : "Shopify Admin API에 연결하지 못했습니다.",
-      timedOut ? 504 : 502,
-      null,
-    );
+  let text = "";
+  for (let attempt = 0; ; attempt += 1) {
+    await shopifyRateSlot();
+    try {
+      response = await fetch(url, {
+        method: input.method ?? "GET",
+        headers: {
+          "X-Shopify-Access-Token": accessToken,
+          accept: "application/json",
+          ...(hasBody ? { "content-type": "application/json" } : {}),
+        },
+        body: hasBody ? JSON.stringify(input.body) : undefined,
+        signal: AbortSignal.timeout(SHOPIFY_REQUEST_TIMEOUT_MS),
+      });
+    } catch (error) {
+      const timedOut =
+        error instanceof Error &&
+        (error.name === "TimeoutError" || error.name === "AbortError");
+      throw new ShopifyApiError(
+        timedOut
+          ? "Shopify 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요."
+          : "Shopify Admin API에 연결하지 못했습니다.",
+        timedOut ? 504 : 502,
+        null,
+      );
+    }
+    text = await response.text();
+    // 429는 잘못된 요청이 아니라 "지금은 말고 잠시 뒤에"라는 뜻이다. 실패로 처리하면
+    // 그 상품은 반영되지 않은 채 남고, 다음 주기에 다시 시도하다 또 막힌다.
+    if ((response.status === 429 || response.status === 503) && attempt < SHOPIFY_MAX_RETRIES) {
+      await sleepMs(retryAfterMs(response, attempt));
+      continue;
+    }
+    break;
   }
 
-  const text = await response.text();
   let body: unknown = null;
   if (text) {
     try {
@@ -165,13 +176,40 @@ export async function shopifyApiRequest(
       body,
     });
     throw new ShopifyApiError(
-      "Shopify Admin API request failed.",
+      response.status === 429
+        ? "Shopify 호출 한도를 넘겨 잠시 뒤 다시 시도해야 합니다."
+        : "Shopify Admin API request failed.",
       response.status,
       body,
     );
   }
 
   return body;
+}
+
+/**
+ * Shopify REST Admin API는 초당 2회를 넘기면 429를 돌려준다. 여러 상품을 동시에
+ * 처리하면 금방 넘어가고, 그때마다 실패로 적히면 반영되지 않은 상품이 쌓인다.
+ * 한 실행 안에서 요청을 줄 세워 간격을 지킨다.
+ */
+const SHOPIFY_MIN_INTERVAL_MS = 550;
+const SHOPIFY_MAX_RETRIES = 4;
+let shopifyGate: Promise<unknown> = Promise.resolve();
+
+const sleepMs = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+function shopifyRateSlot() {
+  const slot = shopifyGate.then(() => sleepMs(SHOPIFY_MIN_INTERVAL_MS));
+  // 실패한 요청이 줄을 끊지 않도록 한다.
+  shopifyGate = slot.catch(() => undefined);
+  return slot;
+}
+
+/** eBay와 달리 Shopify는 얼마나 기다리라고 알려 준다. 알려 주면 그대로 따른다. */
+function retryAfterMs(response: Response, attempt: number) {
+  const header = Number(response.headers.get("retry-after"));
+  if (Number.isFinite(header) && header > 0) return Math.min(header * 1000, 10_000);
+  return Math.min(1000 * 2 ** attempt, 8_000);
 }
 
 export async function getShopifyProductViewUrl(productId: string, allowAdminFallback = true) {
