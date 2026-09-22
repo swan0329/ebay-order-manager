@@ -48,6 +48,8 @@ async function verifyActualListing(account: EbayAccount, target: EbayFeedTarget)
   const token = await getValidAccessToken(account);
   const itemId = target.itemId.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   let lastError = "";
+  // eBay는 방금 쓴 값을 바로 돌려주지 않을 때가 있어 몇 번 더 본다. 다만 호출 한도를
+  // 넘긴 상태면 아래에서 바로 빠져나간다. 같은 답을 받으려고 한도를 더 태우지 않는다.
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt) await new Promise(resolve => setTimeout(resolve, 750));
     const response = await fetch(new URL("/ws/api.dll", getEbayConfig().hosts.api), {
@@ -94,6 +96,8 @@ async function reflectTarget(account: EbayAccount, target: EbayFeedTarget) {
   } });
   const rows = (response.body as { responses?: Array<{ sku?: string; statusCode?: number }> } | null)?.responses;
   if (!rows?.length || rows.some(row => row.sku !== target.sku || !row.statusCode || row.statusCode >= 300)) throw new Error("eBay Inventory 가격·수량 반영을 확인하지 못했습니다.");
+  // eBay가 받았다고 답해도 실제 리스팅 가격이 그대로일 수 있다. 그 상태에서 수량을
+  // 되살리면 옛 가격으로 팔린다. 호출을 아끼려고 이 확인을 빼면 안 된다.
   await verifyActualListing(account, target);
   return { legacy: false, offerId: offer.offerId };
 }

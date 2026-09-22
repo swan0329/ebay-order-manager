@@ -190,22 +190,21 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
     };
   }, []);
 
-  // 판매 한도는 등록수수료와 별개다. 따로 읽고 실패해도 수수료 표시에 영향을 주지 않는다.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const response = await fetch("/api/ebay/selling-limit", { cache: "no-store" });
-        const body = await response.json();
-        if (!cancelled && response.ok) setSellingLimit(body as SellingLimit);
-      } catch {
-        // 못 읽으면 표시하지 않는다.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // 판매 한도는 eBay Trading API(GetMyeBaySelling)를 쓴다. 화면을 열 때마다 부르면
+  // 일일 호출 한도를 축낸다. 필요할 때 눌러서 조회한다.
+  const [limitLoading, setLimitLoading] = useState(false);
+  async function loadSellingLimit() {
+    setLimitLoading(true);
+    try {
+      const response = await fetch("/api/ebay/selling-limit", { cache: "no-store" });
+      const body = await response.json();
+      if (response.ok) setSellingLimit(body as SellingLimit);
+    } catch {
+      // 못 읽으면 표시하지 않는다.
+    } finally {
+      setLimitLoading(false);
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -497,7 +496,17 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
         )}
       </section>
 
-      {/* 판매 한도 ─ 등록수수료와 무관한 별도 정보 */}
+      {/* 판매 한도 ─ 등록수수료와 무관한 별도 정보. 조회는 눌렀을 때만 한다. */}
+      {!sellingLimit && (
+        <button
+          type="button"
+          onClick={loadSellingLimit}
+          disabled={limitLoading}
+          className="cursor-pointer rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 disabled:opacity-50"
+        >
+          {limitLoading ? "조회 중…" : "eBay 판매 한도 조회"}
+        </button>
+      )}
       {sellingLimit && sellingLimit.available && sellingLimit.quantityRemaining !== null && (
         <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-center gap-2">

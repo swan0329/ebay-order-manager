@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { createPocamarketSyncBatch, getPocamarketSyncSettings } from "@/lib/pocamarket-sync";
 import { getEbayFeedOperationTargets, submitEbayFeedOperation } from "@/lib/ebay-feed-operations";
-import { createShopifyAutomaticOperationJob, getShopifyAutomaticOperationProductIds } from "@/lib/channel-publish-jobs";
+import { createChannelPublishJob, createShopifyAutomaticOperationJob, getShopifyAutomaticOperationProductIds } from "@/lib/channel-publish-jobs";
+import { getChannelImageChanges } from "@/lib/channel-image-changes";
 import { procurementHoldReason, procurementRefreshDue } from "@/lib/procurement-freshness";
 import { withVerifiedProcurementEvidence } from "@/lib/procurement-evidence";
 import { shouldPauseAutoSchedule } from "@/lib/channel-auto-backoff";
@@ -58,6 +59,25 @@ export async function maintainProcurementChannels() {
       }
     }
   } catch { failures.push("Shopify"); }
+  // 이미지 변동도 사람이 누르지 않아도 반영한다. 가격·수량과 다른 큐를 쓰므로
+  // 서로 밀어내지 않는다. 신규등록만 사람이 직접 실행한다.
+  for (const channel of ["EBAY", "SHOPIFY"] as const) {
+    try {
+      const running = await prisma.channelPublishJob.findFirst({
+        where: { userId: admin.id, channel, mode: "IMAGES", status: { in: ["QUEUED", "RUNNING", "WAITING"] } },
+        select: { id: true },
+      });
+      if (running) continue;
+      const changes = (await getChannelImageChanges(admin.id, channel)).filter(change => ids.has(change.productId));
+      if (!changes.length) continue;
+      await createChannelPublishJob({
+        userId: admin.id,
+        channel,
+        mode: "IMAGES",
+        targetIds: changes.slice(0, 500).map(change => change.productId),
+      });
+    } catch { failures.push(`${channel} 이미지`); }
+  }
   if (failures.length) throw new Error(`${failures.join(" · ")} 조달 변동 예약 실패`);
 }
 
