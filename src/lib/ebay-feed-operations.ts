@@ -373,8 +373,10 @@ async function applyCompletedJob(jobId: string, resultXml: string, summary: { su
     // eBay 일일 호출 한도를 넘기면(518) 남은 대상을 붙잡고 있어 봐야 같은 답만 돌아오고
     // 한도만 더 태운다. 처음 만나면 멈추고, 한도가 초기화된 뒤 자동으로 이어서 한다.
     let usageLimitHit = false;
-    for (const target of chunk) {
-      if (usageLimitHit || Date.now() - started > 150_000) break;
+    // 상품마다 eBay를 여러 번 부르고 기다린다. 한 건씩 줄 세우면 1분에 몇 건밖에
+    // 못 되돌려 가게가 닫힌 채로 오래 간다. 서로 다른 리스팅이라 함께 보내도 안전하다.
+    const CONCURRENCY = 5;
+    const runTarget = async (target: (typeof chunk)[number]) => {
       let reflectionAttempted = false;
       try {
         if (!parsed.succeeded.has(target.productId)) throw new Error("eBay Feed 반영 실패·응답 누락으로 판매 보류가 필요합니다.");
@@ -401,7 +403,7 @@ async function applyCompletedJob(jobId: string, resultXml: string, summary: { su
           // 한도 초과는 이 상품의 문제가 아니다. 실패로 남기면 다시 시도하지 않는다.
           usageLimitHit = true;
           target.inventoryError = undefined;
-          continue;
+          return;
         }
         if (!reflectionAttempted) {
           try {
@@ -415,6 +417,10 @@ async function applyCompletedJob(jobId: string, resultXml: string, summary: { su
           message: `${target.sku}: 실제 가격·수량 반영 검증 실패`, rawJson: { jobId: job.id, productId: target.productId,
             itemId: target.itemId, quantity: target.quantity ?? 0, ...(target.price ? { price: target.price } : {}) } } });
       }
+    };
+    for (let index = 0; index < chunk.length; index += CONCURRENCY) {
+      if (usageLimitHit || Date.now() - started > 150_000) break;
+      await Promise.all(chunk.slice(index, index + CONCURRENCY).map(runTarget));
       // Each idempotent absolute-quantity write is checkpointed. A crash retries
       // at most the current SKU, not the whole 500-product operation.
       await prisma.ebayFeedJob.update({ where: { id: job.id }, data: { targetsJson: targets as unknown as Prisma.InputJsonValue } });
@@ -526,7 +532,9 @@ export async function refreshEbayFeedJob(userId: string, jobId: string) {
     },
     data: {
       refreshToken,
-      refreshLeaseExpiresAt: new Date(Date.now() + 300_000),
+      // 한 번 실행이 쓰는 시간(최대 150초)보다 조금만 길게 잡는다. 5분으로 두면
+      // 끝난 뒤에도 다음 실행이 그만큼 막혀 되돌리기가 느려진다.
+      refreshLeaseExpiresAt: new Date(Date.now() + 200_000),
     },
   });
   if (!claimed.count) return publicJob(job);
