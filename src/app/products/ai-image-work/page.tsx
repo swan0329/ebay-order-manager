@@ -28,6 +28,9 @@ type Item = {
   error: string | null;
   previewVersion: string;
   canRestore: boolean;
+  /** 렌즈 원본과 찍었던 네 점. 있으면 영역을 다시 잡을 수 있다. */
+  lensSourceUrl: string | null;
+  lensCorners: Array<{ x: number; y: number }> | null;
 };
 const PREVIEW_PAGE_SIZE = 48;
 
@@ -57,7 +60,7 @@ async function UpcomingPanel() {
 async function WorkList() {
   const items = await prisma.$queryRaw<
     Item[]
-  >`SELECT j."id",j."product_id" AS "productId",p."sku",p."product_name" AS "productName",j."source_url" AS "sourceUrl",j."preview_url" AS "previewUrl",CASE WHEN j."status"='waiting_supply' THEN 'queued' ELSE j."status" END AS "status",CASE WHEN j."status"='waiting_supply' THEN NULL ELSE j."error" END AS "error",COALESCE(to_char(j."processed_at",'YYYYMMDDHH24MISSMS'),'') AS "previewVersion",COALESCE(j."backup_preview_url",'')<>'' AS "canRestore" FROM "ai_image_jobs" j JOIN "products" p ON p."id"=j."product_id" WHERE ${aiProductAllowedSql} AND (j."status" IN ('processing','review','held','pass_ready','rework','failed') OR (j."status" IN ('queued','waiting_supply') AND (p."stock_quantity">0 OR COALESCE(p."pocamarket_available_count",0)>0))) ORDER BY CASE WHEN j."status"='review' THEN 0 WHEN j."status"='held' THEN 1 WHEN j."status"='pass_ready' THEN 2 WHEN j."status"='rework' THEN 3 ELSE 4 END,j."created_at",p."sku" LIMIT 500`;
+  >`SELECT j."id",j."product_id" AS "productId",p."sku",p."product_name" AS "productName",j."source_url" AS "sourceUrl",j."preview_url" AS "previewUrl",CASE WHEN j."status"='waiting_supply' THEN 'queued' ELSE j."status" END AS "status",CASE WHEN j."status"='waiting_supply' THEN NULL ELSE j."error" END AS "error",COALESCE(to_char(j."processed_at",'YYYYMMDDHH24MISSMS'),'') AS "previewVersion",COALESCE(j."backup_preview_url",'')<>'' AS "canRestore",j."lens_source_url" AS "lensSourceUrl",j."lens_corners_json" AS "lensCorners" FROM "ai_image_jobs" j JOIN "products" p ON p."id"=j."product_id" WHERE ${aiProductAllowedSql} AND (j."status" IN ('processing','review','held','pass_ready','rework','failed') OR (j."status" IN ('queued','waiting_supply') AND (p."stock_quantity">0 OR COALESCE(p."pocamarket_available_count",0)>0))) ORDER BY CASE WHEN j."status"='review' THEN 0 WHEN j."status"='held' THEN 1 WHEN j."status"='pass_ready' THEN 2 WHEN j."status"='rework' THEN 3 ELSE 4 END,j."created_at",p."sku" LIMIT 500`;
   return (
     <AiImageWorkClient items={items} billingUrl={getDewatermarkBillingUrl()} />
   );

@@ -22,13 +22,23 @@ export function LensCardCropper({
   local = false,
   onCancel,
   onCropped,
+  initialCorners,
 }: {
   productId: string;
   imageUrl: string;
   /** 붙여넣은 이미지처럼 이미 우리 쪽에 있는 그림이면 프록시를 거치지 않는다. */
   local?: boolean;
   onCancel: () => void;
-  onCropped: (dataUrl: string) => void;
+  /**
+   * 잘라낸 결과와 함께 원본·네 점을 돌려준다. 이것을 저장해 두어야 나중에 원본에서
+   * 영역을 다시 잡을 수 있다.
+   */
+  onCropped: (
+    dataUrl: string,
+    source: { sourceImage: string; corners: Point[] },
+  ) => void;
+  /** 전에 찍었던 네 점(원본 대비 0~1 비율). 다시 잡을 때 그대로 띄운다. */
+  initialCorners?: Point[] | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
@@ -63,8 +73,19 @@ export function LensCardCropper({
       );
       imageRef.current = image;
       setReady(true);
-      setPoints([]);
-      setStatus("카드 영역을 대각선으로 끌어 사각형을 만드세요. 손잡이로 모서리를 맞춥니다.");
+      // 전에 찍은 점이 있으면 그대로 띄운다. 처음부터 다시 찍지 않아도 된다.
+      const restored = (initialCorners ?? []).length === 4
+        ? initialCorners!.map((point) => ({
+            x: point.x * canvas.width,
+            y: point.y * canvas.height,
+          }))
+        : [];
+      setPoints(restored);
+      setStatus(
+        restored.length
+          ? "전에 잡았던 영역입니다. 손잡이를 끌어 고친 뒤 다시 추출하세요."
+          : "카드 영역을 대각선으로 끌어 사각형을 만드세요. 손잡이로 모서리를 맞춥니다.",
+      );
     };
     image.onerror = () => {
       if (!cancelled)
@@ -75,7 +96,7 @@ export function LensCardCropper({
     return () => {
       cancelled = true;
     };
-  }, [productId, imageUrl, local, setPoints]);
+  }, [productId, imageUrl, local, setPoints, initialCorners]);
 
   // 점이 바뀔 때마다 다시 그린다. 이미지 작업대와 같은 모양의 손잡이를 쓴다.
   useEffect(() => {
@@ -134,7 +155,19 @@ export function LensCardCropper({
       return;
     }
     roundCanvasCorners(output, Math.round(width * 0.045));
-    onCropped(output.toDataURL("image/png"));
+    // 원본을 그대로 한 장 만들어 함께 넘긴다. 렌즈 주소는 나중에 사라질 수 있어
+    // 주소만 적어 두면 다시 잡을 때 그림을 못 찾는다.
+    const sourceCanvas = document.createElement("canvas");
+    sourceCanvas.width = image.naturalWidth;
+    sourceCanvas.height = image.naturalHeight;
+    sourceCanvas.getContext("2d")?.drawImage(image, 0, 0);
+    onCropped(output.toDataURL("image/png"), {
+      sourceImage: sourceCanvas.toDataURL("image/jpeg", 0.92),
+      corners: ordered.map((point) => ({
+        x: point.x / canvas.width,
+        y: point.y / canvas.height,
+      })),
+    });
   };
 
   return (

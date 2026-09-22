@@ -18,6 +18,9 @@ type Item = {
   error: string | null;
   previewVersion: string;
   canRestore?: boolean;
+  /** 렌즈 원본과 찍었던 네 점. 있으면 영역을 다시 잡을 수 있다. */
+  lensSourceUrl?: string | null;
+  lensCorners?: Array<{ x: number; y: number }> | null;
 };
 type Claimed = { id: string; productId: string; sourceUrl: string };
 type DewatermarkMode = "STANDARD" | "PRO";
@@ -73,6 +76,8 @@ export function AiImageWorkClient({
     item: Item;
     url: string;
     local?: boolean;
+    /** 다시 잡기일 때 전에 찍었던 네 점 */
+    corners?: Array<{ x: number; y: number }> | null;
   } | null>(null);
   const [upload, setUpload] = useState<{
     done: number;
@@ -332,12 +337,16 @@ export function AiImageWorkClient({
   }
   // 구글렌즈로 찾은 이미지를 이 카드의 검수 결과로 저장한다. 사람이 고른 주소만
   // 서버가 내려받아 같은 규격(540×860·카드별 라운드·흰 배경)으로 맞춘다.
-  async function applyLensCandidate(id: string, image: string) {
+  async function applyLensCandidate(
+    id: string,
+    image: string,
+    source?: { sourceImage: string; corners: Array<{ x: number; y: number }> },
+  ) {
     if (!image || busy) return;
     setBusy(true);
     setMsg("잘라낸 카드를 검수 이미지로 저장하는 중…");
     try {
-      const response = await call({ action: "lensCandidate", id, image });
+      const response = await call({ action: "lensCandidate", id, image, ...(source ?? {}) });
       setLensUrl("");
       setCropTarget(null);
       setHandTarget(null);
@@ -352,6 +361,9 @@ export function AiImageWorkClient({
                 previewVersion: Date.now().toString(),
                 error: "구글렌즈에서 고른 이미지",
                 canRestore: Boolean(response.canRestore),
+                lensSourceUrl: (response.lensSourceUrl as string | null) ?? null,
+                lensCorners:
+                  (response.lensCorners as Array<{ x: number; y: number }> | null) ?? null,
               }
             : item,
         ),
@@ -1083,6 +1095,22 @@ export function AiImageWorkClient({
               >
                 카드 영역 선택
               </button>
+              {current.lensSourceUrl ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    setCropTarget({
+                      item: current,
+                      url: current.lensSourceUrl!,
+                      corners: current.lensCorners ?? null,
+                    })
+                  }
+                  className="cursor-pointer rounded border border-violet-500 px-4 py-2 text-sm font-bold text-violet-700 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  영역 다시 잡기
+                </button>
+              ) : null}
               {current.canRestore ? (
                 <button
                   type="button"
@@ -1286,7 +1314,10 @@ export function AiImageWorkClient({
           imageUrl={cropTarget.url}
           local={cropTarget.local}
           onCancel={() => setCropTarget(null)}
-          onCropped={(dataUrl) => applyLensCandidate(cropTarget.item.id, dataUrl)}
+          initialCorners={cropTarget.corners ?? null}
+          onCropped={(dataUrl, source) =>
+            applyLensCandidate(cropTarget.item.id, dataUrl, source)
+          }
         />
       ) : null}
       {failed.length > 0 && (

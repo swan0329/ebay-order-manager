@@ -48,6 +48,10 @@ const schema = z.discriminatedUnion("action", [
     // 화면에서 네 모서리를 찍어 잘라낸 결과를 보낸다. 주소만 보내는 옛 방식도 받는다.
     image: z.string().startsWith("data:image/").max(20_000_000).optional(),
     imageUrl: z.string().url().max(2_000).optional(),
+    /** 자르기 전 원본. 나중에 영역을 다시 잡을 때 쓴다. */
+    sourceImage: z.string().startsWith("data:image/").max(20_000_000).optional(),
+    /** 찍었던 네 점(원본 대비 0~1 비율) */
+    corners: z.array(z.object({ x: z.number(), y: z.number() })).length(4).optional(),
   }).refine((value) => Boolean(value.image) || Boolean(value.imageUrl), {
     message: "잘라낸 이미지 또는 이미지 주소가 필요합니다.",
   }),
@@ -281,6 +285,8 @@ export async function POST(request: Request) {
         ...(await saveLensCandidateForAiJob(input.id, {
           image: input.image,
           imageUrl: input.imageUrl,
+          sourceImage: input.sourceImage,
+          corners: input.corners,
         })),
       });
     if (input.action === "restoreAiPreview")

@@ -694,16 +694,40 @@ export async function repairAiPreviewCorners({
  * 서버가 내려받아 같은 규격(540×860·카드별 라운드·흰 배경)으로 맞춘 뒤 검수 대기에
  * 올린다. 최종 상품 이미지 확정은 지금처럼 통과를 눌러야 이뤄진다.
  */
+/** data: URL 한 장을 R2에 올린다. 원본 보관용이라 손대지 않고 그대로 둔다. */
+async function uploadLensSource(sku: string, dataUrl: string) {
+  const buffer = Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
+  const safeProductNumber = sku.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const uploaded = await uploadBufferToR2({
+    buffer,
+    key: `ai-image-reviews/${safeProductNumber}/${Date.now()}-lens-source.jpg`,
+    contentType: "image/jpeg",
+    cacheControl: "no-cache",
+  });
+  return uploaded.url;
+}
+
 export async function saveLensCandidateForAiJob(
   id: string,
-  input: { image?: string; imageUrl?: string },
+  input: {
+    image?: string;
+    imageUrl?: string;
+    /** 자르기 전 원본. 나중에 영역을 다시 잡을 때 쓴다. */
+    sourceImage?: string;
+    /** 찍었던 네 점(원본 대비 0~1 비율) */
+    corners?: Array<{ x: number; y: number }>;
+  },
 ) {
   await assertAiJobAllowed(id);
   const rows = await prisma.$queryRaw<
-    Array<{ sku: string; status: string; previewUrl: string | null; backupUrl: string | null }>
+    Array<{
+      sku: string; status: string; previewUrl: string | null; backupUrl: string | null;
+      lensSourceUrl: string | null; lensCorners: Array<{ x: number; y: number }> | null;
+    }>
   >`
     SELECT p."sku", j."status", j."preview_url" AS "previewUrl",
-      j."backup_preview_url" AS "backupUrl"
+      j."backup_preview_url" AS "backupUrl",
+      j."lens_source_url" AS "lensSourceUrl", j."lens_corners_json" AS "lensCorners"
     FROM "ai_image_jobs" j JOIN "products" p ON p."id"=j."product_id"
     WHERE j."id"=${id} LIMIT 1`;
   const job = rows[0];
@@ -724,13 +748,25 @@ export async function saveLensCandidateForAiJob(
   // AI가 만든 직전 결과는 한 번만 보관한다. 렌즈 결과를 연달아 바꿔도 되돌릴
   // 대상은 언제나 사람이 손대기 전의 AI 결과다.
   const backup = job.backupUrl ?? job.previewUrl;
+  // 원본과 네 점은 보낸 경우에만 갱신한다. 다시 잡기로 저장할 때 원본을 또 올리지
+  // 않아도 처음 보관한 원본이 그대로 남아야 한다.
+  const sourceUrl = input.sourceImage ? await uploadLensSource(job.sku, input.sourceImage) : null;
+  const corners = input.corners?.length === 4 ? JSON.stringify(input.corners) : null;
   const updated = await prisma.$executeRaw`UPDATE "ai_image_jobs"
     SET "status"='review',"preview_url"=${uploaded.url},"processed_at"=NOW(),
       "backup_preview_url"=${backup},
+      "lens_source_url"=COALESCE(${sourceUrl}::text, "lens_source_url"),
+      "lens_corners_json"=COALESCE(${corners}::jsonb, "lens_corners_json"),
       "error"='구글렌즈에서 고른 이미지',"reviewed_at"=NULL,"reviewed_by"=NULL
     WHERE "id"=${id} AND "status"<>'approved'`;
   if (!updated) throw new Error("작업 상태가 바뀌어 저장하지 못했습니다. 화면을 새로고침해 주세요.");
-  return { url: uploaded.url, sku: job.sku, canRestore: Boolean(backup) };
+  return {
+    url: uploaded.url,
+    sku: job.sku,
+    canRestore: Boolean(backup),
+    lensSourceUrl: sourceUrl ?? job.lensSourceUrl ?? null,
+    lensCorners: input.corners?.length === 4 ? input.corners : job.lensCorners ?? null,
+  };
 }
 
 /** 구글렌즈 결과가 마음에 들지 않을 때 AI가 만든 직전 결과로 되돌린다. */
