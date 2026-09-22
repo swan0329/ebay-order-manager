@@ -1,7 +1,19 @@
 import type { EbayAccount } from '@/generated/prisma';
 import { getValidAccessToken } from '@/lib/ebay';
 import { getEbayConfig } from '@/lib/env';
+import { prisma } from '@/lib/prisma';
 import { XMLParser } from 'fast-xml-parser';
+
+/**
+ * 확인 결과를 믿고 다시 묻지 않는 기간.
+ *
+ * 이 설정은 사람이 eBay에서 직접 끄지 않는 한 바뀌지 않는다. 그런데 변동처리마다
+ * 물어보다가 Trading API 일일 호출 한도를 넘겨(오류 518) 모든 수량 변경이 막혔다.
+ * 한 번 켜진 것을 확인했으면 하루 동안은 그 사실을 믿는다.
+ */
+const CONFIRMATION_TRUST_MS = 24 * 60 * 60 * 1000;
+/** eBay가 호출 한도 초과를 알리는 코드 */
+const USAGE_LIMIT_ERROR_CODE = '518';
 
 // A zero-quantity GTC listing must remain resumable instead of being ended.
 // 변동처리는 항상 수량 0으로 제출하므로 이 설정이 꺼져 있으면 리스팅이 끝난다.
@@ -90,15 +102,36 @@ export async function readEbayOutOfStockPreference(account: EbayAccount) {
   );
 }
 
+function hitUsageLimit(result: EbayCallResult) {
+  return result.errors.some((error) => error.code === USAGE_LIMIT_ERROR_CODE);
+}
+
+async function rememberConfirmation(account: EbayAccount) {
+  await prisma.ebayAccount.update({
+    where: { id: account.id },
+    data: { outOfStockControlAt: new Date() },
+  });
+}
+
 export async function ensureEbayOutOfStockControl(account: EbayAccount) {
+  const confirmedAt = account.outOfStockControlAt?.getTime() ?? 0;
+  // 최근에 확인했으면 묻지 않는다. 호출 한도를 아껴야 수량 변경이 막히지 않는다.
+  if (Date.now() - confirmedAt < CONFIRMATION_TRUST_MS) return;
+
   const current = await readEbayOutOfStockPreference(account);
+  // 한도를 넘겨 물어보지 못했을 뿐이라면, 전에 켜진 것을 확인한 계정은 그대로 진행한다.
+  // 확인을 못 한다는 이유로 판매 반영을 통째로 멈추는 편이 더 해롭다.
+  if (!current.ok && hitUsageLimit(current) && confirmedAt > 0) return;
   if (!current.ok) {
     throw new Error(
       `eBay 판매 보류·재개 설정을 확인하지 못해 수량 변경을 중단했습니다. ${describe(current)}` +
       ' · eBay 판매자 설정에서 "품절 시 리스팅 유지(Out of Stock Control)"를 직접 켜면 바로 진행할 수 있습니다.',
     );
   }
-  if (current.enabled === true) return;
+  if (current.enabled === true) {
+    await rememberConfirmation(account);
+    return;
+  }
 
   const applied = await callUserPreferences(
     account,
@@ -112,7 +145,11 @@ export async function ensureEbayOutOfStockControl(account: EbayAccount) {
     );
   }
   const confirmed = await readEbayOutOfStockPreference(account);
-  if (confirmed.enabled !== true) {
+  if (confirmed.enabled === true) {
+    await rememberConfirmation(account);
+    return;
+  }
+  {
     throw new Error(
       'eBay 판매 보류 설정이 적용되지 않았습니다. eBay 판매자 설정에서 "품절 시 리스팅 유지"를 직접 켠 뒤 다시 실행해 주세요.' +
       (confirmed.ok ? '' : ` ${describe(confirmed)}`),

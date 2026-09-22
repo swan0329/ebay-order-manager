@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('@/lib/ebay', () => ({ getValidAccessToken: vi.fn().mockResolvedValue('test-token') }));
 vi.mock('@/lib/env', () => ({ getEbayConfig: () => ({ hosts: { api: 'https://api.ebay.com' } }) }));
+vi.mock('@/lib/prisma', () => ({ prisma: { ebayAccount: { update: vi.fn() } } }));
 import { ensureEbayOutOfStockControl, readEbayOutOfStockPreference } from './ebay-out-of-stock';
 afterEach(() => vi.unstubAllGlobals());
 
@@ -54,4 +55,32 @@ it('진단용 조회는 던지지 않고 결과를 돌려준다', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(preference('GetUserPreferences', 'true')));
   const result = await readEbayOutOfStockPreference({} as never);
   expect(result).toMatchObject({ ok: true, enabled: true, ack: 'Success', errors: [] });
+});
+
+// 호출 한도를 넘겨(518) 설정을 읽지 못해도, 전에 켜진 것을 확인한 계정은 멈추지 않는다.
+// 확인을 못 한다는 이유로 판매 반영을 통째로 멈추는 편이 더 해롭다.
+it('최근에 확인했으면 eBay에 다시 묻지 않는다', async () => {
+  const fetchMock = vi.fn();
+  vi.stubGlobal('fetch', fetchMock);
+  await ensureEbayOutOfStockControl({ id: 'a1', outOfStockControlAt: new Date() } as never);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it('호출 한도를 넘겨도 전에 확인한 계정은 진행한다', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(
+    '<GetUserPreferencesResponse><Ack>Failure</Ack><Errors><ErrorCode>518</ErrorCode><LongMessage>usage limit</LongMessage></Errors></GetUserPreferencesResponse>',
+  )));
+  const old = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+  await expect(
+    ensureEbayOutOfStockControl({ id: 'a1', outOfStockControlAt: old } as never),
+  ).resolves.toBeUndefined();
+});
+
+it('한 번도 확인한 적 없으면 한도 초과라도 멈춘다', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(
+    '<GetUserPreferencesResponse><Ack>Failure</Ack><Errors><ErrorCode>518</ErrorCode><LongMessage>usage limit</LongMessage></Errors></GetUserPreferencesResponse>',
+  )));
+  await expect(
+    ensureEbayOutOfStockControl({ id: 'a1', outOfStockControlAt: null } as never),
+  ).rejects.toThrow(/518/);
 });

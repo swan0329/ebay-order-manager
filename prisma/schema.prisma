@@ -82,6 +82,8 @@ model EbayAccount {
   expiresAt             DateTime        @map("expires_at")
   refreshTokenExpiresAt DateTime?       @map("refresh_token_expires_at")
   rawProfile            Json?           @map("raw_profile")
+  /** "품절 시 리스팅 유지"가 켜져 있음을 eBay에서 확인한 시각. 매번 물어보면 Trading API 일일 한도를 태운다. */
+  outOfStockControlAt   DateTime?       @map("out_of_stock_control_at")
   createdAt             DateTime        @default(now()) @map("created_at")
   updatedAt             DateTime        @updatedAt @map("updated_at")
 

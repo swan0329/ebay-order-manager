@@ -149,6 +149,47 @@ function EbayQuantityRecovery() {
   );
 }
 
+/**
+ * eBay가 호출 한도를 이유로 설정 조회를 거부할 때, 사람이 직접 확인한 사실을 기록한다.
+ * 확인해 주면 수량 변경이 다시 진행된다.
+ */
+function OutOfStockConfirmButton({ onDone }: { onDone: (message: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+      <p className="font-semibold">eBay 호출 한도 때문에 설정을 읽지 못하고 있습니다.</p>
+      <p className="mt-1 text-xs">
+        eBay 판매자 설정에서 <strong>&quot;품절 시 리스팅 유지(Out of Stock Control)&quot;</strong>가
+        켜져 있는지 직접 확인하신 뒤 아래를 눌러 주세요. 확인한 것으로 기록하고 작업을 다시
+        진행합니다. 하루 뒤에는 자동으로 다시 확인합니다.
+      </p>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const response = await fetch("/api/ebay/out-of-stock-control", { method: "POST" });
+            const body = await response.json();
+            onDone(
+              response.ok
+                ? "확인한 것으로 기록했습니다. 변동처리를 다시 실행해 주세요."
+                : body.error ?? "기록하지 못했습니다.",
+            );
+          } catch (error) {
+            onDone(error instanceof Error ? error.message : "기록하지 못했습니다.");
+          } finally {
+            setBusy(false);
+          }
+        }}
+        className="mt-2 cursor-pointer rounded bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+      >
+        {busy ? "기록 중…" : "eBay에서 켜진 것을 확인했습니다"}
+      </button>
+    </div>
+  );
+}
+
 export function ChannelAutomaticOperations() {
   const router = useRouter();
   const [channel, setChannel] = useState<ChannelChoice>("BOTH");
@@ -386,7 +427,19 @@ export function ChannelAutomaticOperations() {
       <details className="text-xs text-zinc-500"><summary className="cursor-pointer">반영 범위와 처리 한도 안내</summary><p className="mt-2 leading-relaxed">이미지·워터마크·배경 변경은 묶음 대표와 옵션 이미지까지 반영합니다. 한 번에 채널별 가격·재고 최대 500개(Shopify), 이미지 최대 500개 판매상품을 처리합니다. 남은 대상은 다음 실행에 반영합니다.</p></details>
         </div>
       </details>
-      {message ? <p role="status" className="border-t p-4 text-sm font-medium text-rose-700">{message}</p> : null}
+      {message ? (
+        <div className="border-t p-4">
+          <p role="status" className="text-sm font-medium text-rose-700">{message}</p>
+          {/*
+            Trading API 일일 호출 한도를 넘기면 설정을 읽지 못해 수량 변경이 통째로
+            막힌다. 사람이 eBay 화면에서 직접 보고 확인해 주면 그때까지 기다리지 않아도
+            된다. 한도는 하루가 지나면 풀린다.
+          */}
+          {/(518|품절 시 리스팅 유지|판매 보류·재개)/.test(message) && (
+            <OutOfStockConfirmButton onDone={setMessage} />
+          )}
+        </div>
+      ) : null}
       {(["EBAY", "SHOPIFY"] as const).map(kind => {
         const entries = [
           { label: operation === "end" ? "판매중단" : "가격·수량", job: kind === "EBAY" ? ebayJob : shopifyJob },
