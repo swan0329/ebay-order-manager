@@ -23,7 +23,10 @@ export async function ensureProcurementRefreshQueue(userId?: string) {
 export async function maintainProcurementChannels() {
   const admin = await prisma.user.findFirst({ where: { role: "ADMIN" }, orderBy: { createdAt: "asc" }, select: { id: true } });
   if (!admin || !(await getPocamarketSyncSettings(admin.id)).enabled) return;
-  const linked = await prisma.product.findMany({ where: { pocamarketId: { not: null },
+  // 채널에 올라가 있는 상품이면 모두 자동 반영한다. 예전에는 포카마켓에 연결된 것만
+  // 봤는데, 그러면 보유 재고로만 파는 상품은 사람이 변동처리를 눌러야 반영됐다.
+  // 어떤 가격·수량을 보낼지는 상품마다 기존 판정이 그대로 정한다.
+  const linked = await prisma.product.findMany({ where: {
     OR: [{ ebayItemId: { not: null } }, { shopifyProductId: { not: null } }] }, select: { id: true } });
   const ids = new Set(linked.map(product => product.id));
   const failures: string[] = [];
