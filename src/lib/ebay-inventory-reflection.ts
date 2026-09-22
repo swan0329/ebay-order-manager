@@ -141,7 +141,14 @@ async function reflectLegacyTarget(account: EbayAccount, target: EbayFeedTarget)
     throw new Error("eBay 정확한 판매 옵션을 확인하지 못해 변경하지 않았습니다.");
   }
   await call("ReviseInventoryStatus", `<InventoryStatus><ItemID>${escapeXml(target.itemId)}</ItemID>${rows.length ? `<SKU>${escapeXml(target.sku)}</SKU>` : ""}${target.price ? `<StartPrice currencyID="USD">${escapeXml(target.price)}</StartPrice>` : ""}<Quantity>${target.quantity ?? 0}</Quantity></InventoryStatus>`);
-  await verifyActualListing(account, target);
+  // 쓰기는 통과했는데 확인만 한도로 막힌 경우다. 여기서 실패로 처리하면 판매가
+  // 수량 0인 채로 남는다. 실제 값은 다음 활성상품 보고서가 대조한다.
+  try {
+    await verifyActualListing(account, target);
+  } catch (error) {
+    if (!(error instanceof EbayVerificationUnavailable)) throw error;
+    return { legacy: true, unverified: true };
+  }
   return { legacy: true };
 }
 
