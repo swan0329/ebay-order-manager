@@ -1095,20 +1095,25 @@ export function AiImageWorkClient({
               >
                 카드 영역 선택
               </button>
-              {current.lensSourceUrl ? (
+              {/*
+                렌즈로 가져온 사진이면 그 원본에서, AI가 처리한 결과면 AI가 쓴 원본
+                사진에서 다시 잡는다. 결과 이미지를 또 자르면 카드가 작아지고 모서리가
+                두 번 둥글려지며, 잘못 좁게 잡은 것은 넓힐 수도 없다.
+              */}
+              {(current.lensSourceUrl ?? current.sourceUrl) ? (
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() =>
                     setCropTarget({
                       item: current,
-                      url: current.lensSourceUrl!,
-                      corners: current.lensCorners ?? null,
+                      url: current.lensSourceUrl ?? current.sourceUrl,
+                      corners: current.lensSourceUrl ? current.lensCorners ?? null : null,
                     })
                   }
                   className="cursor-pointer rounded border border-violet-500 px-4 py-2 text-sm font-bold text-violet-700 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  영역 다시 잡기
+                  {current.lensSourceUrl ? "영역 다시 잡기" : "원본에서 영역 잡기"}
                 </button>
               ) : null}
               {current.canRestore ? (
