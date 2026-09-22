@@ -340,9 +340,15 @@ export function AiImageWorkClient({
   async function applyLensCandidate(
     id: string,
     image: string,
-    source?: { sourceImage: string; corners: Array<{ x: number; y: number }> },
+    source?: { sourceImage?: string; corners: Array<{ x: number; y: number }> },
   ) {
-    if (!image || busy) return;
+    if (!image) return;
+    // 다른 작업이 도는 중이면 조용히 무시하지 않는다. 눌렀는데 아무 일도 안 일어나면
+    // 사람은 적용된 줄 알고 넘어간다.
+    if (busy) {
+      setMsg("다른 작업이 처리 중입니다. 끝난 뒤 다시 눌러 주세요.");
+      return;
+    }
     setBusy(true);
     setMsg("잘라낸 카드를 검수 이미지로 저장하는 중…");
     try {

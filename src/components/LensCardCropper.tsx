@@ -10,6 +10,10 @@ import {
 import { useCardCorners } from "@/components/useCardCorners";
 
 const CANVAS_WIDTH = 720;
+/** 다시 잡기용 원본을 보관할 때 줄일 최대 변 길이 */
+const SOURCE_MAX_EDGE = 2000;
+/** 한 번에 보낼 수 있는 대략적인 한도. 넘기면 요청이 서버에 닿지 못한다. */
+const MAX_UPLOAD_CHARS = 3_500_000;
 
 /**
  * 구글렌즈에서 찾은 사진에는 배경과 다른 물건이 함께 들어 있다. 카드 네 모서리를
@@ -35,7 +39,7 @@ export function LensCardCropper({
    */
   onCropped: (
     dataUrl: string,
-    source: { sourceImage: string; corners: Point[] },
+    source: { sourceImage?: string; corners: Point[] },
   ) => void;
   /** 전에 찍었던 네 점(원본 대비 0~1 비율). 다시 잡을 때 그대로 띄운다. */
   initialCorners?: Point[] | null;
@@ -155,19 +159,27 @@ export function LensCardCropper({
       return;
     }
     roundCanvasCorners(output, Math.round(width * 0.045));
-    // 원본을 그대로 한 장 만들어 함께 넘긴다. 렌즈 주소는 나중에 사라질 수 있어
-    // 주소만 적어 두면 다시 잡을 때 그림을 못 찾는다.
+    // 원본도 한 장 같이 보낸다. 렌즈 주소는 나중에 사라질 수 있어 주소만 적어 두면
+    // 다시 잡을 때 그림을 못 찾는다. 다만 휴대폰 사진 원본을 그대로 보내면 요청이
+    // 서버가 받는 크기를 넘겨 저장 자체가 조용히 실패한다. 다시 잡기에 충분한
+    // 크기로 줄여서 보낸다.
+    const longest = Math.max(image.naturalWidth, image.naturalHeight);
+    const scale = longest > SOURCE_MAX_EDGE ? SOURCE_MAX_EDGE / longest : 1;
     const sourceCanvas = document.createElement("canvas");
-    sourceCanvas.width = image.naturalWidth;
-    sourceCanvas.height = image.naturalHeight;
-    sourceCanvas.getContext("2d")?.drawImage(image, 0, 0);
-    onCropped(output.toDataURL("image/png"), {
-      sourceImage: sourceCanvas.toDataURL("image/jpeg", 0.92),
-      corners: ordered.map((point) => ({
-        x: point.x / canvas.width,
-        y: point.y / canvas.height,
-      })),
-    });
+    sourceCanvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    sourceCanvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    sourceCanvas
+      .getContext("2d")
+      ?.drawImage(image, 0, 0, sourceCanvas.width, sourceCanvas.height);
+    const sourceImage = sourceCanvas.toDataURL("image/jpeg", 0.85);
+    const corners = ordered.map((point) => ({
+      x: point.x / canvas.width,
+      y: point.y / canvas.height,
+    }));
+    const cropped = output.toDataURL("image/png");
+    // 그래도 크면 원본 보관을 포기한다. 잘라낸 결과를 잃는 것보다 낫다.
+    const tooLarge = cropped.length + sourceImage.length > MAX_UPLOAD_CHARS;
+    onCropped(cropped, tooLarge ? { corners } : { sourceImage, corners });
   };
 
   return (
