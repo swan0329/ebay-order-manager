@@ -370,8 +370,11 @@ async function applyCompletedJob(jobId: string, resultXml: string, summary: { su
     const currentProducts = await withVerifiedProcurementEvidence(await prisma.product.findMany({ where: { id: { in: chunk.map(target => target.productId) } } }));
     const currentById = new Map(currentProducts.map(product => [product.id, product]));
     const started = Date.now();
+    // eBay 일일 호출 한도를 넘기면(518) 남은 대상을 붙잡고 있어 봐야 같은 답만 돌아오고
+    // 한도만 더 태운다. 처음 만나면 멈추고, 한도가 초기화된 뒤 자동으로 이어서 한다.
+    let usageLimitHit = false;
     for (const target of chunk) {
-      if (Date.now() - started > 150_000) break;
+      if (usageLimitHit || Date.now() - started > 150_000) break;
       let reflectionAttempted = false;
       try {
         if (!parsed.succeeded.has(target.productId)) throw new Error("eBay Feed 반영 실패·응답 누락으로 판매 보류가 필요합니다.");
@@ -390,6 +393,12 @@ async function applyCompletedJob(jobId: string, resultXml: string, summary: { su
         target.inventoryApplied = true;
       } catch (error) {
         target.inventoryError = error instanceof Error ? error.message : "eBay Inventory 반영 실패";
+        if (target.inventoryError.includes("518")) {
+          // 한도 초과는 이 상품의 문제가 아니다. 실패로 남기면 다시 시도하지 않는다.
+          usageLimitHit = true;
+          target.inventoryError = undefined;
+          continue;
+        }
         if (!reflectionAttempted) {
           try {
             await holdEbayInventoryTarget(account, target);
@@ -405,6 +414,17 @@ async function applyCompletedJob(jobId: string, resultXml: string, summary: { su
       // Each idempotent absolute-quantity write is checkpointed. A crash retries
       // at most the current SKU, not the whole 500-product operation.
       await prisma.ebayFeedJob.update({ where: { id: job.id }, data: { targetsJson: targets as unknown as Prisma.InputJsonValue } });
+    }
+    if (usageLimitHit) {
+      // 한도 때문에 실패로 적힌 것들도 되돌린다. 상품 문제가 아니라 계정 한도 문제다.
+      for (const target of targets) {
+        if (target.inventoryError?.includes("518")) target.inventoryError = undefined;
+      }
+      await prisma.ebayFeedJob.update({ where: { id: job.id }, data: { status: "IN_PROCESS", completedAt: null,
+        targetsJson: targets as unknown as Prisma.InputJsonValue,
+        successCount: targets.filter(target => target.inventoryApplied).length,
+        error: "eBay 일일 호출 한도를 넘겨 수량 되돌리기를 잠시 멈췄습니다. 한도가 초기화되면 남은 상품을 이어서 되돌립니다." } });
+      return;
     }
     const remaining = targets.some(target => !target.inventoryApplied && !target.inventoryError);
     if (remaining) {
