@@ -4,6 +4,7 @@ import { getEbayFeedOperationTargets, submitEbayFeedOperation } from "@/lib/ebay
 import { createShopifyAutomaticOperationJob, getShopifyAutomaticOperationProductIds } from "@/lib/channel-publish-jobs";
 import { procurementHoldReason, procurementRefreshDue } from "@/lib/procurement-freshness";
 import { withVerifiedProcurementEvidence } from "@/lib/procurement-evidence";
+import { shouldPauseAutoSchedule } from "@/lib/channel-auto-backoff";
 
 export async function ensureProcurementRefreshQueue(userId?: string) {
   const owner = userId ?? (await prisma.user.findFirst({ where: { role: "ADMIN" }, orderBy: { createdAt: "asc" }, select: { id: true } }))?.id;
@@ -27,16 +28,34 @@ export async function maintainProcurementChannels() {
   const failures: string[] = [];
   try {
     const ebayActive = await prisma.ebayFeedJob.findFirst({ where: { userId: admin.id, status: { in: ["PENDING", "SUBMITTING", "CREATED", "SUBMITTED", "IN_PROCESS"] } }, select: { id: true } });
-    if (!ebayActive) {
+    // 실패한 원인이 그대로면 5분 뒤에 걸어도 또 실패한다. eBay 호출만 태우므로 쉰다.
+    const lastFailed = await prisma.ebayFeedJob.findFirst({
+      where: { userId: admin.id, status: "FAILED" },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true, completedAt: true, error: true },
+    });
+    const paused = shouldPauseAutoSchedule(
+      lastFailed ? { at: lastFailed.completedAt ?? lastFailed.createdAt, error: lastFailed.error } : null,
+    );
+    if (!ebayActive && !paused) {
+      // 가격·수량 되돌리기가 먼저다. 판매중단은 그다음 주기에 건다.
       const targets = (await getEbayFeedOperationTargets(admin.id, "revise")).filter(target => ids.has(target.productId)).slice(0, 500);
       if (targets.length) await submitEbayFeedOperation(admin.id, "revise", 500, undefined, targets.map(target => target.productId));
+      else {
+        const stopping = (await getEbayFeedOperationTargets(admin.id, "end")).filter(target => ids.has(target.productId)).slice(0, 500);
+        if (stopping.length) await submitEbayFeedOperation(admin.id, "end", 500, undefined, stopping.map(target => target.productId));
+      }
     }
   } catch { failures.push("eBay"); }
   try {
-    const shopifyActive = await prisma.channelPublishJob.findFirst({ where: { userId: admin.id, channel: "SHOPIFY", mode: "PRICE_INVENTORY", status: { in: ["QUEUED", "RUNNING"] } }, select: { id: true } });
+    const shopifyActive = await prisma.channelPublishJob.findFirst({ where: { userId: admin.id, channel: "SHOPIFY", mode: { in: ["PRICE_INVENTORY", "ARCHIVE"] }, status: { in: ["QUEUED", "RUNNING", "WAITING"] } }, select: { id: true } });
     if (!shopifyActive) {
       const targets = (await getShopifyAutomaticOperationProductIds("revise")).filter(product => ids.has(product.id)).slice(0, 500);
       if (targets.length) await createShopifyAutomaticOperationJob({ userId: admin.id, operation: "revise", limit: 500, productIds: targets.map(product => product.id) });
+      else {
+        const stopping = (await getShopifyAutomaticOperationProductIds("end")).filter(product => ids.has(product.id)).slice(0, 500);
+        if (stopping.length) await createShopifyAutomaticOperationJob({ userId: admin.id, operation: "end", limit: 500, productIds: stopping.map(product => product.id) });
+      }
     }
   } catch { failures.push("Shopify"); }
   if (failures.length) throw new Error(`${failures.join(" · ")} 조달 변동 예약 실패`);
