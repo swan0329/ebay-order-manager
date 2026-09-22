@@ -18,6 +18,12 @@ export type PricingInputs = {
   salesTaxUpliftRate?: Prisma.Decimal.Value;
   /** 판매 1건에 얹을 등록수수료(USD) */
   insertionFeeUsd?: Prisma.Decimal.Value;
+  /** 실제로 배송에 드는 돈(USD). 구매자에게 받는 배송비와 다르면 차액이 손익이 된다. */
+  shippingCostUsd?: Prisma.Decimal.Value;
+  /** 카드 1장당 포장재 비용(원) */
+  packagingCostKrw?: Prisma.Decimal.Value;
+  /** 달러를 원화로 바꿀 때 떼이는 비율 */
+  fxFeeRate?: Prisma.Decimal.Value;
   minimumSalePriceUsd?: Prisma.Decimal.Value | null;
   roundingIncrementUsd?: Prisma.Decimal.Value;
 };
@@ -43,6 +49,9 @@ export type PricingSettingsRow = {
   buyerShippingUsd?: Prisma.Decimal.Value;
   salesTaxUpliftRate?: Prisma.Decimal.Value;
   insertionFeeUsd?: Prisma.Decimal.Value;
+  shippingCostUsd?: Prisma.Decimal.Value;
+  packagingCostKrw?: Prisma.Decimal.Value;
+  fxFeeRate?: Prisma.Decimal.Value;
   minimumSalePriceUsd?: Prisma.Decimal.Value | null;
   roundingIncrementUsd?: Prisma.Decimal.Value;
 };
@@ -64,6 +73,9 @@ export function pricingInputsFromSettings(
     buyerShippingUsd: settings.buyerShippingUsd ?? 0,
     salesTaxUpliftRate: settings.salesTaxUpliftRate ?? 0,
     insertionFeeUsd: settings.insertionFeeUsd ?? 0,
+    shippingCostUsd: settings.shippingCostUsd ?? 0,
+    packagingCostKrw: settings.packagingCostKrw ?? 0,
+    fxFeeRate: settings.fxFeeRate ?? 0,
     minimumSalePriceUsd: settings.minimumSalePriceUsd,
     roundingIncrementUsd: settings.roundingIncrementUsd,
   };
@@ -97,10 +109,16 @@ export function validatePricingSettings(input: Omit<PricingInputs, "pocaPriceKrw
     input.buyerShippingUsd ?? 0,
     input.salesTaxUpliftRate ?? 0,
     input.insertionFeeUsd ?? 0,
+    input.shippingCostUsd ?? 0,
+    input.packagingCostKrw ?? 0,
+    input.fxFeeRate ?? 0,
   ]) {
     if (new Prisma.Decimal(value).isNegative()) {
       throw new Error("비용과 비율은 0 이상이어야 합니다.");
     }
+  }
+  if (new Prisma.Decimal(input.fxFeeRate ?? 0).greaterThanOrEqualTo(1)) {
+    throw new Error("환전 수수료는 100% 미만이어야 합니다.");
   }
   const increment = new Prisma.Decimal(input.roundingIncrementUsd ?? "0.10");
   if (increment.lessThanOrEqualTo(0)) {
@@ -124,7 +142,8 @@ export function calculateRecommendedPrice(input: PricingInputs) {
 
   const totalCostKrw = pocaPriceKrw
     .plus(input.domesticShippingKrw)
-    .plus(input.buyingAgencyFeeKrw);
+    .plus(input.buyingAgencyFeeKrw)
+    .plus(input.packagingCostKrw ?? 0);
   const costUsd = totalCostKrw.div(input.exchangeRateKrwPerUsd);
   const feeRate = new Prisma.Decimal(input.ebayFeeRate)
     .plus(input.internationalFeeRate ?? 0)
@@ -138,13 +157,26 @@ export function calculateRecommendedPrice(input: PricingInputs) {
   // 판매가에 붙는 수수료 몫. 이만큼은 판매가에서 먼저 빠져나간다.
   const priceFeeRate = feeRate.times(uplift);
   // 배송비·주문 고정비·등록수수료는 판매가와 상관없이 나가므로 원가 쪽에 더한다.
+  // 구매자에게 받는 배송비로 실제 배송비를 메운다. 모자라면 그 차액이 비용이고,
+  // 남으면 이익이다. 예전에는 이 차액이 어디에도 없어 조용히 손해가 났다.
+  const shippingCost = new Prisma.Decimal(input.shippingCostUsd ?? 0);
+  // 아직 실제 배송 원가를 넣지 않았으면 받는 배송비로 딱 맞는다고 본다. 0을 "공짜"로
+  // 읽으면 받은 배송비가 전부 이익이 되어 판매가가 그만큼 내려간다.
+  const shippingGapUsd = shippingCost.isZero()
+    ? new Prisma.Decimal(0)
+    : shippingCost.minus(shipping);
   const fixedCostUsd = shipping
     .times(uplift)
     .times(feeRate)
     .plus(perOrderFee)
-    .plus(insertionFee);
+    .plus(insertionFee)
+    .plus(shippingGapUsd);
+  // 달러를 원화로 바꿀 때 떼이는 만큼 실제로 받는 돈이 줄어든다. 목표 이익을 그대로
+  // 남기려면 그 몫만큼 판매가가 더 커야 한다.
+  const fxKeepRate = new Prisma.Decimal(1).minus(input.fxFeeRate ?? 0);
   const rawRecommendedPriceUsd = costUsd
     .times(new Prisma.Decimal(1).plus(input.targetMarginRate))
+    .div(fxKeepRate)
     .plus(fixedCostUsd)
     .div(new Prisma.Decimal(1).minus(priceFeeRate));
   const increment = new Prisma.Decimal(input.roundingIncrementUsd ?? "0.10");
@@ -162,7 +194,11 @@ export function calculateRecommendedPrice(input: PricingInputs) {
     .plus(perOrderFee);
   const advertisingFeeUsd = feeBasisUsd.times(input.advertisingRate);
   const totalFeeUsd = ebayFeeUsd.plus(advertisingFeeUsd).plus(insertionFee);
-  const expectedProceedsUsd = recommendedPriceUsd.minus(totalFeeUsd);
+  // 배송비 차액을 반영하고, 남은 금액에서 환전 수수료를 뺀 것이 실제로 손에 쥐는 돈이다.
+  const expectedProceedsUsd = recommendedPriceUsd
+    .minus(totalFeeUsd)
+    .minus(shippingGapUsd)
+    .times(fxKeepRate);
   const expectedNetMarginUsd = expectedProceedsUsd.minus(costUsd);
   const expectedNetMarginRate = costUsd.isZero()
     ? new Prisma.Decimal(0)
@@ -178,6 +214,7 @@ export function calculateRecommendedPrice(input: PricingInputs) {
     ebayFeeUsd,
     advertisingFeeUsd,
     insertionFeeUsd: insertionFee,
+    shippingGapUsd,
     totalFeeUsd,
     expectedProceedsUsd,
     expectedNetMarginUsd,

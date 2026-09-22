@@ -45,6 +45,9 @@ export async function PUT(request: Request) {
       perOrderFeeUsd: String(body.perOrderFeeUsd ?? "0"),
       buyerShippingUsd: String(body.buyerShippingUsd ?? "0"),
       salesTaxUpliftRate: String(body.salesTaxUpliftRate ?? "0"),
+      shippingCostUsd: String(body.shippingCostUsd ?? "0"),
+      packagingCostKrw: String(body.packagingCostKrw ?? "0"),
+      fxFeeRate: String(body.fxFeeRate ?? "0"),
       insertionFeeUsd: String(body.insertionFeeUsd ?? existing?.insertionFeeUsd ?? "0"),
       minimumSalePriceUsd:
         body.minimumSalePriceUsd === "" || body.minimumSalePriceUsd == null

@@ -643,6 +643,12 @@ model PricingSettings {
   buyerShippingUsd      Decimal  @default(0) @map("buyer_shipping_usd") @db.Decimal(12, 2)
   /** eBay가 걷는 판매세만큼 수수료 기준이 커지는 비율 */
   salesTaxUpliftRate    Decimal  @default(0) @map("sales_tax_uplift_rate") @db.Decimal(9, 6)
+  /** 실제로 배송에 드는 돈. 구매자에게 받는 배송비와 다르면 그 차액이 손익이 된다. */
+  shippingCostUsd       Decimal  @default(0) @map("shipping_cost_usd") @db.Decimal(12, 2)
+  /** 카드 1장당 포장재 비용 */
+  packagingCostKrw      Decimal  @default(0) @map("packaging_cost_krw") @db.Decimal(12, 2)
+  /** 달러를 원화로 바꿀 때 떼이는 비율. 받는 돈이 그만큼 줄어든다. */
+  fxFeeRate             Decimal  @default(0) @map("fx_fee_rate") @db.Decimal(9, 6)
   /** 판매가에 얹을 등록수수료. eBay 정산에서 확인한 실제 청구를 보고 사람이 정한다. */
   insertionFeeUsd       Decimal  @default(0) @map("insertion_fee_usd") @db.Decimal(12, 2)
   minimumSalePriceUsd   Decimal? @map("minimum_sale_price_usd") @db.Decimal(12, 2)

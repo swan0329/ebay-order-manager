@@ -14,6 +14,9 @@ type Settings = {
   buyerShippingUsd: string;
   salesTaxUpliftRate: string;
   insertionFeeUsd: string;
+  shippingCostUsd: string;
+  packagingCostKrw: string;
+  fxFeeRate: string;
   minimumSalePriceUsd: string | null;
 };
 
@@ -111,7 +114,7 @@ function simulate(values: Record<string, string>, pocaPriceKrw: number) {
   const number = (key: string) => Number(values[key]) || 0;
   const rate = (key: string) => number(key) / 100;
   const exchange = Number(values.exchangeRateKrwPerUsd) || 1;
-  const costKrw = pocaPriceKrw + number("domesticShippingKrw") + number("buyingAgencyFeeKrw");
+  const costKrw = pocaPriceKrw + number("domesticShippingKrw") + number("buyingAgencyFeeKrw") + number("packagingCostKrw");
   const costUsd = costKrw / exchange;
   const feeRate = rate("ebayFeePercent") + rate("internationalFeePercent") + rate("advertisingPercent");
   const uplift = 1 + rate("salesTaxUpliftPercent");
@@ -120,8 +123,13 @@ function simulate(values: Record<string, string>, pocaPriceKrw: number) {
   const insertion = number("insertionFeeUsd");
   const priceFeeRate = feeRate * uplift;
   if (priceFeeRate >= 1) return null;
-  const fixed = shipping * uplift * feeRate + perOrder + insertion;
-  const raw = (costUsd * (1 + rate("targetMarginPercent")) + fixed) / (1 - priceFeeRate);
+  // 실제 배송 원가를 넣지 않았으면(0) 받는 배송비로 딱 맞는다고 본다.
+  const shippingCost = number("shippingCostUsd");
+  const shippingGap = shippingCost === 0 ? 0 : shippingCost - shipping;
+  const fxKeep = 1 - rate("fxFeePercent");
+  if (fxKeep <= 0) return null;
+  const fixed = shipping * uplift * feeRate + perOrder + insertion + shippingGap;
+  const raw = ((costUsd * (1 + rate("targetMarginPercent"))) / fxKeep + fixed) / (1 - priceFeeRate);
   let price = Math.ceil(raw / 0.1) * 0.1;
   const minimum = Number(values.minimumSalePriceUsd);
   if (values.minimumSalePriceUsd && Number.isFinite(minimum)) price = Math.max(price, minimum);
@@ -129,7 +137,7 @@ function simulate(values: Record<string, string>, pocaPriceKrw: number) {
   const ebayFee = basis * (rate("ebayFeePercent") + rate("internationalFeePercent")) + perOrder;
   const adFee = basis * rate("advertisingPercent");
   const totalFee = ebayFee + adFee + insertion;
-  const proceeds = price - totalFee;
+  const proceeds = (price - totalFee - shippingGap) * fxKeep;
   return {
     costKrw,
     costUsd,
@@ -138,6 +146,7 @@ function simulate(values: Record<string, string>, pocaPriceKrw: number) {
     ebayFee,
     adFee,
     insertion,
+    shippingGap,
     totalFee,
     proceeds,
     margin: costUsd ? (proceeds - costUsd) / costUsd : 0,
@@ -158,6 +167,9 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
     buyerShippingUsd: initial?.buyerShippingUsd ?? "0",
     salesTaxUpliftPercent: initial ? String(Number(initial.salesTaxUpliftRate) * 100) : "0",
     insertionFeeUsd: initial?.insertionFeeUsd ?? "0",
+    shippingCostUsd: initial?.shippingCostUsd ?? "0",
+    packagingCostKrw: initial?.packagingCostKrw ?? "0",
+    fxFeePercent: initial ? String(Number(initial.fxFeeRate) * 100) : "0",
     minimumSalePriceUsd: initial?.minimumSalePriceUsd ?? "",
   });
   const [message, setMessage] = useState("");
@@ -224,6 +236,9 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
         perOrderFeeUsd: values.perOrderFeeUsd,
         buyerShippingUsd: values.buyerShippingUsd,
         salesTaxUpliftRate: String(Number(values.salesTaxUpliftPercent) / 100),
+        shippingCostUsd: values.shippingCostUsd,
+        packagingCostKrw: values.packagingCostKrw,
+        fxFeeRate: String(Number(values.fxFeePercent) / 100),
         minimumSalePriceUsd: values.minimumSalePriceUsd,
       }),
     });
@@ -696,6 +711,8 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
         <div className="mt-3 grid gap-5 sm:grid-cols-3">
           {field("domesticShippingKrw", "국내 배송비", "카드당 실제 부담액", "원")}
           {field("buyingAgencyFeeKrw", "포카마켓 출고비", "카드당 실제 부담액", "원")}
+          {field("packagingCostKrw", "포장비", "슬리브·탑로더·봉투 등 카드당", "원")}
+          {field("fxFeePercent", "환전 수수료", "달러를 원화로 바꿀 때 떼이는 비율", "%")}
           <label className="text-sm font-medium text-zinc-700">
             <span className="block">적용 환율</span>
             <span className="mt-1.5 flex items-center gap-2">
@@ -734,6 +751,7 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
           {field("perOrderFeeUsd", "주문당 고정비", "주문 1건마다", "$")}
           {field("advertisingPercent", "광고율", "광고로 연결된 판매에만 붙습니다", "%")}
           {field("buyerShippingUsd", "구매자에게 받는 배송비", "이 금액에도 수수료가 붙습니다", "$")}
+          {field("shippingCostUsd", "실제 배송에 드는 돈", "받는 배송비보다 크면 그 차액만큼 손해입니다", "$")}
           {field("salesTaxUpliftPercent", "판매세 가산", "eBay가 걷는 세금만큼 수수료 기준이 커집니다", "%")}
         </div>
 
@@ -849,6 +867,17 @@ export function PricingSettingsForm({ initial }: { initial: Settings | null }) {
                 <span className="text-zinc-600">광고비</span>
                 <span className="text-rose-700">−{money(sample.adFee)}</span>
               </div>
+              {sample.shippingGap !== 0 && (
+                <div className="flex justify-between border-b py-1.5">
+                  <span className="text-zinc-600">
+                    {sample.shippingGap > 0 ? "배송비 부족분" : "배송비 남는 분"}
+                  </span>
+                  <span className={sample.shippingGap > 0 ? "text-rose-700" : "text-emerald-700"}>
+                    {sample.shippingGap > 0 ? "−" : "+"}
+                    {money(Math.abs(sample.shippingGap))}
+                  </span>
+                </div>
+              )}
               {sample.insertion > 0 && (
                 <div className="flex justify-between border-b py-1.5">
                   <span className="text-zinc-600">등록수수료</span>
