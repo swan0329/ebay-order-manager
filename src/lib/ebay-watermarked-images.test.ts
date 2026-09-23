@@ -108,6 +108,24 @@ describe("eBay listing watermark", () => {
     expect(roundedCorner[2]).toBeGreaterThan(roundedCorner[0]);
     expect(cardInside[0]).toBeGreaterThan(cardInside[2]);
   }, renderTimeout);
+
+  it("keeps the listing canvas and card placement stable for a 2x enhanced source", async () => {
+    const makeSource = (width: number, height: number) => sharp({
+      create: { width, height, channels: 3, background: "#e02020" },
+    }).composite([{ input: Buffer.from(`<svg width="${width}" height="${height}"><rect x="0" y="0" width="${width}" height="${height}" fill="none" stroke="#0000ff" stroke-width="${Math.max(2, Math.round(width / 100))}"/></svg>`) }]).png().toBuffer();
+    const settings = { watermarkOpacity: 0, watermarkLogoSize: 50, watermarkGap: 25, backgroundEnabled: true, paddingTop: 100, paddingRight: 100, paddingBottom: 100, paddingLeft: 100 };
+    const background = await sharp({ create: { width: 200, height: 300, channels: 3, background: "#ffffff" } }).png().toBuffer();
+    const [normal, enhanced] = await Promise.all([
+      createEbayWatermarkedImage(await makeSource(540, 860), null, settings, { backgroundEligible: true, background }),
+      createEbayWatermarkedImage(await makeSource(1080, 1720), null, settings, { backgroundEligible: true, background }),
+    ]);
+    expect(await sharp(normal).metadata()).toMatchObject({ width: 800, height: 1200 });
+    expect(await sharp(enhanced).metadata()).toMatchObject({ width: 800, height: 1200 });
+    const normalCenter = await sharp(normal).extract({ left: 400, top: 600, width: 1, height: 1 }).raw().toBuffer();
+    const enhancedCenter = await sharp(enhanced).extract({ left: 400, top: 600, width: 1, height: 1 }).raw().toBuffer();
+    expect(normalCenter[0]).toBeGreaterThan(normalCenter[2]);
+    expect(enhancedCenter[0]).toBeGreaterThan(enhancedCenter[2]);
+  }, renderTimeout);
 });
 it('clips an oversized rotated logo without shifting it or exceeding the output canvas',async()=>{
  const source=await sharp({create:{width:300,height:500,channels:3,background:'white'}}).png().toBuffer();

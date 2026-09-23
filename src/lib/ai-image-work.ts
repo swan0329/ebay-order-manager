@@ -23,9 +23,11 @@ import {
   detectCardLayout,
 } from "@/lib/photo-card-layout";
 import { prisma } from "@/lib/prisma";
+import { getImageWorkbenchSettings, type ImageWorkbenchSettings } from "@/lib/image-workbench-settings";
 import { assertSafeRemoteUrl } from "@/lib/safe-remote-url";
 import {
   copyObjectInR2,
+  deleteObjectFromR2,
   r2KeyFromPublicUrl,
   uploadBufferToR2,
 } from "@/lib/r2";
@@ -456,7 +458,10 @@ async function processAiImageApiBatchJob(batchId: string) {
   const claimed = await claimAiImageApiBatchJob(batchId);
   if (!claimed) return false;
   try {
-    await completeAiJobWithDewatermark(claimed.id, claimed.mode);
+    const owners = await prisma.$queryRaw<Array<{ userId: string }>>`
+      SELECT "user_id" AS "userId" FROM "ai_image_api_batches" WHERE "id"=${batchId} LIMIT 1`;
+    const settings = owners[0] ? await getImageWorkbenchSettings(owners[0].userId) : undefined;
+    await completeAiJobWithDewatermark(claimed.id, claimed.mode, settings);
     await prisma.$executeRaw`
       UPDATE "ai_image_api_batches"
       SET "completed_count"="completed_count"+1,"updated_at"=NOW()
@@ -567,6 +572,7 @@ export async function completeAiJob(id: string, dataUrl: string) {
 export async function completeAiJobWithDewatermark(
   id: string,
   mode: DewatermarkApiMode,
+  enhancementSettings?: ImageWorkbenchSettings,
 ) {
   await assertAiJobAllowed(id);
   const rows = await prisma.$queryRaw<
@@ -579,19 +585,68 @@ export async function completeAiJobWithDewatermark(
 
   const source = await downloadImage(job.sourceUrl);
   const removed = await removeWatermarkWithDewatermark(source, mode);
-  const normalized = await toRoundedCardJpeg(sharp(removed.buffer).rotate());
+  // Keep the removal result only as a private processing intermediate. Do not
+  // normalize it to 540×860 here: the local GPU must receive its best source.
+  const normalized = await sharp(removed.buffer).rotate().jpeg({ quality: 95, chromaSubsampling: "4:4:4" }).toBuffer();
   const safeProductNumber = job.sku.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const settings = enhancementSettings ?? {
+    enhancementEnabled: true, enhancementModel: "RealESRGAN_x2plus", enhancementScale: 2, enhancementStrength: 45,
+  };
+  if (!settings.enhancementEnabled) {
+    const preview = await toRoundedCardJpeg(sharp(normalized));
+    const review = await uploadBufferToR2({ buffer: preview, key: `ai-image-reviews/${safeProductNumber}/${Date.now()}-dewatermark.jpg`, contentType: "image/jpeg", cacheControl: "no-cache" });
+    await prisma.$executeRaw`UPDATE "ai_image_jobs" SET "status"='review',"preview_url"=${review.url},"processed_at"=NOW(),"error"='워터마크 제거 완료 · 화질 개선은 설정에서 꺼져 있습니다.' WHERE "id"=${id}`;
+    return review.url;
+  }
   const uploaded = await uploadBufferToR2({
     buffer: normalized,
-    key: `ai-image-reviews/${safeProductNumber}/${Date.now()}-dewatermark.jpg`,
+    key: `ai-image-intermediate/${safeProductNumber}/${Date.now()}-dewatermark.jpg`,
     contentType: "image/jpeg",
     cacheControl: "no-cache",
   });
   await prisma.$executeRaw`UPDATE "ai_image_jobs"
-    SET "status"='review',"preview_url"=${uploaded.url},"processed_at"=NOW(),
-        "error"=${`Dewatermark ${removed.mode}`}
+    SET "status"='enhancement_queued',"dewatermark_url"=${uploaded.url},"preview_url"=NULL,
+        "processed_at"=NULL,"enhancement_started_at"=NULL,"enhancement_completed_at"=NULL,
+        "enhancement_model"=${settings.enhancementModel},"enhancement_scale"=${settings.enhancementScale},"enhancement_strength"=${settings.enhancementStrength},
+        "error"=${`워터마크 제거 완료 · 로컬 화질 개선 대기 (${removed.mode})`}
     WHERE "id"=${id}`;
   return uploaded.url;
+}
+
+export async function claimEnhancementJob() {
+  const rows = await prisma.$queryRaw<Array<{ id: string; dewatermarkUrl: string; model: string; scale: number; strength: number }>>`
+    WITH candidate AS (
+      SELECT j."id" FROM "ai_image_jobs" j JOIN "products" p ON p."id"=j."product_id"
+      WHERE ${aiJobAllowedSql} AND j."status"='enhancement_queued' AND COALESCE(j."dewatermark_url",'')<>''
+      ORDER BY j."priority" DESC,j."created_at",p."sku" FOR UPDATE OF j SKIP LOCKED LIMIT 1
+    ) UPDATE "ai_image_jobs" SET "status"='enhancing',"enhancement_started_at"=NOW(),"error"=NULL
+    WHERE "id"=(SELECT "id" FROM candidate)
+    RETURNING "id","dewatermark_url" AS "dewatermarkUrl",
+      COALESCE("enhancement_model",'RealESRGAN_x2plus') AS "model",
+      COALESCE("enhancement_scale",2) AS "scale",COALESCE("enhancement_strength",45) AS "strength"`;
+  return rows[0] ?? null;
+}
+
+export async function completeEnhancementJob(id: string, dataUrl: string) {
+  await assertAiJobAllowed(id);
+  const rows = await prisma.$queryRaw<Array<{ sku: string }>>`SELECT p."sku" FROM "ai_image_jobs" j JOIN "products" p ON p."id"=j."product_id" WHERE j."id"=${id} AND j."status"='enhancing' LIMIT 1`;
+  if (!rows[0]) throw new Error("진행 중인 화질 개선 작업을 찾을 수 없습니다.");
+  if (!dataUrl.startsWith("data:image/jpeg;base64,")) throw new Error("JPEG 개선 결과만 받을 수 있습니다.");
+  const input = Buffer.from(dataUrl.slice("data:image/jpeg;base64,".length), "base64");
+  if (input.length > 15 * 1024 * 1024) throw new Error("개선 결과가 15MB를 넘습니다. 2배 또는 더 낮은 강도를 사용하세요.");
+  const metadata = await sharp(input, { failOn: "error" }).metadata();
+  if (metadata.format !== "jpeg" || !metadata.width || !metadata.height || metadata.width > 12000 || metadata.height > 12000)
+    throw new Error("유효한 크기의 JPEG 개선 결과가 아닙니다.");
+  const safeSku = rows[0].sku.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const uploaded = await uploadBufferToR2({ buffer: input, key: `ai-image-reviews/${safeSku}/${Date.now()}-enhanced.jpg`, contentType: "image/jpeg", cacheControl: "no-cache" });
+  await prisma.$executeRaw`UPDATE "ai_image_jobs" SET "status"='review',"preview_url"=${uploaded.url},"processed_at"=NOW(),"enhancement_completed_at"=NOW(),"error"='워터마크 제거 후 로컬 화질 개선 완료' WHERE "id"=${id} AND "status"='enhancing'`;
+  return uploaded.url;
+}
+
+export async function retryEnhancementJob(id: string) {
+  await assertAiJobAllowed(id);
+  const changed = await prisma.$executeRaw`UPDATE "ai_image_jobs" SET "status"='enhancement_queued',"error"='화질 개선 재시도 대기',"enhancement_started_at"=NULL WHERE "id"=${id} AND "status"='enhancement_failed' AND COALESCE("dewatermark_url",'')<>''`;
+  if (!changed) throw new Error("보존된 제거본이 없거나 재시도할 수 없는 상태입니다.");
 }
 
 export async function completeAiJobWithSafeFallback(id: string) {
@@ -818,10 +873,10 @@ export async function approveAiJob(id: string, userId: string) {
       productId: string;
       previewUrl: string;
       sku: string;
-      urls: string[];
+      urls: string[]; dewatermarkUrl: string | null;
     }>
   >`
-    SELECT j."product_id" AS "productId",j."preview_url" AS "previewUrl",p."sku",p."ebay_image_urls" AS "urls"
+    SELECT j."product_id" AS "productId",j."preview_url" AS "previewUrl",p."sku",p."ebay_image_urls" AS "urls",j."dewatermark_url" AS "dewatermarkUrl"
     FROM "ai_image_jobs" j JOIN "products" p ON p."id"=j."product_id" WHERE j."id"=${id} AND j."status"='pass_ready' LIMIT 1`;
   const job = rows[0];
   if (!job?.previewUrl) {
@@ -866,5 +921,19 @@ export async function approveAiJob(id: string, userId: string) {
     prisma.$executeRaw`UPDATE "ai_image_jobs" SET "status"='approved',"reviewed_at"=NOW(),"reviewed_by"=${userId} WHERE "id"=${id}`,
     prisma.$executeRaw`INSERT INTO "product_image_history" ("id","product_id","actor_id","action","image_url","previous_urls","metadata") VALUES (${randomUUID()},${job.productId},${userId},'ai_approved',${uploaded.url},${JSON.stringify(job.urls ?? [])}::jsonb,${JSON.stringify({ jobId: id, sourceUrl: job.previewUrl })}::jsonb)`,
   ]);
+  // The removal image is retained until the reviewer accepts the final image.
+  // R2 deletion happens after that durable approval, so a transient storage
+  // failure can never discard a recoverable result before human review.
+  const intermediateKey = job.dewatermarkUrl && r2KeyFromPublicUrl(job.dewatermarkUrl.split("?")[0]);
+  if (intermediateKey?.startsWith("ai-image-intermediate/")) {
+    try {
+      const deleted = await deleteObjectFromR2(intermediateKey);
+      if (!deleted.ok) throw new Error(deleted.error ?? "R2 중간본 정리 실패");
+      await prisma.$executeRaw`UPDATE "ai_image_jobs" SET "dewatermark_cleanup_at"=NOW(),"dewatermark_cleanup_error"=NULL WHERE "id"=${id}`;
+    } catch (error) {
+      const message = (error instanceof Error ? error.message : "중간본 정리 실패").slice(0, 500);
+      await prisma.$executeRaw`UPDATE "ai_image_jobs" SET "dewatermark_cleanup_error"=${message} WHERE "id"=${id}`;
+    }
+  }
   return uploaded.url;
 }

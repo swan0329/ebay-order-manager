@@ -56,3 +56,9 @@ next-env.d.ts
 
 # Local BTS photo originals
 /BTS_상품번호_JPG/
+
+# Local Real-ESRGAN virtual environment and generated assets
+/RealESRGAN/.venv/
+/RealESRGAN/models/*.pth
+/RealESRGAN/output/
+/RealESRGAN/logs/*.log
