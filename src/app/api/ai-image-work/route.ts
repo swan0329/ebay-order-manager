@@ -11,6 +11,7 @@ import {
   createAiImageApiBatch,
   createAiJobs,
   retryEnhancementJob,
+  requestEnhancementForExistingResult,
 } from "@/lib/ai-image-work";
 import { jsonError } from "@/lib/http";
 import { getDewatermarkCreditBalance } from "@/lib/dewatermark-api";
@@ -28,6 +29,7 @@ const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("workerHeartbeat") }),
   z.object({ action: z.literal("enhancementClaim") }),
   z.object({ action: z.literal("enhancementRetry"), id: z.string().min(1) }),
+  z.object({ action: z.literal("enhancementExisting"), id: z.string().min(1) }),
   z.object({ action: z.literal("enhancementComplete"), id: z.string().min(1), image: z.string().startsWith("data:image/jpeg;base64,").max(20_000_000) }),
   z.object({ action: z.literal("workerStatus") }),
   z.object({
@@ -92,6 +94,7 @@ export async function POST(request: Request) {
     if (input.action === "enhancementClaim") return Response.json({ ok: true, job: await claimEnhancementJob() });
     if (input.action === "enhancementComplete") return Response.json({ ok: true, url: await completeEnhancementJob(input.id, input.image) });
     if (input.action === "enhancementRetry") { await retryEnhancementJob(input.id); return Response.json({ ok: true }); }
+    if (input.action === "enhancementExisting") { await requestEnhancementForExistingResult(input.id, user!.id); return Response.json({ ok: true }); }
     if (input.action === "startApiBatch") {
       const batch = await createAiImageApiBatch(user!.id, input.limit, input.mode);
       const workerUrl = new URL("/api/cron/ai-image-work", request.url);
