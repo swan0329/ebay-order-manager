@@ -267,6 +267,15 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
       setMsg(e instanceof Error ? e.message : String(e));
     }
   }
+  async function enhanceExisting(item: Item) {
+    try {
+      await call({ action: "enhancementExisting", id: item.id });
+      setLocalItems((current) => current.map((target) => target.id === item.id ? { ...target, status: "enhancement_queued", previewUrl: null, error: "현재 설정으로 화질 개선 대기" } : target));
+      setMsg(`${item.sku}은(는) 기존 워터마크 제거 결과로 화질 개선을 다시 요청했습니다. Dewatermark 크레딧은 사용하지 않습니다.`);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    }
+  }
   async function reprocessOne(item: Item) {
     if (busy) return;
     setBusy(true);
@@ -749,6 +758,13 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
                 className="min-w-36 cursor-pointer rounded-lg bg-rose-700 px-7 py-3 text-lg font-bold text-white hover:bg-rose-600"
               >
                 미통과 <span className="text-xs opacity-75">3</span>
+              </button>
+              <button
+                disabled={busy}
+                onClick={() => enhanceExisting(current)}
+                className="min-w-36 cursor-pointer rounded-lg border border-violet-600 bg-violet-50 px-5 py-3 font-bold text-violet-800 hover:bg-violet-100 disabled:opacity-50"
+              >
+                현재 설정으로 화질 개선
               </button>
               <a
                 href={`/products/image-workbench?id=${current.productId}`}

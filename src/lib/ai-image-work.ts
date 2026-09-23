@@ -445,6 +445,25 @@ export async function retryEnhancementJob(id: string) {
   if (!changed) throw new Error("보존된 제거본이 없거나 재시도할 수 없는 상태입니다.");
 }
 
+/** Queue an already removed review result again without consuming Dewatermark credit. */
+export async function requestEnhancementForExistingResult(id: string, userId: string) {
+  const settings = await getImageWorkbenchSettings(userId);
+  if (!settings.enhancementEnabled) throw new Error("화질 개선이 설정에서 꺼져 있습니다. 설정에서 먼저 켜 주세요.");
+  const changed = await prisma.$executeRaw`
+    UPDATE "ai_image_jobs"
+    SET "status"='enhancement_queued',
+        "dewatermark_url"=COALESCE(NULLIF("dewatermark_url",''),"preview_url"),
+        "backup_preview_url"=COALESCE("backup_preview_url","preview_url"),
+        "enhancement_model"=${settings.enhancementModel},
+        "enhancement_scale"=${settings.enhancementScale},
+        "enhancement_strength"=${settings.enhancementStrength},
+        "enhancement_started_at"=NULL,"enhancement_completed_at"=NULL,
+        "error"='기존 워터마크 제거 결과로 로컬 화질 개선 대기'
+    WHERE "id"=${id} AND "status" IN ('review','held','pass_ready')
+      AND COALESCE("preview_url",'')<>''`;
+  if (!changed) throw new Error("이미 보정 중이거나, 기존 워터마크 제거 결과가 없습니다.");
+}
+
 export async function completeAiJobWithSafeFallback(id: string) {
   const rows = await prisma.$queryRaw<
     Array<{ sourceUrl: string; sku: string }>
