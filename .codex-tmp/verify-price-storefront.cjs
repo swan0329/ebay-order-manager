@@ -1,0 +1,7 @@
+const fs=require('fs');const read=p=>JSON.parse(fs.readFileSync(p,'utf8').replace(/^\uFEFF/,''));
+(async()=>{const holds=read('.codex-tmp/price-approval-history.json');const products=read('.codex-tmp/price-repair-after.json').data.products.nodes.filter(p=>holds.some(x=>x.productId===p.id));const results=[];
+for(const p of products){const r=await fetch('https://krazykpop.net/products/'+encodeURIComponent(p.handle));const html=await r.text();if(!r.ok)throw Error('Storefront HTTP '+r.status);const cards=new Map([...html.matchAll(/<button\b[^>]*data-pc-variant-id="(\d+)"[^>]*>/g)].map(m=>[m[1],m[0]]));const expected=holds.filter(x=>x.productId===p.id);const errors=[];
+for(const row of expected){const card=cards.get(row.variantId.split('/').at(-1));if(p.variants.nodes.length>1){if(!card||!card.includes('data-pc-price="Price confirmation pending"')||! /\sdisabled(?:\s|>)/.test(card))errors.push(row.sku);}else if(!html.includes('price--pending')||!html.includes('Price confirmation pending'))errors.push(row.sku);}
+results.push({productId:p.id,variants:expected.length,status:r.status,errors});fs.writeFileSync('.codex-tmp/price-storefront-verification.json',JSON.stringify(results,null,2));
+}console.log(JSON.stringify({pages:results.length,heldVariants:results.reduce((n,r)=>n+r.variants,0),issues:results.filter(r=>r.errors.length)}));if(results.some(r=>r.errors.length))process.exitCode=1;
+})().catch(e=>{console.error(e.message);process.exitCode=1});

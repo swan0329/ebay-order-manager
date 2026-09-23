@@ -1,0 +1,16 @@
+{
+  "id": "c26c2392-7f81-42ac-9171-40b253c84014",
+  "sku": "182291",
+  "salePrice": "1000",
+  "stockQuantity": 0,
+  "pocamarketAvailableCount": 1,
+  "pocamarketSyncedAt": "2026-09-15T03:42:39.018Z",
+  "pocamarketLastAttemptAt": "2026-09-15T03:42:39.018Z",
+  "ebayItemId": "157847627114",
+  "listingStatus": "ACTIVE",
+  "ebayLastSyncedPrice": "12.8",
+  "ebayLastSyncedQuantity": 1,
+  "finalListingPriceUsd": null,
+  "shopifyLastSyncedPrice": "12",
+  "shopifyLastSyncedQuantity": 1
+}

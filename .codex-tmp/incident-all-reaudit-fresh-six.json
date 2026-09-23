@@ -1,0 +1,509 @@
+{
+  "results": [
+    {
+      "sku": "457523",
+      "priceKrw": "4000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:13:42.582Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457527",
+      "priceKrw": "1500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:14:14.789Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457530",
+      "priceKrw": "2500",
+      "availableCount": 3,
+      "syncedAt": "2026-09-15T04:14:46.159Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457531",
+      "priceKrw": "1500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:15:04.579Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457535",
+      "priceKrw": "3000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:15:20.206Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457539",
+      "priceKrw": "3000",
+      "availableCount": 3,
+      "syncedAt": "2026-09-15T04:15:29.049Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457548",
+      "priceKrw": "3000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:08:28.387Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457568",
+      "priceKrw": "500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:12:37.878Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457560",
+      "priceKrw": "1000",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T04:09:38.600Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457563",
+      "priceKrw": "3000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:10:03.526Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457549",
+      "priceKrw": "1000",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T04:08:41.403Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457550",
+      "priceKrw": "1000",
+      "availableCount": 4,
+      "syncedAt": "2026-09-15T04:08:49.989Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457551",
+      "priceKrw": "1000",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T04:09:10.118Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457559",
+      "priceKrw": "500",
+      "availableCount": 3,
+      "syncedAt": "2026-09-15T04:09:30.104Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457569",
+      "priceKrw": "500",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T04:13:33.349Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457552",
+      "priceKrw": "1000",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T04:09:21.969Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457565",
+      "priceKrw": "500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:11:32.543Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457571",
+      "priceKrw": "1000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:14:16.406Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457570",
+      "priceKrw": "4000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:13:56.005Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457566",
+      "priceKrw": "3500",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T04:11:54.863Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457567",
+      "priceKrw": "1500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:12:17.704Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457562",
+      "priceKrw": "500",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T04:09:50.602Z",
+      "holdReason": null
+    },
+    {
+      "sku": "17080",
+      "priceKrw": "1000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-14T22:32:11.582Z",
+      "holdReason": null
+    },
+    {
+      "sku": "118113",
+      "priceKrw": null,
+      "availableCount": 0,
+      "syncedAt": "2026-09-15T03:25:22.345Z",
+      "holdReason": null
+    },
+    {
+      "sku": "14841",
+      "priceKrw": "500",
+      "availableCount": 8,
+      "syncedAt": "2026-09-15T03:26:58.967Z",
+      "holdReason": null
+    },
+    {
+      "sku": "16955",
+      "priceKrw": "7000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-14T21:04:00.227Z",
+      "holdReason": null
+    },
+    {
+      "sku": "17084",
+      "priceKrw": "1000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-14T21:28:23.567Z",
+      "holdReason": null
+    },
+    {
+      "sku": "12890",
+      "priceKrw": "500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T03:25:44.398Z",
+      "holdReason": null
+    },
+    {
+      "sku": "112596",
+      "priceKrw": "1500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T03:17:12.172Z",
+      "holdReason": null
+    },
+    {
+      "sku": "10317",
+      "priceKrw": null,
+      "availableCount": 0,
+      "syncedAt": "2026-09-15T03:18:50.730Z",
+      "holdReason": null
+    },
+    {
+      "sku": "14840",
+      "priceKrw": "3000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T03:26:19.255Z",
+      "holdReason": null
+    },
+    {
+      "sku": "17081",
+      "priceKrw": "500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-14T22:31:56.549Z",
+      "holdReason": null
+    },
+    {
+      "sku": "14939",
+      "priceKrw": "500",
+      "availableCount": 10,
+      "syncedAt": "2026-09-15T03:29:20.569Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457548",
+      "priceKrw": "3000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:08:28.387Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457568",
+      "priceKrw": "500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:12:37.878Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457560",
+      "priceKrw": "1000",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T04:09:38.600Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457563",
+      "priceKrw": "3000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:10:03.526Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457549",
+      "priceKrw": "1000",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T04:08:41.403Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457550",
+      "priceKrw": "1000",
+      "availableCount": 4,
+      "syncedAt": "2026-09-15T04:08:49.989Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457551",
+      "priceKrw": "1000",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T04:09:10.118Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457559",
+      "priceKrw": "500",
+      "availableCount": 3,
+      "syncedAt": "2026-09-15T04:09:30.104Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457569",
+      "priceKrw": "500",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T04:13:33.349Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457552",
+      "priceKrw": "1000",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T04:09:21.969Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457565",
+      "priceKrw": "500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:11:32.543Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457571",
+      "priceKrw": "1000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:14:16.406Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457539",
+      "priceKrw": "3000",
+      "availableCount": 3,
+      "syncedAt": "2026-09-15T04:15:29.049Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457570",
+      "priceKrw": "4000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:13:56.005Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457531",
+      "priceKrw": "1500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:15:04.579Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457530",
+      "priceKrw": "2500",
+      "availableCount": 3,
+      "syncedAt": "2026-09-15T04:14:46.159Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457535",
+      "priceKrw": "3000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:15:20.206Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457523",
+      "priceKrw": "4000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:13:42.582Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457527",
+      "priceKrw": "1500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:14:14.789Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457566",
+      "priceKrw": "3500",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T04:11:54.863Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457567",
+      "priceKrw": "1500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T04:12:17.704Z",
+      "holdReason": null
+    },
+    {
+      "sku": "457562",
+      "priceKrw": "500",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T04:09:50.602Z",
+      "holdReason": null
+    },
+    {
+      "sku": "44799",
+      "priceKrw": "500",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T03:57:51.642Z",
+      "holdReason": null
+    },
+    {
+      "sku": "44798",
+      "priceKrw": "500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T03:57:40.955Z",
+      "holdReason": null
+    },
+    {
+      "sku": "44796",
+      "priceKrw": "500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T03:57:31.419Z",
+      "holdReason": null
+    },
+    {
+      "sku": "4376",
+      "priceKrw": "5000",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T03:44:30.225Z",
+      "holdReason": null
+    },
+    {
+      "sku": "41047",
+      "priceKrw": "500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T03:40:53.268Z",
+      "holdReason": null
+    },
+    {
+      "sku": "4414",
+      "priceKrw": "2000",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T03:17:20.779Z",
+      "holdReason": null
+    },
+    {
+      "sku": "464383",
+      "priceKrw": "25000",
+      "availableCount": 5,
+      "syncedAt": "2026-09-15T03:17:29.535Z",
+      "holdReason": null
+    },
+    {
+      "sku": "260782",
+      "priceKrw": null,
+      "availableCount": 0,
+      "syncedAt": "2026-09-15T03:27:47.381Z",
+      "holdReason": null
+    },
+    {
+      "sku": "47589",
+      "priceKrw": "14000",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T03:30:30.329Z",
+      "holdReason": null
+    },
+    {
+      "sku": "8855",
+      "priceKrw": "500",
+      "availableCount": 2,
+      "syncedAt": "2026-09-15T03:18:30.430Z",
+      "holdReason": null
+    },
+    {
+      "sku": "8854",
+      "priceKrw": "500",
+      "availableCount": 4,
+      "syncedAt": "2026-09-15T03:17:46.249Z",
+      "holdReason": null
+    },
+    {
+      "sku": "61774",
+      "priceKrw": "500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T03:20:00.462Z",
+      "holdReason": null
+    },
+    {
+      "sku": "37209",
+      "priceKrw": "500",
+      "availableCount": 2,
+      "syncedAt": "2026-09-14T19:33:59.362Z",
+      "holdReason": null
+    },
+    {
+      "sku": "61775",
+      "priceKrw": "500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-14T19:29:29.423Z",
+      "holdReason": null
+    },
+    {
+      "sku": "37210",
+      "priceKrw": "1500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T03:20:32.431Z",
+      "holdReason": null
+    },
+    {
+      "sku": "46548",
+      "priceKrw": "500",
+      "availableCount": 3,
+      "syncedAt": "2026-09-15T03:22:32.044Z",
+      "holdReason": null
+    },
+    {
+      "sku": "54761",
+      "priceKrw": "500",
+      "availableCount": 1,
+      "syncedAt": "2026-09-15T03:23:32.477Z",
+      "holdReason": null
+    }
+  ],
+  "channelReflection": "판매채널 가격·수량 반영은 기존 변동 작업과 자동 대기열에서 별도 확인됩니다."
+}

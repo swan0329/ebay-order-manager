@@ -1,0 +1,2 @@
+const fs=require('fs');
+(async()=>{const r=await fetch('https://ebay-order-manager-lake.vercel.app/api/pocamarket-sync/batches',{headers:{cookie:fs.readFileSync('.codex-tmp/feed-session.txt','utf8')}});const d=await r.json();fs.writeFileSync('.codex-tmp/poca-live-before.json',JSON.stringify(d));console.log('http',r.status,'keys',Object.keys(d));for(const b of d.batches||[])console.log(JSON.stringify({id:b.id,status:b.status,totalCount:b.totalCount,scannedCount:b.scannedCount,updatedAt:b.updatedAt}));})();

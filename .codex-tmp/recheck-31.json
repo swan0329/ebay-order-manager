@@ -1,0 +1,304 @@
+[
+  {
+    "parent": "158183485438",
+    "storedGroup": true,
+    "parentSku": "VAR-YTCEQH",
+    "included": 39,
+    "current": 36,
+    "remote": 39,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489423",
+    "storedGroup": true,
+    "parentSku": "VAR-1OL9M72",
+    "included": 17,
+    "current": 18,
+    "remote": 17,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489424",
+    "storedGroup": true,
+    "parentSku": "VAR-66DYD1",
+    "included": 21,
+    "current": 22,
+    "remote": 21,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489425",
+    "storedGroup": true,
+    "parentSku": "VAR-1YT4RRF",
+    "included": 18,
+    "current": 24,
+    "remote": 18,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489426",
+    "storedGroup": true,
+    "parentSku": "VAR-J00DBU",
+    "included": 16,
+    "current": 16,
+    "remote": 16,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489427",
+    "storedGroup": true,
+    "parentSku": "VAR-1WIS0CV",
+    "included": 12,
+    "current": 12,
+    "remote": 12,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489428",
+    "storedGroup": true,
+    "parentSku": "VAR-1IYKDON",
+    "included": 15,
+    "current": 15,
+    "remote": 15,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489430",
+    "storedGroup": true,
+    "parentSku": "VAR-6GRHM2",
+    "included": 14,
+    "current": 14,
+    "remote": 14,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489432",
+    "storedGroup": true,
+    "parentSku": "VAR-8YZ56G",
+    "included": 11,
+    "current": 11,
+    "remote": 11,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489433",
+    "storedGroup": true,
+    "parentSku": "VAR-1FH3Q2N",
+    "included": 8,
+    "current": 8,
+    "remote": 8,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489436",
+    "storedGroup": true,
+    "parentSku": "VAR-19HPLJX",
+    "included": 8,
+    "current": 8,
+    "remote": 8,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489437",
+    "storedGroup": true,
+    "parentSku": "VAR-1XU3A4T",
+    "included": 8,
+    "current": 8,
+    "remote": 8,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489441",
+    "storedGroup": true,
+    "parentSku": "VAR-Y59A6D",
+    "included": 7,
+    "current": 7,
+    "remote": 7,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489442",
+    "storedGroup": true,
+    "parentSku": "VAR-WR1U63",
+    "included": 6,
+    "current": 6,
+    "remote": 6,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489444",
+    "storedGroup": true,
+    "parentSku": "VAR-1BF9MAM",
+    "included": 3,
+    "current": 2,
+    "remote": 3,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489448",
+    "storedGroup": true,
+    "parentSku": "VAR-1P8X0PQ",
+    "included": 4,
+    "current": 4,
+    "remote": 4,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489450",
+    "storedGroup": true,
+    "parentSku": "VAR-LZRTQX",
+    "included": 3,
+    "current": 3,
+    "remote": 3,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489451",
+    "storedGroup": true,
+    "parentSku": "VAR-1PM7UGL",
+    "included": 4,
+    "current": 5,
+    "remote": 4,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489452",
+    "storedGroup": true,
+    "parentSku": "VAR-1ONE71R",
+    "included": 5,
+    "current": 5,
+    "remote": 5,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489453",
+    "storedGroup": true,
+    "parentSku": "VAR-N58HO1",
+    "included": 4,
+    "current": 4,
+    "remote": 4,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489455",
+    "storedGroup": true,
+    "parentSku": "VAR-1RZ79BW",
+    "included": 2,
+    "current": 2,
+    "remote": 2,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489456",
+    "storedGroup": true,
+    "parentSku": "VAR-156WSJS",
+    "included": 4,
+    "current": 4,
+    "remote": 4,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489457",
+    "storedGroup": false,
+    "remote": 2,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489458",
+    "storedGroup": true,
+    "parentSku": "VAR-3L3FF8",
+    "included": 2,
+    "current": 5,
+    "remote": 2,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489459",
+    "storedGroup": true,
+    "parentSku": "VAR-1BS0CVF",
+    "included": 2,
+    "current": 2,
+    "remote": 2,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489460",
+    "storedGroup": true,
+    "parentSku": "VAR-1J7UXY8",
+    "included": 2,
+    "current": 2,
+    "remote": 2,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489461",
+    "storedGroup": true,
+    "parentSku": "VAR-1FVSQSS",
+    "included": 2,
+    "current": 2,
+    "remote": 2,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "158183489462",
+    "storedGroup": true,
+    "parentSku": "VAR-1UQG6YR",
+    "included": 2,
+    "current": 2,
+    "remote": 2,
+    "missingLocal": [],
+    "missingSource": []
+  },
+  {
+    "parent": "157885347197",
+    "storedGroup": false,
+    "remote": 1,
+    "missingLocal": [
+      null
+    ],
+    "missingSource": []
+  },
+  {
+    "parent": "157885365200",
+    "storedGroup": false,
+    "remote": 1,
+    "missingLocal": [
+      null
+    ],
+    "missingSource": []
+  },
+  {
+    "parent": "158278660622",
+    "storedGroup": false,
+    "remote": 1,
+    "missingLocal": [],
+    "missingSource": []
+  }
+]

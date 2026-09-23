@@ -1,0 +1,66 @@
+[
+  {
+    "id": "gid://shopify/ProductVariant/54249638953328",
+    "sku": "101214",
+    "price": "10.50",
+    "inventoryPolicy": "DENY",
+    "product": {
+      "id": "gid://shopify/Product/15252533510512"
+    },
+    "metafield": null,
+    "inventoryItem": {
+      "id": "gid://shopify/InventoryItem/55439514337648",
+      "tracked": true,
+      "inventoryLevels": {
+        "pageInfo": {
+          "hasNextPage": false
+        },
+        "nodes": [
+          {
+            "location": {
+              "id": "gid://shopify/Location/116749762928"
+            },
+            "quantities": [
+              {
+                "name": "available",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "gid://shopify/ProductVariant/54249639543152",
+    "sku": "101563",
+    "price": "10.60",
+    "inventoryPolicy": "DENY",
+    "product": {
+      "id": "gid://shopify/Product/15252533707120"
+    },
+    "metafield": null,
+    "inventoryItem": {
+      "id": "gid://shopify/InventoryItem/55439514960240",
+      "tracked": true,
+      "inventoryLevels": {
+        "pageInfo": {
+          "hasNextPage": false
+        },
+        "nodes": [
+          {
+            "location": {
+              "id": "gid://shopify/Location/116749762928"
+            },
+            "quantities": [
+              {
+                "name": "available",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+]

@@ -1,0 +1,23 @@
+[
+  {
+    "productNumber": "296333",
+    "requestedQuantity": 1,
+    "purchasedQuantity": 0,
+    "status": "failed",
+    "warningMessage": null
+  },
+  {
+    "productNumber": "287832",
+    "requestedQuantity": 1,
+    "purchasedQuantity": 0,
+    "status": "price_blocked",
+    "warningMessage": "발견 가격 150000원이 최대 허용가격 24000.00원을 초과하여 구매하지 않았습니다."
+  },
+  {
+    "productNumber": "284272",
+    "requestedQuantity": 1,
+    "purchasedQuantity": 0,
+    "status": "failed",
+    "warningMessage": null
+  }
+]

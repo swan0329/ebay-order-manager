@@ -1,0 +1,12 @@
+{
+  "refreshHours": 6,
+  "maxAgeHours": 24,
+  "total": 2217,
+  "evidenceMatched": 2217,
+  "evidenceMismatch": 0,
+  "evidenceMismatchSkus": [],
+  "due": 1165,
+  "held": 0,
+  "failures": 0,
+  "samples": []
+}

@@ -1,0 +1,8 @@
+const fs=require('fs');const p='src/lib/ebay-watermarked-images.ts';let s=fs.readFileSync(p,'utf8').replace('v13-portrait-rounded','v14-portrait-rounded-watermark-clipped');s=s.replace('        placements.push({ input: tile, left: Math.max(0, x), top: Math.max(0, y) });',`        const left = Math.max(0, x), top = Math.max(0, y);
+        const width = Math.min(metadata.width, x + tileWidth) - left;
+        const height = Math.min(metadata.height, y + tileHeight) - top;
+        if (width > 0 && height > 0) placements.push({
+          input: await sharp(tile).extract({ left: left - x, top: top - y, width, height }).png().toBuffer(), left, top,
+        });`);fs.writeFileSync(p,s);
+const f='src/components/WatermarkSettingsPanel.tsx';s=fs.readFileSync(f,'utf8').replace('import { LiveListingImageCanvas } from "@/components/LiveListingImageCanvas";','');const a=': sourceUrl && backgroundEligible !== null ? <LiveListingImageCanvas sourceUrl={sourceUrl} backgroundEligible={backgroundEligible} settings={settings} alt={`${sku} 이미지 미리보기`} /> : <span className="text-sm text-zinc-500">미리보기 원본을 준비하고 있습니다.</span>';const b=': <div className="relative flex min-h-64 w-full items-center justify-center" aria-busy="true">{previewUrl ? <img src={previewUrl} alt="직전 서버 미리보기 · 변경 설정 계산 중" className="max-h-[680px] w-full object-contain opacity-60" /> : null}<span className="absolute rounded bg-white/95 px-4 py-3 text-sm text-zinc-700">변경한 설정으로 업로드 이미지를 제작 중입니다.{previewUrl ? " 표시된 이미지는 직전 결과입니다." : ""}</span></div>';
+if(!s.includes(a))throw Error('Missing replacement');s=s.replace(a,b);fs.writeFileSync(f,s);

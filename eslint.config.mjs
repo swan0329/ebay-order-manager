@@ -13,6 +13,9 @@ const eslintConfig = defineConfig([
     "build/**",
     "src/generated/prisma/**",
     "next-env.d.ts",
+    "RealESRGAN/.venv/**",
+    "RealESRGAN/models/**",
+    "RealESRGAN/output/**",
   ]),
 ]);
 

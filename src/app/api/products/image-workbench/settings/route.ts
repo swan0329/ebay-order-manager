@@ -10,6 +10,14 @@ const schema = z.object({
   sharpness: z.number().int().min(0).max(30),
   watermarkStrength: z.number().int().min(70).max(140),
   localAiEnabled: z.boolean(),
+  enhancementEnabled: z.boolean().default(true),
+  enhancementModel: z.enum(["RealESRGAN_x2plus", "RealESRGAN_x4plus", "4x-UltraSharp"]).default("RealESRGAN_x2plus"),
+  enhancementScale: z.union([z.literal(2), z.literal(4)]).default(2),
+  enhancementStrength: z.number().int().min(0).max(100).default(45),
+}).superRefine((value, ctx) => {
+  if (value.enhancementModel === "RealESRGAN_x2plus" && value.enhancementScale !== 2) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["enhancementScale"], message: "RealESRGAN_x2plus는 2배로만 실행할 수 있습니다." });
+  }
 });
 
 export async function GET() {

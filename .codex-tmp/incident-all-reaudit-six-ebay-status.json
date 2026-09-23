@@ -1,0 +1,53 @@
+{
+  "job": {
+    "id": "cmu25tu3j001cjn04c18l76rh",
+    "operation": "revise",
+    "feedType": "LMS_REVISE_INVENTORY_STATUS",
+    "status": "COMPLETED",
+    "totalCount": 6,
+    "successCount": 6,
+    "failureCount": 0,
+    "error": null,
+    "submittedAt": "2026-09-15T04:16:59.396Z",
+    "completedAt": "2026-09-15T04:20:53.214Z",
+    "targets": [
+      {
+        "productId": "90da2d03-a072-4d02-9429-dd8fc2e66754",
+        "sku": "457523",
+        "productName": "BTS ARIRANG WEVERSE JUNGKOOK",
+        "itemId": "158284259669"
+      },
+      {
+        "productId": "400e1c1d-724d-4dc6-91c7-918e6e818cc1",
+        "sku": "457527",
+        "productName": "BTS ARIRANG WEVERSE Jimin",
+        "itemId": "158284259669"
+      },
+      {
+        "productId": "3e946c9d-5cf6-42d0-91ac-9120cc377660",
+        "sku": "457530",
+        "productName": "BTS ARIRANG WEVERSE Jimin",
+        "itemId": "158284259669"
+      },
+      {
+        "productId": "4fce867e-359d-468f-b11e-623ad972a401",
+        "sku": "457531",
+        "productName": "BTS ARIRANG WEVERSE J-Hope",
+        "itemId": "158284259669"
+      },
+      {
+        "productId": "f08d8603-0416-4cb5-94dc-9c142aa2d869",
+        "sku": "457535",
+        "productName": "BTS ARIRANG WEVERSE SUGA",
+        "itemId": "158284259669"
+      },
+      {
+        "productId": "68c10add-0d2a-4b78-afd3-219f8ce388ec",
+        "sku": "457539",
+        "productName": "BTS ARIRANG WEVERSE SUGA",
+        "itemId": "158284259669"
+      }
+    ],
+    "failures": []
+  }
+}

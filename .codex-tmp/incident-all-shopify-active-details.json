@@ -1,0 +1,64 @@
+{
+  "job": {
+    "id": "cmu23bpmx01pql804olroaprn",
+    "userId": "cmov263l40000gpbuoc0efeq0",
+    "channel": "SHOPIFY",
+    "mode": "PRICE_INVENTORY",
+    "activeKey": "cmov263l40000gpbuoc0efeq0:SHOPIFY:PRICE_INVENTORY",
+    "status": "RUNNING",
+    "totalCount": 17,
+    "processedCount": 3,
+    "successCount": 0,
+    "failureCount": 3,
+    "startedAt": "2026-09-15T03:06:52.429Z",
+    "completedAt": null,
+    "workerToken": "a34bcdcd-e64d-41e8-a974-b14e51b9db97",
+    "workerLeaseExpiresAt": "2026-09-15T03:19:31.072Z",
+    "createdAt": "2026-09-15T03:06:35.172Z",
+    "updatedAt": "2026-09-15T03:13:31.073Z",
+    "items": [
+      {
+        "id": "cmu23bpmx01ptl804zzrbbpb9",
+        "sku": "82718",
+        "status": "FAILED",
+        "error": "전체 옵션과 일치하는 묶음 대표 이미지가 없어 게시를 중단했습니다.",
+        "targetId": "33fc7d58-e1c8-45b4-ac2a-a0bb74806bb1"
+      },
+      {
+        "id": "cmu23bpmx01pvl804o4kra03v",
+        "sku": "82738",
+        "status": "FAILED",
+        "error": "전체 옵션과 일치하는 묶음 대표 이미지가 없어 게시를 중단했습니다.",
+        "targetId": "47eceeb9-0ce1-4b66-85d2-d79907d7a235"
+      },
+      {
+        "id": "cmu23bpmx01pwl804p3nw30lo",
+        "sku": "82794",
+        "status": "FAILED",
+        "error": "Shopify Admin API request failed.",
+        "targetId": "4a22f0cc-032c-4476-b90a-7b6439d1515a"
+      },
+      {
+        "id": "cmu23bpmx01pxl804sx1sl10v",
+        "sku": "82800",
+        "status": "PROCESSING",
+        "error": null,
+        "targetId": "4f6e4739-3ccf-4779-8683-463ea464015c"
+      },
+      {
+        "id": "cmu23bpmx01pyl804r7vmp7dj",
+        "sku": "3150",
+        "status": "PROCESSING",
+        "error": null,
+        "targetId": "58e474f5-f4f5-4317-b5d5-d04855c3c816"
+      },
+      {
+        "id": "cmu23bpmx01pzl804o2vj6gnd",
+        "sku": "3363",
+        "status": "PROCESSING",
+        "error": null,
+        "targetId": "58ee3d53-ebcf-4deb-8499-4a0ff7cedd7c"
+      }
+    ]
+  }
+}

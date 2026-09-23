@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "product": {
+    "id": "c8071f57-aa5d-4e2e-87cb-2d8ac9ccc7e3",
+    "shopifyProductId": "15270039028080",
+    "shopifyVariantId": "54293535981936",
+    "shopifyStatus": "ACTIVE",
+    "shopifyLastUploadedAt": "2026-09-15T05:24:06.274Z"
+  },
+  "shopify": {
+    "productId": "15270039028080",
+    "variantId": "54293535981936",
+    "inventoryItemId": "55484537733488",
+    "status": "ACTIVE",
+    "action": "updated",
+    "inventorySynced": true,
+    "syncMode": "price_inventory",
+    "durationMs": 14812
+  }
+}

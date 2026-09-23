@@ -1,0 +1,2 @@
+const fs=require('fs');const {call}=require('./procurement-live.cjs');
+(async()=>{const job=require('./image-failure-full.json').data.job;const skus=job.items.filter(x=>x.error?.includes('활성 판매')).map(x=>x.sku);const r=await call('/api/products?q='+encodeURIComponent(skus.join('\n')));const rows=r.data.products.filter(p=>skus.includes(p.sku)).map(p=>({sku:p.sku,id:p.id,itemId:p.ebayItemId}));fs.writeFileSync('.codex-tmp/image-inactive-products.json',JSON.stringify(rows));console.log(JSON.stringify(rows));})();

@@ -1,0 +1,1 @@
+const fs=require('fs');for(const k of ['operations','syncsettings','progress']){const j=JSON.parse(fs.readFileSync('.codex-tmp/purchase-price-'+k+'.json','utf8'));console.log(k,JSON.stringify(k==='operations'?j.jobs?.map(x=>Object.fromEntries(Object.entries(x).filter(([k])=>!['userId','resultXml','requestXml'].includes(k)))):j));}

@@ -1,0 +1,26 @@
+{
+  "job": {
+    "id": "cmu28pgs40001l804nzibx6tt",
+    "operation": "revise",
+    "feedType": "LMS_REVISE_INVENTORY_STATUS",
+    "status": "COMPLETED",
+    "totalCount": 1,
+    "successCount": 1,
+    "failureCount": 0,
+    "error": null,
+    "submittedAt": "2026-09-15T05:37:27.021Z",
+    "completedAt": "2026-09-15T05:38:35.785Z",
+    "createdAt": "2026-09-15T05:37:14.680Z",
+    "targets": [
+      {
+        "productId": "a81c0605-e588-4da8-b710-b64887644c89",
+        "sku": "53142",
+        "productName": "BTS Proof Compact Edition JUNGKOOK",
+        "itemId": "158283707692",
+        "price": "16.5",
+        "quantity": 3
+      }
+    ],
+    "failures": []
+  }
+}

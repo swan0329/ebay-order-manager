@@ -1,0 +1,1 @@
+{"error":"[\n  {\n    \"origin\": \"array\",\n    \"code\": \"too_small\",\n    \"minimum\": 1,\n    \"inclusive\": true,\n    \"path\": [\n      \"skus\"\n    ],\n    \"message\": \"Invalid input\"\n  }\n]"}

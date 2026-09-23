@@ -1,0 +1,1 @@
+const fs=require('fs');const c=JSON.parse(fs.readFileSync('.codex-tmp/purchase-price-variant-checks.json','utf8'));console.log(JSON.stringify({noPrice:c.filter(x=>x.result==='NO_PRICE').map(x=>({sku:x.sku,available:x.available,price:x.price})),totalAvailableVariants:c.filter(x=>x.available>0).length}));

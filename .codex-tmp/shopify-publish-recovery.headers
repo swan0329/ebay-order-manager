@@ -1,0 +1,11 @@
+HTTP/1.1 303 See Other
+Cache-Control: public, max-age=0, must-revalidate
+Content-Length: 0
+Date: Thu, 10 Sep 2026 03:57:24 GMT
+Location: https://krazykpop.net/products/bts-merch-box-10
+Server: Vercel
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+X-Matched-Path: /api/products/[id]/shopify-link
+X-Vercel-Cache: MISS
+X-Vercel-Id: icn1::icn1::drfbw-1789012639696-ecf02b300ce5
+

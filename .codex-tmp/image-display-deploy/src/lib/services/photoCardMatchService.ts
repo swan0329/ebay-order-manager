@@ -1,0 +1,1373 @@
+import { memberOptions } from "@/lib/product-member";
+import sharp from "sharp";
+import { Prisma } from "@/generated/prisma";
+import { createInventoryMovementTx } from "@/lib/inventory";
+import { deleteObjectFromR2, r2KeyFromPublicUrl, uploadBufferToR2 } from "@/lib/r2";
+import { prisma } from "@/lib/prisma";
+import {
+  computeQuickHashFingerprintFromBuffer,
+  ensureProductImageMatchColumns,
+} from "@/lib/services/productImageMatchService";
+
+const defaultLimit = 50;
+const maxLimit = 50;
+const facetCacheTtlMs = 300_000;
+const defaultR2BulkBatchSize = 20;
+const maxR2BulkBatchSize = 50;
+const maxSourceImageBytes = 12 * 1024 * 1024;
+const sourceImageFetchTimeoutMs = 10_000;
+let photoCardSearchSupportPromise: Promise<void> | null = null;
+const photoCardFacetCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    value: PhotoCardFacetOptions;
+  }
+>();
+
+export type PhotoCardCandidateFilters = {
+  group?: string | null;
+  member?: string | null;
+  album?: string | null;
+  version?: string | null;
+  keyword?: string | null;
+  includeRegistered?: boolean | null;
+  limit?: number | null;
+  offset?: number | null;
+};
+
+export type PhotoCardCandidate = {
+  cardId: string;
+  id: string;
+  sku: string;
+  title: string;
+  groupName: string | null;
+  memberName: string | null;
+  albumName: string | null;
+  versionName: string | null;
+  existingImageUrl: string | null;
+  currentImageUrl: string | null;
+  sourceImageUrl: string | null;
+  imageSource: string | null;
+  userFrontImageUrl: string | null;
+  userBackImageUrl: string | null;
+  userFrontR2Key: string | null;
+  userBackR2Key: string | null;
+  stockQuantity: number;
+  salePrice: number | null;
+  ebayPrice: number | null;
+  featuredMembers: string | null;
+  userImageRegistered: boolean;
+  hasBackImage: boolean;
+};
+
+export type PhotoCardFacetOptions = {
+  groups: string[];
+  members: string[];
+  albums: string[];
+  versions: string[];
+};
+
+type PhotoCardCandidateRow = {
+  cardId: string;
+  sku: string;
+  title: string;
+  groupName: string | null;
+  memberName: string | null;
+  albumName: string | null;
+  versionName: string | null;
+  existingImageUrl: string | null;
+  currentImageUrl: string | null;
+  sourceImageUrl: string | null;
+  imageSource: string | null;
+  userFrontImageUrl: string | null;
+  userBackImageUrl: string | null;
+  userFrontR2Key: string | null;
+  userBackR2Key: string | null;
+  stockQuantity: number;
+  salePrice: number | null;
+  ebayPrice: number | null;
+  featuredMembers: string | null;
+  userImageRegistered: boolean;
+  hasBackImage: boolean;
+};
+
+type ProductPhotoCardRow = {
+  id: string;
+  sku: string;
+  internalCode: string | null;
+  groupName: string | null;
+  imageUrl: string | null;
+  sourceImageUrl: string | null;
+  imageSource: string | null;
+  userFrontImageUrl: string | null;
+  userBackImageUrl: string | null;
+  userFrontR2Key: string | null;
+  userBackR2Key: string | null;
+  stockQuantity: number | null;
+};
+
+type DistinctValueRow = {
+  value: string | null;
+};
+
+export type ConfirmPhotoCardImageInput = {
+  cardId: string;
+  userFrontImageUrl: string;
+  userBackImageUrl?: string | null;
+  publicBaseUrl?: string | null;
+  createdBy?: string | null;
+};
+
+export type PhotoCardR2UploadFilters = {
+  group?: string | null;
+  member?: string | null;
+  album?: string | null;
+  version?: string | null;
+  keyword?: string | null;
+};
+
+export type BulkUploadPhotoCardImagesInput = PhotoCardR2UploadFilters & {
+  batchSize?: number | null;
+};
+
+export type BulkUploadPhotoCardImagesResult = {
+  pendingTotal: number;
+  processed: number;
+  success: number;
+  failed: number;
+  remaining: number;
+  failures: Array<{
+    productId: string;
+    sku: string;
+    reason: string;
+  }>;
+};
+
+export type DeleteR2PhotoCardImageInput = {
+  productId: string;
+  side: "front" | "back" | "all";
+};
+
+export type PhotoCardImageUpdateResult = {
+  id: string;
+  sku: string;
+  imageUrl: string | null;
+  sourceImageUrl: string | null;
+  imageSource: string | null;
+  userFrontImageUrl: string | null;
+  userBackImageUrl: string | null;
+  userFrontR2Key: string | null;
+  userBackR2Key: string | null;
+  hasBackImage: boolean;
+  ebayImageUrls: string[];
+  stockQuantity: number;
+  stockIncremented: boolean;
+};
+
+export async function listPhotoCardCandidates(filters: PhotoCardCandidateFilters) {
+  await ensurePhotoCardSearchSupport();
+
+  const normalized = normalizePhotoCardCandidateFilters(filters);
+  const clauses = candidateWhereClauses(normalized);
+  const whereSql = clauses.length
+    ? Prisma.sql`WHERE ${Prisma.join(clauses, " AND ")}`
+    : Prisma.empty;
+  const orderSql = Prisma.join(candidateOrderClauses(normalized), ", ");
+  const candidatesQuery = prisma.$queryRaw<PhotoCardCandidateRow[]>`
+    SELECT
+      "id" AS "cardId",
+      "sku",
+      "product_name" AS "title",
+      "brand" AS "groupName",
+      "option_name" AS "memberName",
+      "category" AS "albumName",
+      "product_name" AS "versionName",
+      COALESCE("source_image_url", "image_url") AS "existingImageUrl",
+      COALESCE("image_url", "source_image_url") AS "currentImageUrl",
+      "source_image_url" AS "sourceImageUrl",
+      "image_source" AS "imageSource",
+      "user_front_image_url" AS "userFrontImageUrl",
+      "user_back_image_url" AS "userBackImageUrl",
+      "user_front_r2_key" AS "userFrontR2Key",
+      "user_back_r2_key" AS "userBackR2Key",
+      "stock_quantity" AS "stockQuantity",
+      "sale_price"::float8 AS "salePrice",
+      "ebay_price"::float8 AS "ebayPrice",
+      "featured_members" AS "featuredMembers",
+      ("user_front_image_url" IS NOT NULL AND "user_front_image_url" <> '') AS "userImageRegistered",
+      "has_back_image" AS "hasBackImage"
+    FROM "products"
+    ${whereSql}
+    ORDER BY ${orderSql}
+    LIMIT ${normalized.limit}
+    OFFSET ${normalized.offset}
+  `;
+  // Run the candidate query and the facet (dropdown) queries in parallel so the
+  // response time is the slower of the two, not their sum.
+  const [rows, facets] = await Promise.all([
+    candidatesQuery,
+    loadPhotoCardFacets(normalized),
+  ]);
+
+  return {
+    candidates: rows.map(toPhotoCardCandidate),
+    facets,
+    paging: {
+      limit: normalized.limit,
+      offset: normalized.offset,
+      hasMore: rows.length === normalized.limit,
+    },
+  };
+}
+
+// Distinct real member names for a group — used to populate the member picker
+// when assigning members to "unit" cards.
+export async function listGroupMembers(group: string): Promise<string[]> {
+  const trimmed = group.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  await ensurePhotoCardSearchSupport();
+
+  const rows = await prisma.$queryRaw<DistinctValueRow[]>`
+    SELECT DISTINCT "option_name" AS "value"
+    FROM "products"
+    WHERE LOWER(COALESCE("brand", '')) = LOWER(${trimmed})
+      AND "option_name" IS NOT NULL
+      AND "option_name" <> ''
+      AND LOWER("option_name") <> 'unit'
+    ORDER BY "value"
+    LIMIT 100
+  `;
+
+  return memberOptions(rows.map((row) => row.value));
+}
+
+export async function setProductFeaturedMembers(
+  productId: string,
+  members: string[],
+): Promise<string | null> {
+  await ensureProductImageMatchColumns();
+
+  const value = members.map((name) => name.trim()).filter(Boolean).join(", ");
+  const stored = value ? value : null;
+
+  await prisma.$executeRaw`
+    UPDATE "products" SET "featured_members" = ${stored} WHERE "id" = ${productId}
+  `;
+
+  return stored;
+}
+
+export async function countPendingPhotoCardR2Uploads(
+  filters: PhotoCardR2UploadFilters,
+) {
+  await ensurePhotoCardSearchSupport();
+
+  const normalized = normalizePhotoCardR2UploadFilters(filters);
+  const clauses = photoCardR2PendingWhereClauses(normalized);
+  const whereSql = clauses.length
+    ? Prisma.sql`WHERE ${Prisma.join(clauses, " AND ")}`
+    : Prisma.empty;
+  const rows = await prisma.$queryRaw<Array<{ count: bigint | number }>>`
+    SELECT COUNT(*)::BIGINT AS "count"
+    FROM "products"
+    ${whereSql}
+  `;
+  const count = rows[0]?.count ?? 0;
+
+  if (typeof count === "bigint") {
+    return Number(count);
+  }
+
+  return Number(count) || 0;
+}
+
+export async function bulkUploadPhotoCardImagesToR2(
+  input: BulkUploadPhotoCardImagesInput,
+): Promise<BulkUploadPhotoCardImagesResult> {
+  await ensurePhotoCardSearchSupport();
+
+  const normalized = normalizePhotoCardR2UploadFilters(input);
+  const pendingTotal = await countPendingPhotoCardR2Uploads(normalized);
+  const batchSize = clampR2BulkBatchSize(input.batchSize);
+
+  if (pendingTotal <= 0) {
+    return {
+      pendingTotal: 0,
+      processed: 0,
+      success: 0,
+      failed: 0,
+      remaining: 0,
+      failures: [],
+    };
+  }
+
+  const targets = await loadPendingPhotoCardR2Rows(normalized, batchSize);
+  const failures: BulkUploadPhotoCardImagesResult["failures"] = [];
+  let success = 0;
+  let failed = 0;
+
+  for (const target of targets) {
+    try {
+      await migrateProductPhotoCardImagesToR2(target);
+      success += 1;
+    } catch (error) {
+      failed += 1;
+      failures.push({
+        productId: target.id,
+        sku: target.sku,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const remaining = await countPendingPhotoCardR2Uploads(normalized);
+
+  return {
+    pendingTotal,
+    processed: targets.length,
+    success,
+    failed,
+    remaining,
+    failures,
+  };
+}
+
+export async function confirmPhotoCardImage(
+  input: ConfirmPhotoCardImageInput,
+): Promise<PhotoCardImageUpdateResult> {
+  await ensurePhotoCardSearchSupport();
+
+  const product = await loadProductForPhotoCard(input.cardId);
+
+  if (!product) {
+    throw new Error("Product not found.");
+  }
+
+  // Optimize front and back in parallel instead of one after the other.
+  const [frontBuffer, backBuffer] = await Promise.all([
+    optimizedJpegBufferFromDataUrl(input.userFrontImageUrl),
+    input.userBackImageUrl
+      ? optimizedJpegBufferFromDataUrl(input.userBackImageUrl)
+      : Promise.resolve(null),
+  ]);
+  const objectKeys = photoCardR2ObjectKeys({
+    groupName: product.groupName,
+    productCode: photoCardProductCode({
+      internalCode: product.internalCode,
+      sku: product.sku,
+      id: product.id,
+    }),
+  });
+
+  // Compute the (cheap, hashes-only) fingerprint concurrently with the network
+  // uploads so the CPU work overlaps the upload latency. ORB/color are filled in
+  // later by the offline fingerprint batch.
+  const fingerprintPromise = computeQuickHashFingerprintFromBuffer(frontBuffer).catch(
+    () => null,
+  );
+
+  let frontUpload: { key: string; url: string } | null = null;
+  let backUpload: { key: string; url: string } | null = null;
+
+  try {
+    // Upload front and back at the same time.
+    [frontUpload, backUpload] = await Promise.all([
+      uploadBufferToR2({
+        buffer: frontBuffer,
+        key: objectKeys.frontKey,
+        contentType: "image/jpeg",
+        cacheControl: "no-cache",
+      }),
+      backBuffer
+        ? uploadBufferToR2({
+            buffer: backBuffer,
+            key: objectKeys.backKey,
+            contentType: "image/jpeg",
+            cacheControl: "no-cache",
+          })
+        : Promise.resolve(null),
+    ]);
+  } catch (error) {
+    await cleanupUploadedR2Objects(
+      [frontUpload?.key, backUpload?.key].filter(
+        (key): key is string => Boolean(key),
+      ),
+    );
+    throw error;
+  }
+
+  if (!frontUpload) {
+    throw new Error("Failed to upload front image to R2.");
+  }
+
+  const previousFrontKey =
+    normalizeText(product.userFrontR2Key) ?? r2KeyFromPublicUrl(product.userFrontImageUrl);
+  const previousBackKey =
+    normalizeText(product.userBackR2Key) ?? r2KeyFromPublicUrl(product.userBackImageUrl);
+  const sourceImageUrl = sourceImageUrlForPhotoCardUpdate(
+    product.sourceImageUrl,
+    product.imageUrl,
+    product.imageSource,
+  );
+  const nextBackImageUrl = backUpload?.url ?? normalizeText(product.userBackImageUrl);
+  const nextBackR2Key = backUpload?.key ?? previousBackKey;
+  const imageUrls = photoCardListingImageUrls({
+    userFrontImageUrl: frontUpload.url,
+    userBackImageUrl: nextBackImageUrl,
+    sourceImageUrl,
+    imageUrl: frontUpload.url,
+  }).imageUrls;
+
+  // Await the fingerprint that's been computing in parallel with the uploads.
+  const frontFingerprint = await fingerprintPromise;
+
+  const stockResult = await prisma.$transaction(async (tx) => {
+    // Serialize connections for the same product. This makes the first-connect
+    // stock movement idempotent even if the request is retried concurrently.
+    const lockedRows = await tx.$queryRaw<
+      Array<{
+        userFrontImageUrl: string | null;
+        userFrontR2Key: string | null;
+        stockQuantity: number;
+      }>
+    >`
+      SELECT
+        "user_front_image_url" AS "userFrontImageUrl",
+        "user_front_r2_key" AS "userFrontR2Key",
+        "stock_quantity" AS "stockQuantity"
+      FROM "products"
+      WHERE "id" = ${input.cardId}
+      FOR UPDATE
+    `;
+    const lockedProduct = lockedRows[0];
+    if (!lockedProduct) {
+      throw new Error("Product not found.");
+    }
+
+    const lockedPreviousFrontKey =
+      normalizeText(lockedProduct.userFrontR2Key) ??
+      r2KeyFromPublicUrl(lockedProduct.userFrontImageUrl);
+    const isNewMatch = !lockedPreviousFrontKey;
+
+    await tx.$executeRaw`
+      UPDATE "products"
+      SET
+        "image_url" = ${frontUpload.url},
+        "ebay_image_urls" = ${textArraySql(imageUrls)},
+        "source_image_url" = ${sourceImageUrl},
+        "user_front_image_url" = ${frontUpload.url},
+        "user_back_image_url" = ${nextBackImageUrl},
+        "user_front_r2_key" = ${frontUpload.key},
+        "user_back_r2_key" = ${nextBackR2Key},
+        "image_source" = 'r2_user_uploaded',
+        "has_back_image" = ${Boolean(nextBackImageUrl)},
+        "matched_by" = 'manual',
+        "match_confidence" = NULL,
+        "verified_at" = CURRENT_TIMESTAMP,
+        "image_signature" = ${frontFingerprint ? JSON.stringify(frontFingerprint) : null}::jsonb,
+        "image_phash" = ${frontFingerprint?.phash ?? null},
+        "image_dhash" = ${frontFingerprint?.dhash ?? null},
+        "image_ahash" = ${frontFingerprint?.ahash ?? null},
+        "orb_descriptor_path" = ${frontFingerprint ? "db:image_signature.descriptors" : null},
+        "image_width" = ${frontFingerprint?.width ?? null},
+        "image_height" = ${frontFingerprint?.height ?? null},
+        "image_fingerprint_updated_at" = ${frontFingerprint ? new Date() : null},
+        "updated_at" = CURRENT_TIMESTAMP
+      WHERE "id" = ${input.cardId}
+    `;
+
+    if (!isNewMatch) {
+      return { stockQuantity: lockedProduct.stockQuantity, stockIncremented: false };
+    }
+
+    const movement = await createInventoryMovementTx(tx, {
+      productId: input.cardId,
+      type: "IN",
+      quantity: 1,
+      reason: "촬영본 최초 연결",
+      createdBy: input.createdBy,
+    });
+    return { stockQuantity: movement.afterQuantity, stockIncremented: true };
+  });
+
+  await cleanupStaleUploadedKeys({
+    previousFrontKey,
+    previousBackKey,
+    currentFrontKey: frontUpload.key,
+    currentBackKey: nextBackR2Key,
+    backReplaced: Boolean(backUpload),
+  });
+
+  // Use the value RETURNING gave us instead of a second SELECT round-trip; all
+  // other fields are already known from the product we loaded and just wrote.
+  return {
+    id: product.id,
+    sku: product.sku,
+    imageUrl: frontUpload.url,
+    sourceImageUrl,
+    imageSource: "r2_user_uploaded",
+    userFrontImageUrl: frontUpload.url,
+    userBackImageUrl: nextBackImageUrl,
+    userFrontR2Key: frontUpload.key,
+    userBackR2Key: nextBackR2Key,
+    hasBackImage: Boolean(nextBackImageUrl),
+    ebayImageUrls: imageUrls,
+    stockQuantity: stockResult.stockQuantity,
+    stockIncremented: stockResult.stockIncremented,
+  };
+}
+
+export async function deleteR2PhotoCardImage(
+  input: DeleteR2PhotoCardImageInput,
+): Promise<PhotoCardImageUpdateResult> {
+  await ensurePhotoCardSearchSupport();
+
+  const product = await loadProductForPhotoCard(input.productId);
+
+  if (!product) {
+    throw new Error("Product not found.");
+  }
+
+  const currentFrontKey =
+    normalizeText(product.userFrontR2Key) ?? r2KeyFromPublicUrl(product.userFrontImageUrl);
+  const currentBackKey =
+    normalizeText(product.userBackR2Key) ?? r2KeyFromPublicUrl(product.userBackImageUrl);
+  const deleteTargets =
+    input.side === "front"
+      ? [currentFrontKey]
+      : input.side === "back"
+        ? [currentBackKey]
+        : [currentFrontKey, currentBackKey];
+  const uniqueDeleteTargets = [...new Set(deleteTargets.filter(Boolean))];
+
+  for (const key of uniqueDeleteTargets) {
+    const result = await deleteObjectFromR2(key);
+
+    if (!result.ok) {
+      throw new Error(result.error ?? `Failed to delete R2 object: ${key}`);
+    }
+  }
+
+  const sourceImageUrl = normalizeText(product.sourceImageUrl);
+  let nextFrontImageUrl = normalizeText(product.userFrontImageUrl);
+  let nextBackImageUrl = normalizeText(product.userBackImageUrl);
+  let nextFrontR2Key = currentFrontKey;
+  let nextBackR2Key = currentBackKey;
+
+  if (input.side === "front" || input.side === "all") {
+    nextFrontImageUrl = null;
+    nextFrontR2Key = null;
+  }
+
+  if (input.side === "back" || input.side === "all") {
+    nextBackImageUrl = null;
+    nextBackR2Key = null;
+  }
+
+  const nextImageUrl =
+    input.side === "front" || input.side === "all"
+      ? sourceImageUrl
+      : nextFrontImageUrl ?? sourceImageUrl;
+  const nextImageSource = photoCardImageSource({
+    userFrontImageUrl: nextFrontImageUrl,
+    sourceImageUrl,
+  });
+  const nextHasBackImage = Boolean(nextBackImageUrl);
+  const imageUrls =
+    input.side === "front" && !nextFrontImageUrl && nextBackImageUrl
+      ? [nextBackImageUrl]
+      : photoCardListingImageUrls({
+          userFrontImageUrl: nextFrontImageUrl,
+          userBackImageUrl: nextBackImageUrl,
+          sourceImageUrl,
+          imageUrl: nextImageUrl,
+        }).imageUrls;
+
+  await prisma.$executeRaw`
+    UPDATE "products"
+    SET
+      "image_url" = ${nextImageUrl},
+      "ebay_image_urls" = ${textArraySql(imageUrls)},
+      "user_front_image_url" = ${nextFrontImageUrl},
+      "user_back_image_url" = ${nextBackImageUrl},
+      "user_front_r2_key" = ${nextFrontR2Key},
+      "user_back_r2_key" = ${nextBackR2Key},
+      "image_source" = ${nextImageSource},
+      "has_back_image" = ${nextHasBackImage},
+      "updated_at" = CURRENT_TIMESTAMP
+    WHERE "id" = ${input.productId}
+  `;
+
+  const updated = await loadProductForPhotoCard(input.productId);
+
+  if (!updated) {
+    throw new Error("Product not found after delete.");
+  }
+
+  return {
+    id: updated.id,
+    sku: updated.sku,
+    imageUrl: nextImageUrl,
+    sourceImageUrl,
+    imageSource: nextImageSource,
+    userFrontImageUrl: nextFrontImageUrl,
+    userBackImageUrl: nextBackImageUrl,
+    userFrontR2Key: nextFrontR2Key,
+    userBackR2Key: nextBackR2Key,
+    hasBackImage: nextHasBackImage,
+    ebayImageUrls: imageUrls,
+    stockQuantity: updated.stockQuantity ?? 0,
+    stockIncremented: false,
+  };
+}
+
+export function normalizePhotoCardCandidateFilters(
+  filters: PhotoCardCandidateFilters,
+) {
+  return {
+    group: normalizeText(filters.group),
+    member: normalizeText(filters.member),
+    album: normalizeText(filters.album),
+    version: normalizeText(filters.version),
+    keyword: normalizeText(filters.keyword),
+    includeRegistered: filters.includeRegistered === true,
+    limit: clampLimit(filters.limit),
+    offset: Math.max(0, Number(filters.offset) || 0),
+  };
+}
+
+export function photoCardListingImageUrls(input: {
+  userFrontImageUrl?: string | null;
+  userBackImageUrl?: string | null;
+  sourceImageUrl?: string | null;
+  imageUrl?: string | null;
+}) {
+  const frontListingImageUrl = normalizeText(input.userFrontImageUrl);
+  const backListingImageUrl = normalizeText(input.userBackImageUrl);
+  const sourceImageUrl = normalizeText(input.sourceImageUrl);
+  const imageUrl = normalizeText(input.imageUrl);
+  const imageUrls: string[] = [];
+
+  if (frontListingImageUrl) {
+    imageUrls.push(frontListingImageUrl);
+
+    if (backListingImageUrl) {
+      imageUrls.push(backListingImageUrl);
+    }
+
+    return { frontListingImageUrl, backListingImageUrl, imageUrls };
+  }
+
+  if (sourceImageUrl) {
+    imageUrls.push(sourceImageUrl);
+  } else if (imageUrl) {
+    imageUrls.push(imageUrl);
+  }
+
+  return { frontListingImageUrl, backListingImageUrl, imageUrls };
+}
+
+export function photoCardImageSource(input: {
+  userFrontImageUrl?: string | null;
+  sourceImageUrl?: string | null;
+}) {
+  if (normalizeText(input.userFrontImageUrl)) {
+    return "r2_user_uploaded";
+  }
+
+  if (normalizeText(input.sourceImageUrl)) {
+    return "pocamarket";
+  }
+
+  return null;
+}
+
+export function sourceImageUrlForPhotoCardUpdate(
+  currentSourceImageUrl: string | null,
+  currentImageUrl?: string | null,
+  currentImageSource?: string | null,
+) {
+  const source = normalizeText(currentSourceImageUrl);
+
+  if (source) {
+    return source;
+  }
+
+  const current = normalizeText(currentImageUrl);
+
+  if (!current) {
+    return null;
+  }
+
+  const imageSource = String(currentImageSource ?? "").toLowerCase();
+
+  if (imageSource && imageSource !== "pocamarket") {
+    return null;
+  }
+
+  if (current.includes("/api/products/image-match/assets/")) {
+    return null;
+  }
+
+  if (r2KeyFromPublicUrl(current)) {
+    return null;
+  }
+
+  if (/\.r2\.(?:dev|cloudflarestorage\.com)/i.test(current)) {
+    return null;
+  }
+
+  return current;
+}
+
+export function photoCardGroupSlug(groupName: string | null | undefined) {
+  const text = String(groupName ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, "")
+    .replace(/[_\s]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return text || "unknown";
+}
+
+export function photoCardProductCode(input: {
+  productCode?: string | null;
+  internalCode?: string | null;
+  sku?: string | null;
+  id: string;
+}) {
+  const primary = sanitizeProductCode(input.productCode);
+  const secondary = sanitizeProductCode(input.internalCode);
+  const tertiary = sanitizeProductCode(input.sku);
+  const fallback = sanitizeProductCode(input.id);
+
+  return primary ?? secondary ?? tertiary ?? fallback ?? input.id;
+}
+
+export function photoCardR2ObjectKeys(input: {
+  groupName: string | null | undefined;
+  productCode: string;
+}) {
+  const groupSlug = photoCardGroupSlug(input.groupName);
+  const productCode = sanitizeProductCode(input.productCode) ?? "item";
+
+  return {
+    frontKey: `${groupSlug}/${productCode}_front.jpg`,
+    backKey: `${groupSlug}/${productCode}_back.jpg`,
+  };
+}
+
+async function ensurePhotoCardSearchSupport() {
+  photoCardSearchSupportPromise ??= createPhotoCardSearchSupport().catch((error) => {
+    photoCardSearchSupportPromise = null;
+    throw error;
+  });
+
+  await photoCardSearchSupportPromise;
+}
+
+async function createPhotoCardSearchSupport() {
+  await ensureProductImageMatchColumns();
+
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "products_photo_brand_lower_idx"
+      ON "products" (LOWER("brand"))
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "products_photo_member_lower_idx"
+      ON "products" (LOWER("option_name"))
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "products_photo_album_lower_idx"
+      ON "products" (LOWER("category"))
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "products_photo_title_lower_idx"
+      ON "products" (LOWER("product_name"))
+  `;
+
+  // Plain btree indexes on the raw columns so the facet "SELECT DISTINCT col
+  // ... ORDER BY col" (dropdown options) runs as a fast ordered index scan
+  // instead of a full table sort.
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "products_photo_brand_idx" ON "products" ("brand")
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "products_photo_member_idx" ON "products" ("option_name")
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "products_photo_album_idx" ON "products" ("category")
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "products_photo_pname_idx" ON "products" ("product_name")
+  `;
+}
+
+async function loadProductForPhotoCard(cardId: string) {
+  const rows = await prisma.$queryRaw<ProductPhotoCardRow[]>`
+    SELECT
+      "id",
+      "sku",
+      "internal_code" AS "internalCode",
+      "brand" AS "groupName",
+      "image_url" AS "imageUrl",
+      "source_image_url" AS "sourceImageUrl",
+      "image_source" AS "imageSource",
+      "user_front_image_url" AS "userFrontImageUrl",
+      "user_back_image_url" AS "userBackImageUrl",
+      "user_front_r2_key" AS "userFrontR2Key",
+      "user_back_r2_key" AS "userBackR2Key",
+      "stock_quantity" AS "stockQuantity"
+    FROM "products"
+    WHERE "id" = ${cardId}
+    LIMIT 1
+  `;
+
+  return rows[0] ?? null;
+}
+
+async function loadPendingPhotoCardR2Rows(
+  filters: ReturnType<typeof normalizePhotoCardR2UploadFilters>,
+  limit: number,
+) {
+  const clauses = photoCardR2PendingWhereClauses(filters);
+  const whereSql = clauses.length
+    ? Prisma.sql`WHERE ${Prisma.join(clauses, " AND ")}`
+    : Prisma.empty;
+
+  return prisma.$queryRaw<ProductPhotoCardRow[]>`
+    SELECT
+      "id",
+      "sku",
+      "internal_code" AS "internalCode",
+      "brand" AS "groupName",
+      "image_url" AS "imageUrl",
+      "source_image_url" AS "sourceImageUrl",
+      "image_source" AS "imageSource",
+      "user_front_image_url" AS "userFrontImageUrl",
+      "user_back_image_url" AS "userBackImageUrl",
+      "user_front_r2_key" AS "userFrontR2Key",
+      "user_back_r2_key" AS "userBackR2Key"
+    FROM "products"
+    ${whereSql}
+    ORDER BY
+      LOWER(COALESCE("brand", '')),
+      LOWER(COALESCE("category", '')),
+      LOWER(COALESCE("option_name", '')),
+      LOWER(COALESCE("product_name", '')),
+      "sku"
+    LIMIT ${limit}
+  `;
+}
+
+async function migrateProductPhotoCardImagesToR2(product: ProductPhotoCardRow) {
+  const frontSourceUrl = normalizeText(product.userFrontImageUrl);
+
+  if (!frontSourceUrl) {
+    throw new Error("user_front_image_url is empty.");
+  }
+
+  const backSourceUrl = normalizeText(product.userBackImageUrl);
+  const previousFrontKey =
+    normalizeText(product.userFrontR2Key) ?? r2KeyFromPublicUrl(frontSourceUrl);
+  const previousBackKey =
+    normalizeText(product.userBackR2Key) ?? r2KeyFromPublicUrl(backSourceUrl);
+  const shouldUploadFront = !previousFrontKey;
+  const shouldUploadBack = Boolean(backSourceUrl) && !previousBackKey;
+  const objectKeys = photoCardR2ObjectKeys({
+    groupName: product.groupName,
+    productCode: photoCardProductCode({
+      internalCode: product.internalCode,
+      sku: product.sku,
+      id: product.id,
+    }),
+  });
+  const uploadedKeys: string[] = [];
+  let frontUpload: { key: string; url: string } | null = null;
+  let backUpload: { key: string; url: string } | null = null;
+
+  try {
+    if (shouldUploadFront) {
+      const frontBuffer = await optimizedJpegBufferFromImageSource(frontSourceUrl);
+      frontUpload = await uploadBufferToR2({
+        buffer: frontBuffer,
+        key: objectKeys.frontKey,
+        contentType: "image/jpeg",
+      });
+      uploadedKeys.push(frontUpload.key);
+    }
+
+    if (shouldUploadBack && backSourceUrl) {
+      const backBuffer = await optimizedJpegBufferFromImageSource(backSourceUrl);
+      backUpload = await uploadBufferToR2({
+        buffer: backBuffer,
+        key: objectKeys.backKey,
+        contentType: "image/jpeg",
+      });
+      uploadedKeys.push(backUpload.key);
+    }
+  } catch (error) {
+    await cleanupUploadedR2Objects(uploadedKeys);
+    throw error;
+  }
+
+  const nextFrontImageUrl = frontUpload?.url ?? frontSourceUrl;
+  const nextBackImageUrl = backUpload?.url ?? backSourceUrl;
+  const nextFrontR2Key = frontUpload?.key ?? previousFrontKey;
+  const nextBackR2Key = backUpload?.key ?? previousBackKey;
+
+  if (!nextFrontR2Key) {
+    throw new Error("Failed to resolve front R2 key.");
+  }
+
+  const sourceImageUrl = sourceImageUrlForPhotoCardUpdate(
+    product.sourceImageUrl,
+    product.imageUrl,
+    product.imageSource,
+  );
+  const nextImageUrl = nextFrontImageUrl ?? normalizeText(product.imageUrl) ?? sourceImageUrl;
+  const nextImageSource = photoCardImageSource({
+    userFrontImageUrl: nextFrontImageUrl,
+    sourceImageUrl,
+  });
+  const nextHasBackImage = Boolean(nextBackImageUrl);
+  const imageUrls = photoCardListingImageUrls({
+    userFrontImageUrl: nextFrontImageUrl,
+    userBackImageUrl: nextBackImageUrl,
+    sourceImageUrl,
+    imageUrl: nextImageUrl,
+  }).imageUrls;
+
+  await prisma.$executeRaw`
+    UPDATE "products"
+    SET
+      "image_url" = ${nextImageUrl},
+      "ebay_image_urls" = ${textArraySql(imageUrls)},
+      "source_image_url" = ${sourceImageUrl},
+      "user_front_image_url" = ${nextFrontImageUrl},
+      "user_back_image_url" = ${nextBackImageUrl},
+      "user_front_r2_key" = ${nextFrontR2Key},
+      "user_back_r2_key" = ${nextBackR2Key},
+      "image_source" = ${nextImageSource},
+      "has_back_image" = ${nextHasBackImage},
+      "updated_at" = CURRENT_TIMESTAMP
+    WHERE "id" = ${product.id}
+  `;
+}
+
+async function optimizedJpegBufferFromDataUrl(dataUrl: string) {
+  const sourceBuffer = imageBufferFromDataUrl(dataUrl);
+
+  return optimizedJpegBufferFromBuffer(sourceBuffer);
+}
+
+async function optimizedJpegBufferFromImageSource(imageUrl: string) {
+  const source = normalizeText(imageUrl);
+
+  if (!source) {
+    throw new Error("Image URL is required.");
+  }
+
+  if (source.startsWith("data:image/")) {
+    return optimizedJpegBufferFromDataUrl(source);
+  }
+
+  const response = await fetch(source, {
+    signal: AbortSignal.timeout(sourceImageFetchTimeoutMs),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to download image: ${response.status}`);
+  }
+
+  const contentLengthText = response.headers.get("content-length");
+  const contentLength = contentLengthText ? Number(contentLengthText) : 0;
+
+  if (contentLength > maxSourceImageBytes) {
+    throw new Error("Source image is too large.");
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+
+  if (!buffer.length) {
+    throw new Error("Source image is empty.");
+  }
+
+  if (buffer.length > maxSourceImageBytes) {
+    throw new Error("Source image is too large.");
+  }
+
+  return optimizedJpegBufferFromBuffer(buffer);
+}
+
+async function optimizedJpegBufferFromBuffer(sourceBuffer: Buffer | Uint8Array) {
+
+  return sharp(sourceBuffer, { failOn: "none" })
+    .rotate()
+    .flatten({ background: "#ffffff" })
+    .resize({
+      width: 1600,
+      height: 1600,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .jpeg({
+      quality: 90,
+      mozjpeg: true,
+    })
+    .toBuffer();
+}
+
+function imageBufferFromDataUrl(dataUrl: string) {
+  const text = String(dataUrl ?? "").trim();
+  const match = text.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/);
+
+  if (!match) {
+    throw new Error("user_front_image_url must be an image data URL.");
+  }
+
+  return Buffer.from(match[1], "base64");
+}
+
+async function cleanupUploadedR2Objects(keys: string[]) {
+  if (!keys.length) {
+    return;
+  }
+
+  await Promise.all(keys.map((key) => deleteObjectFromR2(key)));
+}
+
+async function cleanupStaleUploadedKeys(input: {
+  previousFrontKey: string | null;
+  previousBackKey: string | null;
+  currentFrontKey: string | null;
+  currentBackKey: string | null;
+  backReplaced: boolean;
+}) {
+  const staleKeys: string[] = [];
+
+  if (input.previousFrontKey && input.previousFrontKey !== input.currentFrontKey) {
+    staleKeys.push(input.previousFrontKey);
+  }
+
+  if (
+    input.backReplaced &&
+    input.previousBackKey &&
+    input.previousBackKey !== input.currentBackKey
+  ) {
+    staleKeys.push(input.previousBackKey);
+  }
+
+  if (!staleKeys.length) {
+    return;
+  }
+
+  await Promise.all(staleKeys.map((key) => deleteObjectFromR2(key)));
+}
+
+function textArraySql(values: string[]) {
+  if (!values.length) {
+    return Prisma.sql`ARRAY[]::TEXT[]`;
+  }
+
+  return Prisma.sql`ARRAY[${Prisma.join(values)}]::TEXT[]`;
+}
+
+async function loadPhotoCardFacets(
+  filters: ReturnType<typeof normalizePhotoCardCandidateFilters>,
+): Promise<PhotoCardFacetOptions> {
+  const now = Date.now();
+  const cacheKey = photoCardFacetCacheKey(filters);
+  const cached = photoCardFacetCache.get(cacheKey);
+
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+
+  const filteredFacetFilters = {
+    ...filters,
+    offset: 0,
+  };
+  const [groups, members, albums, versions] = await Promise.all([
+    distinctFacet("brand", filteredFacetFilters, new Set()),
+    distinctFacet("option_name", filteredFacetFilters, new Set()),
+    distinctFacet("category", filteredFacetFilters, new Set()),
+    distinctFacet("product_name", filteredFacetFilters, new Set()),
+  ]);
+
+  const value = { groups, members, albums, versions };
+  pruneExpiredFacetCache(now);
+  photoCardFacetCache.set(cacheKey, { expiresAt: now + facetCacheTtlMs, value });
+
+  return value;
+}
+
+async function distinctFacet(
+  column: "brand" | "option_name" | "category" | "product_name",
+  filters: ReturnType<typeof normalizePhotoCardCandidateFilters>,
+  omitted: Set<keyof ReturnType<typeof normalizePhotoCardCandidateFilters>>,
+) {
+  const clauses = candidateWhereClauses(filters, omitted);
+  const whereSql = clauses.length
+    ? Prisma.sql`WHERE ${Prisma.join(clauses, " AND ")}`
+    : Prisma.empty;
+  const columnSql = facetColumnSql(column);
+  const rows = await prisma.$queryRaw<DistinctValueRow[]>`
+    SELECT DISTINCT ${columnSql} AS "value"
+    FROM "products"
+    ${whereSql}
+      ${clauses.length ? Prisma.sql`AND` : Prisma.sql`WHERE`} ${columnSql} IS NOT NULL
+      AND ${columnSql} <> ''
+    ORDER BY "value"
+    LIMIT 200
+  `;
+
+  return rows
+    .map((row) => row.value?.trim())
+    .filter((value): value is string => Boolean(value));
+}
+
+function candidateWhereClauses(
+  filters: ReturnType<typeof normalizePhotoCardCandidateFilters>,
+  omitted = new Set<keyof ReturnType<typeof normalizePhotoCardCandidateFilters>>(),
+) {
+  const clauses = [Prisma.sql`("status" IS NULL OR "status" <> 'inactive')`];
+
+  if (!filters.includeRegistered) {
+    clauses.push(
+      Prisma.sql`("user_front_image_url" IS NULL OR "user_front_image_url" = '')`,
+    );
+  }
+
+  if (filters.group && !omitted.has("group")) {
+    clauses.push(Prisma.sql`COALESCE("brand", '') ILIKE ${prefixPattern(filters.group)}`);
+  }
+
+  if (filters.member && !omitted.has("member")) {
+    clauses.push(
+      Prisma.sql`COALESCE("option_name", '') ILIKE ${prefixPattern(filters.member)}`,
+    );
+  }
+
+  if (filters.album && !omitted.has("album")) {
+    const albumLike = likePattern(filters.album);
+    clauses.push(
+      Prisma.sql`(
+        COALESCE("category", '') ILIKE ${albumLike}
+        OR COALESCE("product_name", '') ILIKE ${albumLike}
+        OR COALESCE("memo", '') ILIKE ${albumLike}
+      )`,
+    );
+  }
+
+  if (filters.version && !omitted.has("version")) {
+    const versionLike = likePattern(filters.version);
+    clauses.push(
+      Prisma.sql`(COALESCE("product_name", '') ILIKE ${versionLike} OR COALESCE("memo", '') ILIKE ${versionLike})`,
+    );
+  }
+
+  if (filters.keyword && !omitted.has("keyword")) {
+    const keywordLike = likePattern(filters.keyword);
+    clauses.push(Prisma.sql`(
+      COALESCE("sku", '') ILIKE ${keywordLike}
+      OR COALESCE("internal_code", '') ILIKE ${keywordLike}
+      OR COALESCE("product_name", '') ILIKE ${keywordLike}
+      OR COALESCE("option_name", '') ILIKE ${keywordLike}
+      OR COALESCE("category", '') ILIKE ${keywordLike}
+      OR COALESCE("brand", '') ILIKE ${keywordLike}
+      OR COALESCE("memo", '') ILIKE ${keywordLike}
+    )`);
+  }
+
+  return clauses;
+}
+
+function photoCardR2PendingWhereClauses(
+  filters: ReturnType<typeof normalizePhotoCardR2UploadFilters>,
+) {
+  const clauses = candidateWhereClauses(filters);
+
+  clauses.push(Prisma.sql`("user_front_image_url" IS NOT NULL AND "user_front_image_url" <> '')`);
+  clauses.push(Prisma.sql`(
+    ("user_front_r2_key" IS NULL OR "user_front_r2_key" = '')
+    OR (
+      "user_back_image_url" IS NOT NULL
+      AND "user_back_image_url" <> ''
+      AND ("user_back_r2_key" IS NULL OR "user_back_r2_key" = '')
+    )
+  )`);
+
+  return clauses;
+}
+
+function candidateOrderClauses(
+  filters: ReturnType<typeof normalizePhotoCardCandidateFilters>,
+) {
+  // No stock- or connection-based priority: cards are surfaced purely by how
+  // well they match the active filters, then a stable alphabetical/SKU order.
+  const clauses: Prisma.Sql[] = [];
+
+  if (filters.member) {
+    clauses.push(
+      Prisma.sql`CASE WHEN LOWER(COALESCE("option_name", '')) = LOWER(${filters.member}) THEN 0 ELSE 1 END`,
+    );
+  }
+
+  if (filters.album) {
+    clauses.push(
+      Prisma.sql`CASE WHEN LOWER(COALESCE("category", '')) = LOWER(${filters.album}) THEN 0 ELSE 1 END`,
+    );
+  }
+
+  if (filters.group) {
+    clauses.push(
+      Prisma.sql`CASE WHEN LOWER(COALESCE("brand", '')) = LOWER(${filters.group}) THEN 0 ELSE 1 END`,
+    );
+  }
+
+  if (filters.version) {
+    clauses.push(
+      Prisma.sql`CASE WHEN LOWER(COALESCE("product_name", '')) = LOWER(${filters.version}) THEN 0 ELSE 1 END`,
+    );
+  }
+
+  return [
+    ...clauses,
+    Prisma.sql`LOWER(COALESCE("brand", ''))`,
+    Prisma.sql`LOWER(COALESCE("category", ''))`,
+    Prisma.sql`LOWER(COALESCE("option_name", ''))`,
+    Prisma.sql`LOWER(COALESCE("product_name", ''))`,
+    Prisma.sql`"sku"`,
+  ];
+}
+
+function facetColumnSql(
+  column: "brand" | "option_name" | "category" | "product_name",
+) {
+  switch (column) {
+    case "brand":
+      return Prisma.sql`"brand"`;
+    case "option_name":
+      return Prisma.sql`"option_name"`;
+    case "category":
+      return Prisma.sql`"category"`;
+    case "product_name":
+      return Prisma.sql`"product_name"`;
+  }
+}
+
+function toPhotoCardCandidate(row: PhotoCardCandidateRow): PhotoCardCandidate {
+  return {
+    cardId: row.cardId,
+    id: row.cardId,
+    sku: row.sku,
+    title: row.title,
+    groupName: row.groupName,
+    memberName: row.memberName,
+    albumName: row.albumName,
+    versionName: row.versionName,
+    existingImageUrl: row.existingImageUrl,
+    currentImageUrl: row.currentImageUrl,
+    sourceImageUrl: row.sourceImageUrl,
+    imageSource: row.imageSource,
+    userFrontImageUrl: row.userFrontImageUrl,
+    userBackImageUrl: row.userBackImageUrl,
+    userFrontR2Key: row.userFrontR2Key,
+    userBackR2Key: row.userBackR2Key,
+    stockQuantity: row.stockQuantity,
+    salePrice: row.salePrice,
+    ebayPrice: row.ebayPrice,
+    featuredMembers: row.featuredMembers,
+    userImageRegistered: row.userImageRegistered,
+    hasBackImage: row.hasBackImage,
+  };
+}
+
+function normalizeText(value: string | null | undefined) {
+  const text = String(value ?? "").trim();
+  return text || null;
+}
+
+function sanitizeProductCode(value: string | null | undefined) {
+  const text = String(value ?? "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^\p{L}\p{N}_-]/gu, "")
+    .replace(/-+/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
+
+  return text || null;
+}
+
+function photoCardFacetCacheKey(
+  filters: ReturnType<typeof normalizePhotoCardCandidateFilters>,
+) {
+  return [
+    filters.includeRegistered ? "1" : "0",
+    filters.group ?? "",
+    filters.member ?? "",
+    filters.album ?? "",
+    filters.version ?? "",
+    filters.keyword ?? "",
+  ].join("\u0001");
+}
+
+function pruneExpiredFacetCache(now: number) {
+  for (const [key, value] of photoCardFacetCache.entries()) {
+    if (value.expiresAt <= now) {
+      photoCardFacetCache.delete(key);
+    }
+  }
+
+  if (photoCardFacetCache.size > 200) {
+    photoCardFacetCache.clear();
+  }
+}
+
+function clampLimit(value: number | null | undefined) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return defaultLimit;
+  }
+
+  return Math.min(maxLimit, Math.floor(parsed));
+}
+
+function clampR2BulkBatchSize(value: number | null | undefined) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return defaultR2BulkBatchSize;
+  }
+
+  return Math.min(maxR2BulkBatchSize, Math.floor(parsed));
+}
+
+function normalizePhotoCardR2UploadFilters(filters: PhotoCardR2UploadFilters) {
+  return normalizePhotoCardCandidateFilters({
+    group: filters.group,
+    member: filters.member,
+    album: filters.album,
+    version: filters.version,
+    keyword: filters.keyword,
+    includeRegistered: true,
+    limit: 1,
+    offset: 0,
+  });
+}
+
+function likePattern(value: string) {
+  return `%${value.replace(/[%_\\]/g, "\\$&")}%`;
+}
+
+function prefixPattern(value: string) {
+  return `${value.replace(/[%_\\]/g, "\\$&")}%`;
+}

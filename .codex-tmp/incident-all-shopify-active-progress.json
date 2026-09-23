@@ -1,0 +1,106 @@
+{
+  "job": {
+    "id": "cmu23bpmx01pql804olroaprn",
+    "userId": "cmov263l40000gpbuoc0efeq0",
+    "channel": "SHOPIFY",
+    "mode": "PRICE_INVENTORY",
+    "activeKey": null,
+    "status": "COMPLETED_WITH_ERROR",
+    "totalCount": 17,
+    "processedCount": 17,
+    "successCount": 5,
+    "failureCount": 12,
+    "startedAt": "2026-09-15T03:06:52.429Z",
+    "completedAt": "2026-09-15T03:24:37.142Z",
+    "workerToken": null,
+    "workerLeaseExpiresAt": null,
+    "createdAt": "2026-09-15T03:06:35.172Z",
+    "updatedAt": "2026-09-15T03:24:39.421Z",
+    "items": [
+      {
+        "id": "cmu23bpmx01prl804r1k04a9k",
+        "sku": "3136",
+        "status": "FAILED",
+        "error": "전체 옵션과 일치하는 묶음 대표 이미지가 없어 게시를 중단했습니다.",
+        "targetId": "1512cdf9-ee9a-40e8-a786-e8fc9af1b220"
+      },
+      {
+        "id": "cmu23bpmx01ptl804zzrbbpb9",
+        "sku": "82718",
+        "status": "FAILED",
+        "error": "전체 옵션과 일치하는 묶음 대표 이미지가 없어 게시를 중단했습니다.",
+        "targetId": "33fc7d58-e1c8-45b4-ac2a-a0bb74806bb1"
+      },
+      {
+        "id": "cmu23bpmx01pvl804o4kra03v",
+        "sku": "82738",
+        "status": "FAILED",
+        "error": "전체 옵션과 일치하는 묶음 대표 이미지가 없어 게시를 중단했습니다.",
+        "targetId": "47eceeb9-0ce1-4b66-85d2-d79907d7a235"
+      },
+      {
+        "id": "cmu23bpmx01pwl804p3nw30lo",
+        "sku": "82794",
+        "status": "FAILED",
+        "error": "Shopify Admin API request failed.",
+        "targetId": "4a22f0cc-032c-4476-b90a-7b6439d1515a"
+      },
+      {
+        "id": "cmu23bpmx01pxl804sx1sl10v",
+        "sku": "82800",
+        "status": "FAILED",
+        "error": "Shopify Admin API request failed.",
+        "targetId": "4f6e4739-3ccf-4779-8683-463ea464015c"
+      },
+      {
+        "id": "cmu23bpmx01pyl804r7vmp7dj",
+        "sku": "3150",
+        "status": "FAILED",
+        "error": "전체 옵션과 일치하는 묶음 대표 이미지가 없어 게시를 중단했습니다.",
+        "targetId": "58e474f5-f4f5-4317-b5d5-d04855c3c816"
+      },
+      {
+        "id": "cmu23bpmx01pzl804o2vj6gnd",
+        "sku": "3363",
+        "status": "FAILED",
+        "error": "전체 옵션과 일치하는 묶음 대표 이미지가 없어 게시를 중단했습니다.",
+        "targetId": "58ee3d53-ebcf-4deb-8499-4a0ff7cedd7c"
+      },
+      {
+        "id": "cmu23bpmx01q3l804zvdeca9q",
+        "sku": "3452",
+        "status": "FAILED",
+        "error": "전체 옵션과 일치하는 묶음 대표 이미지가 없어 게시를 중단했습니다.",
+        "targetId": "95da0d25-1ef4-436d-8755-c18f5effc229"
+      },
+      {
+        "id": "cmu23bpmx01q4l804ervjwrpi",
+        "sku": "82797",
+        "status": "FAILED",
+        "error": "Shopify Admin API request failed.",
+        "targetId": "a45b3621-b4f3-4870-89c6-0fa6780dd31e"
+      },
+      {
+        "id": "cmu23bpmx01q5l804z8voqji5",
+        "sku": "4107",
+        "status": "FAILED",
+        "error": "전체 옵션과 일치하는 묶음 대표 이미지가 없어 게시를 중단했습니다.",
+        "targetId": "a7186cd7-3a66-4eea-b943-5ae682dbef0b"
+      },
+      {
+        "id": "cmu23bpmx01q6l804uwguhxcc",
+        "sku": "82811",
+        "status": "FAILED",
+        "error": "Shopify Admin API request failed.",
+        "targetId": "c9324668-d663-4414-9756-0c526dcc3d7d"
+      },
+      {
+        "id": "cmu23bpmx01q7l804k353g04c",
+        "sku": "3137",
+        "status": "FAILED",
+        "error": "전체 옵션과 일치하는 묶음 대표 이미지가 없어 게시를 중단했습니다.",
+        "targetId": "efe0ae6b-7f60-4111-89a6-24abf44800a0"
+      }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "at": "2026-09-10T07:24:05.685Z",
+  "listings": 123,
+  "checked": 373,
+  "held": 38,
+  "corrected": 9,
+  "unmatched": 2,
+  "getItemQuantityFallback": 22,
+  "problems": []
+}

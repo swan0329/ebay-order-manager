@@ -1,0 +1,101 @@
+{
+  "job": {
+    "id": "cmu248jim000fi20486e92x2u",
+    "operation": "revise",
+    "feedType": "LMS_REVISE_INVENTORY_STATUS",
+    "status": "SUBMITTED",
+    "totalCount": 14,
+    "successCount": 0,
+    "failureCount": 0,
+    "error": null,
+    "submittedAt": "2026-09-15T03:32:28.819Z",
+    "completedAt": null,
+    "targets": [
+      {
+        "productId": "1c351966-9aa8-4a6d-8eb8-9fadee84cec8",
+        "sku": "10317",
+        "productName": "BTS Mood for Love Young Forever JUNGKOOK",
+        "itemId": "158278236771"
+      },
+      {
+        "productId": "8a159e70-d1ce-4542-93c7-a0305a0936e7",
+        "sku": "112596",
+        "productName": "BTS FACE Weverse Albums ver. Jimin",
+        "itemId": "158278616509"
+      },
+      {
+        "productId": "b7c699d5-2a4b-4f12-8df2-c69d38b5bfd9",
+        "sku": "118113",
+        "productName": "BTS Agust D D-DAY WEVERSE SUGA",
+        "itemId": "158278392184"
+      },
+      {
+        "productId": "f9cc2771-8010-4976-888e-64a92d9d8639",
+        "sku": "12890",
+        "productName": "BTS Chilsung Cider V",
+        "itemId": "158281179187"
+      },
+      {
+        "productId": "6f438f79-a8f9-4c4e-aef2-45178406d127",
+        "sku": "14840",
+        "productName": "BTS World Double J-Hope",
+        "itemId": "158278437312"
+      },
+      {
+        "productId": "d4ada60b-e34d-432a-a82f-fdfb84b18e7c",
+        "sku": "14841",
+        "productName": "BTS BE Deluxe Edition J-Hope",
+        "itemId": "158281228261"
+      },
+      {
+        "productId": "5b4c763f-cb7a-46d9-8e63-c3ab970c9a5d",
+        "sku": "14939",
+        "productName": "BTS BE Deluxe Edition Jin",
+        "itemId": "158281228261"
+      },
+      {
+        "productId": "40c1e09c-c658-43b4-8edd-0446844d162e",
+        "sku": "260782",
+        "productName": "BTS Suga Official Agust D D-DAY LP ver. Photocard Kpop",
+        "itemId": "158280980249"
+      },
+      {
+        "productId": "cb6a2134-9d3f-42e5-bf95-62cfe59ed3c3",
+        "sku": "4376",
+        "productName": "BTS LOVE YOURSELF 轉 'Tear' Jimin",
+        "itemId": "158278104828"
+      },
+      {
+        "productId": "6a4a3afb-2b5b-49a7-8ffe-f823f2417ede",
+        "sku": "4414",
+        "productName": "BTS MAP OF THE SOUL : PERSONA Jimin",
+        "itemId": "158278771894"
+      },
+      {
+        "productId": "bd4a42f8-40f9-4141-a0f6-513a881000af",
+        "sku": "464383",
+        "productName": "BTS WORLD TOUR 'ARIRANG' IN GOYANG Weverse Pickup ALBUM V",
+        "itemId": "158283754185"
+      },
+      {
+        "productId": "573ac19e-4647-4b7d-99f5-50d89010e24e",
+        "sku": "47589",
+        "productName": "BTS 2021 MUSTER SOWOOZOO DVD/DIGITAL Jin",
+        "itemId": "158283842403"
+      },
+      {
+        "productId": "39b30532-ad4f-4279-a0af-df3db5f96483",
+        "sku": "8854",
+        "productName": "BTS MAP OF THE SOUL : PERSONA J-Hope",
+        "itemId": "158278771894"
+      },
+      {
+        "productId": "0f75fecc-6bb3-4cae-adc3-58b4ea927680",
+        "sku": "8855",
+        "productName": "BTS MAP OF THE SOUL : PERSONA RM",
+        "itemId": "158278771894"
+      }
+    ],
+    "failures": []
+  }
+}

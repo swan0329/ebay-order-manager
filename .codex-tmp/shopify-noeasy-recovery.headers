@@ -1,0 +1,11 @@
+HTTP/1.1 303 See Other
+Cache-Control: public, max-age=0, must-revalidate
+Content-Length: 0
+Date: Thu, 10 Sep 2026 03:59:51 GMT
+Location: https://krazykpop.net/products/stray-kids-noeasy
+Server: Vercel
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+X-Matched-Path: /api/products/[id]/shopify-link
+X-Vercel-Cache: MISS
+X-Vercel-Id: icn1::icn1::8d5rj-1789012788360-70a1a6077bd9
+

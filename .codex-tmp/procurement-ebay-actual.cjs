@@ -1,0 +1,1 @@
+const fs=require('fs');const {call}=require('./procurement-live.cjs');(async()=>{const r=await call('/api/channel-publishing/image-audit?channel=EBAY&items=158281313186,158281344274');fs.writeFileSync('.codex-tmp/procurement-ebay-actual.json',JSON.stringify(r));console.log('http',r.status,'keys',Object.keys(r.data));})();

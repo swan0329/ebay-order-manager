@@ -1,0 +1,415 @@
+{
+  "job": {
+    "id": "cmu26j64x0001jq04e59seg6f",
+    "operation": "revise",
+    "feedType": "LMS_REVISE_INVENTORY_STATUS",
+    "status": "IN_PROCESS",
+    "totalCount": 50,
+    "successCount": 49,
+    "failureCount": 0,
+    "error": "eBay Inventory 가격·수량 반영을 계속 확인하고 있습니다.",
+    "submittedAt": "2026-09-15T04:36:36.619Z",
+    "completedAt": null,
+    "createdAt": "2026-09-15T04:36:22.174Z",
+    "targets": [
+      {
+        "productId": "1c351966-9aa8-4a6d-8eb8-9fadee84cec8",
+        "sku": "10317",
+        "productName": "BTS Mood for Love Young Forever JUNGKOOK",
+        "itemId": "158278236771",
+        "quantity": 0
+      },
+      {
+        "productId": "8a159e70-d1ce-4542-93c7-a0305a0936e7",
+        "sku": "112596",
+        "productName": "BTS FACE Weverse Albums ver. Jimin",
+        "itemId": "158278616509",
+        "price": "12.8",
+        "quantity": 1
+      },
+      {
+        "productId": "b7c699d5-2a4b-4f12-8df2-c69d38b5bfd9",
+        "sku": "118113",
+        "productName": "BTS Agust D D-DAY WEVERSE SUGA",
+        "itemId": "158278392184",
+        "quantity": 0
+      },
+      {
+        "productId": "f9cc2771-8010-4976-888e-64a92d9d8639",
+        "sku": "12890",
+        "productName": "BTS Chilsung Cider V",
+        "itemId": "158281179187",
+        "price": "11.3",
+        "quantity": 1
+      },
+      {
+        "productId": "6f438f79-a8f9-4c4e-aef2-45178406d127",
+        "sku": "14840",
+        "productName": "BTS World Double J-Hope",
+        "itemId": "158278437312",
+        "price": "15",
+        "quantity": 1
+      },
+      {
+        "productId": "d4ada60b-e34d-432a-a82f-fdfb84b18e7c",
+        "sku": "14841",
+        "productName": "BTS BE Deluxe Edition J-Hope",
+        "itemId": "158281228261",
+        "price": "11.3",
+        "quantity": 12
+      },
+      {
+        "productId": "5b4c763f-cb7a-46d9-8e63-c3ab970c9a5d",
+        "sku": "14939",
+        "productName": "BTS BE Deluxe Edition Jin",
+        "itemId": "158281228261",
+        "price": "11.3",
+        "quantity": 13
+      },
+      {
+        "productId": "18cea97f-63fe-427d-89a8-d6543ba91959",
+        "sku": "16955",
+        "productName": "BTS MAP OF THE SOUL TOUR Mini Photo Card V",
+        "itemId": "158278304183",
+        "price": "21",
+        "quantity": 1
+      },
+      {
+        "productId": "56308ba0-1d2c-4dae-ba39-fd32c71e260c",
+        "sku": "17080",
+        "productName": "Stray Kids IN生 STANDARD VER. Unit",
+        "itemId": "158183489452",
+        "price": "12",
+        "quantity": 2
+      },
+      {
+        "productId": "f54493f6-dbdb-48f6-9bb0-c214ea475ca2",
+        "sku": "17081",
+        "productName": "Stray Kids IN生 STANDARD VER. Unit",
+        "itemId": "158183489452",
+        "price": "11.3",
+        "quantity": 2
+      },
+      {
+        "productId": "51bb0ca5-591a-446e-a5f6-c5b5940266d7",
+        "sku": "17084",
+        "productName": "Stray Kids IN生 STANDARD VER. Unit",
+        "itemId": "158183489452",
+        "price": "12",
+        "quantity": 2
+      },
+      {
+        "productId": "40c1e09c-c658-43b4-8edd-0446844d162e",
+        "sku": "260782",
+        "productName": "BTS Suga Official Agust D D-DAY LP ver. Photocard Kpop",
+        "itemId": "158280980249",
+        "quantity": 0
+      },
+      {
+        "productId": "eac92fe1-9177-4eeb-b2ab-23e5b17cdad1",
+        "sku": "37209",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL J-Hope",
+        "itemId": "158284255135",
+        "price": "11.3",
+        "quantity": 2
+      },
+      {
+        "productId": "8fdb1dcf-cf97-4aef-b38f-d752e1852e4d",
+        "sku": "37210",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL SUGA",
+        "itemId": "158284255135",
+        "price": "12.8",
+        "quantity": 1
+      },
+      {
+        "productId": "4ef05a32-68ce-475e-976a-24ebbadbb010",
+        "sku": "41047",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL J-Hope",
+        "itemId": "158284255135",
+        "price": "11.3",
+        "quantity": 1
+      },
+      {
+        "productId": "cb6a2134-9d3f-42e5-bf95-62cfe59ed3c3",
+        "sku": "4376",
+        "productName": "BTS LOVE YOURSELF 轉 'Tear' Jimin",
+        "itemId": "158278104828",
+        "price": "18",
+        "quantity": 2
+      },
+      {
+        "productId": "6a4a3afb-2b5b-49a7-8ffe-f823f2417ede",
+        "sku": "4414",
+        "productName": "BTS MAP OF THE SOUL : PERSONA Jimin",
+        "itemId": "158278771894",
+        "price": "13.5",
+        "quantity": 1
+      },
+      {
+        "productId": "a58071ad-0ad6-4388-90b4-1b59efcdcb77",
+        "sku": "44796",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jimin",
+        "itemId": "158284255135",
+        "price": "11.3",
+        "quantity": 1
+      },
+      {
+        "productId": "1452edd6-7432-4962-8c9a-e381a7ca93eb",
+        "sku": "44798",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL SUGA",
+        "itemId": "158284255135",
+        "price": "11.3",
+        "quantity": 1
+      },
+      {
+        "productId": "b4e2b0e0-f242-4132-a611-a73d678d4731",
+        "sku": "44799",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL SUGA",
+        "itemId": "158284255135",
+        "price": "11.3",
+        "quantity": 2
+      },
+      {
+        "productId": "90da2d03-a072-4d02-9429-dd8fc2e66754",
+        "sku": "457523",
+        "productName": "BTS ARIRANG WEVERSE JUNGKOOK",
+        "itemId": "158284259669",
+        "price": "16.5",
+        "quantity": 1
+      },
+      {
+        "productId": "400e1c1d-724d-4dc6-91c7-918e6e818cc1",
+        "sku": "457527",
+        "productName": "BTS ARIRANG WEVERSE Jimin",
+        "itemId": "158284259669",
+        "price": "12.8",
+        "quantity": 1
+      },
+      {
+        "productId": "3e946c9d-5cf6-42d0-91ac-9120cc377660",
+        "sku": "457530",
+        "productName": "BTS ARIRANG WEVERSE Jimin",
+        "itemId": "158284259669",
+        "price": "14.3",
+        "quantity": 3
+      },
+      {
+        "productId": "4fce867e-359d-468f-b11e-623ad972a401",
+        "sku": "457531",
+        "productName": "BTS ARIRANG WEVERSE J-Hope",
+        "itemId": "158284259669",
+        "price": "12.8",
+        "quantity": 1
+      },
+      {
+        "productId": "f08d8603-0416-4cb5-94dc-9c142aa2d869",
+        "sku": "457535",
+        "productName": "BTS ARIRANG WEVERSE SUGA",
+        "itemId": "158284259669",
+        "price": "15",
+        "quantity": 1
+      },
+      {
+        "productId": "68c10add-0d2a-4b78-afd3-219f8ce388ec",
+        "sku": "457539",
+        "productName": "BTS ARIRANG WEVERSE SUGA",
+        "itemId": "158284259669",
+        "price": "15",
+        "quantity": 3
+      },
+      {
+        "productId": "f77407f0-d7c1-4c63-8c39-ea14c27b0bd9",
+        "sku": "457548",
+        "productName": "BTS ARIRANG Rooted in Korea Ver. RM",
+        "itemId": "158283792770",
+        "price": "15",
+        "quantity": 1
+      },
+      {
+        "productId": "c59beddb-3236-4dca-a258-3c838bea0437",
+        "sku": "457549",
+        "productName": "BTS ARIRANG Rooted in Korea Ver. JUNGKOOK",
+        "itemId": "158283792770",
+        "price": "12",
+        "quantity": 2
+      },
+      {
+        "productId": "b9485a6f-ffd4-457d-ba45-b8c24d52a6df",
+        "sku": "457550",
+        "productName": "BTS ARIRANG Rooted in Korea Ver. V",
+        "itemId": "158283792770",
+        "price": "12",
+        "quantity": 4
+      },
+      {
+        "productId": "a6a17e07-bc07-40e2-9ca2-1bbb0787a724",
+        "sku": "457551",
+        "productName": "BTS ARIRANG Rooted in Korea Ver. Jimin",
+        "itemId": "158283792770",
+        "price": "12",
+        "quantity": 2
+      },
+      {
+        "productId": "98dd8a6f-afb2-4890-8bc0-fda06dced774",
+        "sku": "457552",
+        "productName": "BTS ARIRANG Rooted in Korea Ver. J-Hope",
+        "itemId": "158283792770",
+        "price": "12",
+        "quantity": 2
+      },
+      {
+        "productId": "76bb1d6c-fd58-4fc1-9a55-adf81be04947",
+        "sku": "457559",
+        "productName": "BTS ARIRANG Rooted in Music Ver. Jimin",
+        "itemId": "158283804837",
+        "price": "11.3",
+        "quantity": 3
+      },
+      {
+        "productId": "ea4a2366-165f-4173-ab04-fb9617871f97",
+        "sku": "457560",
+        "productName": "BTS ARIRANG Rooted in Music Ver. J-Hope",
+        "itemId": "158283804837",
+        "price": "12",
+        "quantity": 2
+      },
+      {
+        "productId": "116736fe-3049-4e78-a014-82336577efdc",
+        "sku": "457562",
+        "productName": "BTS ARIRANG Rooted in Music Ver. Jin",
+        "itemId": "158283804837",
+        "price": "11.3",
+        "quantity": 2
+      },
+      {
+        "productId": "bb623ba1-ece9-4e5f-9005-0898290475e1",
+        "sku": "457563",
+        "productName": "BTS ARIRANG Rooted in Music Ver. RM",
+        "itemId": "158283804837",
+        "price": "15",
+        "quantity": 1
+      },
+      {
+        "productId": "5ea8588c-3188-41b2-8380-e5b3bcf58a6d",
+        "sku": "457565",
+        "productName": "BTS ARIRANG Living Legend Ver. RM",
+        "itemId": "158283671230",
+        "price": "11.3",
+        "quantity": 1
+      },
+      {
+        "productId": "20daba68-64d0-4ce0-95b3-5639fefc9b58",
+        "sku": "457566",
+        "productName": "BTS ARIRANG Living Legend Ver. JUNGKOOK",
+        "itemId": "158283671230",
+        "price": "15.7",
+        "quantity": 2
+      },
+      {
+        "productId": "16a07e01-c311-4cc2-96e0-e403fbe760a8",
+        "sku": "457567",
+        "productName": "BTS ARIRANG Living Legend Ver. V",
+        "itemId": "158283671230",
+        "price": "12.8",
+        "quantity": 1
+      },
+      {
+        "productId": "f8a0b72e-324f-43c3-a32b-3daa52617340",
+        "sku": "457568",
+        "productName": "BTS ARIRANG Living Legend Ver. Jimin",
+        "itemId": "158283671230",
+        "price": "11.3",
+        "quantity": 1
+      },
+      {
+        "productId": "81d677f1-5791-4d3c-99a6-a532f4117f6e",
+        "sku": "457569",
+        "productName": "BTS ARIRANG Living Legend Ver. J-Hope",
+        "itemId": "158283671230",
+        "price": "11.3",
+        "quantity": 2
+      },
+      {
+        "productId": "3847307e-7a7f-45b5-9c3a-19708c4cc556",
+        "sku": "457570",
+        "productName": "BTS ARIRANG Living Legend Ver. SUGA",
+        "itemId": "158283671230",
+        "price": "16.5",
+        "quantity": 1
+      },
+      {
+        "productId": "645d5007-3d0d-4047-8280-088a73d94bf7",
+        "sku": "457571",
+        "productName": "BTS ARIRANG Living Legend Ver. Jin",
+        "itemId": "158283671230",
+        "price": "12",
+        "quantity": 1
+      },
+      {
+        "productId": "bd4a42f8-40f9-4141-a0f6-513a881000af",
+        "sku": "464383",
+        "productName": "BTS WORLD TOUR 'ARIRANG' IN GOYANG Weverse Pickup ALBUM V",
+        "itemId": "158283754185",
+        "price": "47.9",
+        "quantity": 5
+      },
+      {
+        "productId": "194c05e3-397a-4a50-9a5b-82c3fb4d5a8a",
+        "sku": "46548",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jimin",
+        "itemId": "158284255135",
+        "price": "11.3",
+        "quantity": 3
+      },
+      {
+        "productId": "573ac19e-4647-4b7d-99f5-50d89010e24e",
+        "sku": "47589",
+        "productName": "BTS 2021 MUSTER SOWOOZOO DVD/DIGITAL Jin",
+        "itemId": "158283842403",
+        "price": "31.4",
+        "quantity": 2
+      },
+      {
+        "productId": "5e476aec-86c7-4d4e-a0cb-36a445071110",
+        "sku": "54761",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jimin",
+        "itemId": "158284255135",
+        "price": "11.3",
+        "quantity": 1
+      },
+      {
+        "productId": "996cb166-9d39-44e7-97c0-8c005f927972",
+        "sku": "61774",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jin",
+        "itemId": "158284255135",
+        "price": "11.3",
+        "quantity": 1
+      },
+      {
+        "productId": "83de303f-8dc7-4ffa-b14e-3e3dfd8cb7b7",
+        "sku": "61775",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jimin",
+        "itemId": "158284255135",
+        "price": "11.3",
+        "quantity": 1
+      },
+      {
+        "productId": "39b30532-ad4f-4279-a0af-df3db5f96483",
+        "sku": "8854",
+        "productName": "BTS MAP OF THE SOUL : PERSONA J-Hope",
+        "itemId": "158278771894",
+        "price": "11.3",
+        "quantity": 4
+      },
+      {
+        "productId": "0f75fecc-6bb3-4cae-adc3-58b4ea927680",
+        "sku": "8855",
+        "productName": "BTS MAP OF THE SOUL : PERSONA RM",
+        "itemId": "158278771894",
+        "price": "11.3",
+        "quantity": 2
+      }
+    ],
+    "failures": []
+  }
+}

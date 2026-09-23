@@ -1,0 +1,257 @@
+{
+  "job": {
+    "id": "cmu23k6eq0004l6040sfy6flp",
+    "operation": "revise",
+    "feedType": "LMS_REVISE_INVENTORY_STATUS",
+    "status": "SUBMITTED",
+    "totalCount": 40,
+    "successCount": 0,
+    "failureCount": 0,
+    "error": null,
+    "submittedAt": "2026-09-15T03:13:18.060Z",
+    "completedAt": null,
+    "targets": [
+      {
+        "productId": "eac92fe1-9177-4eeb-b2ab-23e5b17cdad1",
+        "sku": "37209",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL J-Hope",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "8fdb1dcf-cf97-4aef-b38f-d752e1852e4d",
+        "sku": "37210",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL SUGA",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "246b31db-946b-4073-9edf-7ca9cc4240de",
+        "sku": "383843",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jimin",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "508b0d54-f5b5-4254-b016-bff620308616",
+        "sku": "383845",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL JUNGKOOK",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "e8f6cd66-e7bc-4177-925b-96564ac131c0",
+        "sku": "383846",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL J-Hope",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "6cf1b42c-df47-4daf-92d8-2e86026865a4",
+        "sku": "383848",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL RM",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "df43484f-28b7-4a81-abbc-1b093b1d8f98",
+        "sku": "41039",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Unit",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "8355826c-e92d-4a6a-8653-2cddc28e1599",
+        "sku": "41040",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Unit",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "6ea3b226-58f6-4f8d-a074-245c241a7dd7",
+        "sku": "41041",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Unit",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "99ba9c81-2473-4569-9320-2cc4125d8460",
+        "sku": "41045",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL V",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "47b55111-9790-4e04-803d-bd65b3fb31e0",
+        "sku": "41046",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL J-Hope",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "4ef05a32-68ce-475e-976a-24ebbadbb010",
+        "sku": "41047",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL J-Hope",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "8d460a88-7031-43be-8da8-98f33dd213bb",
+        "sku": "41048",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL J-Hope",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "4af52a8c-f7a6-4d6f-9b9b-87220a0c8a33",
+        "sku": "41049",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL J-Hope",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "2802548b-7636-401a-a143-687bedcf123d",
+        "sku": "41050",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL J-Hope",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "cd7fe1bb-74f6-403a-b5d4-a9badae5125f",
+        "sku": "41052",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL V",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "4a60c7f0-d64e-40ae-a8f6-7e9c8321f9ec",
+        "sku": "41053",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL V",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "582097d6-d4fb-426b-9bfd-11e1279edc4a",
+        "sku": "43082",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jin",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "dde40883-87a2-4ae0-b2bb-dba81ffcde35",
+        "sku": "43083",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jin",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "848801b0-08b8-4c06-81ec-d3a8a3f98cd9",
+        "sku": "44783",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL RM",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "2f9e8fff-4542-4c0c-870b-f5d81b3b14ba",
+        "sku": "44784",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL RM",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "04a6734a-5830-4727-b21f-74d9c2b3528f",
+        "sku": "44785",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL RM",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "cdee6943-dd04-4fe7-830b-0deda785f1cb",
+        "sku": "44786",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL RM",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "37725172-491c-461e-84aa-7226a0cc5901",
+        "sku": "44789",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL JUNGKOOK",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "820d6861-a6a5-4a53-ad06-983dbce097e4",
+        "sku": "44790",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL JUNGKOOK",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "87f452ac-d9b1-49a1-816e-85bb1e17feba",
+        "sku": "44791",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL JUNGKOOK",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "1110ce44-e12a-4dd4-b6e9-fc78440905cf",
+        "sku": "44792",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jimin",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "ffd6b94b-ee38-406b-8901-36b247c13b80",
+        "sku": "44795",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jimin",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "a58071ad-0ad6-4388-90b4-1b59efcdcb77",
+        "sku": "44796",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jimin",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "1452edd6-7432-4962-8c9a-e381a7ca93eb",
+        "sku": "44798",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL SUGA",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "b4e2b0e0-f242-4132-a611-a73d678d4731",
+        "sku": "44799",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL SUGA",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "fc7056eb-1410-48a5-ad8f-68abe5050833",
+        "sku": "44800",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL SUGA",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "194c05e3-397a-4a50-9a5b-82c3fb4d5a8a",
+        "sku": "46548",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jimin",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "5e476aec-86c7-4d4e-a0cb-36a445071110",
+        "sku": "54761",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jimin",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "94577379-f525-4c0e-9839-184e7d1a1497",
+        "sku": "54762",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL JUNGKOOK",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "109a724c-d8c7-4387-8eb3-30e63643694a",
+        "sku": "54763",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL RM",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "85013be1-01cd-48c7-b4ab-9ebcb0316f6a",
+        "sku": "61773",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL SUGA",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "996cb166-9d39-44e7-97c0-8c005f927972",
+        "sku": "61774",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jin",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "83de303f-8dc7-4ffa-b14e-3e3dfd8cb7b7",
+        "sku": "61775",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jimin",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "4cc18830-1c29-4913-bd15-1a5d17a2ab1b",
+        "sku": "61776",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL JUNGKOOK",
+        "itemId": "158284255135"
+      }
+    ],
+    "failures": []
+  }
+}

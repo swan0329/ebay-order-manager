@@ -1,0 +1,36 @@
+[
+  {
+    "id": "cmu1dg5k602del8040576bv01",
+    "submittedAt": "2026-09-14T15:02:30.981Z",
+    "completedAt": "2026-09-14T17:31:16.460Z",
+    "status": "COMPLETED_WITH_ERROR",
+    "targets": [
+      {
+        "productId": "c8071f57-aa5d-4e2e-87cb-2d8ac9ccc7e3",
+        "sku": "296333",
+        "productName": "BTS Suga Official SUGA│Agust D TOUR 'D-DAY' THE MOVIE JAPAN Photocard Kpop",
+        "itemId": "158281824145",
+        "price": "47.9",
+        "quantity": 1
+      }
+    ],
+    "failures": []
+  },
+  {
+    "id": "cmtzu3ib600dzjr0406s00cvy",
+    "submittedAt": "2026-09-13T13:12:51.363Z",
+    "completedAt": "2026-09-13T13:13:25.627Z",
+    "status": "COMPLETED_WITH_ERROR",
+    "targets": [
+      {
+        "productId": "c8071f57-aa5d-4e2e-87cb-2d8ac9ccc7e3",
+        "sku": "296333",
+        "productName": "BTS Suga Official SUGA│Agust D TOUR 'D-DAY' THE MOVIE JAPAN Photocard Kpop",
+        "itemId": "158281824145",
+        "price": "10.6",
+        "quantity": 1
+      }
+    ],
+    "failures": []
+  }
+]

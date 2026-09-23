@@ -1,0 +1,1 @@
+const fs=require('fs');const {call}=require('./procurement-live.cjs');(async()=>{const r=await call('/api/ebay/operations?jobId=cmu0yqgza0076kx04l8gbee3g&verify=true');fs.writeFileSync('.codex-tmp/procurement-ebay-verification.json',JSON.stringify(r));console.log(JSON.stringify(r));})();

@@ -1,0 +1,5 @@
+const fs=require('fs'),path=require('path');const dir='outputs/card-layout-review-2026-09-11';fs.mkdirSync(dir+'/engine',{recursive:true});for(const f of ['ebay-watermarked-images.ts','variation-thumbnail.ts','listing-image-layout.ts']){let s=fs.readFileSync('src/lib/'+f,'utf8').replaceAll('"@/lib/listing-image-layout"','"./listing-image-layout"').replaceAll('"@/lib/ebay-watermarked-images"','"./ebay-watermarked-images"');if(f==='listing-image-layout.ts'){s=s.replace('LISTING_IMAGE_WIDTH = 960','LISTING_IMAGE_WIDTH = 800');s=s.slice(0,s.indexOf('  const left ='))+`  const outputWidth = LISTING_IMAGE_WIDTH * size / LISTING_IMAGE_SIZE;
+  const left = padding(settings.paddingLeft), top = padding(settings.paddingTop);
+  return { left, top, width: Math.max(1, outputWidth - left - padding(settings.paddingRight)), height: Math.max(1, size - top - padding(settings.paddingBottom)) };
+}
+`;}if(f==='variation-thumbnail.ts')s=s.replace('const cardRatio = 960 / 1200','const cardRatio = 800 / 1200');fs.writeFileSync(dir+'/engine/'+f,s);}console.log(dir);

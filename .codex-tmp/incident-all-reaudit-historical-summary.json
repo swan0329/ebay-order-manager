@@ -1,0 +1,36 @@
+{
+  "submittedAt": "2026-09-13T13:12:51.363Z",
+  "completedAt": "2026-09-13T13:13:25.627Z",
+  "total": 240,
+  "success": 239,
+  "oldOverlap": 220,
+  "groups": {
+    "BTS": 216,
+    "Stray Kids": 24
+  },
+  "four": [
+    {
+      "sku": "284272",
+      "price": "10.6",
+      "confirmedSuccess": true
+    },
+    {
+      "sku": "284806",
+      "price": "10.6",
+      "confirmedSuccess": true
+    },
+    {
+      "sku": "287832",
+      "price": "10.6",
+      "confirmedSuccess": true
+    },
+    {
+      "sku": "296333",
+      "price": "10.6",
+      "confirmedSuccess": true
+    }
+  ],
+  "currentMissing": [
+    "122587"
+  ]
+}

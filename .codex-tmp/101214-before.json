@@ -1,0 +1,30 @@
+{
+  "id": "gid://shopify/Product/15252533510512",
+  "title": "Stray Kids SKZ I.N Official ‘Stay in STAY’ in JEJU EXHIBITION Photocard Kpop",
+  "status": "ACTIVE",
+  "onlineStoreUrl": "https://krazykpop.net/products/stray-kids-skz-i-n-official-stay-in-stay-in-jeju-exhibition-photocard-kpop-3",
+  "media": {
+    "nodes": [
+      {
+        "id": "gid://shopify/MediaImage/58001789452656",
+        "status": "READY",
+        "image": {
+          "url": "https://cdn.shopify.com/s/files/1/1023/7850/4560/files/9266a7901c8db54c87d9cb4107a0e44ac33d7cea9f91d925fc9056a30076c03d.jpg?v=1789110210",
+          "width": 960,
+          "height": 1200
+        }
+      }
+    ]
+  },
+  "variants": {
+    "nodes": [
+      {
+        "id": "gid://shopify/ProductVariant/54249638953328",
+        "sku": "101214",
+        "price": "16.50",
+        "inventoryQuantity": 1,
+        "inventoryPolicy": "DENY"
+      }
+    ]
+  }
+}

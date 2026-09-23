@@ -1,0 +1,22 @@
+{
+  "reaudit-comparison": {
+    "BTS": {
+      "total": 1798,
+      "available": 1696
+    },
+    "Stray Kids": {
+      "total": 378,
+      "available": 342
+    }
+  },
+  "reaudit-shopify-comparison": {
+    "Stray Kids": {
+      "total": 368,
+      "available": 338
+    },
+    "BTS": {
+      "total": 1823,
+      "available": 1720
+    }
+  }
+}

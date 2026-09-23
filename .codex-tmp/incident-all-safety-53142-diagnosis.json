@@ -1,0 +1,48 @@
+{
+  "job": {
+    "id": "cmu28cg5n0009l204wtx091er",
+    "operation": "revise",
+    "feedType": "LMS_REVISE_INVENTORY_STATUS",
+    "status": "COMPLETED_WITH_ERROR",
+    "totalCount": 2,
+    "successCount": 1,
+    "failureCount": 1,
+    "error": null,
+    "submittedAt": "2026-09-15T05:27:18.335Z",
+    "completedAt": "2026-09-15T05:31:39.739Z",
+    "createdAt": "2026-09-15T05:27:07.835Z",
+    "targets": [
+      {
+        "productId": "20daba68-64d0-4ce0-95b3-5639fefc9b58",
+        "sku": "457566",
+        "productName": "BTS ARIRANG Living Legend Ver. JUNGKOOK",
+        "itemId": "158283671230",
+        "price": "15",
+        "quantity": 2
+      },
+      {
+        "productId": "a81c0605-e588-4da8-b710-b64887644c89",
+        "sku": "53142",
+        "productName": "BTS Proof Compact Edition JUNGKOOK",
+        "itemId": "158283707692",
+        "price": "16.5",
+        "quantity": 3
+      }
+    ],
+    "failures": [
+      {
+        "sku": "53142",
+        "itemId": "158283707692",
+        "message": "53142: 가격·수량 반영 실패 후 판매 수량 0도 확인하지 못했습니다. 판매 보류 미확인·재시도 필요",
+        "productId": "a81c0605-e588-4da8-b710-b64887644c89"
+      }
+    ]
+  },
+  "responseCount": 2,
+  "succeeded": [
+    "a81c0605-e588-4da8-b710-b64887644c89",
+    "20daba68-64d0-4ce0-95b3-5639fefc9b58"
+  ],
+  "failures": [],
+  "unmatchedErrors": []
+}

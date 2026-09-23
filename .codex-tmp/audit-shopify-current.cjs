@@ -1,0 +1,6 @@
+const fs=require('fs');
+async function main(){const call=await require('./shopify-task-client.cjs').client();let cursor=null;const products=[];let currency;
+do{const j=await call('/graphql.json',{query:`query($cursor:String){shop{currencyCode} products(first:5,after:$cursor){pageInfo{hasNextPage endCursor} nodes{id title status handle variants(first:100){pageInfo{hasNextPage} nodes{id sku price inventoryQuantity inventoryPolicy metafield(namespace:"order_manager",key:"price_review_required"){value} inventoryItem{tracked inventoryLevels(first:10){pageInfo{hasNextPage} nodes{quantities(names:["available"]){name quantity}}}}}}}}}`,variables:{cursor}});
+currency=j.data.shop.currencyCode;for(const p of j.data.products.nodes){if(p.variants.pageInfo.hasNextPage||p.variants.nodes.some(v=>v.inventoryItem.inventoryLevels.pageInfo.hasNextPage))throw Error('Truncated variants/locations');products.push(p)}cursor=j.data.products.pageInfo.hasNextPage?j.data.products.pageInfo.endCursor:null;
+}while(cursor);fs.writeFileSync('.codex-tmp/price-hold-shopify-after.json',JSON.stringify({observedAt:new Date().toISOString(),currency,products},null,2));console.log(JSON.stringify({products:products.length,active:products.filter(p=>p.status==='ACTIVE').length,currency}));}
+main().catch(e=>{console.error(e.message);process.exitCode=1});

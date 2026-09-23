@@ -1,0 +1,17 @@
+{
+  "BidCount": "0",
+  "BidIncrement": {
+    "#text": "0.0",
+    "@_currencyID": "USD"
+  },
+  "CurrentPrice": {
+    "#text": "12.8",
+    "@_currencyID": "USD"
+  },
+  "ConvertedCurrentPrice": {
+    "#text": "12.8",
+    "@_currencyID": "USD"
+  },
+  "QuantitySold": "0",
+  "ListingStatus": "Active"
+}

@@ -1,0 +1,2195 @@
+{
+  "job": {
+    "id": "cmtzu3ib600dzjr0406s00cvy",
+    "operation": "revise",
+    "feedType": "LMS_REVISE_INVENTORY_STATUS",
+    "status": "COMPLETED_WITH_ERROR",
+    "totalCount": 240,
+    "successCount": 239,
+    "failureCount": 1,
+    "error": null,
+    "submittedAt": "2026-09-13T13:12:51.363Z",
+    "completedAt": "2026-09-13T13:13:25.627Z",
+    "createdAt": "2026-09-13T13:12:46.193Z",
+    "targets": [
+      {
+        "productId": "da287d51-1b31-48a0-820b-ced437c88971",
+        "sku": "10304",
+        "productName": "BTS Jungkook Official 2014 SEASON'S GREETINGS Photocard Kpop",
+        "itemId": "158278664257",
+        "price": "13.9",
+        "quantity": 1
+      },
+      {
+        "productId": "c4bc7302-c086-4f3a-ba43-aac733c346c1",
+        "sku": "105148",
+        "productName": "BTS J-Hope Special 8 Photo-Folio Me, Myself, and j-hope ‘All New Hope’ Photocard",
+        "itemId": "158278664848",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "c308f392-d562-474e-8448-7e1beae9e6ad",
+        "sku": "111052",
+        "productName": "BTS J-Hope Official Jack In The Box Hope In The Box WEVERSE Photocard Kpop",
+        "itemId": "158278667887",
+        "price": "10.6",
+        "quantity": 3
+      },
+      {
+        "productId": "94f70b58-ae45-4ff2-9aa7-d6a9777996a0",
+        "sku": "118103",
+        "productName": "BTS Suga Official Agust D D-DAY POWER STATION LUCKY DRAW Photocard Kpop",
+        "itemId": "158278668333",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "207bd82b-1d6d-4c97-af05-a63bb2108974",
+        "sku": "121416",
+        "productName": "BTS Suga Official SUGA: Road to D-DAY Photocard Kpop",
+        "itemId": "158278668911",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "eaa9221b-67ab-407b-9fc3-8fc79f655680",
+        "sku": "121920",
+        "productName": "BTS RM Official BEHIND THE STAGE : PERMISSION TO DANCE PHOTOCARD SET Photocard",
+        "itemId": "158278670848",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "dbc72d56-c42d-4102-a86d-db402e05f01b",
+        "sku": "122587",
+        "productName": "Stray Kids 5-STAR DIGIPACK VER. HAN",
+        "itemId": "157980234451",
+        "quantity": 0
+      },
+      {
+        "productId": "3dcd40b7-1ff5-4d69-a581-25e5f2775e9a",
+        "sku": "123206",
+        "productName": "BTS RM Official Indigo LP Photocard Kpop",
+        "itemId": "158278672442",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "f3d9e284-ce1a-41ad-8aa6-a915cbf4937b",
+        "sku": "127294",
+        "productName": "BTS Jungkook Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard",
+        "itemId": "158278673724",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "a929b176-b5f3-41e1-b03b-c9a84652fc5b",
+        "sku": "12764",
+        "productName": "BTS Jimin Official BE Deluxe Edition LUCKY DRAW Photocard Kpop",
+        "itemId": "158278674356",
+        "price": "10.7",
+        "quantity": 1
+      },
+      {
+        "productId": "f292d80f-482e-464c-8976-23c652345c70",
+        "sku": "130243",
+        "productName": "BTS RM Official Indigo POWER STATION LUCKY DRAW Photocard Kpop",
+        "itemId": "158278674710",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "7fb4a326-3083-47f1-a569-0d41efd36649",
+        "sku": "131200",
+        "productName": "BTS Jin Official HYBE INSIGHT The Daydream Believers PHOTOCARD SET Photocard",
+        "itemId": "158278675068",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "445c7bd2-7471-48a0-8a83-036405f1aa89",
+        "sku": "131211",
+        "productName": "BTS Jimin Official TOKOPEDIA Photocard Kpop",
+        "itemId": "158278676457",
+        "price": "10.8",
+        "quantity": 1
+      },
+      {
+        "productId": "4d296dfc-b053-49dd-ae3a-e8ee8d67845b",
+        "sku": "132739",
+        "productName": "BTS Jungkook Official Seven BROADCAST Photocard Kpop",
+        "itemId": "158278677161",
+        "price": "11.6",
+        "quantity": 2
+      },
+      {
+        "productId": "874ada4a-011b-4823-81e2-014ff5541ba0",
+        "sku": "13315",
+        "productName": "BTS Suga Official THE BEST Standard Edition Photocard Kpop",
+        "itemId": "158278678476",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "34e048a1-bad6-4d20-abe8-a79102fb50d0",
+        "sku": "13353",
+        "productName": "BTS J-Hope Official BTS, THE BEST WEVERSE Photocard Kpop",
+        "itemId": "158278690723",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "61f13ca4-263e-430c-aa4c-360d6e229628",
+        "sku": "139198",
+        "productName": "BTS Yet to Come in BUSAN Zip-Up Hoodie Group OT7 Photocard #139198",
+        "itemId": "158278710243",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "f0c34f07-8147-4470-a848-902bcbaaf58e",
+        "sku": "139260",
+        "productName": "BTS Suga Official SUGA | Agust D TOUR 'D-DAY' THE FINAL ARMY ZONE Photocard Kpop",
+        "itemId": "158278711351",
+        "price": "10.6",
+        "quantity": 4
+      },
+      {
+        "productId": "ad799b63-ef2d-4ede-90d5-94d38f90eb1a",
+        "sku": "139403",
+        "productName": "Stray Kids SKZ HAN Official 2nd World Tour MANIAC in SEOUL DVD Photocard Kpop",
+        "itemId": "158278716514",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "3f1b2883-a4ba-4a7c-aca6-04ba1bf486c3",
+        "sku": "14414",
+        "productName": "BTS V Official Butter BROADCAST Photocard Kpop",
+        "itemId": "158278717409",
+        "price": "10.9",
+        "quantity": 1
+      },
+      {
+        "productId": "f7b2a926-e787-450b-ada5-498d5be1f12e",
+        "sku": "144397",
+        "productName": "BTS J-Hope Official MERCH BOX #11 Photocard Kpop",
+        "itemId": "158278720524",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "6ceaec93-4607-48cd-a778-b58aefcef502",
+        "sku": "14835",
+        "productName": "BTS Jungkook Official World Photocard Kpop",
+        "itemId": "158278722519",
+        "price": "10.6",
+        "quantity": 2
+      },
+      {
+        "productId": "e3b424b5-736e-4fa0-b90b-5053f5595d4a",
+        "sku": "15099",
+        "productName": "BTS Suga Official MAP OF THE SOUL : 7 ~THE JOURNEY~ Standard Edition Photocard",
+        "itemId": "158278722931",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "4c2481da-65e3-4428-a79b-e1ae1c165d66",
+        "sku": "15205",
+        "productName": "BTS Jimin Official MAP OF THE SOUL : 7 ~THE JOURNEY~ WEVERSE Photocard Kpop",
+        "itemId": "158278723782",
+        "price": "10.7",
+        "quantity": 1
+      },
+      {
+        "productId": "0d018039-9df9-43ab-aeee-ac79579e011d",
+        "sku": "152107",
+        "productName": "Stray Kids SKZ HAN Social Path / Super Bowl -Japanese ver.- STANDARD Photocard",
+        "itemId": "158278724410",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "5be9e1b0-6ca0-49bd-9004-2ae66a1f6f8a",
+        "sku": "15579",
+        "productName": "BTS V WORLD TOUR ‘LOVE YOURSELF: SPEAK YOURSELF’ THE FINAL RING Photocard",
+        "itemId": "158278726461",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "3501c91e-e409-4c7b-b4f8-62aec285dc11",
+        "sku": "170551",
+        "productName": "Stray Kids SKZ HAN Official 5-STAR DOME TOUR 2023 SEOUL SPECIAL Photocard Kpop",
+        "itemId": "158278727083",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "e8fc2391-d359-4c50-9f8a-450c69129397",
+        "sku": "178737",
+        "productName": "BTS Jungkook Official GOLDEN EU Exclusive Photocard Kpop",
+        "itemId": "158278727881",
+        "price": "10.6",
+        "quantity": 5
+      },
+      {
+        "productId": "c4a11394-d99a-484a-b802-7fd68c5b01e5",
+        "sku": "182497",
+        "productName": "Stray Kids SKZ Bang Chan Official ROCK(樂)-STAR JYP SHOP Photocard Kpop",
+        "itemId": "158281764107",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "03353d17-425a-4e63-8532-91d3f9336343",
+        "sku": "182895",
+        "productName": "BTS GOLDEN SOUND WAVE LUCKY DRAW JUNGKOOK",
+        "itemId": "158281313186",
+        "price": "32.9",
+        "quantity": 2
+      },
+      {
+        "productId": "71a91a65-921b-4e66-b96d-68e98f1223b6",
+        "sku": "18461",
+        "productName": "Stray Kids NOEASY I.N",
+        "itemId": "158183489430",
+        "price": "11.3",
+        "quantity": 6
+      },
+      {
+        "productId": "98911f69-a778-4af7-bb82-3acb7812bfd8",
+        "sku": "187374",
+        "productName": "BTS Jimin Official Jimin's Production Diary Photocard Kpop",
+        "itemId": "158281773103",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "4ab316b6-4165-4632-891f-1dd69adc7215",
+        "sku": "191896",
+        "productName": "BTS GOLDEN M2U LUCKY DRAW JUNGKOOK",
+        "itemId": "158281344274",
+        "price": "31.4",
+        "quantity": 1
+      },
+      {
+        "productId": "d3190933-b276-4851-842b-edafd955fc76",
+        "sku": "206116",
+        "productName": "BTS RM Official Mtpr Idol Lens Photocard Kpop",
+        "itemId": "158281789334",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "d973bbba-e6aa-4288-9f6e-db79920dde12",
+        "sku": "21424",
+        "productName": "BTS Jin Official World Double-Sided Photocard Kpop",
+        "itemId": "158281791685",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "4d5dcded-2a47-420c-8dee-7ae869b04fd2",
+        "sku": "226073",
+        "productName": "BTS Jungkook Artist-Made Collection by BTS ARMYST Zip-Up Hoody Photocard",
+        "itemId": "158281792514",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "6c188bff-7e75-47c6-af62-319e1436ff22",
+        "sku": "243733",
+        "productName": "BTS J-Hope Official HOPE ON THE STREET VOL.1 SOUND WAVE LUCKY DRAW Photocard",
+        "itemId": "158281794457",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "1f490736-ceca-4031-bf2c-ce5d27f7b1ad",
+        "sku": "24731",
+        "productName": "BTS RM Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281796760",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "da731562-2e64-40f2-9fe1-19ec0951f3ec",
+        "sku": "24777",
+        "productName": "BTS Suga Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158280940347",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "f07a3793-0463-4900-a21a-ceac0767dc0d",
+        "sku": "24778",
+        "productName": "BTS Jimin Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158280962344",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "d48ab377-becf-4152-b922-70b4812b7d4d",
+        "sku": "24780",
+        "productName": "BTS Jin Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158280974623",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "5bf53d3b-166f-47cf-8166-a4819981fbef",
+        "sku": "248890",
+        "productName": "BTS Jimin Official FACE LP Photocard Kpop",
+        "itemId": "158280975069",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "74746dc5-2b40-44f9-95fc-8d42a2f6ce70",
+        "sku": "257070",
+        "productName": "Stray Kids SKZ HAN Official SKZOO POP-UP & CAFE SKZOO'S MAGIC Photocard Kpop",
+        "itemId": "158280975547",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "40c1e09c-c658-43b4-8edd-0446844d162e",
+        "sku": "260782",
+        "productName": "BTS Suga Official Agust D D-DAY LP ver. Photocard Kpop",
+        "itemId": "158280980249",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "b87af28a-6025-413c-8e78-8f21251716a4",
+        "sku": "26197",
+        "productName": "BTS RM Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158280984037",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "90430294-ef2b-407c-86f9-afd74214d9bf",
+        "sku": "27422",
+        "productName": "BTS Unit Official Merch Box #2 Photocard Kpop",
+        "itemId": "158280984835",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "d967c5ca-a9a5-4361-bd2a-d09d5a4fb174",
+        "sku": "277698",
+        "productName": "BTS Jimin Official MUSE BLOOMING ver. Photocard Kpop",
+        "itemId": "158280985465",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "78d0c237-0cfe-49cc-a39d-7dbf72c8e2f8",
+        "sku": "277700",
+        "productName": "BTS Jimin Official MUSE SERENADE ver. Photocard Kpop",
+        "itemId": "158280985826",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "ef7c9d9e-576b-4373-af5b-47ba4e536d93",
+        "sku": "277709",
+        "productName": "BTS Jimin Official MUSE UNIVERSAL Photocard Kpop",
+        "itemId": "158280986822",
+        "price": "10.6",
+        "quantity": 2
+      },
+      {
+        "productId": "e11bbcb5-9ac7-4ddf-98ab-26fb02f2905e",
+        "sku": "277719",
+        "productName": "BTS Jimin Official MUSE WEVERSE LUCKY DRAW Photocard Kpop",
+        "itemId": "158280988058",
+        "price": "10.6",
+        "quantity": 3
+      },
+      {
+        "productId": "b92b0f8a-d142-4772-86f2-2466b6ce2dfe",
+        "sku": "278537",
+        "productName": "BTS RM Official Right Place, Wrong Person WEVERSE Photocard Kpop",
+        "itemId": "158281799087",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "9c2160bd-30a8-4dbb-a704-c0e9a289462c",
+        "sku": "279718",
+        "productName": "BTS RM Official Right Place, Wrong Person Weverse Albums ver. Photocard Kpop",
+        "itemId": "158281802529",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "abab1b3b-3a30-44e7-b65b-fe88755c1c5b",
+        "sku": "284272",
+        "productName": "BTS Suga Official SUGA | Agust D TOUR 'D-DAY' Mini Photo Card Holder Photocard",
+        "itemId": "158281806012",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "db9290b1-63bf-4783-894b-ab38934286eb",
+        "sku": "284298",
+        "productName": "BTS Suga Official Artist-Made Collection by BTS Black Note & Cover Set Photocard",
+        "itemId": "158281810315",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "689dcedf-3ed9-479f-bbf8-f70bbbef7a6d",
+        "sku": "284806",
+        "productName": "BTS Suga Official SUGA│Agust D TOUR 'D-DAY' THE MOVIE Photocard Kpop",
+        "itemId": "158281814368",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "f488eca7-1b78-4150-9ebd-2b9ce0abe5ae",
+        "sku": "287832",
+        "productName": "BTS Suga Official SUGA | Agust D TOUR 'D-DAY' Cross Bag Photocard Kpop",
+        "itemId": "158281818524",
+        "price": "10.6",
+        "quantity": 2
+      },
+      {
+        "productId": "c8071f57-aa5d-4e2e-87cb-2d8ac9ccc7e3",
+        "sku": "296333",
+        "productName": "BTS Suga Official SUGA│Agust D TOUR 'D-DAY' THE MOVIE JAPAN Photocard Kpop",
+        "itemId": "158281824145",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "cad7b241-c252-4e6c-8a25-504de3fd8f15",
+        "sku": "29921",
+        "productName": "BTS J-Hope Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281830929",
+        "price": "10.5",
+        "quantity": 7
+      },
+      {
+        "productId": "013f535b-ba31-4db8-a211-1a8914546598",
+        "sku": "29923",
+        "productName": "BTS Unit Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281838375",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "e0d4794b-4df3-4d92-a4ec-0207fe45c32f",
+        "sku": "29926",
+        "productName": "BTS RM Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281844759",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "b16d8550-6c0a-414d-859c-fbfa9e018f52",
+        "sku": "30300",
+        "productName": "BTS J-Hope Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281845162",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "72efb06c-6884-4ebd-9ce0-2e613d1139bc",
+        "sku": "30301",
+        "productName": "BTS J-Hope Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281845493",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "9322d9f5-d2da-42eb-b5fb-09fe94450931",
+        "sku": "30313",
+        "productName": "BTS Unit Official POP-UP : MAP OF THE SOUL Photo stand Photocard Kpop",
+        "itemId": "158281845840",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "f7c31fe6-7e16-4546-b617-5e5308c7e114",
+        "sku": "306669",
+        "productName": "BTS J-Hope Artist-Made Collection by BTS Side by Side Mini Bag Photocard",
+        "itemId": "158281846197",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "de323dbe-dd65-40d5-ad21-52d6099aa15c",
+        "sku": "30818",
+        "productName": "BTS Jungkook Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard",
+        "itemId": "158281847022",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "09a92979-df75-4ff8-b376-642d71d7de22",
+        "sku": "308427",
+        "productName": "BTS Jin Official Jin ‘Happy’ Special Stage Photocard Kpop",
+        "itemId": "158281847692",
+        "price": "10.6",
+        "quantity": 2
+      },
+      {
+        "productId": "21781845-5ce8-4bb5-b4bb-58cebdb266f1",
+        "sku": "309696",
+        "productName": "BTS Jin Official Jin ‘Happy’ Special Stage WEVERSE Photocard Kpop",
+        "itemId": "158281849374",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "41ec6e1d-d188-495c-aa0d-c64bcb73e6fb",
+        "sku": "30973",
+        "productName": "BTS Jin Official BE Deluxe Edition Pajama Set Photocard Kpop",
+        "itemId": "158281851232",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "79da31b1-cd7c-40a2-a970-75f0cc886b82",
+        "sku": "30976",
+        "productName": "BTS Jin Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281851501",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "dbd34f43-2900-41d9-911e-836bed9c40c5",
+        "sku": "30977",
+        "productName": "BTS Jin Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281851819",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "10df7911-b33c-4332-8e99-4058abe4d822",
+        "sku": "30986",
+        "productName": "BTS Unit Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281852217",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "4d8049b0-751b-4e66-bee1-3d9911b0fccf",
+        "sku": "30987",
+        "productName": "BTS Unit Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281852863",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "636c8f73-4b45-484c-a9f7-b324a460d8a0",
+        "sku": "30988",
+        "productName": "BTS Jungkook Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard",
+        "itemId": "158281853700",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "268e7264-a661-43a1-be5e-4882ce2df1ad",
+        "sku": "30989",
+        "productName": "BTS V Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281854497",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "500d6c0b-5312-4bbe-b3cc-2e5f512027e5",
+        "sku": "30990",
+        "productName": "BTS V Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281855274",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "ada2d80b-f26b-44d2-8db6-e0d80915aa4d",
+        "sku": "309907",
+        "productName": "BTS Jin Official Happy Weverse Albums ver. Photocard Kpop",
+        "itemId": "158281855565",
+        "price": "10.5",
+        "quantity": 5
+      },
+      {
+        "productId": "cbb7fc85-3694-49a4-968f-b8eeb2145b9d",
+        "sku": "30991",
+        "productName": "BTS Jimin Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281855805",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "c11b57be-2955-478d-9ad2-38068f72e044",
+        "sku": "30992",
+        "productName": "BTS Jimin Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281856177",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "c901792c-0dc8-4126-9f52-9b306ba368f5",
+        "sku": "30994",
+        "productName": "BTS Suga Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281856564",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "0e1f46a5-4a20-422c-9c41-c97a47eb1848",
+        "sku": "310771",
+        "productName": "BTS Jin Official Happy KAKAO TALK Photocard Kpop",
+        "itemId": "158281856962",
+        "price": "10.7",
+        "quantity": 1
+      },
+      {
+        "productId": "8a675a21-77ce-4248-a273-6a0acbb799dc",
+        "sku": "313404",
+        "productName": "BTS Jin Official Jin ‘Happy’ Special Stage Weverse Shop PICK-UP ALBUM Photocard",
+        "itemId": "158281857481",
+        "price": "10.6",
+        "quantity": 2
+      },
+      {
+        "productId": "3946c19c-0817-41ed-a39e-1b63e7bb3dcb",
+        "sku": "313608",
+        "productName": "BTS Jungkook PERMISSION TO DANCE ON STAGE - LAS VEGAS LUCKY DRAW Photocard",
+        "itemId": "158281858496",
+        "price": "10.7",
+        "quantity": 1
+      },
+      {
+        "productId": "45e3e0d9-ddc5-489a-b1b3-34b51bcb1cea",
+        "sku": "314531",
+        "productName": "BTS Jimin Official MUSE UNIVERSAL LUCKY DRAW Photocard Kpop",
+        "itemId": "158281859106",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "a404a8c8-320d-4d37-9caa-9e81184d188b",
+        "sku": "316440",
+        "productName": "BTS Jin Official Happy UNIVERSAL LUCKY DRAW Photocard Kpop",
+        "itemId": "158281859712",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "c00afb60-68c1-46b8-ab88-35369d3679c5",
+        "sku": "321473",
+        "productName": "BTS V Official The Warmest Winter EVENT Photocard Kpop",
+        "itemId": "158281864254",
+        "price": "11.9",
+        "quantity": 1
+      },
+      {
+        "productId": "0202a3df-fa31-4ed0-8813-e7f00ad81180",
+        "sku": "322700",
+        "productName": "Stray Kids 2025 Season’s Greetings The Street Kids KTOWN4U CHANGBIN",
+        "itemId": "157885510034",
+        "price": "11.3",
+        "quantity": 3
+      },
+      {
+        "productId": "4a6e2e04-0dac-4706-b0c0-05f3b5d82ed9",
+        "sku": "322878",
+        "productName": "BTS Jungkook Official GOLDEN D2C Exclusives Photocard Kpop",
+        "itemId": "158281870875",
+        "price": "10.7",
+        "quantity": 1
+      },
+      {
+        "productId": "5e25a164-4cb3-4c5c-992b-18b0e922a188",
+        "sku": "328876",
+        "productName": "BTS Jin Official Happy ALADIN Photocard Kpop",
+        "itemId": "158281878801",
+        "price": "10.6",
+        "quantity": 7
+      },
+      {
+        "productId": "68eebce0-20f7-487e-b4b4-448c87b856dc",
+        "sku": "332572",
+        "productName": "BTS Jimin Official MUSE KAKAO TALK Photocard Kpop",
+        "itemId": "158281885319",
+        "price": "11.1",
+        "quantity": 1
+      },
+      {
+        "productId": "0ab73a2d-fd08-443e-a05a-c166cd62affc",
+        "sku": "336038",
+        "productName": "BTS J-Hope j-hope Tour 'HOPE ON THE STAGE' in SEOUL Cowichan Cardigan Photocard",
+        "itemId": "158281885816",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "0f586178-28ff-4352-9a25-fdd261172dab",
+        "sku": "35772",
+        "productName": "BTS Unit Official WORLD TOUR 'LOVE YOURSELF' SEOUL Blu-ray Photocard Kpop",
+        "itemId": "158281887666",
+        "price": "10.6",
+        "quantity": 3
+      },
+      {
+        "productId": "49dd8456-1989-4447-83a4-69a079572a93",
+        "sku": "359607",
+        "productName": "BTS J-Hope Official j-hope Tour 'HOPE ON THE STAGE' in SEOUL Cross Bag Photocard",
+        "itemId": "158281889156",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "e4e705d8-5598-46e6-ba6d-11b31adc1acb",
+        "sku": "36056",
+        "productName": "BTS RM Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281890629",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "24b3a733-44f4-425e-929c-210496f615c1",
+        "sku": "36298",
+        "productName": "BTS V Official Mute Boston Bag Photocard Kpop",
+        "itemId": "158281891615",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "79a1e503-1cf4-475a-bf1b-be98b178b89a",
+        "sku": "36431",
+        "productName": "BTS Jungkook Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard",
+        "itemId": "158281892114",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "5bb4fe40-305f-492a-aece-9e4a999a84c7",
+        "sku": "36434",
+        "productName": "BTS V Official Lg V35 Thinq Photocard Kpop",
+        "itemId": "158281892765",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "a9f85951-d287-4d91-a04a-6f6377148771",
+        "sku": "364696",
+        "productName": "BTS Jungkook Official GOLDEN Barnes & Noble Exclusive Photocard Kpop",
+        "itemId": "158281893669",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "b9d6556f-faa6-4b55-a768-0e65547d9131",
+        "sku": "36588",
+        "productName": "BTS Jin Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281894868",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "2ae0974e-bafc-422a-b721-6c065b9043d6",
+        "sku": "36589",
+        "productName": "BTS Jimin Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281895260",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "6e130450-1919-45e0-98fc-a1b64fceaf63",
+        "sku": "36590",
+        "productName": "BTS Suga Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281895774",
+        "price": "10.5",
+        "quantity": 5
+      },
+      {
+        "productId": "17597d74-753c-4b85-a709-0f1284808a47",
+        "sku": "36592",
+        "productName": "BTS Unit Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281896455",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "44985eb1-5e6c-483a-b99b-f6c0849f6429",
+        "sku": "368302",
+        "productName": "BTS Jin Official Mission Success: ARMY Found Echo Photocard Kpop",
+        "itemId": "158281896888",
+        "price": "12.5",
+        "quantity": 1
+      },
+      {
+        "productId": "2daea12d-ba62-489e-a2c0-43cfcf4e6fb5",
+        "sku": "37138",
+        "productName": "BTS Unit Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158281897164",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "c8f64507-1351-411b-b1a2-6efa11d3c768",
+        "sku": "371842",
+        "productName": "BTS J-Hope Official j-hope Tour 'HOPE ON THE STAGE' FINAL Photocard Kpop",
+        "itemId": "158283929462",
+        "price": "10.5",
+        "quantity": 7
+      },
+      {
+        "productId": "5cef23b8-fe32-4aaf-baeb-59dfc415ff23",
+        "sku": "37203",
+        "productName": "BTS Jungkook Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard",
+        "itemId": "158283529892",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "c7f58b7d-e26e-4a7b-9be0-91d6913ee63f",
+        "sku": "37204",
+        "productName": "BTS V Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158283530724",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "18025790-f90c-44f6-ae9a-a8da60c9d0fd",
+        "sku": "37205",
+        "productName": "BTS V Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158283532218",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "d4f41932-0a1e-448e-8c4a-bd384f05c4d8",
+        "sku": "37207",
+        "productName": "BTS Jimin Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158283533478",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "0117f812-9928-485a-a77c-b2518f3bc9e4",
+        "sku": "37208",
+        "productName": "BTS J-Hope Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158283538371",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "effaa122-9389-43e7-b50a-4116d3dcd10b",
+        "sku": "37211",
+        "productName": "BTS RM Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158283539640",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "a0097511-19d7-4bbd-8f79-58e72d766486",
+        "sku": "37212",
+        "productName": "BTS Jin Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158283540244",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "6cf57e88-0071-4821-9a51-f36328dc40d9",
+        "sku": "372466",
+        "productName": "BTS J-Hope Official Killin' It Girl BROADCAST Photocard Kpop",
+        "itemId": "158283542573",
+        "price": "10.8",
+        "quantity": 2
+      },
+      {
+        "productId": "15132e05-fdbf-4ced-a889-c92b430c03bd",
+        "sku": "376448",
+        "productName": "BTS Jin Official RUNSEOKJIN EP.TOUR in GOYANG ARMY ZONE Photocard Kpop",
+        "itemId": "158283554327",
+        "price": "10.6",
+        "quantity": 3
+      },
+      {
+        "productId": "36f18b66-9ec7-44e4-9c51-e3e4df18a17c",
+        "sku": "376457",
+        "productName": "BTS Jin Official RUNSEOKJIN EP.TOUR in GOYANG Photocard Kpop",
+        "itemId": "158283563678",
+        "price": "10.7",
+        "quantity": 2
+      },
+      {
+        "productId": "622baf57-bf7b-42ff-9e0d-cfd776fbf945",
+        "sku": "376467",
+        "productName": "BTS Jin RUNSEOKJIN EP.TOUR in GOYANG Weverse Shop PICK-UP ALBUM Photocard",
+        "itemId": "158283568769",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "fa42438d-78c3-4e93-88fe-4f1087527f30",
+        "sku": "37742",
+        "productName": "BTS J-Hope Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158283569102",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "c1874c29-66e9-4c84-b44f-b4adc03d82f5",
+        "sku": "37743",
+        "productName": "BTS V Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158283570052",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "06b85393-e298-4c0e-9753-dc6d7e241671",
+        "sku": "378630",
+        "productName": "BTS Jin Official Echo ALADIN Photocard Kpop",
+        "itemId": "158283571115",
+        "price": "10.6",
+        "quantity": 5
+      },
+      {
+        "productId": "584ce745-1560-48fd-af47-7ccc4c40eee2",
+        "sku": "381997",
+        "productName": "BTS Jin RUNSEOKJIN EP.TOUR in JAPAN BTS JAPAN OFFICIAL FANCLUB BOOTH Photocard",
+        "itemId": "158283576581",
+        "price": "10.6",
+        "quantity": 3
+      },
+      {
+        "productId": "01045c17-0557-4661-b917-fffa7a39aca9",
+        "sku": "38205",
+        "productName": "BTS Suga Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158283930150",
+        "price": "10.5",
+        "quantity": 8
+      },
+      {
+        "productId": "8027ac80-e564-4216-be02-af17f4510b6f",
+        "sku": "38219",
+        "productName": "BTS J-Hope Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158283930986",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "eeb27aea-5b61-48b0-bf9e-38e68e38b66c",
+        "sku": "38220",
+        "productName": "BTS RM Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158283932181",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "f8d3e153-9de6-4d14-b02c-2f8d1d4868c4",
+        "sku": "38322",
+        "productName": "BTS Jungkook Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard",
+        "itemId": "158283932622",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "8b39ecf1-2a79-42d0-b460-d1343fdb7874",
+        "sku": "38378",
+        "productName": "BTS V Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283933040",
+        "price": "10.5",
+        "quantity": 6
+      },
+      {
+        "productId": "79094580-3ad1-4d18-b15e-c77d3dd53d4f",
+        "sku": "385047",
+        "productName": "BTS V Official PERMISSION TO DANCE ON STAGE - LIVE ALADIN Photocard Kpop",
+        "itemId": "158283934081",
+        "price": "10.7",
+        "quantity": 1
+      },
+      {
+        "productId": "8e9a238f-e2d5-4aab-9a16-8a1bac70e232",
+        "sku": "385904",
+        "productName": "BTS Jin Official RUNSEOKJIN EP.TOUR in JAPAN PHOTOCARD Photocard Kpop",
+        "itemId": "158283934705",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "0c564c1c-4a41-48bc-8d23-946c90773a0b",
+        "sku": "385916",
+        "productName": "BTS J-Hope Official j-hope Tour 'HOPE ON THE STAGE' in JAPAN Photocard Kpop",
+        "itemId": "158283935156",
+        "price": "10.6",
+        "quantity": 2
+      },
+      {
+        "productId": "351d0586-56a8-4456-9775-7ce708ff1557",
+        "sku": "39481",
+        "productName": "BTS V Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283935747",
+        "price": "10.5",
+        "quantity": 6
+      },
+      {
+        "productId": "5e5ea95d-d48a-4454-b122-0287abd5ae22",
+        "sku": "39482",
+        "productName": "BTS V Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283937293",
+        "price": "10.5",
+        "quantity": 7
+      },
+      {
+        "productId": "24b3b9ba-1894-452e-82e4-930c0e8488c8",
+        "sku": "39483",
+        "productName": "BTS V Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283938926",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "6bf456f6-b308-4f7b-aac7-c99dadbe7a62",
+        "sku": "39484",
+        "productName": "BTS V Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283939313",
+        "price": "10.5",
+        "quantity": 8
+      },
+      {
+        "productId": "b0b96220-1b10-4f3a-b906-5b60dbeffd65",
+        "sku": "39485",
+        "productName": "BTS V Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283939651",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "144061a6-309c-44b2-afd5-23770ddca02a",
+        "sku": "39486",
+        "productName": "BTS V Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283940107",
+        "price": "10.5",
+        "quantity": 6
+      },
+      {
+        "productId": "48e89f4b-8b48-4c89-b204-769fdbab6494",
+        "sku": "39487",
+        "productName": "BTS V Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283940457",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "1c8705c2-e0db-4dac-86dd-5544f60af2ab",
+        "sku": "39488",
+        "productName": "BTS V Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283940759",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "2fe341ba-245c-47eb-b326-c969dea6ff30",
+        "sku": "39489",
+        "productName": "BTS V Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283941170",
+        "price": "10.5",
+        "quantity": 7
+      },
+      {
+        "productId": "679de2d2-cf27-448b-96be-39e4ff6bf4ce",
+        "sku": "39491",
+        "productName": "BTS V Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283941433",
+        "price": "10.5",
+        "quantity": 7
+      },
+      {
+        "productId": "ccb1ce30-a433-47e2-878a-ade1d59a6fb9",
+        "sku": "39492",
+        "productName": "BTS V Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283941889",
+        "price": "10.5",
+        "quantity": 5
+      },
+      {
+        "productId": "7767aca6-3a93-4bdb-ad71-b1de88d42206",
+        "sku": "39493",
+        "productName": "BTS V Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283942378",
+        "price": "10.5",
+        "quantity": 8
+      },
+      {
+        "productId": "96106cb1-31cc-456e-8379-0c481c4c096d",
+        "sku": "39494",
+        "productName": "BTS Jimin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283942992",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "cbc25adc-7056-44e5-a12e-95a2eac3b7d7",
+        "sku": "39495",
+        "productName": "BTS Jimin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283946434",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "719db181-8dda-4d16-a9d7-2300fe2560bf",
+        "sku": "39496",
+        "productName": "BTS Jimin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283954440",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "cc020dcf-2825-41a8-8114-5c0912396348",
+        "sku": "39497",
+        "productName": "BTS RM Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283960059",
+        "price": "10.5",
+        "quantity": 6
+      },
+      {
+        "productId": "f297297d-6191-42c7-aa17-6e50b3149044",
+        "sku": "39505",
+        "productName": "BTS J-Hope Official Mood for Love Young Forever BROADCAST Photocard Kpop",
+        "itemId": "158283969703",
+        "price": "10.8",
+        "quantity": 1
+      },
+      {
+        "productId": "4a20c901-d8cd-46e7-af67-3299d46589cf",
+        "sku": "397108",
+        "productName": "BTS Jungkook Official GOLDEN Live On Stage SPECIAL GIFT Photocard Kpop",
+        "itemId": "158283970559",
+        "price": "10.7",
+        "quantity": 1
+      },
+      {
+        "productId": "dbd53565-3d67-48fa-b5bb-6cfca614bda4",
+        "sku": "39807",
+        "productName": "BTS V Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158283970846",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "6939af91-a538-469b-98ec-f616a152b0f1",
+        "sku": "39812",
+        "productName": "BTS Jin Official Good Day Pajama Photocard Kpop",
+        "itemId": "158283971284",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "7ce79326-1e98-446a-ba88-214d7d2c8d28",
+        "sku": "39817",
+        "productName": "BTS J-Hope Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158283971918",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "11faa0fd-f29e-46f3-8572-356025d17169",
+        "sku": "39979",
+        "productName": "BTS Jimin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283972213",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "0c2c8713-638d-400d-a3e4-2aef02c19a3f",
+        "sku": "39980",
+        "productName": "BTS Jimin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283972399",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "66a70756-7bb8-4762-989c-673bb67afa89",
+        "sku": "39982",
+        "productName": "BTS Jimin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283973357",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "b3cff422-eacc-4828-81cf-3857104c5286",
+        "sku": "39983",
+        "productName": "BTS Jimin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283975145",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "53cbc684-9a78-4322-b077-c17833eca8c4",
+        "sku": "39984",
+        "productName": "BTS Jimin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283976160",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "539dee76-04a7-4c4b-9951-f96e04c77a3e",
+        "sku": "39985",
+        "productName": "BTS Jimin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283976414",
+        "price": "10.5",
+        "quantity": 6
+      },
+      {
+        "productId": "2099bf1d-db96-4d1f-8505-1f2c53a00321",
+        "sku": "39986",
+        "productName": "BTS Jimin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283976585",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "4f82245c-850a-48e1-8535-8c7dfb51f291",
+        "sku": "39987",
+        "productName": "BTS Jimin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283977078",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "7e6a0faf-bd09-4efa-8962-0eee62382ef1",
+        "sku": "39988",
+        "productName": "BTS Jimin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283977394",
+        "price": "10.5",
+        "quantity": 6
+      },
+      {
+        "productId": "a65a348e-d0de-442d-9526-2818bd72339e",
+        "sku": "39989",
+        "productName": "BTS RM Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283977538",
+        "price": "10.5",
+        "quantity": 7
+      },
+      {
+        "productId": "ada0f000-1f40-4e76-a284-3e61a1b61812",
+        "sku": "39990",
+        "productName": "BTS Suga Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283977884",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "e4c22499-948e-4af1-83df-a86b0aa53d0d",
+        "sku": "39991",
+        "productName": "BTS Suga Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283978293",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "c1930333-ceff-4112-9ccf-6c25f68a248c",
+        "sku": "39997",
+        "productName": "BTS Suga Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283978477",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "7adb41e3-b8d4-40d7-b5b0-a7d482d1f67e",
+        "sku": "40000",
+        "productName": "BTS Suga Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283978744",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "219a210c-28b9-4dd0-8e3c-8a1606cad85c",
+        "sku": "40001",
+        "productName": "BTS Suga Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283978950",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "37f82411-3d98-492c-88b5-954564168c37",
+        "sku": "40058",
+        "productName": "BTS Jin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283979730",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "9a192e6a-be46-46fd-b4bf-436c7823e7f8",
+        "sku": "40060",
+        "productName": "BTS RM Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283980190",
+        "price": "10.5",
+        "quantity": 7
+      },
+      {
+        "productId": "12c57f01-feea-44a4-9d82-40b400a0c015",
+        "sku": "40354",
+        "productName": "BTS Jin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283980667",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "f81d21cd-83a4-410e-9c5d-abcfbb3c489d",
+        "sku": "40356",
+        "productName": "BTS Jin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283981174",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "98bfc1ab-9cb9-4959-abdf-90e3511344f3",
+        "sku": "40359",
+        "productName": "BTS Jin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283981499",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "5bc83f32-c4e2-41ef-871a-6e18cfd99cca",
+        "sku": "40360",
+        "productName": "BTS Jin Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283981792",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "649583cc-3b0a-41bb-a239-4b121dbfdc24",
+        "sku": "40361",
+        "productName": "BTS RM Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283982218",
+        "price": "10.5",
+        "quantity": 8
+      },
+      {
+        "productId": "5dec48c1-f233-439d-92f1-ad85ddacb84d",
+        "sku": "40362",
+        "productName": "BTS RM Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283989044",
+        "price": "10.5",
+        "quantity": 7
+      },
+      {
+        "productId": "ff56ee7f-5e9f-4b0a-b14e-661ea45c2ac7",
+        "sku": "40363",
+        "productName": "BTS RM Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158283995838",
+        "price": "10.5",
+        "quantity": 6
+      },
+      {
+        "productId": "aacb53a5-5e04-4579-ac89-092585b34ec8",
+        "sku": "40364",
+        "productName": "BTS J-Hope Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284003747",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "909e4187-9dc9-40a2-a7b5-8e69bcdf8360",
+        "sku": "40365",
+        "productName": "BTS Unit Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284009355",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "2161aa61-6b89-410a-bd97-05de91acfe11",
+        "sku": "40366",
+        "productName": "BTS RM Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284012617",
+        "price": "10.5",
+        "quantity": 8
+      },
+      {
+        "productId": "5aa27051-b175-4a66-b114-cd31fd983b77",
+        "sku": "404130",
+        "productName": "BTS Jungkook Official GOLDEN WEVERSE USA Exclusive Photocard Kpop",
+        "itemId": "158284014012",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "29e12997-2327-438d-a4bd-3f8f53088290",
+        "sku": "40834",
+        "productName": "Stray Kids ODDINARY Unit",
+        "itemId": "158183485438",
+        "price": "11.3",
+        "quantity": 8
+      },
+      {
+        "productId": "d66b58fb-320d-44c1-98d0-391cd6a76c89",
+        "sku": "40915",
+        "productName": "BTS Jimin Official 2018 BTS FESTA MOOD LIGHT Photocard Kpop",
+        "itemId": "158284015584",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "78f41267-441f-45a0-a19e-8215c9218d6c",
+        "sku": "40920",
+        "productName": "BTS Unit Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158284016024",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "7cfdce9a-8b4b-4031-b526-9268fa831ca7",
+        "sku": "40921",
+        "productName": "BTS Unit Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158284016317",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "0f829267-5c3d-498a-8aee-3625be4f8ff7",
+        "sku": "41043",
+        "productName": "BTS V Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158284016609",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "7fea656d-c401-4b39-966c-9986b76de5d4",
+        "sku": "415518",
+        "productName": "BTS Jin Official #RUNSEOKJIN_EP.TOUR_ENCORE ARMY ZONE Photocard Kpop",
+        "itemId": "158284017061",
+        "price": "10.6",
+        "quantity": 2
+      },
+      {
+        "productId": "6125232e-5660-4ff1-97b2-e09bf4cb6ab9",
+        "sku": "420812",
+        "productName": "Stray Kids DO IT IT VER. LEE KNOW",
+        "itemId": "158183489453",
+        "price": "12",
+        "quantity": 5
+      },
+      {
+        "productId": "fbf0776a-8f51-4c3e-a7ea-83ef77873767",
+        "sku": "420921",
+        "productName": "Stray Kids DO IT DO VER. Unit",
+        "itemId": "158159823553",
+        "price": "12",
+        "quantity": 3
+      },
+      {
+        "productId": "e5a25b3f-8c2d-4293-9762-97074407c07e",
+        "sku": "421031",
+        "productName": "Stray Kids DO IT SKZ IT TAPE PLATFORM PLVE VER. BANG CHAN",
+        "itemId": "158183489442",
+        "price": "11.3",
+        "quantity": 6
+      },
+      {
+        "productId": "9895ceec-8a9e-4c82-b93a-b82dd9ef0a68",
+        "sku": "421032",
+        "productName": "Stray Kids DO IT SKZ IT TAPE PLATFORM PLVE VER. SEUNGMIN",
+        "itemId": "158183489442",
+        "price": "11.3",
+        "quantity": 5
+      },
+      {
+        "productId": "bf07b5a8-53e2-4444-9068-8374f8ba6289",
+        "sku": "421034",
+        "productName": "Stray Kids DO IT SKZ IT TAPE PLATFORM PLVE VER. CHANGBIN",
+        "itemId": "158183489442",
+        "price": "11.3",
+        "quantity": 6
+      },
+      {
+        "productId": "c6ad7533-abc4-43fc-bb5a-28855da99d71",
+        "sku": "421044",
+        "productName": "Stray Kids DO IT SKZ IT TAPE PLATFORM PLVE VER. HYUNJIN",
+        "itemId": "158183489442",
+        "price": "11.3",
+        "quantity": 7
+      },
+      {
+        "productId": "f47ae7a0-2750-4b05-bb60-19c001f69be1",
+        "sku": "431553",
+        "productName": "Stray Kids 2026 SEASON'S GREETINGS STARLIGHT SUPPER CLUB BANG CHAN",
+        "itemId": "158037227788",
+        "price": "11.3",
+        "quantity": 7
+      },
+      {
+        "productId": "ff3c9db2-af93-423f-934a-82a075468c2d",
+        "sku": "434626",
+        "productName": "Stray Kids HAN Official World Tour dominATE : celebrATE REWARD Photocard Kpop",
+        "itemId": "158284017256",
+        "price": "10.5",
+        "quantity": 5
+      },
+      {
+        "productId": "72f6438c-ccf9-410b-9ba3-ec0dfcffccb7",
+        "sku": "43793",
+        "productName": "BTS Jungkook Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND Photocard Kpop",
+        "itemId": "158284017448",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "a051d669-267f-4742-8fb7-15c2ce97844f",
+        "sku": "43794",
+        "productName": "BTS Jungkook Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND Photocard Kpop",
+        "itemId": "158284017605",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "07534c3c-5927-48a6-a73b-c81fb6ef10b4",
+        "sku": "43795",
+        "productName": "BTS Jungkook Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND Photocard Kpop",
+        "itemId": "158284017852",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "e02cb0b0-f984-4e6b-9b70-d41694caa5c7",
+        "sku": "43796",
+        "productName": "BTS Jungkook Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND Photocard Kpop",
+        "itemId": "158284018005",
+        "price": "10.5",
+        "quantity": 5
+      },
+      {
+        "productId": "8c5fcfb2-bb7d-4969-8b12-6489bf64b01a",
+        "sku": "43798",
+        "productName": "BTS Jungkook Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND Photocard Kpop",
+        "itemId": "158284018279",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "0abb1bf5-48a5-4ea2-a5f4-51cb5964cf9a",
+        "sku": "43799",
+        "productName": "BTS Jungkook Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND Photocard Kpop",
+        "itemId": "158284018422",
+        "price": "10.5",
+        "quantity": 5
+      },
+      {
+        "productId": "27850469-8a60-4c02-b67b-70bdab7cce16",
+        "sku": "43800",
+        "productName": "BTS RM Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284018896",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "22436180-084e-4c67-bb59-a4fba9f42ea3",
+        "sku": "43801",
+        "productName": "BTS RM Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284020576",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "96cf5a81-74d8-4838-85f7-c2de056339a0",
+        "sku": "43802",
+        "productName": "BTS RM Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284020913",
+        "price": "10.5",
+        "quantity": 5
+      },
+      {
+        "productId": "648388d7-7ffe-4157-aa5f-90682bab9b4f",
+        "sku": "43803",
+        "productName": "BTS RM Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284021186",
+        "price": "10.5",
+        "quantity": 6
+      },
+      {
+        "productId": "56275bf3-84c8-403d-8293-244b947e4b11",
+        "sku": "43804",
+        "productName": "BTS RM Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284021497",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "f8b6137e-0782-4848-9200-4170ed5822f3",
+        "sku": "43805",
+        "productName": "BTS J-Hope Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284021749",
+        "price": "10.5",
+        "quantity": 7
+      },
+      {
+        "productId": "10e961c7-8c3d-4766-952f-7f2fccd6fd72",
+        "sku": "43806",
+        "productName": "BTS J-Hope Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284022008",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "69468407-8f67-48a0-a944-12ebb2c497b6",
+        "sku": "43807",
+        "productName": "BTS J-Hope Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284022994",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "15841b7d-0c42-4db1-b122-66aff4c3ac02",
+        "sku": "43808",
+        "productName": "BTS J-Hope Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284024545",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "085b9ec4-fe7f-4be2-912f-d5c3d1c9eb0c",
+        "sku": "43809",
+        "productName": "BTS J-Hope Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284025204",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "f13be081-9728-4f39-85c0-03d8c031d3ac",
+        "sku": "43810",
+        "productName": "BTS J-Hope Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284027656",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "6a35a0a2-c083-4400-a0ed-a160cdf62f43",
+        "sku": "43811",
+        "productName": "BTS J-Hope Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284033621",
+        "price": "10.5",
+        "quantity": 7
+      },
+      {
+        "productId": "72a346e0-800e-48df-a57a-4fecf5a05e30",
+        "sku": "43812",
+        "productName": "BTS Unit Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284040031",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "c7ed074e-d26c-46f6-8827-9aedbd3c4e75",
+        "sku": "44802",
+        "productName": "BTS Suga Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158284044286",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "762f0e7a-488c-4bd7-96ef-7cc4038d4cf3",
+        "sku": "457576",
+        "productName": "BTS Suga Official ARIRANG Rooted in Korea Ver. Target Exclusive Photocard Kpop",
+        "itemId": "158284052588",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "530f2d62-5a9a-4561-83f7-9a549e30c1b0",
+        "sku": "464438",
+        "productName": "BTS Jimin Official ARIRANG CD SHOP Photocard Kpop",
+        "itemId": "158284055331",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "56523cc0-bc68-4c6e-81fe-84d7dd9f6c25",
+        "sku": "46517",
+        "productName": "BTS Jungkook Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND Photocard Kpop",
+        "itemId": "158284056438",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "6883543b-18f5-449b-97be-238c6f05bcd2",
+        "sku": "49170",
+        "productName": "BTS Unit Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158284056673",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "079e308f-7c14-4f7f-be49-4ed43791d14c",
+        "sku": "55219",
+        "productName": "BTS Suga Official WORLD TOUR ‘LOVE YOURSELF: SPEAK YOURSELF’- Photocard Kpop",
+        "itemId": "158284057173",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "4c3fc339-e506-4c0f-a30c-934b16e924ca",
+        "sku": "58931",
+        "productName": "BTS RM Official Proof SOUND WAVE LUCKY DRAW Photocard Kpop",
+        "itemId": "158284057498",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "3e4b9d1f-11a8-4daf-bbba-6594d332ce44",
+        "sku": "61845",
+        "productName": "BTS Jimin Official Card Wallet Photocard Kpop",
+        "itemId": "158284057745",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "cfec5fbc-918d-4143-b306-7c547bdd7483",
+        "sku": "62083",
+        "productName": "BTS RM Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158284058159",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "f67a416e-fb05-47f4-8e1d-2065cf1db661",
+        "sku": "62767",
+        "productName": "BTS Jungkook Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND Photocard Kpop",
+        "itemId": "158284058563",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "2bbca279-475a-4774-b4d5-234ae02a657a",
+        "sku": "67245",
+        "productName": "BTS RM Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284058937",
+        "price": "10.5",
+        "quantity": 6
+      },
+      {
+        "productId": "c670f79f-de28-4653-a711-e4f97b1db8fd",
+        "sku": "67246",
+        "productName": "BTS Jungkook Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND Photocard Kpop",
+        "itemId": "158284059391",
+        "price": "10.5",
+        "quantity": 6
+      },
+      {
+        "productId": "be068254-d7d3-46cf-9394-e8a53e4a5f60",
+        "sku": "67247",
+        "productName": "BTS Jungkook Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND Photocard Kpop",
+        "itemId": "158284060640",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "df864859-03ca-4739-bd01-c16135e7b522",
+        "sku": "67782",
+        "productName": "BTS J-Hope Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284061085",
+        "price": "10.5",
+        "quantity": 6
+      },
+      {
+        "productId": "740827bc-472a-40fa-9278-71e9c91a3bab",
+        "sku": "67783",
+        "productName": "BTS Jungkook Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND Photocard Kpop",
+        "itemId": "158284061424",
+        "price": "10.5",
+        "quantity": 2
+      },
+      {
+        "productId": "e1bffff8-c16d-4a4c-a9d1-94fe1b3b248c",
+        "sku": "71405",
+        "productName": "BTS J-Hope Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284061882",
+        "price": "10.5",
+        "quantity": 5
+      },
+      {
+        "productId": "953952b1-f570-468d-aabe-ce28166777ff",
+        "sku": "71472",
+        "productName": "BTS J-Hope Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284063676",
+        "price": "10.5",
+        "quantity": 4
+      },
+      {
+        "productId": "65128c50-ce5c-45a9-811a-b8d1b727d583",
+        "sku": "72903",
+        "productName": "BTS J-Hope Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284064756",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "066b6939-0914-4633-afca-f95acd26bad6",
+        "sku": "72904",
+        "productName": "BTS J-Hope Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284065191",
+        "price": "10.5",
+        "quantity": 5
+      },
+      {
+        "productId": "abdbdf93-8507-44b1-9f5d-854be5d62ddb",
+        "sku": "72905",
+        "productName": "BTS RM Official DICON PHOTOCARD 101 : CUSTOM BOOK BEHIND BTS Photocard Kpop",
+        "itemId": "158284066549",
+        "price": "10.5",
+        "quantity": 7
+      },
+      {
+        "productId": "bfca9726-1c32-47c0-9704-19b18837a259",
+        "sku": "73813",
+        "productName": "Stray Kids MAXIDENT HAN",
+        "itemId": "158183489424",
+        "price": "11.3",
+        "quantity": 7
+      },
+      {
+        "productId": "598d5edf-2fbb-4ef7-b202-37210cd49b1b",
+        "sku": "73843",
+        "productName": "Stray Kids MAXIDENT ALADIN LEE KNOW",
+        "itemId": "158183489456",
+        "price": "15",
+        "quantity": 6
+      },
+      {
+        "productId": "401ad136-e57a-4b53-a7e3-7e9b48026722",
+        "sku": "74284",
+        "productName": "BTS J-Hope Official Proof Collector’s Edition WEVERSE Photocard Kpop",
+        "itemId": "158284067360",
+        "price": "10.8",
+        "quantity": 1
+      },
+      {
+        "productId": "f953860d-0453-476e-b40f-395f74908c45",
+        "sku": "74319",
+        "productName": "BTS Suga Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158284067765",
+        "price": "10.5",
+        "quantity": 3
+      },
+      {
+        "productId": "76144acd-41d3-4732-a010-f5d70a5d9b01",
+        "sku": "74320",
+        "productName": "BTS Jin Official PERMISSION TO DANCE ON STAGE MINI PHOTO CARD Photocard Kpop",
+        "itemId": "158284068211",
+        "price": "10.5",
+        "quantity": 1
+      },
+      {
+        "productId": "4ff8e1bf-81ad-4fcc-9827-a3821749165e",
+        "sku": "74834",
+        "productName": "Stray Kids MAXIDENT CASE ver. CHANGBIN",
+        "itemId": "158183489448",
+        "price": "15",
+        "quantity": 2
+      },
+      {
+        "productId": "ccebe293-e1c9-4f38-bea3-df2d101fad16",
+        "sku": "7586",
+        "productName": "BTS Jimin Official MAP OF THE SOUL TOUR Ring Photocard Kpop",
+        "itemId": "158284068976",
+        "price": "10.6",
+        "quantity": 1
+      },
+      {
+        "productId": "bd814131-29a2-48f5-b727-9eeaf1005f7a",
+        "sku": "82807",
+        "productName": "Stray Kids DICON D'FESTA MINI EDITION : Stray Kids BANG CHAN",
+        "itemId": "158183489425",
+        "price": "16.5",
+        "quantity": 2
+      },
+      {
+        "productId": "da743fc3-a009-4f95-b103-c89abd80c99e",
+        "sku": "82809",
+        "productName": "Stray Kids DICON D'FESTA MINI EDITION : Stray Kids BANG CHAN",
+        "itemId": "158183489425",
+        "price": "13.5",
+        "quantity": 2
+      },
+      {
+        "productId": "e5e32000-2f35-4e24-a674-2a4ad67614f3",
+        "sku": "88368",
+        "productName": "Stray Kids OFFICIAL FANCLUB STAY 3RD GENERATION HOME, SWEET HOME I.N",
+        "itemId": "158183489431",
+        "price": "11.3",
+        "quantity": 4
+      },
+      {
+        "productId": "20f6ea2b-9578-486b-9839-bce239debdb3",
+        "sku": "88376",
+        "productName": "Stray Kids OFFICIAL FANCLUB STAY 3RD GENERATION HOME, SWEET HOME CHANGBIN",
+        "itemId": "158183489431",
+        "price": "11.3",
+        "quantity": 3
+      }
+    ],
+    "failures": [
+      {
+        "sku": "122587",
+        "itemId": "157980234451",
+        "message": "FixedPrice item ended. / You are not allowed to revise an ended item \"157980234451\".",
+        "productId": "dbc72d56-c42d-4102-a86d-db402e05f01b"
+      }
+    ]
+  },
+  "responseCount": 240,
+  "succeeded": [
+    "c4bc7302-c086-4f3a-ba43-aac733c346c1",
+    "94f70b58-ae45-4ff2-9aa7-d6a9777996a0",
+    "207bd82b-1d6d-4c97-af05-a63bb2108974",
+    "a929b176-b5f3-41e1-b03b-c9a84652fc5b",
+    "f292d80f-482e-464c-8976-23c652345c70",
+    "7fb4a326-3083-47f1-a569-0d41efd36649",
+    "c308f392-d562-474e-8448-7e1beae9e6ad",
+    "4d296dfc-b053-49dd-ae3a-e8ee8d67845b",
+    "874ada4a-011b-4823-81e2-014ff5541ba0",
+    "34e048a1-bad6-4d20-abe8-a79102fb50d0",
+    "f0c34f07-8147-4470-a848-902bcbaaf58e",
+    "445c7bd2-7471-48a0-8a83-036405f1aa89",
+    "5be9e1b0-6ca0-49bd-9004-2ae66a1f6f8a",
+    "3501c91e-e409-4c7b-b4f8-62aec285dc11",
+    "4c2481da-65e3-4428-a79b-e1ae1c165d66",
+    "61f13ca4-263e-430c-aa4c-360d6e229628",
+    "6ceaec93-4607-48cd-a778-b58aefcef502",
+    "98911f69-a778-4af7-bb82-3acb7812bfd8",
+    "d3190933-b276-4851-842b-edafd955fc76",
+    "03353d17-425a-4e63-8532-91d3f9336343",
+    "1f490736-ceca-4031-bf2c-ce5d27f7b1ad",
+    "e8fc2391-d359-4c50-9f8a-450c69129397",
+    "c4a11394-d99a-484a-b802-7fd68c5b01e5",
+    "6c188bff-7e75-47c6-af62-319e1436ff22",
+    "da731562-2e64-40f2-9fe1-19ec0951f3ec",
+    "ad799b63-ef2d-4ede-90d5-94d38f90eb1a",
+    "4d5dcded-2a47-420c-8dee-7ae869b04fd2",
+    "f07a3793-0463-4900-a21a-ceac0767dc0d",
+    "5bf53d3b-166f-47cf-8166-a4819981fbef",
+    "40c1e09c-c658-43b4-8edd-0446844d162e",
+    "b87af28a-6025-413c-8e78-8f21251716a4",
+    "78d0c237-0cfe-49cc-a39d-7dbf72c8e2f8",
+    "9c2160bd-30a8-4dbb-a704-c0e9a289462c",
+    "d48ab377-becf-4152-b922-70b4812b7d4d",
+    "b92b0f8a-d142-4772-86f2-2466b6ce2dfe",
+    "689dcedf-3ed9-479f-bbf8-f70bbbef7a6d",
+    "74746dc5-2b40-44f9-95fc-8d42a2f6ce70",
+    "cad7b241-c252-4e6c-8a25-504de3fd8f15",
+    "e11bbcb5-9ac7-4ddf-98ab-26fb02f2905e",
+    "c8071f57-aa5d-4e2e-87cb-2d8ac9ccc7e3",
+    "e0d4794b-4df3-4d92-a4ec-0207fe45c32f",
+    "41ec6e1d-d188-495c-aa0d-c64bcb73e6fb",
+    "013f535b-ba31-4db8-a211-1a8914546598",
+    "f488eca7-1b78-4150-9ebd-2b9ce0abe5ae",
+    "636c8f73-4b45-484c-a9f7-b324a460d8a0",
+    "de323dbe-dd65-40d5-ad21-52d6099aa15c",
+    "cbb7fc85-3694-49a4-968f-b8eeb2145b9d",
+    "f7c31fe6-7e16-4546-b617-5e5308c7e114",
+    "4d8049b0-751b-4e66-bee1-3d9911b0fccf",
+    "8a675a21-77ce-4248-a273-6a0acbb799dc",
+    "ada2d80b-f26b-44d2-8db6-e0d80915aa4d",
+    "268e7264-a661-43a1-be5e-4882ce2df1ad",
+    "c901792c-0dc8-4126-9f52-9b306ba368f5",
+    "79da31b1-cd7c-40a2-a970-75f0cc886b82",
+    "3946c19c-0817-41ed-a39e-1b63e7bb3dcb",
+    "c00afb60-68c1-46b8-ab88-35369d3679c5",
+    "0202a3df-fa31-4ed0-8813-e7f00ad81180",
+    "4a6e2e04-0dac-4706-b0c0-05f3b5d82ed9",
+    "0ab73a2d-fd08-443e-a05a-c166cd62affc",
+    "5e25a164-4cb3-4c5c-992b-18b0e922a188",
+    "24b3a733-44f4-425e-929c-210496f615c1",
+    "68eebce0-20f7-487e-b4b4-448c87b856dc",
+    "a9f85951-d287-4d91-a04a-6f6377148771",
+    "79a1e503-1cf4-475a-bf1b-be98b178b89a",
+    "e4e705d8-5598-46e6-ba6d-11b31adc1acb",
+    "5bb4fe40-305f-492a-aece-9e4a999a84c7",
+    "2ae0974e-bafc-422a-b721-6c065b9043d6",
+    "44985eb1-5e6c-483a-b99b-f6c0849f6429",
+    "2daea12d-ba62-489e-a2c0-43cfcf4e6fb5",
+    "c8f64507-1351-411b-b1a2-6efa11d3c768",
+    "c7f58b7d-e26e-4a7b-9be0-91d6913ee63f",
+    "18025790-f90c-44f6-ae9a-a8da60c9d0fd",
+    "0117f812-9928-485a-a77c-b2518f3bc9e4",
+    "effaa122-9389-43e7-b50a-4116d3dcd10b",
+    "a0097511-19d7-4bbd-8f79-58e72d766486",
+    "15132e05-fdbf-4ced-a889-c92b430c03bd",
+    "36f18b66-9ec7-44e4-9c51-e3e4df18a17c",
+    "622baf57-bf7b-42ff-9e0d-cfd776fbf945",
+    "fa42438d-78c3-4e93-88fe-4f1087527f30",
+    "c1874c29-66e9-4c84-b44f-b4adc03d82f5",
+    "584ce745-1560-48fd-af47-7ccc4c40eee2",
+    "06b85393-e298-4c0e-9753-dc6d7e241671",
+    "01045c17-0557-4661-b917-fffa7a39aca9",
+    "eeb27aea-5b61-48b0-bf9e-38e68e38b66c",
+    "8b39ecf1-2a79-42d0-b460-d1343fdb7874",
+    "8e9a238f-e2d5-4aab-9a16-8a1bac70e232",
+    "0c564c1c-4a41-48bc-8d23-946c90773a0b",
+    "351d0586-56a8-4456-9775-7ce708ff1557",
+    "5e5ea95d-d48a-4454-b122-0287abd5ae22",
+    "144061a6-309c-44b2-afd5-23770ddca02a",
+    "1c8705c2-e0db-4dac-86dd-5544f60af2ab",
+    "48e89f4b-8b48-4c89-b204-769fdbab6494",
+    "2fe341ba-245c-47eb-b326-c969dea6ff30",
+    "7767aca6-3a93-4bdb-ad71-b1de88d42206",
+    "96106cb1-31cc-456e-8379-0c481c4c096d",
+    "cbc25adc-7056-44e5-a12e-95a2eac3b7d7",
+    "719db181-8dda-4d16-a9d7-2300fe2560bf",
+    "f297297d-6191-42c7-aa17-6e50b3149044",
+    "4a20c901-d8cd-46e7-af67-3299d46589cf",
+    "6939af91-a538-469b-98ec-f616a152b0f1",
+    "7ce79326-1e98-446a-ba88-214d7d2c8d28",
+    "2099bf1d-db96-4d1f-8505-1f2c53a00321",
+    "4f82245c-850a-48e1-8535-8c7dfb51f291",
+    "7e6a0faf-bd09-4efa-8962-0eee62382ef1",
+    "a65a348e-d0de-442d-9526-2818bd72339e",
+    "e4c22499-948e-4af1-83df-a86b0aa53d0d",
+    "7adb41e3-b8d4-40d7-b5b0-a7d482d1f67e",
+    "219a210c-28b9-4dd0-8e3c-8a1606cad85c",
+    "9a192e6a-be46-46fd-b4bf-436c7823e7f8",
+    "12c57f01-feea-44a4-9d82-40b400a0c015",
+    "98bfc1ab-9cb9-4959-abdf-90e3511344f3",
+    "5dec48c1-f233-439d-92f1-ad85ddacb84d",
+    "aacb53a5-5e04-4579-ac89-092585b34ec8",
+    "909e4187-9dc9-40a2-a7b5-8e69bcdf8360",
+    "d66b58fb-320d-44c1-98d0-391cd6a76c89",
+    "7cfdce9a-8b4b-4031-b526-9268fa831ca7",
+    "0f829267-5c3d-498a-8aee-3625be4f8ff7",
+    "7fea656d-c401-4b39-966c-9986b76de5d4",
+    "fbf0776a-8f51-4c3e-a7ea-83ef77873767",
+    "e5a25b3f-8c2d-4293-9762-97074407c07e",
+    "f47ae7a0-2750-4b05-bb60-19c001f69be1",
+    "a051d669-267f-4742-8fb7-15c2ce97844f",
+    "0abb1bf5-48a5-4ea2-a5f4-51cb5964cf9a",
+    "27850469-8a60-4c02-b67b-70bdab7cce16",
+    "22436180-084e-4c67-bb59-a4fba9f42ea3",
+    "96cf5a81-74d8-4838-85f7-c2de056339a0",
+    "648388d7-7ffe-4157-aa5f-90682bab9b4f",
+    "f8b6137e-0782-4848-9200-4170ed5822f3",
+    "da287d51-1b31-48a0-820b-ced437c88971",
+    "f3d9e284-ce1a-41ad-8aa6-a915cbf4937b",
+    "eaa9221b-67ab-407b-9fc3-8fc79f655680",
+    "3dcd40b7-1ff5-4d69-a581-25e5f2775e9a",
+    "3f1b2883-a4ba-4a7c-aca6-04ba1bf486c3",
+    "71a91a65-921b-4e66-b96d-68e98f1223b6",
+    "0d018039-9df9-43ab-aeee-ac79579e011d",
+    "e3b424b5-736e-4fa0-b90b-5053f5595d4a",
+    "f7b2a926-e787-450b-ada5-498d5be1f12e",
+    "4ab316b6-4165-4632-891f-1dd69adc7215",
+    "69468407-8f67-48a0-a944-12ebb2c497b6",
+    "d973bbba-e6aa-4288-9f6e-db79920dde12",
+    "90430294-ef2b-407c-86f9-afd74214d9bf",
+    "d967c5ca-a9a5-4361-bd2a-d09d5a4fb174",
+    "abab1b3b-3a30-44e7-b65b-fe88755c1c5b",
+    "ef7c9d9e-576b-4373-af5b-47ba4e536d93",
+    "b16d8550-6c0a-414d-859c-fbfa9e018f52",
+    "72efb06c-6884-4ebd-9ce0-2e613d1139bc",
+    "db9290b1-63bf-4783-894b-ab38934286eb",
+    "dbd34f43-2900-41d9-911e-836bed9c40c5",
+    "9322d9f5-d2da-42eb-b5fb-09fe94450931",
+    "500d6c0b-5312-4bbe-b3cc-2e5f512027e5",
+    "c11b57be-2955-478d-9ad2-38068f72e044",
+    "09a92979-df75-4ff8-b376-642d71d7de22",
+    "10df7911-b33c-4332-8e99-4058abe4d822",
+    "0e1f46a5-4a20-422c-9c41-c97a47eb1848",
+    "21781845-5ce8-4bb5-b4bb-58cebdb266f1",
+    "6e130450-1919-45e0-98fc-a1b64fceaf63",
+    "a404a8c8-320d-4d37-9caa-9e81184d188b",
+    "b9d6556f-faa6-4b55-a768-0e65547d9131",
+    "49dd8456-1989-4447-83a4-69a079572a93",
+    "45e3e0d9-ddc5-489a-b1b3-34b51bcb1cea",
+    "085b9ec4-fe7f-4be2-912f-d5c3d1c9eb0c",
+    "0f586178-28ff-4352-9a25-fdd261172dab",
+    "17597d74-753c-4b85-a709-0f1284808a47",
+    "f13be081-9728-4f39-85c0-03d8c031d3ac",
+    "5cef23b8-fe32-4aaf-baeb-59dfc415ff23",
+    "6a35a0a2-c083-4400-a0ed-a160cdf62f43",
+    "72a346e0-800e-48df-a57a-4fecf5a05e30",
+    "c7ed074e-d26c-46f6-8827-9aedbd3c4e75",
+    "d4f41932-0a1e-448e-8c4a-bd384f05c4d8",
+    "762f0e7a-488c-4bd7-96ef-7cc4038d4cf3",
+    "530f2d62-5a9a-4561-83f7-9a549e30c1b0",
+    "6cf57e88-0071-4821-9a51-f36328dc40d9",
+    "079e308f-7c14-4f7f-be49-4ed43791d14c",
+    "4c3fc339-e506-4c0f-a30c-934b16e924ca",
+    "cfec5fbc-918d-4143-b306-7c547bdd7483",
+    "f67a416e-fb05-47f4-8e1d-2065cf1db661",
+    "be068254-d7d3-46cf-9394-e8a53e4a5f60",
+    "8027ac80-e564-4216-be02-af17f4510b6f",
+    "df864859-03ca-4739-bd01-c16135e7b522",
+    "740827bc-472a-40fa-9278-71e9c91a3bab",
+    "f8d3e153-9de6-4d14-b02c-2f8d1d4868c4",
+    "79094580-3ad1-4d18-b15e-c77d3dd53d4f",
+    "65128c50-ce5c-45a9-811a-b8d1b727d583",
+    "066b6939-0914-4633-afca-f95acd26bad6",
+    "401ad136-e57a-4b53-a7e3-7e9b48026722",
+    "abdbdf93-8507-44b1-9f5d-854be5d62ddb",
+    "24b3b9ba-1894-452e-82e4-930c0e8488c8",
+    "6bf456f6-b308-4f7b-aac7-c99dadbe7a62",
+    "b0b96220-1b10-4f3a-b906-5b60dbeffd65",
+    "76144acd-41d3-4732-a010-f5d70a5d9b01",
+    "ccebe293-e1c9-4f38-bea3-df2d101fad16",
+    "bd814131-29a2-48f5-b727-9eeaf1005f7a",
+    "e5e32000-2f35-4e24-a674-2a4ad67614f3",
+    "679de2d2-cf27-448b-96be-39e4ff6bf4ce",
+    "ccb1ce30-a433-47e2-878a-ade1d59a6fb9",
+    "cc020dcf-2825-41a8-8114-5c0912396348",
+    "dbd53565-3d67-48fa-b5bb-6cfca614bda4",
+    "11faa0fd-f29e-46f3-8572-356025d17169",
+    "0c2c8713-638d-400d-a3e4-2aef02c19a3f",
+    "66a70756-7bb8-4762-989c-673bb67afa89",
+    "b3cff422-eacc-4828-81cf-3857104c5286",
+    "53cbc684-9a78-4322-b077-c17833eca8c4",
+    "539dee76-04a7-4c4b-9951-f96e04c77a3e",
+    "ada0f000-1f40-4e76-a284-3e61a1b61812",
+    "c1930333-ceff-4112-9ccf-6c25f68a248c",
+    "37f82411-3d98-492c-88b5-954564168c37",
+    "f81d21cd-83a4-410e-9c5d-abcfbb3c489d",
+    "5bc83f32-c4e2-41ef-871a-6e18cfd99cca",
+    "649583cc-3b0a-41bb-a239-4b121dbfdc24",
+    "ff56ee7f-5e9f-4b0a-b14e-661ea45c2ac7",
+    "2161aa61-6b89-410a-bd97-05de91acfe11",
+    "5aa27051-b175-4a66-b114-cd31fd983b77",
+    "29e12997-2327-438d-a4bd-3f8f53088290",
+    "78f41267-441f-45a0-a19e-8215c9218d6c",
+    "6125232e-5660-4ff1-97b2-e09bf4cb6ab9",
+    "ff3c9db2-af93-423f-934a-82a075468c2d",
+    "72f6438c-ccf9-410b-9ba3-ec0dfcffccb7",
+    "07534c3c-5927-48a6-a73b-c81fb6ef10b4",
+    "e02cb0b0-f984-4e6b-9b70-d41694caa5c7",
+    "8c5fcfb2-bb7d-4969-8b12-6489bf64b01a",
+    "56275bf3-84c8-403d-8293-244b947e4b11",
+    "10e961c7-8c3d-4766-952f-7f2fccd6fd72",
+    "15841b7d-0c42-4db1-b122-66aff4c3ac02",
+    "56523cc0-bc68-4c6e-81fe-84d7dd9f6c25",
+    "6883543b-18f5-449b-97be-238c6f05bcd2",
+    "3e4b9d1f-11a8-4daf-bbba-6594d332ce44",
+    "2bbca279-475a-4774-b4d5-234ae02a657a",
+    "c670f79f-de28-4653-a711-e4f97b1db8fd",
+    "e1bffff8-c16d-4a4c-a9d1-94fe1b3b248c",
+    "953952b1-f570-468d-aabe-ce28166777ff",
+    "bfca9726-1c32-47c0-9704-19b18837a259",
+    "598d5edf-2fbb-4ef7-b202-37210cd49b1b",
+    "f953860d-0453-476e-b40f-395f74908c45",
+    "4ff8e1bf-81ad-4fcc-9827-a3821749165e",
+    "da743fc3-a009-4f95-b103-c89abd80c99e",
+    "20f6ea2b-9578-486b-9839-bce239debdb3",
+    "9895ceec-8a9e-4c82-b93a-b82dd9ef0a68",
+    "bf07b5a8-53e2-4444-9068-8374f8ba6289",
+    "c6ad7533-abc4-43fc-bb5a-28855da99d71"
+  ],
+  "failures": [
+    {
+      "productId": "dbc72d56-c42d-4102-a86d-db402e05f01b",
+      "sku": "122587",
+      "itemId": "157980234451",
+      "message": "FixedPrice item ended. / You are not allowed to revise an ended item \"157980234451\"."
+    }
+  ],
+  "unmatchedErrors": []
+}

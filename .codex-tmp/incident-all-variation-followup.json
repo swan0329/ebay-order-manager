@@ -1,0 +1,35 @@
+{
+  "job": {
+    "id": "cmu23wefq0015l304wa8epy2p",
+    "operation": "revise",
+    "feedType": "LMS_REVISE_INVENTORY_STATUS",
+    "status": "SUBMITTED",
+    "totalCount": 3,
+    "successCount": 0,
+    "failureCount": 0,
+    "error": null,
+    "submittedAt": "2026-09-15T03:23:06.074Z",
+    "completedAt": null,
+    "targets": [
+      {
+        "productId": "4ef05a32-68ce-475e-976a-24ebbadbb010",
+        "sku": "41047",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL J-Hope",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "a58071ad-0ad6-4388-90b4-1b59efcdcb77",
+        "sku": "44796",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jimin",
+        "itemId": "158284255135"
+      },
+      {
+        "productId": "996cb166-9d39-44e7-97c0-8c005f927972",
+        "sku": "61774",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL Jin",
+        "itemId": "158284255135"
+      }
+    ],
+    "failures": []
+  }
+}

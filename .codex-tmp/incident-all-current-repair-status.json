@@ -1,0 +1,146 @@
+{
+  "job": {
+    "id": "cmu26jb5l0003jq048gj9th74",
+    "operation": "revise",
+    "feedType": "LMS_REVISE_INVENTORY_STATUS",
+    "status": "COMPLETED",
+    "totalCount": 16,
+    "successCount": 16,
+    "failureCount": 0,
+    "error": null,
+    "submittedAt": "2026-09-15T04:36:40.508Z",
+    "completedAt": "2026-09-15T04:40:02.555Z",
+    "createdAt": "2026-09-15T04:36:27.982Z",
+    "targets": [
+      {
+        "productId": "f77407f0-d7c1-4c63-8c39-ea14c27b0bd9",
+        "sku": "457548",
+        "productName": "BTS ARIRANG Rooted in Korea Ver. RM",
+        "itemId": "158283792770",
+        "price": "15",
+        "quantity": 1
+      },
+      {
+        "productId": "c59beddb-3236-4dca-a258-3c838bea0437",
+        "sku": "457549",
+        "productName": "BTS ARIRANG Rooted in Korea Ver. JUNGKOOK",
+        "itemId": "158283792770",
+        "price": "12",
+        "quantity": 2
+      },
+      {
+        "productId": "b9485a6f-ffd4-457d-ba45-b8c24d52a6df",
+        "sku": "457550",
+        "productName": "BTS ARIRANG Rooted in Korea Ver. V",
+        "itemId": "158283792770",
+        "price": "12",
+        "quantity": 4
+      },
+      {
+        "productId": "a6a17e07-bc07-40e2-9ca2-1bbb0787a724",
+        "sku": "457551",
+        "productName": "BTS ARIRANG Rooted in Korea Ver. Jimin",
+        "itemId": "158283792770",
+        "price": "12",
+        "quantity": 2
+      },
+      {
+        "productId": "98dd8a6f-afb2-4890-8bc0-fda06dced774",
+        "sku": "457552",
+        "productName": "BTS ARIRANG Rooted in Korea Ver. J-Hope",
+        "itemId": "158283792770",
+        "price": "12",
+        "quantity": 2
+      },
+      {
+        "productId": "76bb1d6c-fd58-4fc1-9a55-adf81be04947",
+        "sku": "457559",
+        "productName": "BTS ARIRANG Rooted in Music Ver. Jimin",
+        "itemId": "158283804837",
+        "price": "11.3",
+        "quantity": 3
+      },
+      {
+        "productId": "ea4a2366-165f-4173-ab04-fb9617871f97",
+        "sku": "457560",
+        "productName": "BTS ARIRANG Rooted in Music Ver. J-Hope",
+        "itemId": "158283804837",
+        "price": "12",
+        "quantity": 2
+      },
+      {
+        "productId": "116736fe-3049-4e78-a014-82336577efdc",
+        "sku": "457562",
+        "productName": "BTS ARIRANG Rooted in Music Ver. Jin",
+        "itemId": "158283804837",
+        "price": "11.3",
+        "quantity": 2
+      },
+      {
+        "productId": "bb623ba1-ece9-4e5f-9005-0898290475e1",
+        "sku": "457563",
+        "productName": "BTS ARIRANG Rooted in Music Ver. RM",
+        "itemId": "158283804837",
+        "price": "15",
+        "quantity": 1
+      },
+      {
+        "productId": "5ea8588c-3188-41b2-8380-e5b3bcf58a6d",
+        "sku": "457565",
+        "productName": "BTS ARIRANG Living Legend Ver. RM",
+        "itemId": "158283671230",
+        "price": "11.3",
+        "quantity": 1
+      },
+      {
+        "productId": "20daba68-64d0-4ce0-95b3-5639fefc9b58",
+        "sku": "457566",
+        "productName": "BTS ARIRANG Living Legend Ver. JUNGKOOK",
+        "itemId": "158283671230",
+        "price": "15.7",
+        "quantity": 2
+      },
+      {
+        "productId": "16a07e01-c311-4cc2-96e0-e403fbe760a8",
+        "sku": "457567",
+        "productName": "BTS ARIRANG Living Legend Ver. V",
+        "itemId": "158283671230",
+        "price": "12.8",
+        "quantity": 1
+      },
+      {
+        "productId": "f8a0b72e-324f-43c3-a32b-3daa52617340",
+        "sku": "457568",
+        "productName": "BTS ARIRANG Living Legend Ver. Jimin",
+        "itemId": "158283671230",
+        "price": "11.3",
+        "quantity": 1
+      },
+      {
+        "productId": "81d677f1-5791-4d3c-99a6-a532f4117f6e",
+        "sku": "457569",
+        "productName": "BTS ARIRANG Living Legend Ver. J-Hope",
+        "itemId": "158283671230",
+        "price": "11.3",
+        "quantity": 2
+      },
+      {
+        "productId": "3847307e-7a7f-45b5-9c3a-19708c4cc556",
+        "sku": "457570",
+        "productName": "BTS ARIRANG Living Legend Ver. SUGA",
+        "itemId": "158283671230",
+        "price": "16.5",
+        "quantity": 1
+      },
+      {
+        "productId": "645d5007-3d0d-4047-8280-088a73d94bf7",
+        "sku": "457571",
+        "productName": "BTS ARIRANG Living Legend Ver. Jin",
+        "itemId": "158283671230",
+        "price": "12",
+        "quantity": 1
+      }
+    ],
+    "failures": []
+  }
+}
