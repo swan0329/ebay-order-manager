@@ -1,0 +1,381 @@
+[
+  {
+    "sku": "296333",
+    "jobs": [
+      {
+        "id": "cmu25tu3j001cjn04c18l76rh",
+        "status": "COMPLETED",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T04:16:59.396Z",
+        "completedAt": "2026-09-15T04:20:53.214Z",
+        "total": 6,
+        "success": 6,
+        "failed": 0,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu25dr430003l304oa6tkiwc",
+        "status": "COMPLETED",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T04:04:16.740Z",
+        "completedAt": "2026-09-15T04:05:01.156Z",
+        "total": 1,
+        "success": 1,
+        "failed": 0,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu24v7s70001jt0479lns7nq",
+        "status": "COMPLETED",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T03:49:51.666Z",
+        "completedAt": "2026-09-15T03:50:18.775Z",
+        "total": 1,
+        "success": 1,
+        "failed": 0,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu248jim000fi20486e92x2u",
+        "status": "COMPLETED",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T03:32:28.819Z",
+        "completedAt": "2026-09-15T03:40:38.150Z",
+        "total": 14,
+        "success": 14,
+        "failed": 0,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu23wefq0015l304wa8epy2p",
+        "status": "COMPLETED",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T03:23:06.074Z",
+        "completedAt": "2026-09-15T03:25:43.425Z",
+        "total": 3,
+        "success": 3,
+        "failed": 0,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu23k6eq0004l6040sfy6flp",
+        "status": "COMPLETED",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T03:13:18.060Z",
+        "completedAt": "2026-09-15T03:37:28.630Z",
+        "total": 40,
+        "success": 40,
+        "failed": 0,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu23b5ac01pgl804ad25n1xe",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T03:06:19.757Z",
+        "completedAt": "2026-09-15T03:10:17.007Z",
+        "total": 41,
+        "success": 0,
+        "failed": 41,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu22s6s9000mid04slzmw8gv",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T02:51:36.897Z",
+        "completedAt": "2026-09-15T03:01:42.463Z",
+        "total": 41,
+        "success": 0,
+        "failed": 41,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu222kj6000hjh04yz0marly",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T02:31:40.431Z",
+        "completedAt": "2026-09-15T02:35:17.503Z",
+        "total": 41,
+        "success": 0,
+        "failed": 41,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu21iseg002jjh04xed4ir0b",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T02:16:25.096Z",
+        "completedAt": "2026-09-15T02:20:27.338Z",
+        "total": 41,
+        "success": 0,
+        "failed": 41,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu20gccv007ijh041vxico9x",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T01:46:24.404Z",
+        "completedAt": "2026-09-15T01:56:58.655Z",
+        "total": 41,
+        "success": 0,
+        "failed": 41,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu1ztty10007l604l4ywlaf1",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T01:28:53.891Z",
+        "completedAt": "2026-09-15T01:31:45.977Z",
+        "total": 41,
+        "success": 0,
+        "failed": 41,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu1zdszh01qflj04lnsjb87z",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T01:16:25.957Z",
+        "completedAt": "2026-09-15T01:21:57.869Z",
+        "total": 41,
+        "success": 0,
+        "failed": 41,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu1yu60p000jlj04ny1r8wky",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T01:01:08.739Z",
+        "completedAt": "2026-09-15T01:10:24.891Z",
+        "total": 41,
+        "success": 0,
+        "failed": 41,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu1yhfq601r1l804biqrn929",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T00:51:18.434Z",
+        "completedAt": "2026-09-15T00:56:36.711Z",
+        "total": 42,
+        "success": 1,
+        "failed": 41,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu1xrj33000llj04oae3eh3q",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "submittedAt": "2026-09-15T00:31:04.264Z",
+        "completedAt": "2026-09-15T00:47:34.016Z",
+        "total": 105,
+        "success": 64,
+        "failed": 41,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu1w5qdw02awl704nadmkf15",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "submittedAt": "2026-09-14T23:46:07.869Z",
+        "completedAt": "2026-09-15T00:25:56.856Z",
+        "total": 178,
+        "success": 137,
+        "failed": 41,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu1rvmrx000jl704wu1hfw6p",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "submittedAt": "2026-09-14T21:46:21.236Z",
+        "completedAt": "2026-09-14T23:41:33.857Z",
+        "total": 500,
+        "success": 458,
+        "failed": 42,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu1nskzg01pdkz04w9sl70sz",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "submittedAt": "2026-09-14T19:52:03.227Z",
+        "completedAt": "2026-09-14T21:41:19.236Z",
+        "total": 500,
+        "success": 463,
+        "failed": 37,
+        "targets": [],
+        "failures": []
+      },
+      {
+        "id": "cmu1iz4zl004xlc045704l165",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "submittedAt": "2026-09-14T17:37:18.335Z",
+        "completedAt": "2026-09-14T19:45:28.111Z",
+        "total": 500,
+        "success": 494,
+        "failed": 6,
+        "targets": [],
+        "failures": []
+      }
+    ]
+  },
+  {
+    "sku": "284272",
+    "jobs": [
+      {
+        "id": "cmu1dg5k602del8040576bv01",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "createdAt": "2026-09-14T15:02:09.481Z",
+        "submittedAt": "2026-09-14T15:02:30.981Z",
+        "completedAt": "2026-09-14T17:31:16.460Z",
+        "total": 500,
+        "success": 494,
+        "failed": 6,
+        "targets": [
+          {
+            "sku": "284272",
+            "itemId": "158281806012",
+            "price": "55.4",
+            "quantity": 1
+          }
+        ],
+        "failures": []
+      },
+      {
+        "id": "cmtzu3ib600dzjr0406s00cvy",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "createdAt": "2026-09-13T13:12:46.193Z",
+        "submittedAt": "2026-09-13T13:12:51.363Z",
+        "completedAt": "2026-09-13T13:13:25.627Z",
+        "total": 240,
+        "success": 239,
+        "failed": 1,
+        "targets": [
+          {
+            "sku": "284272",
+            "itemId": "158281806012",
+            "price": "10.6",
+            "quantity": 1
+          }
+        ],
+        "failures": []
+      }
+    ]
+  },
+  {
+    "sku": "284806",
+    "jobs": [
+      {
+        "id": "cmu1dg5k602del8040576bv01",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "createdAt": "2026-09-14T15:02:09.481Z",
+        "submittedAt": "2026-09-14T15:02:30.981Z",
+        "completedAt": "2026-09-14T17:31:16.460Z",
+        "total": 500,
+        "success": 494,
+        "failed": 6,
+        "targets": [
+          {
+            "sku": "284806",
+            "itemId": "158281814368",
+            "quantity": 0
+          }
+        ],
+        "failures": []
+      },
+      {
+        "id": "cmtzu3ib600dzjr0406s00cvy",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "createdAt": "2026-09-13T13:12:46.193Z",
+        "submittedAt": "2026-09-13T13:12:51.363Z",
+        "completedAt": "2026-09-13T13:13:25.627Z",
+        "total": 240,
+        "success": 239,
+        "failed": 1,
+        "targets": [
+          {
+            "sku": "284806",
+            "itemId": "158281814368",
+            "price": "10.6",
+            "quantity": 1
+          }
+        ],
+        "failures": []
+      }
+    ]
+  },
+  {
+    "sku": "287832",
+    "jobs": [
+      {
+        "id": "cmu1dg5k602del8040576bv01",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "createdAt": "2026-09-14T15:02:09.481Z",
+        "submittedAt": "2026-09-14T15:02:30.981Z",
+        "completedAt": "2026-09-14T17:31:16.460Z",
+        "total": 500,
+        "success": 494,
+        "failed": 6,
+        "targets": [
+          {
+            "sku": "287832",
+            "itemId": "158281818524",
+            "price": "40.4",
+            "quantity": 2
+          }
+        ],
+        "failures": []
+      },
+      {
+        "id": "cmtzu3ib600dzjr0406s00cvy",
+        "status": "COMPLETED_WITH_ERROR",
+        "operation": "revise",
+        "createdAt": "2026-09-13T13:12:46.193Z",
+        "submittedAt": "2026-09-13T13:12:51.363Z",
+        "completedAt": "2026-09-13T13:13:25.627Z",
+        "total": 240,
+        "success": 239,
+        "failed": 1,
+        "targets": [
+          {
+            "sku": "287832",
+            "itemId": "158281818524",
+            "price": "10.6",
+            "quantity": 2
+          }
+        ],
+        "failures": []
+      }
+    ]
+  }
+]

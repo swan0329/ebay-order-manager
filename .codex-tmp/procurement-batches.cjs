@@ -1,0 +1,1 @@
+const {call}=require('./procurement-live.cjs');(async()=>{const r=await call('/api/pocamarket-sync/batches'); console.log(JSON.stringify(r.data.batches?.map(b=>({id:b.id,status:b.status,total:b.totalCount,scanned:b.scannedCount,error:b.errorMessage,first:b.items?.slice(0,2).map(x=>({sku:x.productNumber,status:x.status}))}))));})();

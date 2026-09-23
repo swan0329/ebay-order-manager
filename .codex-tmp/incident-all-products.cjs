@@ -1,0 +1,7 @@
+const {call,save,read}=require('./incident-all-client.cjs');const fs=require('fs');
+const skus=[...new Set(read('ebay').rows.map(x=>x.sku).filter(Boolean))];
+const old=JSON.parse(fs.readFileSync('.codex-tmp/procurement-source-suspects.json','utf8')).map(x=>x.sku);
+const targets=[...new Set([...skus,...old])];const products=new Map();
+const fields=['id','sku','pocamarketId','salePrice','costPrice','isSoldOut','stockQuantity','pocamarketAvailableCount','pocamarketSyncedAt','pocamarketLastAttemptAt','ebayPrice','ebayLastSyncedPrice','ebayLastSyncedQuantity','lastUploadedAt','finalListingPriceUsd','finalListingPriceSource','ebayItemId','ebayOfferId','listingStatus','shopifyProductId','shopifyVariantId','shopifyLastSyncedPrice','shopifyLastSyncedQuantity','shopifyStatus','updatedAt'];
+async function fetchBatch(list){const j=await call('/api/products?q='+encodeURIComponent(list.join('\n')));if(j.products.length>=500&&list.length>1){const m=Math.ceil(list.length/2);await fetchBatch(list.slice(0,m));await fetchBatch(list.slice(m));return}for(const p of j.products)if(targets.includes(p.sku))products.set(p.sku,Object.fromEntries(fields.map(k=>[k,p[k]])));save('products',[...products.values()]);}
+(async()=>{for(let i=0;i<targets.length;i+=80){await fetchBatch(targets.slice(i,i+80));console.log('products',products.size,'/',targets.length)}save('product-coverage',{requested:targets.length,found:products.size,missing:targets.filter(x=>!products.has(x))})})().catch(e=>{console.error(e.message);process.exitCode=1});

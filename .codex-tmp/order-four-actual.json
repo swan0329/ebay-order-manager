@@ -1,0 +1,48 @@
+{
+  "items": [
+    {
+      "sku": "296333",
+      "id": "158281824145",
+      "price": {
+        "#text": "47.9",
+        "@_currencyID": "USD"
+      },
+      "quantity": 2,
+      "sold": 1,
+      "status": "Active"
+    },
+    {
+      "sku": "284272",
+      "id": "158281806012",
+      "price": {
+        "#text": "55.4",
+        "@_currencyID": "USD"
+      },
+      "quantity": 2,
+      "sold": 1,
+      "status": "Active"
+    },
+    {
+      "sku": "284806",
+      "id": "158281814368",
+      "price": {
+        "#text": "10.6",
+        "@_currencyID": "USD"
+      },
+      "quantity": 1,
+      "sold": 1,
+      "status": "Active"
+    },
+    {
+      "sku": "287832",
+      "id": "158281818524",
+      "price": {
+        "#text": "40.4",
+        "@_currencyID": "USD"
+      },
+      "quantity": 3,
+      "sold": 1,
+      "status": "Active"
+    }
+  ]
+}

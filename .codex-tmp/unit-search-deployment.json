@@ -1,0 +1,633 @@
+{
+  "alias": [
+    "ebay-order-manager-tngks2313-9711s-projects.vercel.app"
+  ],
+  "aliasAssigned": true,
+  "aliasError": null,
+  "autoAssignCustomDomains": false,
+  "automaticAliases": [
+    "ebay-order-manager-tngks2313-9711s-projects.vercel.app"
+  ],
+  "bootedAt": 1788862795582,
+  "buildingAt": 1788862798267,
+  "buildSkipped": false,
+  "createdAt": 1788862795582,
+  "creator": {
+    "uid": "HEjkubQu9fNWuS8DqsaGOZO4",
+    "username": "tngks2313-9711"
+  },
+  "deletedAt": null,
+  "id": "dpl_FCVVgTX1sGSdpUQfe6ZCRRZcP2s7",
+  "initReadyAt": 1788862880354,
+  "name": "ebay-order-manager",
+  "meta": {
+    "githubCommitAuthorName": "swan0329",
+    "githubCommitAuthorEmail": "tngks2313@gmail.com",
+    "githubCommitMessage": "End replaced singles in the same option upload file",
+    "githubCommitOrg": "swan0329",
+    "githubCommitRef": "codex/bts-consignment-import",
+    "githubCommitRepo": "ebay-order-manager",
+    "githubCommitSha": "8533dc35248987d0f5e9e7cc17d3fa1eeaa7746e",
+    "githubDeployment": "1",
+    "githubOrg": "swan0329",
+    "githubRepo": "ebay-order-manager",
+    "gitDirty": "1",
+    "gitRootDirectory": ".codex-tmp/image-display-deploy",
+    "actor": "codex",
+    "lambdaRuntimeStats": "{\"nodejs\":6}"
+  },
+  "originCacheRegion": "icn1",
+  "project": {
+    "id": "prj_UX0D51b0mOs6cuvB0yaTUJ9zlJ3Q",
+    "name": "ebay-order-manager",
+    "framework": "nextjs"
+  },
+  "public": false,
+  "ready": 1788862880354,
+  "readyState": "READY",
+  "readySubstate": "PROMOTED",
+  "regions": [
+    "icn1"
+  ],
+  "source": "cli",
+  "status": "READY",
+  "target": "production",
+  "team": {
+    "id": "team_9dUKn9F1VUpGxnxJnzdF6EDw",
+    "name": "tngks2313-9711's projects",
+    "slug": "tngks2313-9711s-projects"
+  },
+  "type": "LAMBDAS",
+  "url": "ebay-order-manager-diplisyxj-tngks2313-9711s-projects.vercel.app",
+  "version": 2,
+  "previewCommentsEnabled": true,
+  "oidcTokenClaims": {
+    "sub": "owner:tngks2313-9711s-projects:project:ebay-order-manager:environment:production",
+    "iss": "https://oidc.vercel.com/tngks2313-9711s-projects",
+    "scope": "owner:tngks2313-9711s-projects:project:ebay-order-manager:environment:production",
+    "aud": "https://vercel.com/tngks2313-9711s-projects",
+    "owner": "tngks2313-9711s-projects",
+    "owner_id": "team_9dUKn9F1VUpGxnxJnzdF6EDw",
+    "project": "ebay-order-manager",
+    "project_id": "prj_UX0D51b0mOs6cuvB0yaTUJ9zlJ3Q",
+    "environment": "production",
+    "plan": "pro"
+  },
+  "lambdas": [
+    {
+      "id": "bld_mcx5fru74",
+      "createdAt": 1788862794555,
+      "entrypoint": ".",
+      "readyState": "READY",
+      "readyStateAt": 1788862794555,
+      "output": [
+        {
+          "path": "__fn_team_9dUKn9F1VUpGxnxJnzdF6EDw-b7ab99039a91cc7434196c1ab8682de791__",
+          "functionName": "team_9dUKn9F1VUpGxnxJnzdF6EDw-b7ab99039a91cc7434196c1ab8682de791"
+        },
+        {
+          "path": "__fn_team_9dUKn9F1VUpGxnxJnzdF6EDw-b7ab99039a91cc7434196c1ab8682de791__",
+          "functionName": "team_9dUKn9F1VUpGxnxJnzdF6EDw-b7ab99039a91cc7434196c1ab8682de791"
+        },
+        {
+          "path": "__fn_team_9dUKn9F1VUpGxnxJnzdF6EDw-02e5b04cfb8b54f211bb2ad51540699512__",
+          "functionName": "team_9dUKn9F1VUpGxnxJnzdF6EDw-02e5b04cfb8b54f211bb2ad51540699512"
+        },
+        {
+          "path": "__fn_team_9dUKn9F1VUpGxnxJnzdF6EDw-c08e48f3f162d3e8183130245de7a806ce__",
+          "functionName": "team_9dUKn9F1VUpGxnxJnzdF6EDw-c08e48f3f162d3e8183130245de7a806ce"
+        },
+        {
+          "path": "__fn_team_9dUKn9F1VUpGxnxJnzdF6EDw-57e493228ad71c2e6780c3ee3154725c59__",
+          "functionName": "team_9dUKn9F1VUpGxnxJnzdF6EDw-57e493228ad71c2e6780c3ee3154725c59"
+        },
+        {
+          "path": "__fn_team_9dUKn9F1VUpGxnxJnzdF6EDw-ced9aa29ce3f797a5cf2c1fc5b795d773b__",
+          "functionName": "team_9dUKn9F1VUpGxnxJnzdF6EDw-ced9aa29ce3f797a5cf2c1fc5b795d773b"
+        },
+        {
+          "path": "__fn_team_9dUKn9F1VUpGxnxJnzdF6EDw-3e67b553113e0816da097a49e708131145__",
+          "functionName": "team_9dUKn9F1VUpGxnxJnzdF6EDw-3e67b553113e0816da097a49e708131145"
+        }
+      ]
+    }
+  ],
+  "aliasAssignedAt": 1788862914097,
+  "build": {
+    "env": [
+      "CI",
+      "VERCEL",
+      "VERCEL_ENV",
+      "VERCEL_TARGET_ENV",
+      "TURBO_REMOTE_ONLY",
+      "TURBO_RUN_SUMMARY",
+      "TURBO_DOWNLOAD_LOCAL_ENABLED",
+      "NX_DAEMON",
+      "TURBO_CACHE",
+      "VERCEL_URL",
+      "VERCEL_GIT_PROVIDER",
+      "VERCEL_GIT_PREVIOUS_SHA",
+      "VERCEL_GIT_REPO_SLUG",
+      "VERCEL_GIT_REPO_OWNER",
+      "VERCEL_GIT_REPO_ID",
+      "VERCEL_GIT_COMMIT_REF",
+      "VERCEL_GIT_COMMIT_SHA",
+      "VERCEL_GIT_COMMIT_MESSAGE",
+      "VERCEL_GIT_COMMIT_AUTHOR_LOGIN",
+      "VERCEL_GIT_COMMIT_AUTHOR_NAME",
+      "VERCEL_GIT_PULL_REQUEST_ID",
+      "TURBO_PLATFORM_ENV",
+      "SESSION_SECRET",
+      "TOKEN_ENCRYPTION_KEY",
+      "ADMIN_EMAIL",
+      "ADMIN_PASSWORD",
+      "EBAY_ENV",
+      "EBAY_CLIENT_ID",
+      "EBAY_CLIENT_SECRET",
+      "EBAY_RU_NAME",
+      "EBAY_DELETION_VERIFICATION_TOKEN",
+      "EBAY_DELETION_ENDPOINT_URL",
+      "DATABASE_URL",
+      "R2_ACCOUNT_ID",
+      "R2_ACCESS_KEY_ID",
+      "R2_SECRET_ACCESS_KEY",
+      "R2_BUCKET_NAME",
+      "R2_PUBLIC_BASE_URL",
+      "CRON_SECRET",
+      "HUGGINGFACE_API_TOKEN",
+      "CF_ACCOUNT_ID",
+      "CF_API_TOKEN",
+      "SHOPIFY_STORE_DOMAIN",
+      "SHOPIFY_LOCATION_ID",
+      "MIGRATE_SECRET",
+      "LOCAL_AI_WORKER_TOKEN",
+      "DEWATERMARK_API_KEY",
+      "POCAMARKET_BRIDGE_TOKEN",
+      "SHOPIFY_CLIENT_ID",
+      "SHOPIFY_CLIENT_SECRET",
+      "EBAY_SCOPES",
+      "VERCEL_DISCOVER_FOLDER_SIZES",
+      "VERCEL_LAMBDA_OUTPUTS_AS_MIDDLEWARE",
+      "VERCEL_NEXT_BUNDLED_SERVER",
+      "VERCEL_SERVERLESS_FUNCTION_FAILOVER",
+      "VERCEL_INVALIDATE_BUILD_CACHE_ON_SIZE_EXCEEDED",
+      "USE_RUST_LAYER_LATEST",
+      "VERCEL_ENABLE_BUN_1_4_LAYER_INJECTION",
+      "VERCEL_EDGE_FNS_ON_WORKERD",
+      "VERCEL_EDGE_FNS_ON_WORKERD_UNBUNDLED_FORMAT",
+      "VERCEL_EDGE_ON_SERVERLESS_NODE",
+      "VERCEL_EDGE_FNS_ON_SERVERLESS",
+      "VERCEL_EDGE_FNS_ON_SERVERLESS_USE_FILESYSTEM_CONTENT",
+      "VERCEL_NODE_BRIDGE_COMPRESS_MULTI_PAYLOADS",
+      "VERCEL_ENABLE_FUNCTION_WARMING",
+      "VERCEL_USE_BYTECODE_CACHING",
+      "VERCEL_COMPRESS_SERVERLESS_RESPONSE",
+      "VERCEL_SET_REQUESTED_AT_PRODUCTION_ON_DEPLOYMENT",
+      "VERCEL_COMPACT_POST_LAMBDA",
+      "VERCEL_ENABLE_REGIONALIZED_ISR",
+      "VERCEL_COMPRESSED_ISR_BILLING",
+      "VERCEL_ENABLE_PARALLEL_CACHE_DOWNLOAD",
+      "VERCEL_USE_DEFAULT_PNPM_10",
+      "VERCEL_ENABLE_PATH_LOOKUP_BLOOM_FILTER",
+      "VERCEL_ENABLE_UNCOMPRESSED_LAMBDA_SIZE_CHECK",
+      "NEXT_EXPERIMENTAL_LARGE_FUNCTIONS",
+      "VERCEL_DEPLOYMENT_USE_REDIS_PUB_SUB_FOR_ALIAS_EVENT",
+      "VERCEL_USE_API_CONNECTORS",
+      "VERCEL_EDGE_MIDDLEWARE_WITH_NODEJS_24",
+      "VERCEL_EDGE_FUNCTIONS_WITH_NODEJS_24",
+      "VERCEL_DETECT_CRYPTO_MINER_IN_BUILD_LOG",
+      "NEXT_ENABLE_ADAPTER",
+      "VERCEL_SKIP_EDGE_FUNCTION_ENDPOINT",
+      "VERCEL_ENABLE_DIRECT_BUILD_EXECUTION",
+      "VERCEL_PREWARM_CLI",
+      "VERCEL_SKIP_DEPLOYMENT_BUILDS_READ_FOR_CLI_BUILDS",
+      "VERCEL_FUNCTION_VSM_S3_WRITE",
+      "VERCEL_FUNCTION_VSM_ENV_S3_ONLY",
+      "VERCEL_ENABLE_WORKFLOW_CONSUMER_CHECK",
+      "VERCEL_ENABLE_BUILD_CONTAINER_SOURCE_PREFETCH",
+      "VERCEL_ENABLE_VERCEL_TOML",
+      "VERCEL_IMMUTABLE_STATIC_FILES_ENABLED",
+      "VERCEL_ENABLE_BASIC_BUILD_MACHINES_ROUTING",
+      "VERCEL_ENABLE_INTERNAL_MIDDLEWARE_PREFETCH",
+      "VERCEL_ENABLE_INTERNAL_MIDDLEWARE_CACHE",
+      "VERCEL_CONSOLIDATE_CREATE_METADATA",
+      "VERCEL_UNIVERSAL_ENCRYPTED_ENV_FILE_SUPPORT",
+      "VERCEL_USE_NEW_LAMBDA_OUTPUT_HANDLER",
+      "VERCEL_SKIP_METADATA_PATH",
+      "VERCEL_SKIP_PER_PATH_METADATA",
+      "VERCEL_ENABLE_FUNCTION_ENV_DOCUMENT_WRITE",
+      "VERCEL_INCLUDE_GROUP_IN_MANIFEST",
+      "VERCEL_SKIP_EMPTY_FUNCTION_PATH_UPLOADS",
+      "VERCEL_EVAL_LAMBDA_GROUPING_RATIO",
+      "VERCEL_PREFER_NEXTJS_PREVIEW_COMMENTS_INJECTION",
+      "VERCEL_PYTHON_COMPILEALL",
+      "VERCEL_FASTAPI_STATIC_CDN",
+      "VERCEL_RESOLVE_ROOT_DIRECTORY",
+      "VERCEL_ENABLE_VHS_FUNCTION_IMAGES",
+      "VERCEL_FORCE_FUNCTION_VHS_BUILDS",
+      "VERCEL_BUILD_OUTPUTS_S3_SEMA",
+      "VERCEL_BUILD_OUTPUTS_PATHS_METADATA_UPLOAD_SEMA",
+      "VERCEL_BUILD_OUTPUTS_S3_OUTPUT_RECORDS_SEMA",
+      "VERCEL_BUILD_OUTPUTS_S3_HEAD_SEMA",
+      "VERCEL_MIDDLEWARE_DEFAULT_RUNTIME_NODEJS",
+      "VERCEL_DEPLOYMENT_ID",
+      "VERCEL_PROJECT_ID",
+      "VERCEL_PROJECT_NAME",
+      "VERCEL_PROJECT_PRODUCTION_URL",
+      "VERCEL_SKEW_PROTECTION_ENABLED",
+      "NEXT_DEPLOYMENT_ID",
+      "VERCEL_AUTOMATION_BYPASS_SECRET",
+      "VERCEL_DEPLOYMENT_KEY",
+      "VERCEL_HASH_SALT",
+      "VERCEL_OBSERVABILITY_CLIENT_CONFIG",
+      "NEXT_PUBLIC_VERCEL_OBSERVABILITY_CLIENT_CONFIG",
+      "REACT_APP_VERCEL_OBSERVABILITY_CLIENT_CONFIG",
+      "PUBLIC_VERCEL_OBSERVABILITY_CLIENT_CONFIG",
+      "VITE_VERCEL_OBSERVABILITY_CLIENT_CONFIG",
+      "VERCEL_BUILD_OUTPUTS_POST_LAMBDA_SEMA",
+      "VERCEL_EDGE_MIDDLEWARE_MEMORY_SIZE",
+      "VERCEL_EDGE_FUNCTIONS_MEMORY_SIZE",
+      "VERCEL_EDGE_FUNCTIONS_BATCH_SIZE",
+      "VERCEL_OIDC_TOKEN",
+      "VERCEL_EDGE_FUNCTIONS_ENABLE_CREATE_FUNC_DEDUPE",
+      "VERCEL_EDGE_FUNCTIONS_USE_FILESYSTEM_CONTENT",
+      "NEXT_PRIVATE_MULTI_PAYLOAD",
+      "VERCEL_RICHER_DEPLOYMENT_OUTPUTS",
+      "VERCEL_SERVERLESS_SUSPENSE_CACHE",
+      "VERCEL_BUILD_MONOREPO_SUPPORT",
+      "VERCEL_USE_ONLY_STREAMING_LAMBDA",
+      "VERCEL_USE_STREAMING_PRERENDER",
+      "VERCEL_ENABLE_EXTENDED_FALLBACK_PAYLOAD",
+      "VERCEL_CLI_ROLLOUT_VERSION",
+      "VERCEL_PREVIEW_COMMENTS_ENABLED",
+      "VERCEL_ENV_ENC_KEY",
+      "VERCEL_ENCRYPTED_ENV_CONTENT",
+      "VERCEL_ENCRYPTED_ENV_FILENAME"
+    ]
+  },
+  "builds": [],
+  "createdIn": "sfo1",
+  "crons": [
+    {
+      "path": "/api/cron/keepalive",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/ebay-active-report",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/0",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/1",
+      "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/2",
+      "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/3",
+      "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/4",
+      "schedule": "0 19 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/5",
+      "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/6",
+      "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/7",
+      "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/8",
+      "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/9",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/10",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/11",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/12",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/13",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/14",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/15",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/16",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/17",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/18",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/19",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/20",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/21",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/22",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync/schedule/23",
+      "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-catalog",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/pocamarket-sync?resumeOnly=1",
+      "schedule": "* * * * *"
+    }
+  ],
+  "env": [
+    "CI",
+    "VERCEL",
+    "VERCEL_ENV",
+    "VERCEL_TARGET_ENV",
+    "TURBO_REMOTE_ONLY",
+    "TURBO_RUN_SUMMARY",
+    "TURBO_DOWNLOAD_LOCAL_ENABLED",
+    "NX_DAEMON",
+    "TURBO_CACHE",
+    "VERCEL_URL",
+    "VERCEL_GIT_PROVIDER",
+    "VERCEL_GIT_PREVIOUS_SHA",
+    "VERCEL_GIT_REPO_SLUG",
+    "VERCEL_GIT_REPO_OWNER",
+    "VERCEL_GIT_REPO_ID",
+    "VERCEL_GIT_COMMIT_REF",
+    "VERCEL_GIT_COMMIT_SHA",
+    "VERCEL_GIT_COMMIT_MESSAGE",
+    "VERCEL_GIT_COMMIT_AUTHOR_LOGIN",
+    "VERCEL_GIT_COMMIT_AUTHOR_NAME",
+    "VERCEL_GIT_PULL_REQUEST_ID",
+    "TURBO_PLATFORM_ENV",
+    "SESSION_SECRET",
+    "TOKEN_ENCRYPTION_KEY",
+    "ADMIN_EMAIL",
+    "ADMIN_PASSWORD",
+    "EBAY_ENV",
+    "EBAY_CLIENT_ID",
+    "EBAY_CLIENT_SECRET",
+    "EBAY_RU_NAME",
+    "EBAY_DELETION_VERIFICATION_TOKEN",
+    "EBAY_DELETION_ENDPOINT_URL",
+    "DATABASE_URL",
+    "R2_ACCOUNT_ID",
+    "R2_ACCESS_KEY_ID",
+    "R2_SECRET_ACCESS_KEY",
+    "R2_BUCKET_NAME",
+    "R2_PUBLIC_BASE_URL",
+    "CRON_SECRET",
+    "HUGGINGFACE_API_TOKEN",
+    "CF_ACCOUNT_ID",
+    "CF_API_TOKEN",
+    "SHOPIFY_STORE_DOMAIN",
+    "SHOPIFY_LOCATION_ID",
+    "MIGRATE_SECRET",
+    "LOCAL_AI_WORKER_TOKEN",
+    "DEWATERMARK_API_KEY",
+    "POCAMARKET_BRIDGE_TOKEN",
+    "SHOPIFY_CLIENT_ID",
+    "SHOPIFY_CLIENT_SECRET",
+    "EBAY_SCOPES",
+    "VERCEL_DISCOVER_FOLDER_SIZES",
+    "VERCEL_LAMBDA_OUTPUTS_AS_MIDDLEWARE",
+    "VERCEL_NEXT_BUNDLED_SERVER",
+    "VERCEL_SERVERLESS_FUNCTION_FAILOVER",
+    "VERCEL_INVALIDATE_BUILD_CACHE_ON_SIZE_EXCEEDED",
+    "USE_RUST_LAYER_LATEST",
+    "VERCEL_ENABLE_BUN_1_4_LAYER_INJECTION",
+    "VERCEL_EDGE_FNS_ON_WORKERD",
+    "VERCEL_EDGE_FNS_ON_WORKERD_UNBUNDLED_FORMAT",
+    "VERCEL_EDGE_ON_SERVERLESS_NODE",
+    "VERCEL_EDGE_FNS_ON_SERVERLESS",
+    "VERCEL_EDGE_FNS_ON_SERVERLESS_USE_FILESYSTEM_CONTENT",
+    "VERCEL_NODE_BRIDGE_COMPRESS_MULTI_PAYLOADS",
+    "VERCEL_ENABLE_FUNCTION_WARMING",
+    "VERCEL_USE_BYTECODE_CACHING",
+    "VERCEL_COMPRESS_SERVERLESS_RESPONSE",
+    "VERCEL_SET_REQUESTED_AT_PRODUCTION_ON_DEPLOYMENT",
+    "VERCEL_COMPACT_POST_LAMBDA",
+    "VERCEL_ENABLE_REGIONALIZED_ISR",
+    "VERCEL_COMPRESSED_ISR_BILLING",
+    "VERCEL_ENABLE_PARALLEL_CACHE_DOWNLOAD",
+    "VERCEL_USE_DEFAULT_PNPM_10",
+    "VERCEL_ENABLE_PATH_LOOKUP_BLOOM_FILTER",
+    "VERCEL_ENABLE_UNCOMPRESSED_LAMBDA_SIZE_CHECK",
+    "NEXT_EXPERIMENTAL_LARGE_FUNCTIONS",
+    "VERCEL_DEPLOYMENT_USE_REDIS_PUB_SUB_FOR_ALIAS_EVENT",
+    "VERCEL_USE_API_CONNECTORS",
+    "VERCEL_EDGE_MIDDLEWARE_WITH_NODEJS_24",
+    "VERCEL_EDGE_FUNCTIONS_WITH_NODEJS_24",
+    "VERCEL_DETECT_CRYPTO_MINER_IN_BUILD_LOG",
+    "NEXT_ENABLE_ADAPTER",
+    "VERCEL_SKIP_EDGE_FUNCTION_ENDPOINT",
+    "VERCEL_ENABLE_DIRECT_BUILD_EXECUTION",
+    "VERCEL_PREWARM_CLI",
+    "VERCEL_SKIP_DEPLOYMENT_BUILDS_READ_FOR_CLI_BUILDS",
+    "VERCEL_FUNCTION_VSM_S3_WRITE",
+    "VERCEL_FUNCTION_VSM_ENV_S3_ONLY",
+    "VERCEL_ENABLE_WORKFLOW_CONSUMER_CHECK",
+    "VERCEL_ENABLE_BUILD_CONTAINER_SOURCE_PREFETCH",
+    "VERCEL_ENABLE_VERCEL_TOML",
+    "VERCEL_IMMUTABLE_STATIC_FILES_ENABLED",
+    "VERCEL_ENABLE_BASIC_BUILD_MACHINES_ROUTING",
+    "VERCEL_ENABLE_INTERNAL_MIDDLEWARE_PREFETCH",
+    "VERCEL_ENABLE_INTERNAL_MIDDLEWARE_CACHE",
+    "VERCEL_CONSOLIDATE_CREATE_METADATA",
+    "VERCEL_UNIVERSAL_ENCRYPTED_ENV_FILE_SUPPORT",
+    "VERCEL_USE_NEW_LAMBDA_OUTPUT_HANDLER",
+    "VERCEL_SKIP_METADATA_PATH",
+    "VERCEL_SKIP_PER_PATH_METADATA",
+    "VERCEL_ENABLE_FUNCTION_ENV_DOCUMENT_WRITE",
+    "VERCEL_INCLUDE_GROUP_IN_MANIFEST",
+    "VERCEL_SKIP_EMPTY_FUNCTION_PATH_UPLOADS",
+    "VERCEL_EVAL_LAMBDA_GROUPING_RATIO",
+    "VERCEL_PREFER_NEXTJS_PREVIEW_COMMENTS_INJECTION",
+    "VERCEL_PYTHON_COMPILEALL",
+    "VERCEL_FASTAPI_STATIC_CDN",
+    "VERCEL_RESOLVE_ROOT_DIRECTORY",
+    "VERCEL_ENABLE_VHS_FUNCTION_IMAGES",
+    "VERCEL_FORCE_FUNCTION_VHS_BUILDS",
+    "VERCEL_BUILD_OUTPUTS_S3_SEMA",
+    "VERCEL_BUILD_OUTPUTS_PATHS_METADATA_UPLOAD_SEMA",
+    "VERCEL_BUILD_OUTPUTS_S3_OUTPUT_RECORDS_SEMA",
+    "VERCEL_BUILD_OUTPUTS_S3_HEAD_SEMA",
+    "VERCEL_MIDDLEWARE_DEFAULT_RUNTIME_NODEJS",
+    "VERCEL_DEPLOYMENT_ID",
+    "VERCEL_PROJECT_ID",
+    "VERCEL_PROJECT_NAME",
+    "VERCEL_PROJECT_PRODUCTION_URL",
+    "VERCEL_SKEW_PROTECTION_ENABLED",
+    "NEXT_DEPLOYMENT_ID",
+    "VERCEL_AUTOMATION_BYPASS_SECRET",
+    "VERCEL_DEPLOYMENT_KEY",
+    "VERCEL_HASH_SALT",
+    "VERCEL_OBSERVABILITY_CLIENT_CONFIG",
+    "NEXT_PUBLIC_VERCEL_OBSERVABILITY_CLIENT_CONFIG",
+    "REACT_APP_VERCEL_OBSERVABILITY_CLIENT_CONFIG",
+    "PUBLIC_VERCEL_OBSERVABILITY_CLIENT_CONFIG",
+    "VITE_VERCEL_OBSERVABILITY_CLIENT_CONFIG",
+    "VERCEL_BUILD_OUTPUTS_POST_LAMBDA_SEMA",
+    "VERCEL_EDGE_MIDDLEWARE_MEMORY_SIZE",
+    "VERCEL_EDGE_FUNCTIONS_MEMORY_SIZE",
+    "VERCEL_EDGE_FUNCTIONS_BATCH_SIZE",
+    "VERCEL_OIDC_TOKEN",
+    "VERCEL_EDGE_FUNCTIONS_ENABLE_CREATE_FUNC_DEDUPE",
+    "VERCEL_EDGE_FUNCTIONS_USE_FILESYSTEM_CONTENT",
+    "NEXT_PRIVATE_MULTI_PAYLOAD",
+    "VERCEL_RICHER_DEPLOYMENT_OUTPUTS",
+    "VERCEL_SERVERLESS_SUSPENSE_CACHE",
+    "VERCEL_BUILD_MONOREPO_SUPPORT",
+    "VERCEL_USE_ONLY_STREAMING_LAMBDA",
+    "VERCEL_USE_STREAMING_PRERENDER",
+    "VERCEL_ENABLE_EXTENDED_FALLBACK_PAYLOAD",
+    "VERCEL_CLI_ROLLOUT_VERSION",
+    "VERCEL_PREVIEW_COMMENTS_ENABLED",
+    "VERCEL_ENV_ENC_KEY",
+    "VERCEL_ENCRYPTED_ENV_CONTENT",
+    "VERCEL_ENCRYPTED_ENV_FILENAME"
+  ],
+  "functions": null,
+  "inspectorUrl": "https://vercel.com/tngks2313-9711s-projects/ebay-order-manager/FCVVgTX1sGSdpUQfe6ZCRRZcP2s7",
+  "isInConcurrentBuildsQueue": false,
+  "isInSystemBuildsQueue": false,
+  "ownerId": "team_9dUKn9F1VUpGxnxJnzdF6EDw",
+  "plan": "pro",
+  "projectId": "prj_UX0D51b0mOs6cuvB0yaTUJ9zlJ3Q",
+  "resourceConfig": {
+    "buildMachine": {
+      "defaultPurchaseType": "standard",
+      "purchaseType": "standard",
+      "machineSelectionType": "elastic",
+      "selectionSource": "elastic-algorithm",
+      "cores": 4,
+      "memory": 8192
+    }
+  },
+  "projectSettings": {
+    "buildCommand": "node prisma/apply-catalog-discovery.mjs && npm run build",
+    "devCommand": null,
+    "framework": "nextjs",
+    "commandForIgnoringBuildStep": null,
+    "installCommand": null,
+    "outputDirectory": null,
+    "speedInsights": {
+      "id": "JopinskXMiLqZ5Ai1QHhc4eOLvX",
+      "hasData": false
+    },
+    "webAnalytics": {
+      "id": "8LNotb2WjxVbT0jSm1AcgBms2"
+    },
+    "nodeVersion": "24.x"
+  },
+  "routes": null,
+  "images": {
+    "localPatterns": [
+      {
+        "pathname": "^(?:(?!(?:^|\\/)\\.{1,2}(?:\\/|$))(?:(?:(?!(?:^|\\/)\\.{1,2}(?:\\/|$)).)*?)\\/?)$",
+        "search": ""
+      }
+    ],
+    "remotePatterns": [],
+    "sizes": [
+      32,
+      48,
+      64,
+      96,
+      128,
+      256,
+      384,
+      640,
+      750,
+      828,
+      1080,
+      1200,
+      1920,
+      2048,
+      3840
+    ],
+    "domains": [],
+    "qualities": [
+      75
+    ],
+    "minimumCacheTTL": 14400,
+    "formats": [
+      "image/webp"
+    ],
+    "dangerouslyAllowSVG": false,
+    "contentSecurityPolicy": "script-src 'none'; frame-src 'none'; sandbox;",
+    "contentDispositionType": "attachment"
+  },
+  "config": {
+    "version": 1,
+    "secureComputePrimaryRegion": null,
+    "secureComputeFallbackRegion": null,
+    "functionTimeout": 300,
+    "functionType": "fluid",
+    "functionMemoryType": "standard",
+    "isUsingActiveCPU": true,
+    "resourceConfig": {
+      "buildMachine": {
+        "defaultPurchaseType": "standard",
+        "purchaseType": "standard",
+        "machineSelectionType": "elastic",
+        "selectionSource": "elastic-algorithm"
+      },
+      "buildQueue": {
+        "configuration": "SKIP_NAMESPACE_QUEUE"
+      },
+      "elasticConcurrency": "PROJECT_SETTING"
+    }
+  },
+  "attribution": {
+    "commitMeta": {
+      "name": "swan0329",
+      "email": "tngks2313@gmail.com",
+      "isVerified": false
+    }
+  }
+}

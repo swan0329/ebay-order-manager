@@ -1,0 +1,17 @@
+[
+  {
+    "sku": "12890",
+    "ok": true,
+    "status": "ACTIVE"
+  },
+  {
+    "sku": "14841",
+    "ok": true,
+    "status": "ACTIVE"
+  },
+  {
+    "sku": "14939",
+    "ok": true,
+    "status": "ACTIVE"
+  }
+]

@@ -1,0 +1,253 @@
+{
+  "products": [
+    {
+      "sku": "296333",
+      "product": {
+        "id": "c8071f57-aa5d-4e2e-87cb-2d8ac9ccc7e3",
+        "sku": "296333",
+        "pocamarketId": "296333",
+        "isSoldOut": false,
+        "pocamarketAvailableCount": 1,
+        "pocamarketSyncedAt": "2026-09-14T22:18:25.230Z",
+        "pocamarketLastAttemptAt": "2026-09-14T22:18:25.230Z",
+        "costPrice": null,
+        "salePrice": "25000",
+        "stockQuantity": 0,
+        "imageUrl": "https://pub-c297f3c41a38429e9973fe44e9bf5f2e.r2.dev/products/bts-approved-photos/9b6872efc014b398efbfe2c7d01071aa3eeefcf486ce35042679c09034b20d9d.jpg",
+        "ebayPrice": "47.9",
+        "finalListingPriceUsd": null,
+        "finalListingPriceSource": null,
+        "finalListingPriceApprovedAt": null,
+        "finalListingPriceApprovedById": null,
+        "ebayItemId": "158281824145",
+        "ebayLastSyncedPrice": "47.9",
+        "shopifyVariantId": "54293535981936",
+        "shopifyLastSyncedPrice": "47.9"
+      },
+      "orders": [
+        {
+          "id": "cmu21ixk2002ljh04wmd1k765",
+          "quantity": 1,
+          "order": {
+            "id": "cmu21ixk2002ljh04wmd1k765",
+            "orderDate": "2026-09-14T14:38:16.000Z",
+            "totalAmount": "51.4",
+            "currency": "USD",
+            "salesChannel": "EBAY"
+          },
+          "raw": {
+            "total": {
+              "value": "10.6",
+              "currency": "USD"
+            },
+            "deliveryCost": {
+              "shippingCost": {
+                "value": "0.0",
+                "currency": "USD"
+              },
+              "discountAmount": {
+                "value": "9.0",
+                "currency": "USD"
+              }
+            },
+            "lineItemCost": {
+              "value": "10.6",
+              "currency": "USD"
+            },
+            "appliedPromotions": []
+          }
+        }
+      ]
+    },
+    {
+      "sku": "284272",
+      "product": {
+        "id": "abab1b3b-3a30-44e7-b65b-fe88755c1c5b",
+        "sku": "284272",
+        "pocamarketId": "284272",
+        "isSoldOut": false,
+        "pocamarketAvailableCount": 1,
+        "pocamarketSyncedAt": "2026-09-14T22:17:16.758Z",
+        "pocamarketLastAttemptAt": "2026-09-14T22:17:16.758Z",
+        "costPrice": null,
+        "salePrice": "30000",
+        "stockQuantity": 0,
+        "imageUrl": "https://pub-c297f3c41a38429e9973fe44e9bf5f2e.r2.dev/products/bts-approved-photos/c7d9a1c21ed019e9d3341c36ed1d1c63a79b6aa5da645f0670a5d45273a11f44.jpg",
+        "ebayPrice": "55.4",
+        "finalListingPriceUsd": null,
+        "finalListingPriceSource": null,
+        "finalListingPriceApprovedAt": null,
+        "finalListingPriceApprovedById": null,
+        "ebayItemId": "158281806012",
+        "ebayLastSyncedPrice": "55.4",
+        "shopifyVariantId": "54293507015024",
+        "shopifyLastSyncedPrice": "55.4"
+      },
+      "orders": [
+        {
+          "id": "cmu21ixk2002ljh04wmd1k765",
+          "quantity": 1,
+          "order": {
+            "id": "cmu21ixk2002ljh04wmd1k765",
+            "orderDate": "2026-09-14T14:38:16.000Z",
+            "totalAmount": "51.4",
+            "currency": "USD",
+            "salesChannel": "EBAY"
+          },
+          "raw": {
+            "total": {
+              "value": "10.6",
+              "currency": "USD"
+            },
+            "deliveryCost": {
+              "shippingCost": {
+                "value": "0.0",
+                "currency": "USD"
+              },
+              "discountAmount": {
+                "value": "9.0",
+                "currency": "USD"
+              }
+            },
+            "lineItemCost": {
+              "value": "10.6",
+              "currency": "USD"
+            },
+            "appliedPromotions": []
+          }
+        }
+      ]
+    },
+    {
+      "sku": "284806",
+      "product": {
+        "id": "689dcedf-3ed9-479f-bbf8-f70bbbef7a6d",
+        "sku": "284806",
+        "pocamarketId": "284806",
+        "isSoldOut": true,
+        "pocamarketAvailableCount": 0,
+        "pocamarketSyncedAt": "2026-09-14T22:18:04.868Z",
+        "pocamarketLastAttemptAt": "2026-09-14T22:18:04.868Z",
+        "costPrice": null,
+        "salePrice": null,
+        "stockQuantity": 0,
+        "imageUrl": "https://pub-c297f3c41a38429e9973fe44e9bf5f2e.r2.dev/products/bts-approved-photos/50cbec8480542184cf65e5ecf6351b1826e03f8a350acf31f75967d69b4d95b7.jpg",
+        "ebayPrice": "32.9",
+        "finalListingPriceUsd": null,
+        "finalListingPriceSource": null,
+        "finalListingPriceApprovedAt": null,
+        "finalListingPriceApprovedById": null,
+        "ebayItemId": "158281814368",
+        "ebayLastSyncedPrice": "10.6",
+        "shopifyVariantId": "54293441347952",
+        "shopifyLastSyncedPrice": null
+      },
+      "orders": [
+        {
+          "id": "cmu21ixk2002ljh04wmd1k765",
+          "quantity": 1,
+          "order": {
+            "id": "cmu21ixk2002ljh04wmd1k765",
+            "orderDate": "2026-09-14T14:38:16.000Z",
+            "totalAmount": "51.4",
+            "currency": "USD",
+            "salesChannel": "EBAY"
+          },
+          "raw": {
+            "total": {
+              "value": "19.6",
+              "currency": "USD"
+            },
+            "deliveryCost": {
+              "shippingCost": {
+                "value": "9.0",
+                "currency": "USD"
+              }
+            },
+            "lineItemCost": {
+              "value": "10.6",
+              "currency": "USD"
+            },
+            "appliedPromotions": []
+          }
+        }
+      ]
+    },
+    {
+      "sku": "287832",
+      "product": {
+        "id": "f488eca7-1b78-4150-9ebd-2b9ce0abe5ae",
+        "sku": "287832",
+        "pocamarketId": "287832",
+        "isSoldOut": false,
+        "pocamarketAvailableCount": 2,
+        "pocamarketSyncedAt": "2026-09-14T22:18:19.136Z",
+        "pocamarketLastAttemptAt": "2026-09-14T22:18:19.136Z",
+        "costPrice": null,
+        "salePrice": "20000",
+        "stockQuantity": 0,
+        "imageUrl": "https://pub-c297f3c41a38429e9973fe44e9bf5f2e.r2.dev/products/bts-approved-photos/758758533d5e2721ef12ca52018598424a6ce87d56fb6644e0e495dd903c74ae.jpg",
+        "ebayPrice": "40.4",
+        "finalListingPriceUsd": null,
+        "finalListingPriceSource": null,
+        "finalListingPriceApprovedAt": null,
+        "finalListingPriceApprovedById": null,
+        "ebayItemId": "158281818524",
+        "ebayLastSyncedPrice": "40.4",
+        "shopifyVariantId": "54293599125872",
+        "shopifyLastSyncedPrice": "40.4"
+      },
+      "orders": [
+        {
+          "id": "cmu21ixk2002ljh04wmd1k765",
+          "quantity": 1,
+          "order": {
+            "id": "cmu21ixk2002ljh04wmd1k765",
+            "orderDate": "2026-09-14T14:38:16.000Z",
+            "totalAmount": "51.4",
+            "currency": "USD",
+            "salesChannel": "EBAY"
+          },
+          "raw": {
+            "total": {
+              "value": "10.6",
+              "currency": "USD"
+            },
+            "deliveryCost": {
+              "shippingCost": {
+                "value": "0.0",
+                "currency": "USD"
+              },
+              "discountAmount": {
+                "value": "9.0",
+                "currency": "USD"
+              }
+            },
+            "lineItemCost": {
+              "value": "10.6",
+              "currency": "USD"
+            },
+            "appliedPromotions": []
+          }
+        }
+      ]
+    }
+  ],
+  "settings": {
+    "settings": {
+      "id": "default",
+      "domesticShippingKrw": "3000",
+      "buyingAgencyFeeKrw": "4000",
+      "exchangeRateKrwPerUsd": "1459.45",
+      "targetMarginRate": "0.5",
+      "ebayFeeRate": "0.1325",
+      "advertisingRate": "0.18",
+      "minimumSalePriceUsd": null,
+      "roundingIncrementUsd": "0.1",
+      "allocationMethod": "PER_CARD_FIXED",
+      "updatedById": "cmov263l40000gpbuoc0efeq0",
+      "createdAt": "2026-07-29T03:58:55.314Z",
+      "updatedAt": "2026-07-29T03:58:55.314Z"
+    }
+  }
+}

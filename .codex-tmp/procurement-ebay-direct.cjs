@@ -1,0 +1,1 @@
+const fs=require('fs');const {call}=require('./procurement-live.cjs');(async()=>{const r=await call('/api/ebay/sales-hold',{productIds:['03353d17-425a-4e63-8532-91d3f9336343','4ab316b6-4165-4632-891f-1dd69adc7215']});fs.writeFileSync('.codex-tmp/procurement-ebay-direct-hold.json',JSON.stringify(r));console.log(JSON.stringify(r));})();

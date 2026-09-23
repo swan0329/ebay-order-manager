@@ -1,0 +1,30 @@
+[
+  {
+    "sku": "296333",
+    "observedAt": "2026-09-15T02:39:44.473Z",
+    "price": 25000,
+    "isSoldOut": false,
+    "availableCount": 1
+  },
+  {
+    "sku": "284272",
+    "observedAt": "2026-09-15T02:39:44.597Z",
+    "price": 30000,
+    "isSoldOut": false,
+    "availableCount": 1
+  },
+  {
+    "sku": "284806",
+    "observedAt": "2026-09-15T02:39:44.632Z",
+    "price": 0,
+    "isSoldOut": true,
+    "availableCount": 0
+  },
+  {
+    "sku": "287832",
+    "observedAt": "2026-09-15T02:39:44.654Z",
+    "price": 20000,
+    "isSoldOut": false,
+    "availableCount": 2
+  }
+]

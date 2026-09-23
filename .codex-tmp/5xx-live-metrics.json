@@ -1,0 +1,22 @@
+[
+  {
+    "name": "stats",
+    "error": false,
+    "result": "200 4.275870"
+  },
+  {
+    "name": "counts-a",
+    "error": false,
+    "result": "200 17.386816"
+  },
+  {
+    "name": "counts-b",
+    "error": false,
+    "result": "200 18.989038"
+  },
+  {
+    "name": "progress",
+    "error": false,
+    "result": "200 2.688284"
+  }
+]

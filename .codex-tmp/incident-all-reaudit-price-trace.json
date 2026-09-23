@@ -1,0 +1,74 @@
+[
+  {
+    "file": "order-four-actual.json",
+    "sku": "296333",
+    "price": {
+      "#text": "47.9",
+      "@_currencyID": "USD"
+    }
+  },
+  {
+    "file": "order-four-actual.json",
+    "sku": "284272",
+    "price": {
+      "#text": "55.4",
+      "@_currencyID": "USD"
+    }
+  },
+  {
+    "file": "order-four-actual.json",
+    "sku": "284806",
+    "price": {
+      "#text": "10.6",
+      "@_currencyID": "USD"
+    }
+  },
+  {
+    "file": "order-four-actual.json",
+    "sku": "287832",
+    "price": {
+      "#text": "40.4",
+      "@_currencyID": "USD"
+    }
+  },
+  {
+    "file": "order-four-market.json",
+    "sku": "296333",
+    "price": 25000
+  },
+  {
+    "file": "order-four-market.json",
+    "sku": "284272",
+    "price": 30000
+  },
+  {
+    "file": "order-four-market.json",
+    "sku": "284806",
+    "price": 0
+  },
+  {
+    "file": "order-four-market.json",
+    "sku": "287832",
+    "price": 20000
+  },
+  {
+    "file": "procurement-source-suspects.json",
+    "sku": "284806",
+    "cost": "32.9"
+  },
+  {
+    "file": "procurement-source-suspects.json",
+    "sku": "287832",
+    "cost": "40.4"
+  },
+  {
+    "file": "procurement-source-suspects.json",
+    "sku": "284272",
+    "cost": "55.4"
+  },
+  {
+    "file": "procurement-source-suspects.json",
+    "sku": "296333",
+    "cost": "47.9"
+  }
+]

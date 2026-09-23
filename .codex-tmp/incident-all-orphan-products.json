@@ -1,0 +1,26 @@
+[
+  {
+    "id": "73f6b229-208c-4956-ac54-2ba30ab79cc1",
+    "sku": "182226",
+    "salePrice": "500",
+    "pocamarketId": "182226",
+    "stockQuantity": 6,
+    "pocamarketAvailableCount": 20,
+    "pocamarketSyncedAt": "2026-09-14T23:11:00.457Z",
+    "ebayItemId": "158183489423",
+    "listingStatus": "ACTIVE",
+    "finalListingPriceUsd": null
+  },
+  {
+    "id": "f22e06f4-8dae-4c3c-b757-947a56cb402b",
+    "sku": "182221",
+    "salePrice": "500",
+    "pocamarketId": "182221",
+    "stockQuantity": 9,
+    "pocamarketAvailableCount": 20,
+    "pocamarketSyncedAt": "2026-09-15T00:00:05.297Z",
+    "ebayItemId": "158183489423",
+    "listingStatus": "ACTIVE",
+    "finalListingPriceUsd": null
+  }
+]

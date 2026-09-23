@@ -1,0 +1,1 @@
+const fs=require('fs');const {call}=require('./procurement-live.cjs');(async()=>{const r=await call('/api/channel-publish-jobs?jobId=cmu0yozop0072kx04x4s3tstp');fs.writeFileSync('.codex-tmp/procurement-shopify-status.json',JSON.stringify(r));console.log(JSON.stringify(r));})();

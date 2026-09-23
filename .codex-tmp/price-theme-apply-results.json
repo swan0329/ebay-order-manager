@@ -1,0 +1,14 @@
+[
+  {
+    "key": "snippets/photocard-variant-cards.liquid",
+    "alreadyApplied": true
+  },
+  {
+    "key": "snippets/price.liquid",
+    "verified": true
+  },
+  {
+    "key": "blocks/buy-buttons.liquid",
+    "verified": true
+  }
+]

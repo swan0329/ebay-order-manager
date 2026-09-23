@@ -1,0 +1,76 @@
+﻿;
+; Archive created at 2026-08-13 04:58:42 UTC
+;     dbname: ebay_order_manager
+;     TOC Entries: 65
+;     Compression: gzip
+;     Dump Version: 1.15-0
+;     Format: CUSTOM
+;     Integer: 4 bytes
+;     Offset: 8 bytes
+;     Dumped from database version: 16.13 (Debian 16.13-1.pgdg13+1)
+;     Dumped by pg_dump version: 16.13 (Debian 16.13-1.pgdg13+1)
+;
+;
+; Selected TOC Entries:
+;
+854; 1247 16522 TYPE public EbayEnvironment postgres
+860; 1247 16536 TYPE public ShipmentStatus postgres
+857; 1247 16528 TYPE public SyncStatus postgres
+851; 1247 16519 TYPE public UserRole postgres
+215; 1259 16509 TABLE public _prisma_migrations postgres
+217; 1259 16552 TABLE public ebay_accounts postgres
+223; 1259 17065 TABLE public inventory_movements postgres
+219; 1259 16571 TABLE public order_items postgres
+218; 1259 16561 TABLE public orders postgres
+222; 1259 17054 TABLE public products postgres
+220; 1259 16580 TABLE public shipments postgres
+221; 1259 16590 TABLE public sync_logs postgres
+216; 1259 16543 TABLE public users postgres
+3524; 0 16509 TABLE DATA public _prisma_migrations postgres
+3526; 0 16552 TABLE DATA public ebay_accounts postgres
+3532; 0 17065 TABLE DATA public inventory_movements postgres
+3528; 0 16571 TABLE DATA public order_items postgres
+3527; 0 16561 TABLE DATA public orders postgres
+3531; 0 17054 TABLE DATA public products postgres
+3529; 0 16580 TABLE DATA public shipments postgres
+3530; 0 16590 TABLE DATA public sync_logs postgres
+3525; 0 16543 TABLE DATA public users postgres
+3334; 2606 16517 CONSTRAINT public _prisma_migrations _prisma_migrations_pkey postgres
+3339; 2606 16560 CONSTRAINT public ebay_accounts ebay_accounts_pkey postgres
+3368; 2606 17072 CONSTRAINT public inventory_movements inventory_movements_pkey postgres
+3349; 2606 16579 CONSTRAINT public order_items order_items_pkey postgres
+3344; 2606 16570 CONSTRAINT public orders orders_pkey postgres
+3362; 2606 17064 CONSTRAINT public products products_pkey postgres
+3355; 2606 16589 CONSTRAINT public shipments shipments_pkey postgres
+3359; 2606 16597 CONSTRAINT public sync_logs sync_logs_pkey postgres
+3337; 2606 16551 CONSTRAINT public users users_pkey postgres
+3340; 1259 16599 INDEX public ebay_accounts_user_id_environment_ebay_user_id_key postgres
+3369; 1259 17079 INDEX public inventory_movements_product_id_created_at_idx postgres
+3370; 1259 17081 INDEX public inventory_movements_related_order_id_idx postgres
+3371; 1259 17080 INDEX public inventory_movements_type_idx postgres
+3347; 1259 16604 INDEX public order_items_order_id_line_item_id_key postgres
+3350; 1259 17077 INDEX public order_items_product_id_idx postgres
+3351; 1259 16603 INDEX public order_items_sku_idx postgres
+3352; 1259 17078 INDEX public order_items_stock_deducted_idx postgres
+3341; 1259 16602 INDEX public orders_ebay_account_id_ebay_order_id_key postgres
+3342; 1259 16601 INDEX public orders_order_date_idx postgres
+3345; 1259 16600 INDEX public orders_user_id_fulfillment_status_idx postgres
+3346; 1259 17284 INDEX public orders_warning_level_idx postgres
+3363; 1259 17076 INDEX public products_product_name_idx postgres
+3364; 1259 17073 INDEX public products_sku_key postgres
+3365; 1259 17074 INDEX public products_status_idx postgres
+3366; 1259 17075 INDEX public products_stock_quantity_idx postgres
+3353; 1259 16606 INDEX public shipments_order_id_tracking_number_key postgres
+3356; 1259 16605 INDEX public shipments_status_idx postgres
+3357; 1259 16608 INDEX public sync_logs_created_at_idx postgres
+3360; 1259 16607 INDEX public sync_logs_type_status_idx postgres
+3335; 1259 16598 INDEX public users_login_id_key postgres
+3372; 2606 16609 FK CONSTRAINT public ebay_accounts ebay_accounts_user_id_fkey postgres
+3379; 2606 17087 FK CONSTRAINT public inventory_movements inventory_movements_product_id_fkey postgres
+3380; 2606 17092 FK CONSTRAINT public inventory_movements inventory_movements_related_order_id_fkey postgres
+3375; 2606 16624 FK CONSTRAINT public order_items order_items_order_id_fkey postgres
+3376; 2606 17082 FK CONSTRAINT public order_items order_items_product_id_fkey postgres
+3373; 2606 16619 FK CONSTRAINT public orders orders_ebay_account_id_fkey postgres
+3374; 2606 16614 FK CONSTRAINT public orders orders_user_id_fkey postgres
+3377; 2606 16629 FK CONSTRAINT public shipments shipments_order_id_fkey postgres
+3378; 2606 16634 FK CONSTRAINT public sync_logs sync_logs_user_id_fkey postgres

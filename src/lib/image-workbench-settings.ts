@@ -7,6 +7,10 @@ export type ImageWorkbenchSettings = {
   sharpness: number;
   watermarkStrength: number;
   localAiEnabled: boolean;
+  enhancementEnabled: boolean;
+  enhancementModel: "RealESRGAN_x2plus" | "RealESRGAN_x4plus" | "4x-UltraSharp";
+  enhancementScale: 2 | 4;
+  enhancementStrength: number;
 };
 
 const defaults: ImageWorkbenchSettings = {
@@ -16,6 +20,10 @@ const defaults: ImageWorkbenchSettings = {
   sharpness: 12,
   watermarkStrength: 110,
   localAiEnabled: false,
+  enhancementEnabled: true,
+  enhancementModel: "RealESRGAN_x2plus",
+  enhancementScale: 2,
+  enhancementStrength: 45,
 };
 
 async function ensureImageWorkbenchSettings() {
@@ -44,6 +52,10 @@ export async function getImageWorkbenchSettings(userId: string): Promise<ImageWo
     SELECT "brightness", "contrast", "saturation", "sharpness",
       "watermark_strength" AS "watermarkStrength",
       "local_ai_enabled" AS "localAiEnabled"
+      ,"enhancement_enabled" AS "enhancementEnabled"
+      ,"enhancement_model" AS "enhancementModel"
+      ,"enhancement_scale" AS "enhancementScale"
+      ,"enhancement_strength" AS "enhancementStrength"
     FROM "image_workbench_settings"
     WHERE "user_id" = ${userId} LIMIT 1
   `;
@@ -53,8 +65,8 @@ export async function getImageWorkbenchSettings(userId: string): Promise<ImageWo
 export async function saveImageWorkbenchSettings(userId: string, settings: ImageWorkbenchSettings) {
   await ensureImageWorkbenchSettings();
   await prisma.$executeRaw`
-    INSERT INTO "image_workbench_settings" ("user_id", "brightness", "contrast", "saturation", "sharpness", "watermark_strength", "local_ai_enabled", "updated_at")
-    VALUES (${userId}, ${settings.brightness}, ${settings.contrast}, ${settings.saturation}, ${settings.sharpness}, ${settings.watermarkStrength}, ${settings.localAiEnabled}, NOW())
+    INSERT INTO "image_workbench_settings" ("user_id", "brightness", "contrast", "saturation", "sharpness", "watermark_strength", "local_ai_enabled", "enhancement_enabled", "enhancement_model", "enhancement_scale", "enhancement_strength", "updated_at")
+    VALUES (${userId}, ${settings.brightness}, ${settings.contrast}, ${settings.saturation}, ${settings.sharpness}, ${settings.watermarkStrength}, ${settings.localAiEnabled}, ${settings.enhancementEnabled}, ${settings.enhancementModel}, ${settings.enhancementScale}, ${settings.enhancementStrength}, NOW())
     ON CONFLICT ("user_id") DO UPDATE SET
       "brightness" = EXCLUDED."brightness",
       "contrast" = EXCLUDED."contrast",
@@ -62,6 +74,10 @@ export async function saveImageWorkbenchSettings(userId: string, settings: Image
       "sharpness" = EXCLUDED."sharpness",
       "watermark_strength" = EXCLUDED."watermark_strength",
       "local_ai_enabled" = EXCLUDED."local_ai_enabled",
+      "enhancement_enabled" = EXCLUDED."enhancement_enabled",
+      "enhancement_model" = EXCLUDED."enhancement_model",
+      "enhancement_scale" = EXCLUDED."enhancement_scale",
+      "enhancement_strength" = EXCLUDED."enhancement_strength",
       "updated_at" = NOW()
   `;
 }

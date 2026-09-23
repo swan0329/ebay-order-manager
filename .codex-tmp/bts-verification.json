@@ -1,0 +1,10 @@
+{
+  "count": 5609,
+  "sourceRows": 5609,
+  "stockTotal": 493,
+  "failures": [],
+  "movementCount": 213,
+  "movementQuantity": 493,
+  "uniqueMovementProducts": 213,
+  "invalidMovements": 0
+}

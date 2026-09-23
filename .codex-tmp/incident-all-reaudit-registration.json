@@ -1,0 +1,1820 @@
+[
+  {
+    "sku": "7586",
+    "status": "uploaded",
+    "itemId": "158284068976",
+    "uploadedAt": "2026-09-12T11:25:59.353Z"
+  },
+  {
+    "sku": "74320",
+    "status": "uploaded",
+    "itemId": "158284068211",
+    "uploadedAt": "2026-09-12T11:25:11.860Z"
+  },
+  {
+    "sku": "74319",
+    "status": "uploaded",
+    "itemId": "158284067765",
+    "uploadedAt": "2026-09-12T11:24:30.156Z"
+  },
+  {
+    "sku": "74284",
+    "status": "uploaded",
+    "itemId": "158284067360",
+    "uploadedAt": "2026-09-12T11:23:50.147Z"
+  },
+  {
+    "sku": "72905",
+    "status": "uploaded",
+    "itemId": "158284066549",
+    "uploadedAt": "2026-09-12T11:23:09.356Z"
+  },
+  {
+    "sku": "72904",
+    "status": "uploaded",
+    "itemId": "158284065191",
+    "uploadedAt": "2026-09-12T11:22:27.696Z"
+  },
+  {
+    "sku": "72903",
+    "status": "uploaded",
+    "itemId": "158284064756",
+    "uploadedAt": "2026-09-12T11:21:48.257Z"
+  },
+  {
+    "sku": "71472",
+    "status": "uploaded",
+    "itemId": "158284063676",
+    "uploadedAt": "2026-09-12T11:21:08.208Z"
+  },
+  {
+    "sku": "71405",
+    "status": "uploaded",
+    "itemId": "158284061882",
+    "uploadedAt": "2026-09-12T11:20:30.277Z"
+  },
+  {
+    "sku": "67783",
+    "status": "uploaded",
+    "itemId": "158284061424",
+    "uploadedAt": "2026-09-12T11:19:46.552Z"
+  },
+  {
+    "sku": "67782",
+    "status": "uploaded",
+    "itemId": "158284061085",
+    "uploadedAt": "2026-09-12T11:19:07.796Z"
+  },
+  {
+    "sku": "67247",
+    "status": "uploaded",
+    "itemId": "158284060640",
+    "uploadedAt": "2026-09-12T11:18:30.372Z"
+  },
+  {
+    "sku": "67246",
+    "status": "uploaded",
+    "itemId": "158284059391",
+    "uploadedAt": "2026-09-12T11:17:50.981Z"
+  },
+  {
+    "sku": "67245",
+    "status": "uploaded",
+    "itemId": "158284058937",
+    "uploadedAt": "2026-09-12T11:17:12.641Z"
+  },
+  {
+    "sku": "62767",
+    "status": "uploaded",
+    "itemId": "158284058563",
+    "uploadedAt": "2026-09-12T11:16:29.333Z"
+  },
+  {
+    "sku": "62083",
+    "status": "uploaded",
+    "itemId": "158284058159",
+    "uploadedAt": "2026-09-12T11:15:53.892Z"
+  },
+  {
+    "sku": "61845",
+    "status": "uploaded",
+    "itemId": "158284057745",
+    "uploadedAt": "2026-09-12T11:15:15.401Z"
+  },
+  {
+    "sku": "58931",
+    "status": "uploaded",
+    "itemId": "158284057498",
+    "uploadedAt": "2026-09-12T11:14:36.907Z"
+  },
+  {
+    "sku": "55219",
+    "status": "uploaded",
+    "itemId": "158284057173",
+    "uploadedAt": "2026-09-12T11:13:55.148Z"
+  },
+  {
+    "sku": "49170",
+    "status": "uploaded",
+    "itemId": "158284056673",
+    "uploadedAt": "2026-09-12T11:13:13.654Z"
+  },
+  {
+    "sku": "46517",
+    "status": "uploaded",
+    "itemId": "158284056438",
+    "uploadedAt": "2026-09-12T11:12:34.430Z"
+  },
+  {
+    "sku": "46516",
+    "status": "failed",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "464438",
+    "status": "uploaded",
+    "itemId": "158284055331",
+    "uploadedAt": "2026-09-12T11:11:11.027Z"
+  },
+  {
+    "sku": "457576",
+    "status": "uploaded",
+    "itemId": "158284052588",
+    "uploadedAt": "2026-09-12T11:10:05.790Z"
+  },
+  {
+    "sku": "44802",
+    "status": "uploaded",
+    "itemId": "158284044286",
+    "uploadedAt": "2026-09-12T11:09:26.468Z"
+  },
+  {
+    "sku": "43812",
+    "status": "uploaded",
+    "itemId": "158284040031",
+    "uploadedAt": "2026-09-12T11:08:46.085Z"
+  },
+  {
+    "sku": "43811",
+    "status": "uploaded",
+    "itemId": "158284033621",
+    "uploadedAt": "2026-09-12T11:08:09.227Z"
+  },
+  {
+    "sku": "43810",
+    "status": "uploaded",
+    "itemId": "158284027656",
+    "uploadedAt": "2026-09-12T11:07:32.279Z"
+  },
+  {
+    "sku": "43809",
+    "status": "uploaded",
+    "itemId": "158284025204",
+    "uploadedAt": "2026-09-12T11:06:54.735Z"
+  },
+  {
+    "sku": "43808",
+    "status": "uploaded",
+    "itemId": "158284024545",
+    "uploadedAt": "2026-09-12T11:06:16.733Z"
+  },
+  {
+    "sku": "43807",
+    "status": "uploaded",
+    "itemId": "158284022994",
+    "uploadedAt": "2026-09-12T11:05:42.021Z"
+  },
+  {
+    "sku": "43806",
+    "status": "uploaded",
+    "itemId": "158284022008",
+    "uploadedAt": "2026-09-12T11:04:56.041Z"
+  },
+  {
+    "sku": "43805",
+    "status": "uploaded",
+    "itemId": "158284021749",
+    "uploadedAt": "2026-09-12T11:04:24.951Z"
+  },
+  {
+    "sku": "43804",
+    "status": "uploaded",
+    "itemId": "158284021497",
+    "uploadedAt": "2026-09-12T11:03:46.365Z"
+  },
+  {
+    "sku": "43803",
+    "status": "uploaded",
+    "itemId": "158284021186",
+    "uploadedAt": "2026-09-12T11:03:05.195Z"
+  },
+  {
+    "sku": "43802",
+    "status": "uploaded",
+    "itemId": "158284020913",
+    "uploadedAt": "2026-09-12T11:02:24.472Z"
+  },
+  {
+    "sku": "43801",
+    "status": "uploaded",
+    "itemId": "158284020576",
+    "uploadedAt": "2026-09-12T11:01:41.145Z"
+  },
+  {
+    "sku": "43800",
+    "status": "uploaded",
+    "itemId": "158284018896",
+    "uploadedAt": "2026-09-12T11:00:57.656Z"
+  },
+  {
+    "sku": "43799",
+    "status": "uploaded",
+    "itemId": "158284018422",
+    "uploadedAt": "2026-09-12T11:00:04.406Z"
+  },
+  {
+    "sku": "43798",
+    "status": "uploaded",
+    "itemId": "158284018279",
+    "uploadedAt": "2026-09-12T10:59:31.595Z"
+  },
+  {
+    "sku": "43796",
+    "status": "uploaded",
+    "itemId": "158284018005",
+    "uploadedAt": "2026-09-12T10:58:53.340Z"
+  },
+  {
+    "sku": "43795",
+    "status": "uploaded",
+    "itemId": "158284017852",
+    "uploadedAt": "2026-09-12T10:58:15.028Z"
+  },
+  {
+    "sku": "43794",
+    "status": "uploaded",
+    "itemId": "158284017605",
+    "uploadedAt": "2026-09-12T10:57:38.730Z"
+  },
+  {
+    "sku": "43793",
+    "status": "uploaded",
+    "itemId": "158284017448",
+    "uploadedAt": "2026-09-12T10:57:07.447Z"
+  },
+  {
+    "sku": "434626",
+    "status": "uploaded",
+    "itemId": "158284017256",
+    "uploadedAt": "2026-09-12T10:56:29.689Z"
+  },
+  {
+    "sku": "415518",
+    "status": "uploaded",
+    "itemId": "158284017061",
+    "uploadedAt": "2026-09-12T10:55:48.797Z"
+  },
+  {
+    "sku": "41043",
+    "status": "uploaded",
+    "itemId": "158284016609",
+    "uploadedAt": "2026-09-12T10:54:55.844Z"
+  },
+  {
+    "sku": "40921",
+    "status": "uploaded",
+    "itemId": "158284016317",
+    "uploadedAt": "2026-09-12T10:54:16.131Z"
+  },
+  {
+    "sku": "40920",
+    "status": "uploaded",
+    "itemId": "158284016024",
+    "uploadedAt": "2026-09-12T10:53:35.895Z"
+  },
+  {
+    "sku": "40915",
+    "status": "uploaded",
+    "itemId": "158284015584",
+    "uploadedAt": "2026-09-12T10:52:53.581Z"
+  },
+  {
+    "sku": "404130",
+    "status": "uploaded",
+    "itemId": "158284014012",
+    "uploadedAt": "2026-09-12T10:52:11.625Z"
+  },
+  {
+    "sku": "40366",
+    "status": "uploaded",
+    "itemId": "158284012617",
+    "uploadedAt": "2026-09-12T10:51:29.873Z"
+  },
+  {
+    "sku": "40365",
+    "status": "uploaded",
+    "itemId": "158284009355",
+    "uploadedAt": "2026-09-12T10:50:48.046Z"
+  },
+  {
+    "sku": "40364",
+    "status": "uploaded",
+    "itemId": "158284003747",
+    "uploadedAt": "2026-09-12T10:50:00.732Z"
+  },
+  {
+    "sku": "40363",
+    "status": "uploaded",
+    "itemId": "158283995838",
+    "uploadedAt": "2026-09-12T10:49:18.585Z"
+  },
+  {
+    "sku": "40362",
+    "status": "uploaded",
+    "itemId": "158283989044",
+    "uploadedAt": "2026-09-12T10:48:40.897Z"
+  },
+  {
+    "sku": "40361",
+    "status": "uploaded",
+    "itemId": "158283982218",
+    "uploadedAt": "2026-09-12T10:48:01.046Z"
+  },
+  {
+    "sku": "40360",
+    "status": "uploaded",
+    "itemId": "158283981792",
+    "uploadedAt": "2026-09-12T10:47:20.991Z"
+  },
+  {
+    "sku": "40359",
+    "status": "uploaded",
+    "itemId": "158283981499",
+    "uploadedAt": "2026-09-12T10:46:43.006Z"
+  },
+  {
+    "sku": "40356",
+    "status": "uploaded",
+    "itemId": "158283981174",
+    "uploadedAt": "2026-09-12T10:46:02.285Z"
+  },
+  {
+    "sku": "40354",
+    "status": "uploaded",
+    "itemId": "158283980667",
+    "uploadedAt": "2026-09-12T10:45:17.725Z"
+  },
+  {
+    "sku": "40060",
+    "status": "uploaded",
+    "itemId": "158283980190",
+    "uploadedAt": "2026-09-12T10:44:34.475Z"
+  },
+  {
+    "sku": "40058",
+    "status": "uploaded",
+    "itemId": "158283979730",
+    "uploadedAt": "2026-09-12T10:43:52.955Z"
+  },
+  {
+    "sku": "40001",
+    "status": "uploaded",
+    "itemId": "158283978950",
+    "uploadedAt": "2026-09-12T10:43:11.452Z"
+  },
+  {
+    "sku": "40000",
+    "status": "uploaded",
+    "itemId": "158283978744",
+    "uploadedAt": "2026-09-12T10:42:30.641Z"
+  },
+  {
+    "sku": "39997",
+    "status": "uploaded",
+    "itemId": "158283978477",
+    "uploadedAt": "2026-09-12T10:41:50.843Z"
+  },
+  {
+    "sku": "39991",
+    "status": "uploaded",
+    "itemId": "158283978293",
+    "uploadedAt": "2026-09-12T10:41:12.095Z"
+  },
+  {
+    "sku": "39990",
+    "status": "uploaded",
+    "itemId": "158283977884",
+    "uploadedAt": "2026-09-12T10:40:31.323Z"
+  },
+  {
+    "sku": "39989",
+    "status": "uploaded",
+    "itemId": "158283977538",
+    "uploadedAt": "2026-09-12T10:39:48.379Z"
+  },
+  {
+    "sku": "39988",
+    "status": "uploaded",
+    "itemId": "158283977394",
+    "uploadedAt": "2026-09-12T10:39:11.394Z"
+  },
+  {
+    "sku": "39987",
+    "status": "uploaded",
+    "itemId": "158283977078",
+    "uploadedAt": "2026-09-12T10:38:32.805Z"
+  },
+  {
+    "sku": "39986",
+    "status": "uploaded",
+    "itemId": "158283976585",
+    "uploadedAt": "2026-09-12T10:37:55.126Z"
+  },
+  {
+    "sku": "39985",
+    "status": "uploaded",
+    "itemId": "158283976414",
+    "uploadedAt": "2026-09-12T10:37:16.331Z"
+  },
+  {
+    "sku": "39984",
+    "status": "uploaded",
+    "itemId": "158283976160",
+    "uploadedAt": "2026-09-12T10:36:40.830Z"
+  },
+  {
+    "sku": "39983",
+    "status": "uploaded",
+    "itemId": "158283975145",
+    "uploadedAt": "2026-09-12T10:36:03.906Z"
+  },
+  {
+    "sku": "39982",
+    "status": "uploaded",
+    "itemId": "158283973357",
+    "uploadedAt": "2026-09-12T10:35:24.454Z"
+  },
+  {
+    "sku": "39980",
+    "status": "uploaded",
+    "itemId": "158283972399",
+    "uploadedAt": "2026-09-12T10:34:41.987Z"
+  },
+  {
+    "sku": "39979",
+    "status": "uploaded",
+    "itemId": "158283972213",
+    "uploadedAt": "2026-09-12T10:34:11.743Z"
+  },
+  {
+    "sku": "39817",
+    "status": "uploaded",
+    "itemId": "158283971918",
+    "uploadedAt": "2026-09-12T10:33:30.166Z"
+  },
+  {
+    "sku": "39812",
+    "status": "uploaded",
+    "itemId": "158283971284",
+    "uploadedAt": "2026-09-12T10:32:50.838Z"
+  },
+  {
+    "sku": "39807",
+    "status": "uploaded",
+    "itemId": "158283970846",
+    "uploadedAt": "2026-09-12T10:32:11.404Z"
+  },
+  {
+    "sku": "397108",
+    "status": "uploaded",
+    "itemId": "158283970559",
+    "uploadedAt": "2026-09-12T10:31:30.961Z"
+  },
+  {
+    "sku": "39505",
+    "status": "uploaded",
+    "itemId": "158283969703",
+    "uploadedAt": "2026-09-12T10:30:51.433Z"
+  },
+  {
+    "sku": "39497",
+    "status": "uploaded",
+    "itemId": "158283960059",
+    "uploadedAt": "2026-09-12T10:30:03.436Z"
+  },
+  {
+    "sku": "39496",
+    "status": "uploaded",
+    "itemId": "158283954440",
+    "uploadedAt": "2026-09-12T10:29:29.659Z"
+  },
+  {
+    "sku": "39495",
+    "status": "uploaded",
+    "itemId": "158283946434",
+    "uploadedAt": "2026-09-12T10:28:52.279Z"
+  },
+  {
+    "sku": "39494",
+    "status": "uploaded",
+    "itemId": "158283942992",
+    "uploadedAt": "2026-09-12T10:28:10.048Z"
+  },
+  {
+    "sku": "39493",
+    "status": "uploaded",
+    "itemId": "158283942378",
+    "uploadedAt": "2026-09-12T10:27:30.499Z"
+  },
+  {
+    "sku": "39492",
+    "status": "uploaded",
+    "itemId": "158283941889",
+    "uploadedAt": "2026-09-12T10:26:48.794Z"
+  },
+  {
+    "sku": "39491",
+    "status": "uploaded",
+    "itemId": "158283941433",
+    "uploadedAt": "2026-09-12T10:26:10.128Z"
+  },
+  {
+    "sku": "39489",
+    "status": "uploaded",
+    "itemId": "158283941170",
+    "uploadedAt": "2026-09-12T10:25:33.557Z"
+  },
+  {
+    "sku": "39488",
+    "status": "uploaded",
+    "itemId": "158283940759",
+    "uploadedAt": "2026-09-12T10:24:51.544Z"
+  },
+  {
+    "sku": "39487",
+    "status": "uploaded",
+    "itemId": "158283940457",
+    "uploadedAt": "2026-09-12T10:24:11.785Z"
+  },
+  {
+    "sku": "39486",
+    "status": "uploaded",
+    "itemId": "158283940107",
+    "uploadedAt": "2026-09-12T10:23:33.056Z"
+  },
+  {
+    "sku": "39485",
+    "status": "uploaded",
+    "itemId": "158283939651",
+    "uploadedAt": "2026-09-12T10:22:55.335Z"
+  },
+  {
+    "sku": "39484",
+    "status": "uploaded",
+    "itemId": "158283939313",
+    "uploadedAt": "2026-09-12T10:22:16.740Z"
+  },
+  {
+    "sku": "39483",
+    "status": "uploaded",
+    "itemId": "158283938926",
+    "uploadedAt": "2026-09-12T10:21:39.959Z"
+  },
+  {
+    "sku": "39482",
+    "status": "uploaded",
+    "itemId": "158283937293",
+    "uploadedAt": "2026-09-12T10:20:59.736Z"
+  },
+  {
+    "sku": "39481",
+    "status": "uploaded",
+    "itemId": "158283935747",
+    "uploadedAt": "2026-09-12T10:20:21.510Z"
+  },
+  {
+    "sku": "385916",
+    "status": "uploaded",
+    "itemId": "158283935156",
+    "uploadedAt": "2026-09-12T10:19:40.548Z"
+  },
+  {
+    "sku": "385904",
+    "status": "uploaded",
+    "itemId": "158283934705",
+    "uploadedAt": "2026-09-12T10:19:02.259Z"
+  },
+  {
+    "sku": "385047",
+    "status": "uploaded",
+    "itemId": "158283934081",
+    "uploadedAt": "2026-09-12T10:18:19.484Z"
+  },
+  {
+    "sku": "38378",
+    "status": "uploaded",
+    "itemId": "158283933040",
+    "uploadedAt": "2026-09-12T10:17:41.648Z"
+  },
+  {
+    "sku": "38322",
+    "status": "uploaded",
+    "itemId": "158283932622",
+    "uploadedAt": "2026-09-12T10:17:01.381Z"
+  },
+  {
+    "sku": "38220",
+    "status": "uploaded",
+    "itemId": "158283932181",
+    "uploadedAt": "2026-09-12T10:16:19.123Z"
+  },
+  {
+    "sku": "38219",
+    "status": "uploaded",
+    "itemId": "158283930986",
+    "uploadedAt": "2026-09-12T10:15:12.380Z"
+  },
+  {
+    "sku": "38205",
+    "status": "uploaded",
+    "itemId": "158283930150",
+    "uploadedAt": "2026-09-12T10:14:32.210Z"
+  },
+  {
+    "sku": "371842",
+    "status": "uploaded",
+    "itemId": "158283929462",
+    "uploadedAt": "2026-09-12T10:13:52.412Z"
+  },
+  {
+    "sku": "381997",
+    "status": "uploaded",
+    "itemId": "158283576581",
+    "uploadedAt": "2026-09-12T07:34:12.084Z"
+  },
+  {
+    "sku": "378630",
+    "status": "uploaded",
+    "itemId": "158283571115",
+    "uploadedAt": "2026-09-12T07:32:25.088Z"
+  },
+  {
+    "sku": "37743",
+    "status": "uploaded",
+    "itemId": "158283570052",
+    "uploadedAt": "2026-09-12T07:30:58.396Z"
+  },
+  {
+    "sku": "37742",
+    "status": "uploaded",
+    "itemId": "158283569102",
+    "uploadedAt": "2026-09-12T07:30:05.012Z"
+  },
+  {
+    "sku": "376467",
+    "status": "uploaded",
+    "itemId": "158283568769",
+    "uploadedAt": "2026-09-12T07:29:19.289Z"
+  },
+  {
+    "sku": "376457",
+    "status": "uploaded",
+    "itemId": "158283563678",
+    "uploadedAt": "2026-09-12T07:28:38.457Z"
+  },
+  {
+    "sku": "376448",
+    "status": "uploaded",
+    "itemId": "158283554327",
+    "uploadedAt": "2026-09-12T07:27:58.395Z"
+  },
+  {
+    "sku": "37346",
+    "status": "failed",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "372466",
+    "status": "uploaded",
+    "itemId": "158283542573",
+    "uploadedAt": "2026-09-12T07:26:49.127Z"
+  },
+  {
+    "sku": "37212",
+    "status": "uploaded",
+    "itemId": "158283540244",
+    "uploadedAt": "2026-09-12T07:26:08.909Z"
+  },
+  {
+    "sku": "37211",
+    "status": "uploaded",
+    "itemId": "158283539640",
+    "uploadedAt": "2026-09-12T07:24:52.325Z"
+  },
+  {
+    "sku": "37208",
+    "status": "uploaded",
+    "itemId": "158283538371",
+    "uploadedAt": "2026-09-12T07:23:05.817Z"
+  },
+  {
+    "sku": "37207",
+    "status": "uploaded",
+    "itemId": "158283533478",
+    "uploadedAt": "2026-09-12T07:19:08.821Z"
+  },
+  {
+    "sku": "37205",
+    "status": "uploaded",
+    "itemId": "158283532218",
+    "uploadedAt": "2026-09-12T07:18:23.182Z"
+  },
+  {
+    "sku": "37204",
+    "status": "uploaded",
+    "itemId": "158283530724",
+    "uploadedAt": "2026-09-12T07:17:39.575Z"
+  },
+  {
+    "sku": "37203",
+    "status": "uploaded",
+    "itemId": "158283529892",
+    "uploadedAt": "2026-09-12T07:16:56.072Z"
+  },
+  {
+    "sku": "37138",
+    "status": "uploaded",
+    "itemId": "158281897164",
+    "uploadedAt": "2026-09-11T18:59:09.162Z"
+  },
+  {
+    "sku": "368302",
+    "status": "uploaded",
+    "itemId": "158281896888",
+    "uploadedAt": "2026-09-11T18:58:29.763Z"
+  },
+  {
+    "sku": "36592",
+    "status": "uploaded",
+    "itemId": "158281896455",
+    "uploadedAt": "2026-09-11T18:57:50.440Z"
+  },
+  {
+    "sku": "36590",
+    "status": "uploaded",
+    "itemId": "158281895774",
+    "uploadedAt": "2026-09-11T18:57:12.062Z"
+  },
+  {
+    "sku": "36589",
+    "status": "uploaded",
+    "itemId": "158281895260",
+    "uploadedAt": "2026-09-11T18:56:30.440Z"
+  },
+  {
+    "sku": "36588",
+    "status": "uploaded",
+    "itemId": "158281894868",
+    "uploadedAt": "2026-09-11T18:55:51.199Z"
+  },
+  {
+    "sku": "364696",
+    "status": "uploaded",
+    "itemId": "158281893669",
+    "uploadedAt": "2026-09-11T18:55:04.288Z"
+  },
+  {
+    "sku": "36434",
+    "status": "uploaded",
+    "itemId": "158281892765",
+    "uploadedAt": "2026-09-11T18:54:23.534Z"
+  },
+  {
+    "sku": "36431",
+    "status": "uploaded",
+    "itemId": "158281892114",
+    "uploadedAt": "2026-09-11T18:53:47.178Z"
+  },
+  {
+    "sku": "36298",
+    "status": "uploaded",
+    "itemId": "158281891615",
+    "uploadedAt": "2026-09-11T18:53:06.011Z"
+  },
+  {
+    "sku": "36056",
+    "status": "uploaded",
+    "itemId": "158281890629",
+    "uploadedAt": "2026-09-11T18:52:24.041Z"
+  },
+  {
+    "sku": "359607",
+    "status": "uploaded",
+    "itemId": "158281889156",
+    "uploadedAt": "2026-09-11T18:51:42.258Z"
+  },
+  {
+    "sku": "35772",
+    "status": "uploaded",
+    "itemId": "158281887666",
+    "uploadedAt": "2026-09-11T18:51:02.059Z"
+  },
+  {
+    "sku": "336038",
+    "status": "uploaded",
+    "itemId": "158281885816",
+    "uploadedAt": "2026-09-11T18:50:11.797Z"
+  },
+  {
+    "sku": "332572",
+    "status": "uploaded",
+    "itemId": "158281885319",
+    "uploadedAt": "2026-09-11T18:49:32.526Z"
+  },
+  {
+    "sku": "328876",
+    "status": "uploaded",
+    "itemId": "158281878801",
+    "uploadedAt": "2026-09-11T18:49:01.342Z"
+  },
+  {
+    "sku": "322878",
+    "status": "uploaded",
+    "itemId": "158281870875",
+    "uploadedAt": "2026-09-11T18:48:20.374Z"
+  },
+  {
+    "sku": "321473",
+    "status": "uploaded",
+    "itemId": "158281864254",
+    "uploadedAt": "2026-09-11T18:47:45.185Z"
+  },
+  {
+    "sku": "316440",
+    "status": "uploaded",
+    "itemId": "158281859712",
+    "uploadedAt": "2026-09-11T18:47:02.789Z"
+  },
+  {
+    "sku": "314531",
+    "status": "uploaded",
+    "itemId": "158281859106",
+    "uploadedAt": "2026-09-11T18:46:22.170Z"
+  },
+  {
+    "sku": "313608",
+    "status": "uploaded",
+    "itemId": "158281858496",
+    "uploadedAt": "2026-09-11T18:45:42.281Z"
+  },
+  {
+    "sku": "313404",
+    "status": "uploaded",
+    "itemId": "158281857481",
+    "uploadedAt": "2026-09-11T18:44:51.179Z"
+  },
+  {
+    "sku": "310771",
+    "status": "uploaded",
+    "itemId": "158281856962",
+    "uploadedAt": "2026-09-11T18:44:11.310Z"
+  },
+  {
+    "sku": "30994",
+    "status": "uploaded",
+    "itemId": "158281856564",
+    "uploadedAt": "2026-09-11T18:43:31.127Z"
+  },
+  {
+    "sku": "30992",
+    "status": "uploaded",
+    "itemId": "158281856177",
+    "uploadedAt": "2026-09-11T18:42:54.084Z"
+  },
+  {
+    "sku": "30991",
+    "status": "uploaded",
+    "itemId": "158281855805",
+    "uploadedAt": "2026-09-11T18:42:16.784Z"
+  },
+  {
+    "sku": "309907",
+    "status": "uploaded",
+    "itemId": "158281855565",
+    "uploadedAt": "2026-09-11T18:41:39.620Z"
+  },
+  {
+    "sku": "30990",
+    "status": "uploaded",
+    "itemId": "158281855274",
+    "uploadedAt": "2026-09-11T18:41:00.245Z"
+  },
+  {
+    "sku": "30989",
+    "status": "uploaded",
+    "itemId": "158281854497",
+    "uploadedAt": "2026-09-11T18:40:19.930Z"
+  },
+  {
+    "sku": "30988",
+    "status": "uploaded",
+    "itemId": "158281853700",
+    "uploadedAt": "2026-09-11T18:39:43.953Z"
+  },
+  {
+    "sku": "30987",
+    "status": "uploaded",
+    "itemId": "158281852863",
+    "uploadedAt": "2026-09-11T18:39:11.759Z"
+  },
+  {
+    "sku": "30986",
+    "status": "uploaded",
+    "itemId": "158281852217",
+    "uploadedAt": "2026-09-11T18:38:25.463Z"
+  },
+  {
+    "sku": "30977",
+    "status": "uploaded",
+    "itemId": "158281851819",
+    "uploadedAt": "2026-09-11T18:37:46.809Z"
+  },
+  {
+    "sku": "30976",
+    "status": "uploaded",
+    "itemId": "158281851501",
+    "uploadedAt": "2026-09-11T18:37:07.056Z"
+  },
+  {
+    "sku": "30973",
+    "status": "uploaded",
+    "itemId": "158281851232",
+    "uploadedAt": "2026-09-11T18:36:30.886Z"
+  },
+  {
+    "sku": "309696",
+    "status": "uploaded",
+    "itemId": "158281849374",
+    "uploadedAt": "2026-09-11T18:35:51.596Z"
+  },
+  {
+    "sku": "308427",
+    "status": "uploaded",
+    "itemId": "158281847692",
+    "uploadedAt": "2026-09-11T18:35:03.757Z"
+  },
+  {
+    "sku": "30818",
+    "status": "uploaded",
+    "itemId": "158281847022",
+    "uploadedAt": "2026-09-11T18:34:26.846Z"
+  },
+  {
+    "sku": "306669",
+    "status": "uploaded",
+    "itemId": "158281846197",
+    "uploadedAt": "2026-09-11T18:33:48.380Z"
+  },
+  {
+    "sku": "30313",
+    "status": "uploaded",
+    "itemId": "158281845840",
+    "uploadedAt": "2026-09-11T18:33:09.652Z"
+  },
+  {
+    "sku": "30301",
+    "status": "uploaded",
+    "itemId": "158281845493",
+    "uploadedAt": "2026-09-11T18:32:29.466Z"
+  },
+  {
+    "sku": "30300",
+    "status": "uploaded",
+    "itemId": "158281845162",
+    "uploadedAt": "2026-09-11T18:31:49.310Z"
+  },
+  {
+    "sku": "29926",
+    "status": "uploaded",
+    "itemId": "158281844759",
+    "uploadedAt": "2026-09-11T18:31:08.902Z"
+  },
+  {
+    "sku": "29923",
+    "status": "uploaded",
+    "itemId": "158281838375",
+    "uploadedAt": "2026-09-11T18:30:17.385Z"
+  },
+  {
+    "sku": "29921",
+    "status": "uploaded",
+    "itemId": "158281830929",
+    "uploadedAt": "2026-09-11T18:29:34.873Z"
+  },
+  {
+    "sku": "296333",
+    "status": "uploaded",
+    "itemId": "158281824145",
+    "uploadedAt": "2026-09-11T18:28:50.670Z"
+  },
+  {
+    "sku": "287832",
+    "status": "uploaded",
+    "itemId": "158281818524",
+    "uploadedAt": "2026-09-11T18:27:49.326Z"
+  },
+  {
+    "sku": "284806",
+    "status": "uploaded",
+    "itemId": "158281814368",
+    "uploadedAt": "2026-09-11T18:26:25.952Z"
+  },
+  {
+    "sku": "284298",
+    "status": "uploaded",
+    "itemId": "158281810315",
+    "uploadedAt": "2026-09-11T18:24:39.100Z"
+  },
+  {
+    "sku": "284272",
+    "status": "uploaded",
+    "itemId": "158281806012",
+    "uploadedAt": "2026-09-11T18:22:57.675Z"
+  },
+  {
+    "sku": "279718",
+    "status": "uploaded",
+    "itemId": "158281802529",
+    "uploadedAt": "2026-09-11T18:21:20.850Z"
+  },
+  {
+    "sku": "278537",
+    "status": "uploaded",
+    "itemId": "158281799087",
+    "uploadedAt": "2026-09-11T18:19:18.693Z"
+  },
+  {
+    "sku": "24731",
+    "status": "uploaded",
+    "itemId": "158281796760",
+    "uploadedAt": "2026-09-11T18:18:02.847Z"
+  },
+  {
+    "sku": "243733",
+    "status": "uploaded",
+    "itemId": "158281794457",
+    "uploadedAt": "2026-09-11T18:16:04.992Z"
+  },
+  {
+    "sku": "226073",
+    "status": "uploaded",
+    "itemId": "158281792514",
+    "uploadedAt": "2026-09-11T18:14:04.861Z"
+  },
+  {
+    "sku": "21424",
+    "status": "uploaded",
+    "itemId": "158281791685",
+    "uploadedAt": "2026-09-11T18:12:55.649Z"
+  },
+  {
+    "sku": "206116",
+    "status": "uploaded",
+    "itemId": "158281789334",
+    "uploadedAt": "2026-09-11T18:11:05.818Z"
+  },
+  {
+    "sku": "187374",
+    "status": "uploaded",
+    "itemId": "158281773103",
+    "uploadedAt": "2026-09-11T18:09:25.263Z"
+  },
+  {
+    "sku": "182497",
+    "status": "uploaded",
+    "itemId": "158281764107",
+    "uploadedAt": "2026-09-11T18:08:37.896Z"
+  },
+  {
+    "sku": "277719",
+    "status": "uploaded",
+    "itemId": "158280988058",
+    "uploadedAt": "2026-09-11T12:47:21.587Z"
+  },
+  {
+    "sku": "277709",
+    "status": "uploaded",
+    "itemId": "158280986822",
+    "uploadedAt": "2026-09-11T12:45:33.744Z"
+  },
+  {
+    "sku": "277700",
+    "status": "uploaded",
+    "itemId": "158280985826",
+    "uploadedAt": "2026-09-11T12:44:57.453Z"
+  },
+  {
+    "sku": "277698",
+    "status": "uploaded",
+    "itemId": "158280985465",
+    "uploadedAt": "2026-09-11T12:44:16.057Z"
+  },
+  {
+    "sku": "27422",
+    "status": "uploaded",
+    "itemId": "158280984835",
+    "uploadedAt": "2026-09-11T12:43:29.424Z"
+  },
+  {
+    "sku": "26197",
+    "status": "uploaded",
+    "itemId": "158280984037",
+    "uploadedAt": "2026-09-11T12:42:41.837Z"
+  },
+  {
+    "sku": "260782",
+    "status": "uploaded",
+    "itemId": "158280980249",
+    "uploadedAt": "2026-09-11T12:38:13.301Z"
+  },
+  {
+    "sku": "257070",
+    "status": "uploaded",
+    "itemId": "158280975547",
+    "uploadedAt": "2026-09-11T12:35:05.901Z"
+  },
+  {
+    "sku": "248890",
+    "status": "uploaded",
+    "itemId": "158280975069",
+    "uploadedAt": "2026-09-11T12:34:28.215Z"
+  },
+  {
+    "sku": "24780",
+    "status": "uploaded",
+    "itemId": "158280974623",
+    "uploadedAt": "2026-09-11T12:33:48.951Z"
+  },
+  {
+    "sku": "24778",
+    "status": "uploaded",
+    "itemId": "158280962344",
+    "uploadedAt": "2026-09-11T12:29:59.107Z"
+  },
+  {
+    "sku": "24777",
+    "status": "uploaded",
+    "itemId": "158280940347",
+    "uploadedAt": "2026-09-11T12:28:12.993Z"
+  },
+  {
+    "sku": "178737",
+    "status": "uploaded",
+    "itemId": "158278727881",
+    "uploadedAt": "2026-09-10T15:46:31.740Z"
+  },
+  {
+    "sku": "170551",
+    "status": "uploaded",
+    "itemId": "158278727083",
+    "uploadedAt": "2026-09-10T15:44:56.906Z"
+  },
+  {
+    "sku": "15579",
+    "status": "uploaded",
+    "itemId": "158278726461",
+    "uploadedAt": "2026-09-10T15:43:55.597Z"
+  },
+  {
+    "sku": "15551",
+    "status": "uploaded",
+    "itemId": "158278725803",
+    "uploadedAt": "2026-09-10T15:42:22.760Z"
+  },
+  {
+    "sku": "152107",
+    "status": "uploaded",
+    "itemId": "158278724410",
+    "uploadedAt": "2026-09-10T15:40:36.247Z"
+  },
+  {
+    "sku": "15205",
+    "status": "uploaded",
+    "itemId": "158278723782",
+    "uploadedAt": "2026-09-10T15:39:42.974Z"
+  },
+  {
+    "sku": "15131",
+    "status": "uploaded",
+    "itemId": "158278723354",
+    "uploadedAt": "2026-09-10T15:39:10.180Z"
+  },
+  {
+    "sku": "15099",
+    "status": "uploaded",
+    "itemId": "158278722931",
+    "uploadedAt": "2026-09-10T15:38:29.546Z"
+  },
+  {
+    "sku": "14835",
+    "status": "uploaded",
+    "itemId": "158278722519",
+    "uploadedAt": "2026-09-10T15:37:49.869Z"
+  },
+  {
+    "sku": "144397",
+    "status": "uploaded",
+    "itemId": "158278720524",
+    "uploadedAt": "2026-09-10T15:36:10.911Z"
+  },
+  {
+    "sku": "14414",
+    "status": "uploaded",
+    "itemId": "158278717409",
+    "uploadedAt": "2026-09-10T15:34:52.440Z"
+  },
+  {
+    "sku": "139403",
+    "status": "uploaded",
+    "itemId": "158278716514",
+    "uploadedAt": "2026-09-10T15:33:55.311Z"
+  },
+  {
+    "sku": "139260",
+    "status": "uploaded",
+    "itemId": "158278711351",
+    "uploadedAt": "2026-09-10T15:32:24.964Z"
+  },
+  {
+    "sku": "139198",
+    "status": "uploaded",
+    "itemId": "158278710243",
+    "uploadedAt": "2026-09-10T15:31:02.372Z"
+  },
+  {
+    "sku": "13353",
+    "status": "uploaded",
+    "itemId": "158278690723",
+    "uploadedAt": "2026-09-10T15:29:35.887Z"
+  },
+  {
+    "sku": "13315",
+    "status": "uploaded",
+    "itemId": "158278678476",
+    "uploadedAt": "2026-09-10T15:27:54.359Z"
+  },
+  {
+    "sku": "132739",
+    "status": "uploaded",
+    "itemId": "158278677161",
+    "uploadedAt": "2026-09-10T15:26:24.050Z"
+  },
+  {
+    "sku": "131211",
+    "status": "uploaded",
+    "itemId": "158278676457",
+    "uploadedAt": "2026-09-10T15:25:33.799Z"
+  },
+  {
+    "sku": "131200",
+    "status": "uploaded",
+    "itemId": "158278675068",
+    "uploadedAt": "2026-09-10T15:24:40.349Z"
+  },
+  {
+    "sku": "130243",
+    "status": "uploaded",
+    "itemId": "158278674710",
+    "uploadedAt": "2026-09-10T15:24:03.890Z"
+  },
+  {
+    "sku": "12764",
+    "status": "uploaded",
+    "itemId": "158278674356",
+    "uploadedAt": "2026-09-10T15:23:32.954Z"
+  },
+  {
+    "sku": "127294",
+    "status": "uploaded",
+    "itemId": "158278673724",
+    "uploadedAt": "2026-09-10T15:22:44.112Z"
+  },
+  {
+    "sku": "123206",
+    "status": "uploaded",
+    "itemId": "158278672442",
+    "uploadedAt": "2026-09-10T15:21:53.044Z"
+  },
+  {
+    "sku": "121920",
+    "status": "uploaded",
+    "itemId": "158278670848",
+    "uploadedAt": "2026-09-10T15:21:04.669Z"
+  },
+  {
+    "sku": "121416",
+    "status": "uploaded",
+    "itemId": "158278668911",
+    "uploadedAt": "2026-09-10T15:20:23.581Z"
+  },
+  {
+    "sku": "118103",
+    "status": "uploaded",
+    "itemId": "158278668333",
+    "uploadedAt": "2026-09-10T15:19:39.958Z"
+  },
+  {
+    "sku": "111052",
+    "status": "uploaded",
+    "itemId": "158278667887",
+    "uploadedAt": "2026-09-10T15:18:53.796Z"
+  },
+  {
+    "sku": "105148",
+    "status": "uploaded",
+    "itemId": "158278664848",
+    "uploadedAt": "2026-09-10T15:17:08.838Z"
+  },
+  {
+    "sku": "10304",
+    "status": "uploaded",
+    "itemId": "158278664257",
+    "uploadedAt": "2026-09-10T15:16:06.454Z"
+  },
+  {
+    "sku": "101214",
+    "status": "uploaded",
+    "itemId": "158244951303",
+    "uploadedAt": "2026-09-01T05:11:59.615Z"
+  },
+  {
+    "sku": "101563",
+    "status": "uploaded",
+    "itemId": "158245009499",
+    "uploadedAt": "2026-09-01T04:43:02.803Z"
+  },
+  {
+    "sku": "101186",
+    "status": "failed",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "103964",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "103963",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "103959",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "101215",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "103966",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "102142",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "101193",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "101220",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "102133",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "103970",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "102135",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "101201",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "103965",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "102132",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "102138",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "101188",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "101187",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "15418",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "102136",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "101194",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "101383",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "287000",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "285270",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "42573",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "101380",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "101382",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "346187",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "3606",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "3628",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "365735",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "372500",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "388594",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "398455",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "123096",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "124143",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "125849",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "127381",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "148952",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "169640",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "182372",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "182537",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "184956",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "18621",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "192229",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "233795",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "233796",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "24940",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "276394",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "277707",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "280707",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "292908",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "316945",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "331756",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "3453",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "399842",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "409989",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "412620",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "423281",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "425865",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "43020",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "432894",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "436922",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "440621",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "440626",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "440630",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "6647",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "71198",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "76955",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "106966",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "107272",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "123011",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "123012",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "420876",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "422674",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "432958",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  },
+  {
+    "sku": "4969",
+    "status": "draft",
+    "itemId": "",
+    "uploadedAt": ""
+  }
+]

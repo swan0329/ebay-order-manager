@@ -1,0 +1,3332 @@
+[
+  {
+    "sku": "39979",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:11:08.390Z",
+    "registration": [
+      {
+        "sku": "39979",
+        "status": "uploaded",
+        "itemId": "158283972213",
+        "uploadedAt": "2026-09-12T10:34:11.743Z"
+      }
+    ]
+  },
+  {
+    "sku": "131211",
+    "group": "BTS",
+    "oldCost": "204.9",
+    "currentCost": "130000",
+    "sourceCheckedAt": "2026-09-15T03:11:54.157Z",
+    "registration": [
+      {
+        "sku": "131211",
+        "status": "uploaded",
+        "itemId": "158278676457",
+        "uploadedAt": "2026-09-10T15:25:33.799Z"
+      }
+    ]
+  },
+  {
+    "sku": "39990",
+    "group": "BTS",
+    "oldCost": "13.5",
+    "currentCost": "2000",
+    "sourceCheckedAt": "2026-09-15T03:11:35.439Z",
+    "registration": [
+      {
+        "sku": "39990",
+        "status": "uploaded",
+        "itemId": "158283977884",
+        "uploadedAt": "2026-09-12T10:40:31.323Z"
+      }
+    ]
+  },
+  {
+    "sku": "144397",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:11:11.526Z",
+    "registration": [
+      {
+        "sku": "144397",
+        "status": "uploaded",
+        "itemId": "158278720524",
+        "uploadedAt": "2026-09-10T15:36:10.911Z"
+      }
+    ]
+  },
+  {
+    "sku": "277700",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:11:42.747Z",
+    "registration": [
+      {
+        "sku": "277700",
+        "status": "uploaded",
+        "itemId": "158280985826",
+        "uploadedAt": "2026-09-11T12:44:57.453Z"
+      }
+    ]
+  },
+  {
+    "sku": "364696",
+    "group": "BTS",
+    "oldCost": "62.8",
+    "currentCost": "35000",
+    "sourceCheckedAt": "2026-09-15T03:11:21.891Z",
+    "registration": [
+      {
+        "sku": "364696",
+        "status": "uploaded",
+        "itemId": "158281893669",
+        "uploadedAt": "2026-09-11T18:55:04.288Z"
+      }
+    ]
+  },
+  {
+    "sku": "39483",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:12:33.694Z",
+    "registration": [
+      {
+        "sku": "39483",
+        "status": "uploaded",
+        "itemId": "158283938926",
+        "uploadedAt": "2026-09-12T10:21:39.959Z"
+      }
+    ]
+  },
+  {
+    "sku": "43801",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:12:11.839Z",
+    "registration": [
+      {
+        "sku": "43801",
+        "status": "uploaded",
+        "itemId": "158284020576",
+        "uploadedAt": "2026-09-12T11:01:41.145Z"
+      }
+    ]
+  },
+  {
+    "sku": "40366",
+    "group": "BTS",
+    "oldCost": "15",
+    "currentCost": "3000",
+    "sourceCheckedAt": "2026-09-15T03:12:31.602Z",
+    "registration": [
+      {
+        "sku": "40366",
+        "status": "uploaded",
+        "itemId": "158284012617",
+        "uploadedAt": "2026-09-12T10:51:29.873Z"
+      }
+    ]
+  },
+  {
+    "sku": "39986",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:13:09.015Z",
+    "registration": [
+      {
+        "sku": "39986",
+        "status": "uploaded",
+        "itemId": "158283976585",
+        "uploadedAt": "2026-09-12T10:37:55.126Z"
+      }
+    ]
+  },
+  {
+    "sku": "39488",
+    "group": "BTS",
+    "oldCost": "12.8",
+    "currentCost": "1500",
+    "sourceCheckedAt": "2026-09-15T03:12:56.510Z",
+    "registration": [
+      {
+        "sku": "39488",
+        "status": "uploaded",
+        "itemId": "158283940759",
+        "uploadedAt": "2026-09-12T10:24:51.544Z"
+      }
+    ]
+  },
+  {
+    "sku": "43808",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:46.127Z",
+    "registration": [
+      {
+        "sku": "43808",
+        "status": "uploaded",
+        "itemId": "158284024545",
+        "uploadedAt": "2026-09-12T11:06:16.733Z"
+      }
+    ]
+  },
+  {
+    "sku": "43799",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:12.872Z",
+    "registration": [
+      {
+        "sku": "43799",
+        "status": "uploaded",
+        "itemId": "158284018422",
+        "uploadedAt": "2026-09-12T11:00:04.406Z"
+      }
+    ]
+  },
+  {
+    "sku": "43809",
+    "group": "BTS",
+    "oldCost": "12.8",
+    "currentCost": "1500",
+    "sourceCheckedAt": "2026-09-15T03:12:07.708Z",
+    "registration": [
+      {
+        "sku": "43809",
+        "status": "uploaded",
+        "itemId": "158284025204",
+        "uploadedAt": "2026-09-12T11:06:54.735Z"
+      }
+    ]
+  },
+  {
+    "sku": "39496",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:12:08.747Z",
+    "registration": [
+      {
+        "sku": "39496",
+        "status": "uploaded",
+        "itemId": "158283954440",
+        "uploadedAt": "2026-09-12T10:29:29.659Z"
+      }
+    ]
+  },
+  {
+    "sku": "39984",
+    "group": "BTS",
+    "oldCost": "13.5",
+    "currentCost": "2000",
+    "sourceCheckedAt": "2026-09-15T03:12:34.730Z",
+    "registration": [
+      {
+        "sku": "39984",
+        "status": "uploaded",
+        "itemId": "158283976160",
+        "uploadedAt": "2026-09-12T10:36:40.830Z"
+      }
+    ]
+  },
+  {
+    "sku": "39495",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:13:05.896Z",
+    "registration": [
+      {
+        "sku": "39495",
+        "status": "uploaded",
+        "itemId": "158283946434",
+        "uploadedAt": "2026-09-12T10:28:52.279Z"
+      }
+    ]
+  },
+  {
+    "sku": "39489",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:13:06.937Z",
+    "registration": [
+      {
+        "sku": "39489",
+        "status": "uploaded",
+        "itemId": "158283941170",
+        "uploadedAt": "2026-09-12T10:25:33.557Z"
+      }
+    ]
+  },
+  {
+    "sku": "38378",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:27.443Z",
+    "registration": [
+      {
+        "sku": "38378",
+        "status": "uploaded",
+        "itemId": "158283933040",
+        "uploadedAt": "2026-09-12T10:17:41.648Z"
+      }
+    ]
+  },
+  {
+    "sku": "39491",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:12:28.480Z",
+    "registration": [
+      {
+        "sku": "39491",
+        "status": "uploaded",
+        "itemId": "158283941433",
+        "uploadedAt": "2026-09-12T10:26:10.128Z"
+      }
+    ]
+  },
+  {
+    "sku": "39482",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:14.949Z",
+    "registration": [
+      {
+        "sku": "39482",
+        "status": "uploaded",
+        "itemId": "158283937293",
+        "uploadedAt": "2026-09-12T10:20:59.736Z"
+      }
+    ]
+  },
+  {
+    "sku": "39493",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:12:28.473Z",
+    "registration": [
+      {
+        "sku": "39493",
+        "status": "uploaded",
+        "itemId": "158283942378",
+        "uploadedAt": "2026-09-12T10:27:30.499Z"
+      }
+    ]
+  },
+  {
+    "sku": "39494",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:35.766Z",
+    "registration": [
+      {
+        "sku": "39494",
+        "status": "uploaded",
+        "itemId": "158283942992",
+        "uploadedAt": "2026-09-12T10:28:10.048Z"
+      }
+    ]
+  },
+  {
+    "sku": "39985",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:37.858Z",
+    "registration": [
+      {
+        "sku": "39985",
+        "status": "uploaded",
+        "itemId": "158283976414",
+        "uploadedAt": "2026-09-12T10:37:16.331Z"
+      }
+    ]
+  },
+  {
+    "sku": "39987",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:13.911Z",
+    "registration": [
+      {
+        "sku": "39987",
+        "status": "uploaded",
+        "itemId": "158283977078",
+        "uploadedAt": "2026-09-12T10:38:32.805Z"
+      }
+    ]
+  },
+  {
+    "sku": "39991",
+    "group": "BTS",
+    "oldCost": "12.8",
+    "currentCost": "1500",
+    "sourceCheckedAt": "2026-09-15T03:13:11.086Z",
+    "registration": [
+      {
+        "sku": "39991",
+        "status": "uploaded",
+        "itemId": "158283978293",
+        "uploadedAt": "2026-09-12T10:41:12.095Z"
+      }
+    ]
+  },
+  {
+    "sku": "40000",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:20.174Z",
+    "registration": [
+      {
+        "sku": "40000",
+        "status": "uploaded",
+        "itemId": "158283978744",
+        "uploadedAt": "2026-09-12T10:42:30.641Z"
+      }
+    ]
+  },
+  {
+    "sku": "40058",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:13:07.974Z",
+    "registration": [
+      {
+        "sku": "40058",
+        "status": "uploaded",
+        "itemId": "158283979730",
+        "uploadedAt": "2026-09-12T10:43:52.955Z"
+      }
+    ]
+  },
+  {
+    "sku": "40360",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:11:58.364Z",
+    "registration": [
+      {
+        "sku": "40360",
+        "status": "uploaded",
+        "itemId": "158283981792",
+        "uploadedAt": "2026-09-12T10:47:20.991Z"
+      }
+    ]
+  },
+  {
+    "sku": "40363",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:13:02.743Z",
+    "registration": [
+      {
+        "sku": "40363",
+        "status": "uploaded",
+        "itemId": "158283995838",
+        "uploadedAt": "2026-09-12T10:49:18.585Z"
+      }
+    ]
+  },
+  {
+    "sku": "40365",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:13:02.774Z",
+    "registration": [
+      {
+        "sku": "40365",
+        "status": "uploaded",
+        "itemId": "158284009355",
+        "uploadedAt": "2026-09-12T10:50:48.046Z"
+      }
+    ]
+  },
+  {
+    "sku": "43794",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:13:12.118Z",
+    "registration": [
+      {
+        "sku": "43794",
+        "status": "uploaded",
+        "itemId": "158284017605",
+        "uploadedAt": "2026-09-12T10:57:38.730Z"
+      }
+    ]
+  },
+  {
+    "sku": "62767",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:54.483Z",
+    "registration": [
+      {
+        "sku": "62767",
+        "status": "uploaded",
+        "itemId": "158284058563",
+        "uploadedAt": "2026-09-12T11:16:29.333Z"
+      }
+    ]
+  },
+  {
+    "sku": "72904",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:11:51.058Z",
+    "registration": [
+      {
+        "sku": "72904",
+        "status": "uploaded",
+        "itemId": "158284065191",
+        "uploadedAt": "2026-09-12T11:22:27.696Z"
+      }
+    ]
+  },
+  {
+    "sku": "332572",
+    "group": "BTS",
+    "oldCost": "384.3",
+    "currentCost": "250000",
+    "sourceCheckedAt": "2026-09-15T03:12:01.443Z",
+    "registration": [
+      {
+        "sku": "332572",
+        "status": "uploaded",
+        "itemId": "158281885319",
+        "uploadedAt": "2026-09-11T18:49:32.526Z"
+      }
+    ]
+  },
+  {
+    "sku": "40361",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:45.100Z",
+    "registration": [
+      {
+        "sku": "40361",
+        "status": "uploaded",
+        "itemId": "158283982218",
+        "uploadedAt": "2026-09-12T10:48:01.046Z"
+      }
+    ]
+  },
+  {
+    "sku": "40359",
+    "group": "BTS",
+    "oldCost": "12.8",
+    "currentCost": "1500",
+    "sourceCheckedAt": "2026-09-15T03:11:58.321Z",
+    "registration": [
+      {
+        "sku": "40359",
+        "status": "uploaded",
+        "itemId": "158283981499",
+        "uploadedAt": "2026-09-12T10:46:43.006Z"
+      }
+    ]
+  },
+  {
+    "sku": "39492",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:12:44.069Z",
+    "registration": [
+      {
+        "sku": "39492",
+        "status": "uploaded",
+        "itemId": "158283941889",
+        "uploadedAt": "2026-09-12T10:26:48.794Z"
+      }
+    ]
+  },
+  {
+    "sku": "43807",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:11:48.996Z",
+    "registration": [
+      {
+        "sku": "43807",
+        "status": "uploaded",
+        "itemId": "158284022994",
+        "uploadedAt": "2026-09-12T11:05:42.021Z"
+      }
+    ]
+  },
+  {
+    "sku": "74284",
+    "group": "BTS",
+    "oldCost": "160",
+    "currentCost": "100000",
+    "sourceCheckedAt": "2026-09-15T03:11:48.984Z",
+    "registration": [
+      {
+        "sku": "74284",
+        "status": "uploaded",
+        "itemId": "158284067360",
+        "uploadedAt": "2026-09-12T11:23:50.147Z"
+      }
+    ]
+  },
+  {
+    "sku": "43803",
+    "group": "BTS",
+    "oldCost": "14.3",
+    "currentCost": "2500",
+    "sourceCheckedAt": "2026-09-15T03:12:42.007Z",
+    "registration": [
+      {
+        "sku": "43803",
+        "status": "uploaded",
+        "itemId": "158284021186",
+        "uploadedAt": "2026-09-12T11:03:05.195Z"
+      }
+    ]
+  },
+  {
+    "sku": "39497",
+    "group": "BTS",
+    "oldCost": "14.3",
+    "currentCost": "2500",
+    "sourceCheckedAt": "2026-09-15T03:12:35.770Z",
+    "registration": [
+      {
+        "sku": "39497",
+        "status": "uploaded",
+        "itemId": "158283960059",
+        "uploadedAt": "2026-09-12T10:30:03.436Z"
+      }
+    ]
+  },
+  {
+    "sku": "71472",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:11:55.257Z",
+    "registration": [
+      {
+        "sku": "71472",
+        "status": "uploaded",
+        "itemId": "158284063676",
+        "uploadedAt": "2026-09-12T11:21:08.208Z"
+      }
+    ]
+  },
+  {
+    "sku": "39487",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:13:01.704Z",
+    "registration": [
+      {
+        "sku": "39487",
+        "status": "uploaded",
+        "itemId": "158283940457",
+        "uploadedAt": "2026-09-12T10:24:11.785Z"
+      }
+    ]
+  },
+  {
+    "sku": "39485",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:12:27.444Z",
+    "registration": [
+      {
+        "sku": "39485",
+        "status": "uploaded",
+        "itemId": "158283939651",
+        "uploadedAt": "2026-09-12T10:22:55.335Z"
+      }
+    ]
+  },
+  {
+    "sku": "67246",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:11:51.086Z",
+    "registration": [
+      {
+        "sku": "67246",
+        "status": "uploaded",
+        "itemId": "158284059391",
+        "uploadedAt": "2026-09-12T11:17:50.981Z"
+      }
+    ]
+  },
+  {
+    "sku": "40001",
+    "group": "BTS",
+    "oldCost": "13.5",
+    "currentCost": "2000",
+    "sourceCheckedAt": "2026-09-15T03:11:50.021Z",
+    "registration": [
+      {
+        "sku": "40001",
+        "status": "uploaded",
+        "itemId": "158283978950",
+        "uploadedAt": "2026-09-12T10:43:11.452Z"
+      }
+    ]
+  },
+  {
+    "sku": "67247",
+    "group": "BTS",
+    "oldCost": "12.8",
+    "currentCost": "1500",
+    "sourceCheckedAt": "2026-09-15T03:12:09.770Z",
+    "registration": [
+      {
+        "sku": "67247",
+        "status": "uploaded",
+        "itemId": "158284060640",
+        "uploadedAt": "2026-09-12T11:18:30.372Z"
+      }
+    ]
+  },
+  {
+    "sku": "46517",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:13:07.972Z",
+    "registration": [
+      {
+        "sku": "46517",
+        "status": "uploaded",
+        "itemId": "158284056438",
+        "uploadedAt": "2026-09-12T11:12:34.430Z"
+      }
+    ]
+  },
+  {
+    "sku": "43804",
+    "group": "BTS",
+    "oldCost": "14.3",
+    "currentCost": "2500",
+    "sourceCheckedAt": "2026-09-15T03:11:59.360Z",
+    "registration": [
+      {
+        "sku": "43804",
+        "status": "uploaded",
+        "itemId": "158284021497",
+        "uploadedAt": "2026-09-12T11:03:46.365Z"
+      }
+    ]
+  },
+  {
+    "sku": "40354",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:11:57.328Z",
+    "registration": [
+      {
+        "sku": "40354",
+        "status": "uploaded",
+        "itemId": "158283980667",
+        "uploadedAt": "2026-09-12T10:45:17.725Z"
+      }
+    ]
+  },
+  {
+    "sku": "72903",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:04.550Z",
+    "registration": [
+      {
+        "sku": "72903",
+        "status": "uploaded",
+        "itemId": "158284064756",
+        "uploadedAt": "2026-09-12T11:21:48.257Z"
+      }
+    ]
+  },
+  {
+    "sku": "43812",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:14.948Z",
+    "registration": [
+      {
+        "sku": "43812",
+        "status": "uploaded",
+        "itemId": "158284040031",
+        "uploadedAt": "2026-09-12T11:08:46.085Z"
+      }
+    ]
+  },
+  {
+    "sku": "43811",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:45.135Z",
+    "registration": [
+      {
+        "sku": "43811",
+        "status": "uploaded",
+        "itemId": "158284033621",
+        "uploadedAt": "2026-09-12T11:08:09.227Z"
+      }
+    ]
+  },
+  {
+    "sku": "43795",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:40.962Z",
+    "registration": [
+      {
+        "sku": "43795",
+        "status": "uploaded",
+        "itemId": "158284017852",
+        "uploadedAt": "2026-09-12T10:58:15.028Z"
+      }
+    ]
+  },
+  {
+    "sku": "39997",
+    "group": "BTS",
+    "oldCost": "13.5",
+    "currentCost": "2000",
+    "sourceCheckedAt": "2026-09-15T03:13:11.092Z",
+    "registration": [
+      {
+        "sku": "39997",
+        "status": "uploaded",
+        "itemId": "158283978477",
+        "uploadedAt": "2026-09-12T10:41:50.843Z"
+      }
+    ]
+  },
+  {
+    "sku": "39988",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:13:14.186Z",
+    "registration": [
+      {
+        "sku": "39988",
+        "status": "uploaded",
+        "itemId": "158283977394",
+        "uploadedAt": "2026-09-12T10:39:11.394Z"
+      }
+    ]
+  },
+  {
+    "sku": "43802",
+    "group": "BTS",
+    "oldCost": "12.8",
+    "currentCost": "1500",
+    "sourceCheckedAt": "2026-09-15T03:12:39.925Z",
+    "registration": [
+      {
+        "sku": "43802",
+        "status": "uploaded",
+        "itemId": "158284020913",
+        "uploadedAt": "2026-09-12T11:02:24.472Z"
+      }
+    ]
+  },
+  {
+    "sku": "43796",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:43.033Z",
+    "registration": [
+      {
+        "sku": "43796",
+        "status": "uploaded",
+        "itemId": "158284018005",
+        "uploadedAt": "2026-09-12T10:58:53.340Z"
+      }
+    ]
+  },
+  {
+    "sku": "43806",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:11:59.407Z",
+    "registration": [
+      {
+        "sku": "43806",
+        "status": "uploaded",
+        "itemId": "158284022008",
+        "uploadedAt": "2026-09-12T11:04:56.041Z"
+      }
+    ]
+  },
+  {
+    "sku": "71405",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:29.520Z",
+    "registration": [
+      {
+        "sku": "71405",
+        "status": "uploaded",
+        "itemId": "158284061882",
+        "uploadedAt": "2026-09-12T11:20:30.277Z"
+      }
+    ]
+  },
+  {
+    "sku": "67783",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:00.432Z",
+    "registration": [
+      {
+        "sku": "67783",
+        "status": "uploaded",
+        "itemId": "158284061424",
+        "uploadedAt": "2026-09-12T11:19:46.552Z"
+      }
+    ]
+  },
+  {
+    "sku": "43810",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:58.578Z",
+    "registration": [
+      {
+        "sku": "43810",
+        "status": "uploaded",
+        "itemId": "158284027656",
+        "uploadedAt": "2026-09-12T11:07:32.279Z"
+      }
+    ]
+  },
+  {
+    "sku": "43798",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:13:13.157Z",
+    "registration": [
+      {
+        "sku": "43798",
+        "status": "uploaded",
+        "itemId": "158284018279",
+        "uploadedAt": "2026-09-12T10:59:31.595Z"
+      }
+    ]
+  },
+  {
+    "sku": "40356",
+    "group": "BTS",
+    "oldCost": "12.8",
+    "currentCost": "1500",
+    "sourceCheckedAt": "2026-09-15T03:12:44.097Z",
+    "registration": [
+      {
+        "sku": "40356",
+        "status": "uploaded",
+        "itemId": "158283981174",
+        "uploadedAt": "2026-09-12T10:46:02.285Z"
+      }
+    ]
+  },
+  {
+    "sku": "72905",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:13:03.791Z",
+    "registration": [
+      {
+        "sku": "72905",
+        "status": "uploaded",
+        "itemId": "158284066549",
+        "uploadedAt": "2026-09-12T11:23:09.356Z"
+      }
+    ]
+  },
+  {
+    "sku": "39983",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:10.806Z",
+    "registration": [
+      {
+        "sku": "39983",
+        "status": "uploaded",
+        "itemId": "158283975145",
+        "uploadedAt": "2026-09-12T10:36:03.906Z"
+      }
+    ]
+  },
+  {
+    "sku": "43793",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:13:12.117Z",
+    "registration": [
+      {
+        "sku": "43793",
+        "status": "uploaded",
+        "itemId": "158284017448",
+        "uploadedAt": "2026-09-12T10:57:07.447Z"
+      }
+    ]
+  },
+  {
+    "sku": "40060",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:29.537Z",
+    "registration": [
+      {
+        "sku": "40060",
+        "status": "uploaded",
+        "itemId": "158283980190",
+        "uploadedAt": "2026-09-12T10:44:34.475Z"
+      }
+    ]
+  },
+  {
+    "sku": "39481",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:12:55.476Z",
+    "registration": [
+      {
+        "sku": "39481",
+        "status": "uploaded",
+        "itemId": "158283935747",
+        "uploadedAt": "2026-09-12T10:20:21.510Z"
+      }
+    ]
+  },
+  {
+    "sku": "30990",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:22.237Z",
+    "registration": [
+      {
+        "sku": "30990",
+        "status": "uploaded",
+        "itemId": "158281855274",
+        "uploadedAt": "2026-09-11T18:41:00.245Z"
+      }
+    ]
+  },
+  {
+    "sku": "12764",
+    "group": "BTS",
+    "oldCost": "127.1",
+    "currentCost": "78000",
+    "sourceCheckedAt": "2026-09-15T03:13:29.757Z",
+    "registration": [
+      {
+        "sku": "12764",
+        "status": "uploaded",
+        "itemId": "158278674356",
+        "uploadedAt": "2026-09-10T15:23:32.954Z"
+      }
+    ]
+  },
+  {
+    "sku": "39982",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:23.281Z",
+    "registration": [
+      {
+        "sku": "39982",
+        "status": "uploaded",
+        "itemId": "158283973357",
+        "uploadedAt": "2026-09-12T10:35:24.454Z"
+      }
+    ]
+  },
+  {
+    "sku": "67782",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:12:38.904Z",
+    "registration": [
+      {
+        "sku": "67782",
+        "status": "uploaded",
+        "itemId": "158284061085",
+        "uploadedAt": "2026-09-12T11:19:07.796Z"
+      }
+    ]
+  },
+  {
+    "sku": "40362",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:13:01.743Z",
+    "registration": [
+      {
+        "sku": "40362",
+        "status": "uploaded",
+        "itemId": "158283989044",
+        "uploadedAt": "2026-09-12T10:48:40.897Z"
+      }
+    ]
+  },
+  {
+    "sku": "67245",
+    "group": "BTS",
+    "oldCost": "14.3",
+    "currentCost": "2500",
+    "sourceCheckedAt": "2026-09-15T03:12:00.404Z",
+    "registration": [
+      {
+        "sku": "67245",
+        "status": "uploaded",
+        "itemId": "158284058937",
+        "uploadedAt": "2026-09-12T11:17:12.641Z"
+      }
+    ]
+  },
+  {
+    "sku": "43805",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:15.998Z",
+    "registration": [
+      {
+        "sku": "43805",
+        "status": "uploaded",
+        "itemId": "158284021749",
+        "uploadedAt": "2026-09-12T11:04:24.951Z"
+      }
+    ]
+  },
+  {
+    "sku": "43800",
+    "group": "BTS",
+    "oldCost": "14.3",
+    "currentCost": "2500",
+    "sourceCheckedAt": "2026-09-15T03:12:12.878Z",
+    "registration": [
+      {
+        "sku": "43800",
+        "status": "uploaded",
+        "itemId": "158284018896",
+        "uploadedAt": "2026-09-12T11:00:57.656Z"
+      }
+    ]
+  },
+  {
+    "sku": "39989",
+    "group": "BTS",
+    "oldCost": "12.8",
+    "currentCost": "1500",
+    "sourceCheckedAt": "2026-09-15T03:12:34.736Z",
+    "registration": [
+      {
+        "sku": "39989",
+        "status": "uploaded",
+        "itemId": "158283977538",
+        "uploadedAt": "2026-09-12T10:39:48.379Z"
+      }
+    ]
+  },
+  {
+    "sku": "40364",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:56.561Z",
+    "registration": [
+      {
+        "sku": "40364",
+        "status": "uploaded",
+        "itemId": "158284003747",
+        "uploadedAt": "2026-09-12T10:50:00.732Z"
+      }
+    ]
+  },
+  {
+    "sku": "39486",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:24.318Z",
+    "registration": [
+      {
+        "sku": "39486",
+        "status": "uploaded",
+        "itemId": "158283940107",
+        "uploadedAt": "2026-09-12T10:23:33.056Z"
+      }
+    ]
+  },
+  {
+    "sku": "39980",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:12:57.606Z",
+    "registration": [
+      {
+        "sku": "39980",
+        "status": "uploaded",
+        "itemId": "158283972399",
+        "uploadedAt": "2026-09-12T10:34:41.987Z"
+      }
+    ]
+  },
+  {
+    "sku": "39484",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:12:10.790Z",
+    "registration": [
+      {
+        "sku": "39484",
+        "status": "uploaded",
+        "itemId": "158283939313",
+        "uploadedAt": "2026-09-12T10:22:16.740Z"
+      }
+    ]
+  },
+  {
+    "sku": "316440",
+    "group": "BTS",
+    "oldCost": "32.9",
+    "currentCost": "15000",
+    "sourceCheckedAt": "2026-09-15T03:14:58.076Z",
+    "registration": [
+      {
+        "sku": "316440",
+        "status": "uploaded",
+        "itemId": "158281859712",
+        "uploadedAt": "2026-09-11T18:47:02.789Z"
+      }
+    ]
+  },
+  {
+    "sku": "178737",
+    "group": "BTS",
+    "oldCost": "55.4",
+    "currentCost": "30000",
+    "sourceCheckedAt": "2026-09-15T03:15:08.498Z",
+    "registration": [
+      {
+        "sku": "178737",
+        "status": "uploaded",
+        "itemId": "158278727881",
+        "uploadedAt": "2026-09-10T15:46:31.740Z"
+      }
+    ]
+  },
+  {
+    "sku": "376448",
+    "group": "BTS",
+    "oldCost": "25.5",
+    "currentCost": "10000",
+    "sourceCheckedAt": "2026-09-15T03:13:40.085Z",
+    "registration": [
+      {
+        "sku": "376448",
+        "status": "uploaded",
+        "itemId": "158283554327",
+        "uploadedAt": "2026-09-12T07:27:58.395Z"
+      }
+    ]
+  },
+  {
+    "sku": "277709",
+    "group": "BTS",
+    "oldCost": "68.8",
+    "currentCost": "39000",
+    "sourceCheckedAt": "2026-09-15T03:15:09.527Z",
+    "registration": [
+      {
+        "sku": "277709",
+        "status": "uploaded",
+        "itemId": "158280986822",
+        "uploadedAt": "2026-09-11T12:45:33.744Z"
+      }
+    ]
+  },
+  {
+    "sku": "322878",
+    "group": "BTS",
+    "oldCost": "100.2",
+    "currentCost": "60000",
+    "sourceCheckedAt": "2026-09-15T03:14:29.967Z",
+    "registration": [
+      {
+        "sku": "322878",
+        "status": "uploaded",
+        "itemId": "158281870875",
+        "uploadedAt": "2026-09-11T18:48:20.374Z"
+      }
+    ]
+  },
+  {
+    "sku": "29926",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:15:32.373Z",
+    "registration": [
+      {
+        "sku": "29926",
+        "status": "uploaded",
+        "itemId": "158281844759",
+        "uploadedAt": "2026-09-11T18:31:08.902Z"
+      }
+    ]
+  },
+  {
+    "sku": "308427",
+    "group": "BTS",
+    "oldCost": "62.8",
+    "currentCost": "35000",
+    "sourceCheckedAt": "2026-09-15T03:15:57.777Z",
+    "registration": [
+      {
+        "sku": "308427",
+        "status": "uploaded",
+        "itemId": "158281847692",
+        "uploadedAt": "2026-09-11T18:35:03.757Z"
+      }
+    ]
+  },
+  {
+    "sku": "187374",
+    "group": "BTS",
+    "oldCost": "18",
+    "currentCost": "5000",
+    "sourceCheckedAt": "2026-09-15T03:14:28.927Z",
+    "registration": [
+      {
+        "sku": "187374",
+        "status": "uploaded",
+        "itemId": "158281773103",
+        "uploadedAt": "2026-09-11T18:09:25.263Z"
+      }
+    ]
+  },
+  {
+    "sku": "284806",
+    "group": "BTS",
+    "oldCost": "32.9",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:16:40.867Z",
+    "registration": [
+      {
+        "sku": "284806",
+        "status": "uploaded",
+        "itemId": "158281814368",
+        "uploadedAt": "2026-09-11T18:26:25.952Z"
+      }
+    ]
+  },
+  {
+    "sku": "35772",
+    "group": "BTS",
+    "oldCost": "32.9",
+    "currentCost": "15000",
+    "sourceCheckedAt": "2026-09-15T03:16:41.900Z",
+    "registration": [
+      {
+        "sku": "35772",
+        "status": "uploaded",
+        "itemId": "158281887666",
+        "uploadedAt": "2026-09-11T18:51:02.059Z"
+      }
+    ]
+  },
+  {
+    "sku": "376467",
+    "group": "BTS",
+    "oldCost": "32.9",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:15:15.785Z",
+    "registration": [
+      {
+        "sku": "376467",
+        "status": "uploaded",
+        "itemId": "158283568769",
+        "uploadedAt": "2026-09-12T07:29:19.289Z"
+      }
+    ]
+  },
+  {
+    "sku": "40915",
+    "group": "BTS",
+    "oldCost": "18",
+    "currentCost": "5000",
+    "sourceCheckedAt": "2026-09-15T03:16:52.265Z",
+    "registration": [
+      {
+        "sku": "40915",
+        "status": "uploaded",
+        "itemId": "158284015584",
+        "uploadedAt": "2026-09-12T10:52:53.581Z"
+      }
+    ]
+  },
+  {
+    "sku": "464438",
+    "group": "BTS",
+    "oldCost": "62.8",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:15:58.931Z",
+    "registration": [
+      {
+        "sku": "464438",
+        "status": "uploaded",
+        "itemId": "158284055331",
+        "uploadedAt": "2026-09-12T11:11:11.027Z"
+      }
+    ]
+  },
+  {
+    "sku": "36298",
+    "group": "BTS",
+    "oldCost": "27",
+    "currentCost": "11000",
+    "sourceCheckedAt": "2026-09-15T03:17:33.573Z",
+    "registration": [
+      {
+        "sku": "36298",
+        "status": "uploaded",
+        "itemId": "158281891615",
+        "uploadedAt": "2026-09-11T18:53:06.011Z"
+      }
+    ]
+  },
+  {
+    "sku": "152107",
+    "group": "Stray Kids",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:17:29.635Z",
+    "registration": [
+      {
+        "sku": "152107",
+        "status": "uploaded",
+        "itemId": "158278724410",
+        "uploadedAt": "2026-09-10T15:40:36.247Z"
+      }
+    ]
+  },
+  {
+    "sku": "434626",
+    "group": "Stray Kids",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:17:55.411Z",
+    "registration": [
+      {
+        "sku": "434626",
+        "status": "uploaded",
+        "itemId": "158284017256",
+        "uploadedAt": "2026-09-12T10:56:29.689Z"
+      }
+    ]
+  },
+  {
+    "sku": "381997",
+    "group": "BTS",
+    "oldCost": "32.9",
+    "currentCost": "15000",
+    "sourceCheckedAt": "2026-09-15T03:17:52.297Z",
+    "registration": [
+      {
+        "sku": "381997",
+        "status": "uploaded",
+        "itemId": "158283576581",
+        "uploadedAt": "2026-09-12T07:34:12.084Z"
+      }
+    ]
+  },
+  {
+    "sku": "284298",
+    "group": "BTS",
+    "oldCost": "32.9",
+    "currentCost": "15000",
+    "sourceCheckedAt": "2026-09-15T03:19:14.474Z",
+    "registration": [
+      {
+        "sku": "284298",
+        "status": "uploaded",
+        "itemId": "158281810315",
+        "uploadedAt": "2026-09-11T18:24:39.100Z"
+      }
+    ]
+  },
+  {
+    "sku": "15099",
+    "group": "BTS",
+    "oldCost": "19.5",
+    "currentCost": "6000",
+    "sourceCheckedAt": "2026-09-15T03:18:30.762Z",
+    "registration": [
+      {
+        "sku": "15099",
+        "status": "uploaded",
+        "itemId": "158278722931",
+        "uploadedAt": "2026-09-10T15:38:29.546Z"
+      }
+    ]
+  },
+  {
+    "sku": "277719",
+    "group": "BTS",
+    "oldCost": "40.4",
+    "currentCost": "20000",
+    "sourceCheckedAt": "2026-09-15T03:18:06.824Z",
+    "registration": [
+      {
+        "sku": "277719",
+        "status": "uploaded",
+        "itemId": "158280988058",
+        "uploadedAt": "2026-09-11T12:47:21.587Z"
+      }
+    ]
+  },
+  {
+    "sku": "257070",
+    "group": "Stray Kids",
+    "oldCost": "14.3",
+    "currentCost": "2500",
+    "sourceCheckedAt": "2026-09-15T03:17:30.678Z",
+    "registration": [
+      {
+        "sku": "257070",
+        "status": "uploaded",
+        "itemId": "158280975547",
+        "uploadedAt": "2026-09-11T12:35:05.901Z"
+      }
+    ]
+  },
+  {
+    "sku": "30992",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:20:04.979Z",
+    "registration": [
+      {
+        "sku": "30992",
+        "status": "uploaded",
+        "itemId": "158281856177",
+        "uploadedAt": "2026-09-11T18:42:54.084Z"
+      }
+    ]
+  },
+  {
+    "sku": "37743",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:19:17.925Z",
+    "registration": [
+      {
+        "sku": "37743",
+        "status": "uploaded",
+        "itemId": "158283570052",
+        "uploadedAt": "2026-09-12T07:30:58.396Z"
+      }
+    ]
+  },
+  {
+    "sku": "121920",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:20:00.833Z",
+    "registration": [
+      {
+        "sku": "121920",
+        "status": "uploaded",
+        "itemId": "158278670848",
+        "uploadedAt": "2026-09-10T15:21:04.669Z"
+      }
+    ]
+  },
+  {
+    "sku": "61845",
+    "group": "BTS",
+    "oldCost": "25.5",
+    "currentCost": "10000",
+    "sourceCheckedAt": "2026-09-15T03:20:45.137Z",
+    "registration": [
+      {
+        "sku": "61845",
+        "status": "uploaded",
+        "itemId": "158284057745",
+        "uploadedAt": "2026-09-12T11:15:15.401Z"
+      }
+    ]
+  },
+  {
+    "sku": "121416",
+    "group": "BTS",
+    "oldCost": "35.9",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:20:54.034Z",
+    "registration": [
+      {
+        "sku": "121416",
+        "status": "uploaded",
+        "itemId": "158278668911",
+        "uploadedAt": "2026-09-10T15:20:23.581Z"
+      }
+    ]
+  },
+  {
+    "sku": "123206",
+    "group": "BTS",
+    "oldCost": "18.7",
+    "currentCost": "5500",
+    "sourceCheckedAt": "2026-09-15T03:20:33.172Z",
+    "registration": [
+      {
+        "sku": "123206",
+        "status": "uploaded",
+        "itemId": "158278672442",
+        "uploadedAt": "2026-09-10T15:21:53.044Z"
+      }
+    ]
+  },
+  {
+    "sku": "105148",
+    "group": "BTS",
+    "oldCost": "24",
+    "currentCost": "9000",
+    "sourceCheckedAt": "2026-09-15T03:20:34.217Z",
+    "registration": [
+      {
+        "sku": "105148",
+        "status": "uploaded",
+        "itemId": "158278664848",
+        "uploadedAt": "2026-09-10T15:17:08.838Z"
+      }
+    ]
+  },
+  {
+    "sku": "132739",
+    "group": "BTS",
+    "oldCost": "758",
+    "currentCost": "500000",
+    "sourceCheckedAt": "2026-09-15T03:21:26.723Z",
+    "registration": [
+      {
+        "sku": "132739",
+        "status": "uploaded",
+        "itemId": "158278677161",
+        "uploadedAt": "2026-09-10T15:26:24.050Z"
+      }
+    ]
+  },
+  {
+    "sku": "13353",
+    "group": "BTS",
+    "oldCost": "18",
+    "currentCost": "5000",
+    "sourceCheckedAt": "2026-09-15T03:21:35.044Z",
+    "registration": [
+      {
+        "sku": "13353",
+        "status": "uploaded",
+        "itemId": "158278690723",
+        "uploadedAt": "2026-09-10T15:29:35.887Z"
+      }
+    ]
+  },
+  {
+    "sku": "139198",
+    "group": "BTS",
+    "oldCost": "40.4",
+    "currentCost": "20000",
+    "sourceCheckedAt": "2026-09-15T03:21:14.844Z",
+    "registration": [
+      {
+        "sku": "139198",
+        "status": "uploaded",
+        "itemId": "158278710243",
+        "uploadedAt": "2026-09-10T15:31:02.372Z"
+      }
+    ]
+  },
+  {
+    "sku": "14414",
+    "group": "BTS",
+    "oldCost": "234.8",
+    "currentCost": "150000",
+    "sourceCheckedAt": "2026-09-15T03:21:22.062Z",
+    "registration": [
+      {
+        "sku": "14414",
+        "status": "uploaded",
+        "itemId": "158278717409",
+        "uploadedAt": "2026-09-10T15:34:52.440Z"
+      }
+    ]
+  },
+  {
+    "sku": "15551",
+    "group": "BTS",
+    "oldCost": "100.2",
+    "currentCost": "60000",
+    "sourceCheckedAt": "2026-09-15T03:21:23.105Z",
+    "registration": [
+      {
+        "sku": "15551",
+        "status": "uploaded",
+        "itemId": "158278725803",
+        "uploadedAt": "2026-09-10T15:42:22.760Z"
+      }
+    ]
+  },
+  {
+    "sku": "118103",
+    "group": "BTS",
+    "oldCost": "29.9",
+    "currentCost": "13000",
+    "sourceCheckedAt": "2026-09-15T03:20:35.258Z",
+    "registration": [
+      {
+        "sku": "118103",
+        "status": "uploaded",
+        "itemId": "158278668333",
+        "uploadedAt": "2026-09-10T15:19:39.958Z"
+      }
+    ]
+  },
+  {
+    "sku": "170551",
+    "group": "Stray Kids",
+    "oldCost": "13.5",
+    "currentCost": "2000",
+    "sourceCheckedAt": "2026-09-15T03:21:23.591Z",
+    "registration": [
+      {
+        "sku": "170551",
+        "status": "uploaded",
+        "itemId": "158278727083",
+        "uploadedAt": "2026-09-10T15:44:56.906Z"
+      }
+    ]
+  },
+  {
+    "sku": "130243",
+    "group": "BTS",
+    "oldCost": "25.5",
+    "currentCost": "10000",
+    "sourceCheckedAt": "2026-09-15T03:20:33.622Z",
+    "registration": [
+      {
+        "sku": "130243",
+        "status": "uploaded",
+        "itemId": "158278674710",
+        "uploadedAt": "2026-09-10T15:24:03.890Z"
+      }
+    ]
+  },
+  {
+    "sku": "15579",
+    "group": "BTS",
+    "oldCost": "22.5",
+    "currentCost": "8000",
+    "sourceCheckedAt": "2026-09-15T03:21:14.240Z",
+    "registration": [
+      {
+        "sku": "15579",
+        "status": "uploaded",
+        "itemId": "158278726461",
+        "uploadedAt": "2026-09-10T15:43:55.597Z"
+      }
+    ]
+  },
+  {
+    "sku": "139403",
+    "group": "Stray Kids",
+    "oldCost": "13.5",
+    "currentCost": "2000",
+    "sourceCheckedAt": "2026-09-15T03:21:25.679Z",
+    "registration": [
+      {
+        "sku": "139403",
+        "status": "uploaded",
+        "itemId": "158278716514",
+        "uploadedAt": "2026-09-10T15:33:55.311Z"
+      }
+    ]
+  },
+  {
+    "sku": "139260",
+    "group": "BTS",
+    "oldCost": "32.9",
+    "currentCost": "15000",
+    "sourceCheckedAt": "2026-09-15T03:21:21.541Z",
+    "registration": [
+      {
+        "sku": "139260",
+        "status": "uploaded",
+        "itemId": "158278711351",
+        "uploadedAt": "2026-09-10T15:32:24.964Z"
+      }
+    ]
+  },
+  {
+    "sku": "14835",
+    "group": "BTS",
+    "oldCost": "55.4",
+    "currentCost": "30000",
+    "sourceCheckedAt": "2026-09-15T03:21:25.211Z",
+    "registration": [
+      {
+        "sku": "14835",
+        "status": "uploaded",
+        "itemId": "158278722519",
+        "uploadedAt": "2026-09-10T15:37:49.869Z"
+      }
+    ]
+  },
+  {
+    "sku": "111052",
+    "group": "BTS",
+    "oldCost": "47.9",
+    "currentCost": "25000",
+    "sourceCheckedAt": "2026-09-15T03:20:34.655Z",
+    "registration": [
+      {
+        "sku": "111052",
+        "status": "uploaded",
+        "itemId": "158278667887",
+        "uploadedAt": "2026-09-10T15:18:53.796Z"
+      }
+    ]
+  },
+  {
+    "sku": "127294",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:20:35.688Z",
+    "registration": [
+      {
+        "sku": "127294",
+        "status": "uploaded",
+        "itemId": "158278673724",
+        "uploadedAt": "2026-09-10T15:22:44.112Z"
+      }
+    ]
+  },
+  {
+    "sku": "131200",
+    "group": "BTS",
+    "oldCost": "15",
+    "currentCost": "3000",
+    "sourceCheckedAt": "2026-09-15T03:20:46.767Z",
+    "registration": [
+      {
+        "sku": "131200",
+        "status": "uploaded",
+        "itemId": "158278675068",
+        "uploadedAt": "2026-09-10T15:24:40.349Z"
+      }
+    ]
+  },
+  {
+    "sku": "13315",
+    "group": "BTS",
+    "oldCost": "19.5",
+    "currentCost": "6000",
+    "sourceCheckedAt": "2026-09-15T03:21:29.363Z",
+    "registration": [
+      {
+        "sku": "13315",
+        "status": "uploaded",
+        "itemId": "158278678476",
+        "uploadedAt": "2026-09-10T15:27:54.359Z"
+      }
+    ]
+  },
+  {
+    "sku": "10304",
+    "group": "BTS",
+    "oldCost": "2253",
+    "currentCost": "1500000",
+    "sourceCheckedAt": "2026-09-15T03:20:50.912Z",
+    "registration": [
+      {
+        "sku": "10304",
+        "status": "uploaded",
+        "itemId": "158278664257",
+        "uploadedAt": "2026-09-10T15:16:06.454Z"
+      }
+    ]
+  },
+  {
+    "sku": "15131",
+    "group": "BTS",
+    "oldCost": "309.5",
+    "currentCost": "200000",
+    "sourceCheckedAt": "2026-09-15T03:21:22.567Z",
+    "registration": [
+      {
+        "sku": "15131",
+        "status": "uploaded",
+        "itemId": "158278723354",
+        "uploadedAt": "2026-09-10T15:39:10.180Z"
+      }
+    ]
+  },
+  {
+    "sku": "15205",
+    "group": "BTS",
+    "oldCost": "115.2",
+    "currentCost": "70000",
+    "sourceCheckedAt": "2026-09-15T03:21:04.883Z",
+    "registration": [
+      {
+        "sku": "15205",
+        "status": "uploaded",
+        "itemId": "158278723782",
+        "uploadedAt": "2026-09-10T15:39:42.974Z"
+      }
+    ]
+  },
+  {
+    "sku": "309696",
+    "group": "BTS",
+    "oldCost": "40.4",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:21:19.466Z",
+    "registration": [
+      {
+        "sku": "309696",
+        "status": "uploaded",
+        "itemId": "158281849374",
+        "uploadedAt": "2026-09-11T18:35:51.596Z"
+      }
+    ]
+  },
+  {
+    "sku": "336038",
+    "group": "BTS",
+    "oldCost": "21",
+    "currentCost": "7000",
+    "sourceCheckedAt": "2026-09-15T03:21:08.011Z",
+    "registration": [
+      {
+        "sku": "336038",
+        "status": "uploaded",
+        "itemId": "158281885816",
+        "uploadedAt": "2026-09-11T18:50:11.797Z"
+      }
+    ]
+  },
+  {
+    "sku": "260782",
+    "group": "BTS",
+    "oldCost": "40.4",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:21:59.019Z",
+    "registration": [
+      {
+        "sku": "260782",
+        "status": "uploaded",
+        "itemId": "158280980249",
+        "uploadedAt": "2026-09-11T12:38:13.301Z"
+      }
+    ]
+  },
+  {
+    "sku": "24777",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:21:54.873Z",
+    "registration": [
+      {
+        "sku": "24777",
+        "status": "uploaded",
+        "itemId": "158280940347",
+        "uploadedAt": "2026-09-11T12:28:12.993Z"
+      }
+    ]
+  },
+  {
+    "sku": "248890",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:22:06.282Z",
+    "registration": [
+      {
+        "sku": "248890",
+        "status": "uploaded",
+        "itemId": "158280975069",
+        "uploadedAt": "2026-09-11T12:34:28.215Z"
+      }
+    ]
+  },
+  {
+    "sku": "24778",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:22:12.097Z",
+    "registration": [
+      {
+        "sku": "24778",
+        "status": "uploaded",
+        "itemId": "158280962344",
+        "uploadedAt": "2026-09-11T12:29:59.107Z"
+      }
+    ]
+  },
+  {
+    "sku": "24780",
+    "group": "BTS",
+    "oldCost": "12.8",
+    "currentCost": "1500",
+    "sourceCheckedAt": "2026-09-15T03:22:12.529Z",
+    "registration": [
+      {
+        "sku": "24780",
+        "status": "uploaded",
+        "itemId": "158280974623",
+        "uploadedAt": "2026-09-11T12:33:48.951Z"
+      }
+    ]
+  },
+  {
+    "sku": "26197",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:22:09.403Z",
+    "registration": [
+      {
+        "sku": "26197",
+        "status": "uploaded",
+        "itemId": "158280984037",
+        "uploadedAt": "2026-09-11T12:42:41.837Z"
+      }
+    ]
+  },
+  {
+    "sku": "27422",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:22:13.135Z",
+    "registration": [
+      {
+        "sku": "27422",
+        "status": "uploaded",
+        "itemId": "158280984835",
+        "uploadedAt": "2026-09-11T12:43:29.424Z"
+      }
+    ]
+  },
+  {
+    "sku": "277698",
+    "group": "BTS",
+    "oldCost": "12.8",
+    "currentCost": "1500",
+    "sourceCheckedAt": "2026-09-15T03:22:10.046Z",
+    "registration": [
+      {
+        "sku": "277698",
+        "status": "uploaded",
+        "itemId": "158280985465",
+        "uploadedAt": "2026-09-11T12:44:16.057Z"
+      }
+    ]
+  },
+  {
+    "sku": "29921",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:22:55.889Z",
+    "registration": [
+      {
+        "sku": "29921",
+        "status": "uploaded",
+        "itemId": "158281830929",
+        "uploadedAt": "2026-09-11T18:29:34.873Z"
+      }
+    ]
+  },
+  {
+    "sku": "313608",
+    "group": "BTS",
+    "oldCost": "130.1",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:23:09.799Z",
+    "registration": [
+      {
+        "sku": "313608",
+        "status": "uploaded",
+        "itemId": "158281858496",
+        "uploadedAt": "2026-09-11T18:45:42.281Z"
+      }
+    ]
+  },
+  {
+    "sku": "182497",
+    "group": "Stray Kids",
+    "oldCost": "19.5",
+    "currentCost": "6000",
+    "sourceCheckedAt": "2026-09-15T03:22:59.405Z",
+    "registration": [
+      {
+        "sku": "182497",
+        "status": "uploaded",
+        "itemId": "158281764107",
+        "uploadedAt": "2026-09-11T18:08:37.896Z"
+      }
+    ]
+  },
+  {
+    "sku": "457576",
+    "group": "BTS",
+    "oldCost": "40.4",
+    "currentCost": "20000",
+    "sourceCheckedAt": "2026-09-15T03:23:04.236Z",
+    "registration": [
+      {
+        "sku": "457576",
+        "status": "uploaded",
+        "itemId": "158284052588",
+        "uploadedAt": "2026-09-12T11:10:05.790Z"
+      }
+    ]
+  },
+  {
+    "sku": "44802",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:23:21.213Z",
+    "registration": [
+      {
+        "sku": "44802",
+        "status": "uploaded",
+        "itemId": "158284044286",
+        "uploadedAt": "2026-09-12T11:09:26.468Z"
+      }
+    ]
+  },
+  {
+    "sku": "29923",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:23:24.001Z",
+    "registration": [
+      {
+        "sku": "29923",
+        "status": "uploaded",
+        "itemId": "158281838375",
+        "uploadedAt": "2026-09-11T18:30:17.385Z"
+      }
+    ]
+  },
+  {
+    "sku": "226073",
+    "group": "BTS",
+    "oldCost": "29.9",
+    "currentCost": "13000",
+    "sourceCheckedAt": "2026-09-15T03:24:59.342Z",
+    "registration": [
+      {
+        "sku": "226073",
+        "status": "uploaded",
+        "itemId": "158281792514",
+        "uploadedAt": "2026-09-11T18:14:04.861Z"
+      }
+    ]
+  },
+  {
+    "sku": "206116",
+    "group": "BTS",
+    "oldCost": "15",
+    "currentCost": "3000",
+    "sourceCheckedAt": "2026-09-15T03:24:52.970Z",
+    "registration": [
+      {
+        "sku": "206116",
+        "status": "uploaded",
+        "itemId": "158281789334",
+        "uploadedAt": "2026-09-11T18:11:05.818Z"
+      }
+    ]
+  },
+  {
+    "sku": "24731",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:25:05.623Z",
+    "registration": [
+      {
+        "sku": "24731",
+        "status": "uploaded",
+        "itemId": "158281796760",
+        "uploadedAt": "2026-09-11T18:18:02.847Z"
+      }
+    ]
+  },
+  {
+    "sku": "287832",
+    "group": "BTS",
+    "oldCost": "40.4",
+    "currentCost": "20000",
+    "sourceCheckedAt": "2026-09-15T03:25:06.665Z",
+    "registration": [
+      {
+        "sku": "287832",
+        "status": "uploaded",
+        "itemId": "158281818524",
+        "uploadedAt": "2026-09-11T18:27:49.326Z"
+      }
+    ]
+  },
+  {
+    "sku": "279718",
+    "group": "BTS",
+    "oldCost": "14.3",
+    "currentCost": "2500",
+    "sourceCheckedAt": "2026-09-15T03:24:49.457Z",
+    "registration": [
+      {
+        "sku": "279718",
+        "status": "uploaded",
+        "itemId": "158281802529",
+        "uploadedAt": "2026-09-11T18:21:20.850Z"
+      }
+    ]
+  },
+  {
+    "sku": "21424",
+    "group": "BTS",
+    "oldCost": "16.5",
+    "currentCost": "4000",
+    "sourceCheckedAt": "2026-09-15T03:24:45.671Z",
+    "registration": [
+      {
+        "sku": "21424",
+        "status": "uploaded",
+        "itemId": "158281791685",
+        "uploadedAt": "2026-09-11T18:12:55.649Z"
+      }
+    ]
+  },
+  {
+    "sku": "243733",
+    "group": "BTS",
+    "oldCost": "28.5",
+    "currentCost": "12000",
+    "sourceCheckedAt": "2026-09-15T03:24:57.104Z",
+    "registration": [
+      {
+        "sku": "243733",
+        "status": "uploaded",
+        "itemId": "158281794457",
+        "uploadedAt": "2026-09-11T18:16:04.992Z"
+      }
+    ]
+  },
+  {
+    "sku": "284272",
+    "group": "BTS",
+    "oldCost": "55.4",
+    "currentCost": "30000",
+    "sourceCheckedAt": "2026-09-15T03:24:57.195Z",
+    "registration": [
+      {
+        "sku": "284272",
+        "status": "uploaded",
+        "itemId": "158281806012",
+        "uploadedAt": "2026-09-11T18:22:57.675Z"
+      }
+    ]
+  },
+  {
+    "sku": "278537",
+    "group": "BTS",
+    "oldCost": "32.9",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:25:06.658Z",
+    "registration": [
+      {
+        "sku": "278537",
+        "status": "uploaded",
+        "itemId": "158281799087",
+        "uploadedAt": "2026-09-11T18:19:18.693Z"
+      }
+    ]
+  },
+  {
+    "sku": "36589",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:25:05.609Z",
+    "registration": [
+      {
+        "sku": "36589",
+        "status": "uploaded",
+        "itemId": "158281895260",
+        "uploadedAt": "2026-09-11T18:56:30.440Z"
+      }
+    ]
+  },
+  {
+    "sku": "310771",
+    "group": "BTS",
+    "oldCost": "115.2",
+    "currentCost": "70000",
+    "sourceCheckedAt": "2026-09-15T03:25:04.592Z",
+    "registration": [
+      {
+        "sku": "310771",
+        "status": "uploaded",
+        "itemId": "158281856962",
+        "uploadedAt": "2026-09-11T18:44:11.310Z"
+      }
+    ]
+  },
+  {
+    "sku": "309907",
+    "group": "BTS",
+    "oldCost": "12.8",
+    "currentCost": "1500",
+    "sourceCheckedAt": "2026-09-15T03:24:51.539Z",
+    "registration": [
+      {
+        "sku": "309907",
+        "status": "uploaded",
+        "itemId": "158281855565",
+        "uploadedAt": "2026-09-11T18:41:39.620Z"
+      }
+    ]
+  },
+  {
+    "sku": "296333",
+    "group": "BTS",
+    "oldCost": "47.9",
+    "currentCost": "25000",
+    "sourceCheckedAt": "2026-09-15T03:24:49.840Z",
+    "registration": [
+      {
+        "sku": "296333",
+        "status": "uploaded",
+        "itemId": "158281824145",
+        "uploadedAt": "2026-09-11T18:28:50.670Z"
+      }
+    ]
+  },
+  {
+    "sku": "30973",
+    "group": "BTS",
+    "oldCost": "21",
+    "currentCost": "7000",
+    "sourceCheckedAt": "2026-09-15T03:25:07.696Z",
+    "registration": [
+      {
+        "sku": "30973",
+        "status": "uploaded",
+        "itemId": "158281851232",
+        "uploadedAt": "2026-09-11T18:36:30.886Z"
+      }
+    ]
+  },
+  {
+    "sku": "30986",
+    "group": "BTS",
+    "oldCost": "13.5",
+    "currentCost": "2000",
+    "sourceCheckedAt": "2026-09-15T03:24:56.018Z",
+    "registration": [
+      {
+        "sku": "30986",
+        "status": "uploaded",
+        "itemId": "158281852217",
+        "uploadedAt": "2026-09-11T18:38:25.463Z"
+      }
+    ]
+  },
+  {
+    "sku": "30987",
+    "group": "BTS",
+    "oldCost": "12.8",
+    "currentCost": "1500",
+    "sourceCheckedAt": "2026-09-15T03:24:58.247Z",
+    "registration": [
+      {
+        "sku": "30987",
+        "status": "uploaded",
+        "itemId": "158281852863",
+        "uploadedAt": "2026-09-11T18:39:11.759Z"
+      }
+    ]
+  },
+  {
+    "sku": "30989",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:25:07.705Z",
+    "registration": [
+      {
+        "sku": "30989",
+        "status": "uploaded",
+        "itemId": "158281854497",
+        "uploadedAt": "2026-09-11T18:40:19.930Z"
+      }
+    ]
+  },
+  {
+    "sku": "314531",
+    "group": "BTS",
+    "oldCost": "28.5",
+    "currentCost": "12000",
+    "sourceCheckedAt": "2026-09-15T03:24:54.957Z",
+    "registration": [
+      {
+        "sku": "314531",
+        "status": "uploaded",
+        "itemId": "158281859106",
+        "uploadedAt": "2026-09-11T18:46:22.170Z"
+      }
+    ]
+  },
+  {
+    "sku": "36056",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:24:44.642Z",
+    "registration": [
+      {
+        "sku": "36056",
+        "status": "uploaded",
+        "itemId": "158281890629",
+        "uploadedAt": "2026-09-11T18:52:24.041Z"
+      }
+    ]
+  },
+  {
+    "sku": "36434",
+    "group": "BTS",
+    "oldCost": "65.8",
+    "currentCost": "37000",
+    "sourceCheckedAt": "2026-09-15T03:25:01.441Z",
+    "registration": [
+      {
+        "sku": "36434",
+        "status": "uploaded",
+        "itemId": "158281892765",
+        "uploadedAt": "2026-09-11T18:54:23.534Z"
+      }
+    ]
+  },
+  {
+    "sku": "36592",
+    "group": "BTS",
+    "oldCost": "14.3",
+    "currentCost": "2500",
+    "sourceCheckedAt": "2026-09-15T03:25:08.743Z",
+    "registration": [
+      {
+        "sku": "36592",
+        "status": "uploaded",
+        "itemId": "158281896455",
+        "uploadedAt": "2026-09-11T18:57:50.440Z"
+      }
+    ]
+  },
+  {
+    "sku": "368302",
+    "group": "BTS",
+    "oldCost": "1356",
+    "currentCost": "600000",
+    "sourceCheckedAt": "2026-09-15T03:25:01.478Z",
+    "registration": [
+      {
+        "sku": "368302",
+        "status": "uploaded",
+        "itemId": "158281896888",
+        "uploadedAt": "2026-09-11T18:58:29.763Z"
+      }
+    ]
+  },
+  {
+    "sku": "37138",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:24:51.914Z",
+    "registration": [
+      {
+        "sku": "37138",
+        "status": "uploaded",
+        "itemId": "158281897164",
+        "uploadedAt": "2026-09-11T18:59:09.162Z"
+      }
+    ]
+  },
+  {
+    "sku": "30301",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:25:04.579Z",
+    "registration": [
+      {
+        "sku": "30301",
+        "status": "uploaded",
+        "itemId": "158281845493",
+        "uploadedAt": "2026-09-11T18:32:29.466Z"
+      }
+    ]
+  },
+  {
+    "sku": "30976",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:24:58.176Z",
+    "registration": [
+      {
+        "sku": "30976",
+        "status": "uploaded",
+        "itemId": "158281851501",
+        "uploadedAt": "2026-09-11T18:37:07.056Z"
+      }
+    ]
+  },
+  {
+    "sku": "30300",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:24:47.758Z",
+    "registration": [
+      {
+        "sku": "30300",
+        "status": "uploaded",
+        "itemId": "158281845162",
+        "uploadedAt": "2026-09-11T18:31:49.310Z"
+      }
+    ]
+  },
+  {
+    "sku": "36588",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:25:02.517Z",
+    "registration": [
+      {
+        "sku": "36588",
+        "status": "uploaded",
+        "itemId": "158281894868",
+        "uploadedAt": "2026-09-11T18:55:51.199Z"
+      }
+    ]
+  },
+  {
+    "sku": "359607",
+    "group": "BTS",
+    "oldCost": "25.5",
+    "currentCost": "10000",
+    "sourceCheckedAt": "2026-09-15T03:24:47.383Z",
+    "registration": [
+      {
+        "sku": "359607",
+        "status": "uploaded",
+        "itemId": "158281889156",
+        "uploadedAt": "2026-09-11T18:51:42.258Z"
+      }
+    ]
+  },
+  {
+    "sku": "38219",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:25:00.404Z",
+    "registration": [
+      {
+        "sku": "38219",
+        "status": "uploaded",
+        "itemId": "158283930986",
+        "uploadedAt": "2026-09-12T10:15:12.380Z"
+      }
+    ]
+  },
+  {
+    "sku": "306669",
+    "group": "BTS",
+    "oldCost": "22.5",
+    "currentCost": "8000",
+    "sourceCheckedAt": "2026-09-15T03:25:00.435Z",
+    "registration": [
+      {
+        "sku": "306669",
+        "status": "uploaded",
+        "itemId": "158281846197",
+        "uploadedAt": "2026-09-11T18:33:48.380Z"
+      }
+    ]
+  },
+  {
+    "sku": "30977",
+    "group": "BTS",
+    "oldCost": "12.8",
+    "currentCost": "1500",
+    "sourceCheckedAt": "2026-09-15T03:24:54.019Z",
+    "registration": [
+      {
+        "sku": "30977",
+        "status": "uploaded",
+        "itemId": "158281851819",
+        "uploadedAt": "2026-09-11T18:37:46.809Z"
+      }
+    ]
+  },
+  {
+    "sku": "36431",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:24:55.080Z",
+    "registration": [
+      {
+        "sku": "36431",
+        "status": "uploaded",
+        "itemId": "158281892114",
+        "uploadedAt": "2026-09-11T18:53:47.178Z"
+      }
+    ]
+  },
+  {
+    "sku": "30313",
+    "group": "BTS",
+    "oldCost": "12",
+    "currentCost": "1000",
+    "sourceCheckedAt": "2026-09-15T03:24:53.840Z",
+    "registration": [
+      {
+        "sku": "30313",
+        "status": "uploaded",
+        "itemId": "158281845840",
+        "uploadedAt": "2026-09-11T18:33:09.652Z"
+      }
+    ]
+  },
+  {
+    "sku": "30818",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:24:50.492Z",
+    "registration": [
+      {
+        "sku": "30818",
+        "status": "uploaded",
+        "itemId": "158281847022",
+        "uploadedAt": "2026-09-11T18:34:26.846Z"
+      }
+    ]
+  },
+  {
+    "sku": "313404",
+    "group": "BTS",
+    "oldCost": "24",
+    "currentCost": "9000",
+    "sourceCheckedAt": "2026-09-15T03:24:46.724Z",
+    "registration": [
+      {
+        "sku": "313404",
+        "status": "uploaded",
+        "itemId": "158281857481",
+        "uploadedAt": "2026-09-11T18:44:51.179Z"
+      }
+    ]
+  },
+  {
+    "sku": "30988",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:24:50.875Z",
+    "registration": [
+      {
+        "sku": "30988",
+        "status": "uploaded",
+        "itemId": "158281853700",
+        "uploadedAt": "2026-09-11T18:39:43.953Z"
+      }
+    ]
+  },
+  {
+    "sku": "321473",
+    "group": "BTS",
+    "oldCost": "907.5",
+    "currentCost": "600000",
+    "sourceCheckedAt": "2026-09-15T03:24:59.292Z",
+    "registration": [
+      {
+        "sku": "321473",
+        "status": "uploaded",
+        "itemId": "158281864254",
+        "uploadedAt": "2026-09-11T18:47:45.185Z"
+      }
+    ]
+  },
+  {
+    "sku": "328876",
+    "group": "BTS",
+    "oldCost": "25.5",
+    "currentCost": "10000",
+    "sourceCheckedAt": "2026-09-15T03:24:44.255Z",
+    "registration": [
+      {
+        "sku": "328876",
+        "status": "uploaded",
+        "itemId": "158281878801",
+        "uploadedAt": "2026-09-11T18:49:01.342Z"
+      }
+    ]
+  },
+  {
+    "sku": "36590",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:21:53.836Z",
+    "registration": [
+      {
+        "sku": "36590",
+        "status": "uploaded",
+        "itemId": "158281895774",
+        "uploadedAt": "2026-09-11T18:57:12.062Z"
+      }
+    ]
+  },
+  {
+    "sku": "30994",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:24:52.641Z",
+    "registration": [
+      {
+        "sku": "30994",
+        "status": "uploaded",
+        "itemId": "158281856564",
+        "uploadedAt": "2026-09-11T18:43:31.127Z"
+      }
+    ]
+  },
+  {
+    "sku": "30991",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:24:46.334Z",
+    "registration": [
+      {
+        "sku": "30991",
+        "status": "uploaded",
+        "itemId": "158281855805",
+        "uploadedAt": "2026-09-11T18:42:16.784Z"
+      }
+    ]
+  },
+  {
+    "sku": "376457",
+    "group": "BTS",
+    "oldCost": "152.5",
+    "currentCost": "",
+    "sourceCheckedAt": "2026-09-15T03:25:19.191Z",
+    "registration": [
+      {
+        "sku": "376457",
+        "status": "uploaded",
+        "itemId": "158283563678",
+        "uploadedAt": "2026-09-12T07:28:38.457Z"
+      }
+    ]
+  },
+  {
+    "sku": "372466",
+    "group": "BTS",
+    "oldCost": "189.9",
+    "currentCost": "120000",
+    "sourceCheckedAt": "2026-09-15T03:25:52.592Z",
+    "registration": [
+      {
+        "sku": "372466",
+        "status": "uploaded",
+        "itemId": "158283542573",
+        "uploadedAt": "2026-09-12T07:26:49.127Z"
+      }
+    ]
+  },
+  {
+    "sku": "415518",
+    "group": "BTS",
+    "oldCost": "25.5",
+    "currentCost": "10000",
+    "sourceCheckedAt": "2026-09-15T03:25:13.949Z",
+    "registration": [
+      {
+        "sku": "415518",
+        "status": "uploaded",
+        "itemId": "158284017061",
+        "uploadedAt": "2026-09-12T10:55:48.797Z"
+      }
+    ]
+  },
+  {
+    "sku": "378630",
+    "group": "BTS",
+    "oldCost": "77.8",
+    "currentCost": "45000",
+    "sourceCheckedAt": "2026-09-15T03:26:04.045Z",
+    "registration": [
+      {
+        "sku": "378630",
+        "status": "uploaded",
+        "itemId": "158283571115",
+        "uploadedAt": "2026-09-12T07:32:25.088Z"
+      }
+    ]
+  },
+  {
+    "sku": "37203",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:26:01.987Z",
+    "registration": [
+      {
+        "sku": "37203",
+        "status": "uploaded",
+        "itemId": "158283529892",
+        "uploadedAt": "2026-09-12T07:16:56.072Z"
+      }
+    ]
+  },
+  {
+    "sku": "37208",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:25:59.889Z",
+    "registration": [
+      {
+        "sku": "37208",
+        "status": "uploaded",
+        "itemId": "158283538371",
+        "uploadedAt": "2026-09-12T07:23:05.817Z"
+      }
+    ]
+  },
+  {
+    "sku": "37211",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:26:00.933Z",
+    "registration": [
+      {
+        "sku": "37211",
+        "status": "uploaded",
+        "itemId": "158283539640",
+        "uploadedAt": "2026-09-12T07:24:52.325Z"
+      }
+    ]
+  },
+  {
+    "sku": "37207",
+    "group": "BTS",
+    "oldCost": "13.5",
+    "currentCost": "2000",
+    "sourceCheckedAt": "2026-09-15T03:26:07.177Z",
+    "registration": [
+      {
+        "sku": "37207",
+        "status": "uploaded",
+        "itemId": "158283533478",
+        "uploadedAt": "2026-09-12T07:19:08.821Z"
+      }
+    ]
+  },
+  {
+    "sku": "37742",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:26:07.171Z",
+    "registration": [
+      {
+        "sku": "37742",
+        "status": "uploaded",
+        "itemId": "158283569102",
+        "uploadedAt": "2026-09-12T07:30:05.012Z"
+      }
+    ]
+  },
+  {
+    "sku": "37205",
+    "group": "BTS",
+    "oldCost": "12.8",
+    "currentCost": "1500",
+    "sourceCheckedAt": "2026-09-15T03:26:00.931Z",
+    "registration": [
+      {
+        "sku": "37205",
+        "status": "uploaded",
+        "itemId": "158283532218",
+        "uploadedAt": "2026-09-12T07:18:23.182Z"
+      }
+    ]
+  },
+  {
+    "sku": "37212",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:26:09.242Z",
+    "registration": [
+      {
+        "sku": "37212",
+        "status": "uploaded",
+        "itemId": "158283540244",
+        "uploadedAt": "2026-09-12T07:26:08.909Z"
+      }
+    ]
+  },
+  {
+    "sku": "38220",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:26:09.244Z",
+    "registration": [
+      {
+        "sku": "38220",
+        "status": "uploaded",
+        "itemId": "158283932181",
+        "uploadedAt": "2026-09-12T10:16:19.123Z"
+      }
+    ]
+  },
+  {
+    "sku": "37204",
+    "group": "BTS",
+    "oldCost": "12.8",
+    "currentCost": "1500",
+    "sourceCheckedAt": "2026-09-15T03:26:03.015Z",
+    "registration": [
+      {
+        "sku": "37204",
+        "status": "uploaded",
+        "itemId": "158283530724",
+        "uploadedAt": "2026-09-12T07:17:39.575Z"
+      }
+    ]
+  },
+  {
+    "sku": "397108",
+    "group": "BTS",
+    "oldCost": "115.2",
+    "currentCost": "70000",
+    "sourceCheckedAt": "2026-09-15T03:26:52.039Z",
+    "registration": [
+      {
+        "sku": "397108",
+        "status": "uploaded",
+        "itemId": "158283970559",
+        "uploadedAt": "2026-09-12T10:31:30.961Z"
+      }
+    ]
+  },
+  {
+    "sku": "38205",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:27:09.769Z",
+    "registration": [
+      {
+        "sku": "38205",
+        "status": "uploaded",
+        "itemId": "158283930150",
+        "uploadedAt": "2026-09-12T10:14:32.210Z"
+      }
+    ]
+  },
+  {
+    "sku": "385916",
+    "group": "BTS",
+    "oldCost": "38.9",
+    "currentCost": "19000",
+    "sourceCheckedAt": "2026-09-15T03:27:09.801Z",
+    "registration": [
+      {
+        "sku": "385916",
+        "status": "uploaded",
+        "itemId": "158283935156",
+        "uploadedAt": "2026-09-12T10:19:40.548Z"
+      }
+    ]
+  },
+  {
+    "sku": "39807",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:27:11.887Z",
+    "registration": [
+      {
+        "sku": "39807",
+        "status": "uploaded",
+        "itemId": "158283970846",
+        "uploadedAt": "2026-09-12T10:32:11.404Z"
+      }
+    ]
+  },
+  {
+    "sku": "385047",
+    "group": "BTS",
+    "oldCost": "130.1",
+    "currentCost": "80000",
+    "sourceCheckedAt": "2026-09-15T03:27:10.860Z",
+    "registration": [
+      {
+        "sku": "385047",
+        "status": "uploaded",
+        "itemId": "158283934081",
+        "uploadedAt": "2026-09-12T10:18:19.484Z"
+      }
+    ]
+  },
+  {
+    "sku": "38322",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:27:13.945Z",
+    "registration": [
+      {
+        "sku": "38322",
+        "status": "uploaded",
+        "itemId": "158283932622",
+        "uploadedAt": "2026-09-12T10:17:01.381Z"
+      }
+    ]
+  },
+  {
+    "sku": "39505",
+    "group": "BTS",
+    "oldCost": "160",
+    "currentCost": "100000",
+    "sourceCheckedAt": "2026-09-15T03:27:10.818Z",
+    "registration": [
+      {
+        "sku": "39505",
+        "status": "uploaded",
+        "itemId": "158283969703",
+        "uploadedAt": "2026-09-12T10:30:51.433Z"
+      }
+    ]
+  },
+  {
+    "sku": "371842",
+    "group": "BTS",
+    "oldCost": "17.2",
+    "currentCost": "4500",
+    "sourceCheckedAt": "2026-09-15T03:27:18.103Z",
+    "registration": [
+      {
+        "sku": "371842",
+        "status": "uploaded",
+        "itemId": "158283929462",
+        "uploadedAt": "2026-09-12T10:13:52.412Z"
+      }
+    ]
+  },
+  {
+    "sku": "385904",
+    "group": "BTS",
+    "oldCost": "32.9",
+    "currentCost": "15000",
+    "sourceCheckedAt": "2026-09-15T03:27:12.899Z",
+    "registration": [
+      {
+        "sku": "385904",
+        "status": "uploaded",
+        "itemId": "158283934705",
+        "uploadedAt": "2026-09-12T10:19:02.259Z"
+      }
+    ]
+  },
+  {
+    "sku": "41043",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:27:23.246Z",
+    "registration": [
+      {
+        "sku": "41043",
+        "status": "uploaded",
+        "itemId": "158284016609",
+        "uploadedAt": "2026-09-12T10:54:55.844Z"
+      }
+    ]
+  },
+  {
+    "sku": "39817",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:27:17.079Z",
+    "registration": [
+      {
+        "sku": "39817",
+        "status": "uploaded",
+        "itemId": "158283971918",
+        "uploadedAt": "2026-09-12T10:33:30.166Z"
+      }
+    ]
+  },
+  {
+    "sku": "74320",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:27:24.292Z",
+    "registration": [
+      {
+        "sku": "74320",
+        "status": "uploaded",
+        "itemId": "158284068211",
+        "uploadedAt": "2026-09-12T11:25:11.860Z"
+      }
+    ]
+  },
+  {
+    "sku": "49170",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:27:20.227Z",
+    "registration": [
+      {
+        "sku": "49170",
+        "status": "uploaded",
+        "itemId": "158284056673",
+        "uploadedAt": "2026-09-12T11:13:13.654Z"
+      }
+    ]
+  },
+  {
+    "sku": "58931",
+    "group": "BTS",
+    "oldCost": "21",
+    "currentCost": "7000",
+    "sourceCheckedAt": "2026-09-15T03:27:22.212Z",
+    "registration": [
+      {
+        "sku": "58931",
+        "status": "uploaded",
+        "itemId": "158284057498",
+        "uploadedAt": "2026-09-12T11:14:36.907Z"
+      }
+    ]
+  },
+  {
+    "sku": "62083",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:27:20.159Z",
+    "registration": [
+      {
+        "sku": "62083",
+        "status": "uploaded",
+        "itemId": "158284058159",
+        "uploadedAt": "2026-09-12T11:15:53.892Z"
+      }
+    ]
+  },
+  {
+    "sku": "40921",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:27:19.181Z",
+    "registration": [
+      {
+        "sku": "40921",
+        "status": "uploaded",
+        "itemId": "158284016317",
+        "uploadedAt": "2026-09-12T10:54:16.131Z"
+      }
+    ]
+  },
+  {
+    "sku": "7586",
+    "group": "BTS",
+    "oldCost": "25.5",
+    "currentCost": "10000",
+    "sourceCheckedAt": "2026-09-15T03:27:19.134Z",
+    "registration": [
+      {
+        "sku": "7586",
+        "status": "uploaded",
+        "itemId": "158284068976",
+        "uploadedAt": "2026-09-12T11:25:59.353Z"
+      }
+    ]
+  },
+  {
+    "sku": "40920",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:27:21.184Z",
+    "registration": [
+      {
+        "sku": "40920",
+        "status": "uploaded",
+        "itemId": "158284016024",
+        "uploadedAt": "2026-09-12T10:53:35.895Z"
+      }
+    ]
+  },
+  {
+    "sku": "74319",
+    "group": "BTS",
+    "oldCost": "11.3",
+    "currentCost": "500",
+    "sourceCheckedAt": "2026-09-15T03:27:22.313Z",
+    "registration": [
+      {
+        "sku": "74319",
+        "status": "uploaded",
+        "itemId": "158284067765",
+        "uploadedAt": "2026-09-12T11:24:30.156Z"
+      }
+    ]
+  },
+  {
+    "sku": "404130",
+    "group": "BTS",
+    "oldCost": "85.3",
+    "currentCost": "50000",
+    "sourceCheckedAt": "2026-09-15T03:27:21.268Z",
+    "registration": [
+      {
+        "sku": "404130",
+        "status": "uploaded",
+        "itemId": "158284014012",
+        "uploadedAt": "2026-09-12T10:52:11.625Z"
+      }
+    ]
+  },
+  {
+    "sku": "39812",
+    "group": "BTS",
+    "oldCost": "22.5",
+    "currentCost": "8000",
+    "sourceCheckedAt": "2026-09-15T03:27:15.014Z",
+    "registration": [
+      {
+        "sku": "39812",
+        "status": "uploaded",
+        "itemId": "158283971284",
+        "uploadedAt": "2026-09-12T10:32:50.838Z"
+      }
+    ]
+  },
+  {
+    "sku": "55219",
+    "group": "BTS",
+    "oldCost": "18",
+    "currentCost": "5000",
+    "sourceCheckedAt": "2026-09-15T03:27:23.350Z",
+    "registration": [
+      {
+        "sku": "55219",
+        "status": "uploaded",
+        "itemId": "158284057173",
+        "uploadedAt": "2026-09-12T11:13:55.148Z"
+      }
+    ]
+  }
+]

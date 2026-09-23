@@ -1,0 +1,958 @@
+{
+  "accountId": "team_9dUKn9F1VUpGxnxJnzdF6EDw",
+  "alias": [],
+  "speedInsights": {
+    "id": "JopinskXMiLqZ5Ai1QHhc4eOLvX",
+    "hasData": false
+  },
+  "autoExposeSystemEnvs": true,
+  "autoAssignCustomDomains": true,
+  "autoAssignCustomDomainsUpdatedBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+  "buildCommand": null,
+  "createdAt": 1778067853696,
+  "crons": {
+    "enabledAt": 1778067926111,
+    "disabledAt": null,
+    "updatedAt": 1788854722709,
+    "deploymentId": "dpl_2qUN4UdALdsULk7mkWScrsfffgwY",
+    "definitions": [
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/ebay-active-report",
+        "schedule": "*/5 * * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/keepalive",
+        "schedule": "0 3 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-catalog",
+        "schedule": "* * * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync?resumeOnly=1",
+        "schedule": "* * * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/0",
+        "schedule": "0 15 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/1",
+        "schedule": "0 16 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/10",
+        "schedule": "0 1 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/11",
+        "schedule": "0 2 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/12",
+        "schedule": "0 3 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/13",
+        "schedule": "0 4 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/14",
+        "schedule": "0 5 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/15",
+        "schedule": "0 6 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/16",
+        "schedule": "0 7 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/17",
+        "schedule": "0 8 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/18",
+        "schedule": "0 9 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/19",
+        "schedule": "0 10 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/2",
+        "schedule": "0 17 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/20",
+        "schedule": "0 11 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/21",
+        "schedule": "0 12 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/22",
+        "schedule": "0 13 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/23",
+        "schedule": "0 14 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/3",
+        "schedule": "0 18 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/4",
+        "schedule": "0 19 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/5",
+        "schedule": "0 20 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/6",
+        "schedule": "0 21 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/7",
+        "schedule": "0 22 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/8",
+        "schedule": "0 23 * * *"
+      },
+      {
+        "host": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+        "path": "/api/cron/pocamarket-sync/schedule/9",
+        "schedule": "0 0 * * *"
+      }
+    ]
+  },
+  "deploymentExpiration": {
+    "expirationDays": 180,
+    "expirationDaysProduction": 365,
+    "expirationDaysCanceled": 30,
+    "expirationDaysErrored": 90,
+    "deploymentsToKeep": 10
+  },
+  "devCommand": null,
+  "directoryListing": false,
+  "env": [
+    {
+      "type": "sensitive",
+      "key": "SESSION_SECRET",
+      "value": "",
+      "target": [
+        "production",
+        "preview"
+      ],
+      "configurationId": null,
+      "createdAt": 1778067853440,
+      "updatedAt": 1778067853440,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null,
+      "id": "cTe7NReiomg2a9V5"
+    },
+    {
+      "type": "sensitive",
+      "key": "TOKEN_ENCRYPTION_KEY",
+      "value": "",
+      "target": [
+        "production",
+        "preview"
+      ],
+      "configurationId": null,
+      "createdAt": 1778067853440,
+      "updatedAt": 1778067853440,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null,
+      "id": "3LSaFXiKCznxc53T"
+    },
+    {
+      "type": "sensitive",
+      "key": "ADMIN_EMAIL",
+      "value": "",
+      "target": [
+        "production",
+        "preview"
+      ],
+      "configurationId": null,
+      "createdAt": 1778067853440,
+      "updatedAt": 1778067853440,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null,
+      "id": "2Y8FA9pCdGLd1FgD"
+    },
+    {
+      "type": "sensitive",
+      "key": "ADMIN_PASSWORD",
+      "value": "",
+      "target": [
+        "production",
+        "preview"
+      ],
+      "configurationId": null,
+      "createdAt": 1778067853440,
+      "updatedAt": 1778067853440,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null,
+      "id": "aVHs1rfnQQjm2I3G"
+    },
+    {
+      "type": "sensitive",
+      "key": "EBAY_ENV",
+      "value": "",
+      "target": [
+        "production",
+        "preview"
+      ],
+      "configurationId": null,
+      "createdAt": 1778067853440,
+      "updatedAt": 1778139343725,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "id": "Jwb8wFaEzOlOYg8n",
+      "customEnvironmentIds": []
+    },
+    {
+      "type": "sensitive",
+      "key": "EBAY_CLIENT_ID",
+      "value": "",
+      "target": [
+        "production",
+        "preview"
+      ],
+      "configurationId": null,
+      "createdAt": 1778067853440,
+      "updatedAt": 1778225490035,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "id": "wgTpoFk6CHHXo5kJ",
+      "customEnvironmentIds": []
+    },
+    {
+      "type": "sensitive",
+      "key": "EBAY_CLIENT_SECRET",
+      "value": "",
+      "target": [
+        "production",
+        "preview"
+      ],
+      "configurationId": null,
+      "createdAt": 1778067853440,
+      "updatedAt": 1778225347803,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "id": "gD1XEIPUgwpcYP1X",
+      "customEnvironmentIds": []
+    },
+    {
+      "type": "sensitive",
+      "key": "EBAY_RU_NAME",
+      "value": "",
+      "target": [
+        "production",
+        "preview"
+      ],
+      "configurationId": null,
+      "createdAt": 1778067853440,
+      "updatedAt": 1778227070062,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "id": "MSWwpvxvCRSmgfTe",
+      "customEnvironmentIds": []
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "comment": "",
+      "customEnvironmentIds": [],
+      "id": "MFgOaStH7AdOVII4",
+      "key": "EBAY_DELETION_VERIFICATION_TOKEN",
+      "createdAt": 1778121827489,
+      "updatedAt": 1778123367936,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": "HEjkubQu9fNWuS8DqsaGOZO4"
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "comment": "",
+      "customEnvironmentIds": [],
+      "id": "ELhwHadjHXT455Bd",
+      "key": "EBAY_DELETION_ENDPOINT_URL",
+      "createdAt": 1778123181785,
+      "updatedAt": 1778123347572,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": "HEjkubQu9fNWuS8DqsaGOZO4"
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "preview",
+        "production"
+      ],
+      "configurationId": null,
+      "comment": "",
+      "customEnvironmentIds": [],
+      "id": "4EzywTtGncexoKIv",
+      "key": "DATABASE_URL",
+      "createdAt": 1778130944646,
+      "updatedAt": 1778130944646,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "preview",
+        "production"
+      ],
+      "configurationId": null,
+      "comment": "",
+      "customEnvironmentIds": [],
+      "id": "2HGO2KAZsgYv3n6v",
+      "key": "R2_ACCOUNT_ID",
+      "createdAt": 1778593573010,
+      "updatedAt": 1778593573010,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "preview",
+        "production"
+      ],
+      "configurationId": null,
+      "comment": "",
+      "customEnvironmentIds": [],
+      "id": "BXKAUyXI5rvrnCQq",
+      "key": "R2_ACCESS_KEY_ID",
+      "createdAt": 1778593600634,
+      "updatedAt": 1778593600634,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "preview",
+        "production"
+      ],
+      "configurationId": null,
+      "comment": "",
+      "customEnvironmentIds": [],
+      "id": "yacUoKEDp0qpVqOF",
+      "key": "R2_SECRET_ACCESS_KEY",
+      "createdAt": 1778593622858,
+      "updatedAt": 1778593622858,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "preview",
+        "production"
+      ],
+      "configurationId": null,
+      "comment": "",
+      "customEnvironmentIds": [],
+      "id": "8M1HMawEwEdoEXRm",
+      "key": "R2_BUCKET_NAME",
+      "createdAt": 1778593640628,
+      "updatedAt": 1778593640628,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "preview",
+        "production"
+      ],
+      "configurationId": null,
+      "comment": "",
+      "customEnvironmentIds": [],
+      "id": "IVZlcOIxVESmJihC",
+      "key": "R2_PUBLIC_BASE_URL",
+      "createdAt": 1778593659246,
+      "updatedAt": 1778593659246,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "Braww1dmvSRJuGVD",
+      "key": "CRON_SECRET",
+      "createdAt": 1779934552681,
+      "updatedAt": 1779934552681,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "VaOQGWcg1iAI3GSV",
+      "key": "HUGGINGFACE_API_TOKEN",
+      "createdAt": 1780287664122,
+      "updatedAt": 1780287664122,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "4jfDgjYaK6lNgu9c",
+      "key": "CF_ACCOUNT_ID",
+      "createdAt": 1780291410353,
+      "updatedAt": 1780291410353,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "oubJSYXn6chcf19A",
+      "key": "CF_API_TOKEN",
+      "createdAt": 1780291791282,
+      "updatedAt": 1780291791282,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "vOkODENnLJXuxw5R",
+      "key": "SHOPIFY_STORE_DOMAIN",
+      "createdAt": 1782214353374,
+      "updatedAt": 1782214353374,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "4cmoBDoc1ZV2dNyA",
+      "key": "SHOPIFY_LOCATION_ID",
+      "createdAt": 1782214363038,
+      "updatedAt": 1782214363038,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "JYHTbHIxQGpmAEDx",
+      "key": "MIGRATE_SECRET",
+      "createdAt": 1782223104641,
+      "updatedAt": 1782223104641,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "SvVUcBdCUeGEHcEh",
+      "key": "LOCAL_AI_WORKER_TOKEN",
+      "createdAt": 1785158776783,
+      "updatedAt": 1785158776783,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "RufVSGpzQNNi55Vm",
+      "key": "DEWATERMARK_API_KEY",
+      "createdAt": 1785725318347,
+      "updatedAt": 1785725318347,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "encrypted",
+      "value": "eyJ2IjoidjIiLCJjIjoiRnpLTTF4eXBVYWJFSlBoK3NSdHlMdGtTY3pUMHNFUGcyb2lyc2cyb0xqNk05Wkg5M0wrRUJNRGNpVFgxSmUzYUdOVTZFM0p2VkE2K0gySGlvOHZWZ1pKY2RMcjE4SHFMRDhFUlNkNXBpWllBeEQ1NlY1V1BFMllySTA1aGdQL1prcjhMT3JaU1Rrd2E5L2ZZSVBkQWJCbTBHdU44My9ISGVhUHhVdz09IiwiayI6WzE4NCwxLDIsMywwLDEyMCwxMDcsMTE5LDE1MywyMywyMjMsMTE3LDE4MywxMjAsNTcsMTk2LDExLDI4LDI0OSwxMTksMTA0LDIxMywxNjksMTYxLDE0MSwxNDIsOTksNjUsNDksMjEyLDMwLDE5OSw5NywyMDQsMjE4LDc3LDEwNSwxNzksMSwxOTgsMjcsNzgsNDEsNjUsMjUzLDM4LDIxMCwxNzQsNTksMTg3LDIyNywxMjAsMTM3LDE1MywxNjEsMCwwLDAsMTI2LDQ4LDEyNCw2LDksNDIsMTM0LDcyLDEzNCwyNDcsMTMsMSw3LDYsMTYwLDExMSw0OCwxMDksMiwxLDAsNDgsMTA0LDYsOSw0MiwxMzQsNzIsMTM0LDI0NywxMywxLDcsMSw0OCwzMCw2LDksOTYsMTM0LDcyLDEsMTAxLDMsNCwxLDQ2LDQ4LDE3LDQsMTIsMjI4LDE1NywxMTIsNDQsMjM3LDYzLDUxLDM1LDIxMSwxMywxNDcsMzksMiwxLDE2LDEyOCw1OSwyMzYsMTksNDMsMTY5LDIzOCwyMjIsMjUyLDEwOSw4OCwxOCwyMTAsMjMwLDE3OCwyMjYsMzAsMTY5LDE3MSwyMzAsNjcsMjEwLDI1MywzLDIzNCwyNSwxOCwyMDAsMTQyLDUzLDI0NSwyMzIsMTE2LDE2MywxMzgsMTYzLDc5LDEzMiwxMTAsMzYsMjE4LDE2Niw0NSwyNDksMTkyLDg1LDE3Nyw3OSwxODgsMTAxLDE2NCwyNywyMDIsMjA1LDIxLDE5OCwxNjgsMjE1LDQzLDksMTM3XX0=",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "57oHIViukaiiK29s",
+      "key": "POCAMARKET_BRIDGE_TOKEN",
+      "createdAt": 1787035615226,
+      "updatedAt": 1787035966180,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": "HEjkubQu9fNWuS8DqsaGOZO4"
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "488P3MfRbYmJN7Tr",
+      "key": "SHOPIFY_CLIENT_ID",
+      "createdAt": 1787194878637,
+      "updatedAt": 1787194878637,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "jhdELldnDk2fMF8l",
+      "key": "SHOPIFY_CLIENT_SECRET",
+      "createdAt": 1787194883981,
+      "updatedAt": 1787194883981,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "DLsLfM539PaAv4mi",
+      "key": "EBAY_SCOPES",
+      "createdAt": 1787296488979,
+      "updatedAt": 1787296488979,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "updatedBy": null
+    }
+  ],
+  "framework": "nextjs",
+  "gitForkProtection": true,
+  "gitLFS": false,
+  "id": "prj_UX0D51b0mOs6cuvB0yaTUJ9zlJ3Q",
+  "installCommand": null,
+  "lastRollbackTarget": null,
+  "lastAliasRequest": null,
+  "name": "ebay-order-manager",
+  "nodeVersion": "24.x",
+  "outputDirectory": null,
+  "productionDeploymentsFastLane": true,
+  "defaultResourceConfig": {
+    "fluid": true,
+    "functionDefaultRegions": [
+      "iad1"
+    ],
+    "functionDefaultTimeout": 300,
+    "functionDefaultMemoryType": "standard",
+    "functionZeroConfigFailover": false,
+    "elasticConcurrencyEnabled": true
+  },
+  "resourceConfig": {
+    "fluid": true,
+    "functionDefaultRegions": [
+      "iad1"
+    ],
+    "buildMachineType": "standard",
+    "buildMachineSelection": "elastic",
+    "buildMachineElasticLastUpdated": 1786440006609,
+    "elasticConcurrencyEnabled": true
+  },
+  "rootDirectory": null,
+  "serverlessFunctionRegion": "iad1",
+  "skewProtectionMaxAge": 43200,
+  "sourceFilesOutsideRootDirectory": true,
+  "ssoProtection": {
+    "deploymentType": "all_except_custom_domains"
+  },
+  "updatedAt": 1788854723100,
+  "live": false,
+  "enableExternalRewriteCaching": true,
+  "gitComments": {
+    "onCommit": false,
+    "onPullRequest": true
+  },
+  "gitProviderOptions": {
+    "createDeployments": "enabled"
+  },
+  "paused": false,
+  "webAnalytics": {
+    "id": "8LNotb2WjxVbT0jSm1AcgBms2"
+  },
+  "oidcTokenConfig": {
+    "enabled": true,
+    "issuerMode": "team"
+  },
+  "hasDeployments": true,
+  "link": {
+    "type": "github",
+    "repo": "ebay-order-manager",
+    "repoId": 1230837688,
+    "org": "swan0329",
+    "repoOwnerId": 220111866,
+    "gitCredentialId": "cred_b32b3b668450a3bd41f7afe01b2fbcfacf7db217",
+    "productionBranch": "main",
+    "sourceless": true,
+    "createdAt": 1778067853438,
+    "updatedAt": 1778067853438,
+    "deployHooks": []
+  },
+  "latestDeployments": [
+    {
+      "alias": [
+        "ebay-order-manager-tngks2313-9711s-projects.vercel.app"
+      ],
+      "aliasAssigned": 1788854723133,
+      "aliasError": null,
+      "automaticAliases": [
+        "ebay-order-manager-tngks2313-9711s-projects.vercel.app"
+      ],
+      "builds": [],
+      "createdAt": 1788854596129,
+      "createdIn": "sfo1",
+      "creator": {
+        "uid": "HEjkubQu9fNWuS8DqsaGOZO4",
+        "email": "tngks2313@gmail.com",
+        "username": "tngks2313-9711"
+      },
+      "deploymentHostname": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects",
+      "forced": false,
+      "id": "dpl_2qUN4UdALdsULk7mkWScrsfffgwY",
+      "meta": {
+        "githubCommitAuthorName": "swan0329",
+        "githubCommitAuthorEmail": "tngks2313@gmail.com",
+        "githubCommitMessage": "End replaced singles in the same option upload file",
+        "githubCommitOrg": "swan0329",
+        "githubCommitRef": "codex/bts-consignment-import",
+        "githubCommitRepo": "ebay-order-manager",
+        "githubCommitSha": "8533dc35248987d0f5e9e7cc17d3fa1eeaa7746e",
+        "githubDeployment": "1",
+        "githubOrg": "swan0329",
+        "githubRepo": "ebay-order-manager",
+        "gitDirty": "1",
+        "gitRootDirectory": ".codex-tmp/image-display-deploy",
+        "actor": "codex",
+        "lambdaRuntimeStats": "{\"nodejs\":6}"
+      },
+      "name": "ebay-order-manager",
+      "plan": "pro",
+      "private": true,
+      "readyState": "READY",
+      "readySubstate": "PROMOTED",
+      "target": "production",
+      "teamId": "team_9dUKn9F1VUpGxnxJnzdF6EDw",
+      "type": "LAMBDAS",
+      "url": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+      "userId": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "withCache": false,
+      "buildingAt": 1788854597247,
+      "readyAt": 1788854699392,
+      "previewCommentsEnabled": true,
+      "oidcTokenClaims": {
+        "sub": "owner:tngks2313-9711s-projects:project:ebay-order-manager:environment:production",
+        "iss": "https://oidc.vercel.com/tngks2313-9711s-projects",
+        "scope": "owner:tngks2313-9711s-projects:project:ebay-order-manager:environment:production",
+        "aud": "https://vercel.com/tngks2313-9711s-projects",
+        "owner": "tngks2313-9711s-projects",
+        "owner_id": "team_9dUKn9F1VUpGxnxJnzdF6EDw",
+        "project": "ebay-order-manager",
+        "project_id": "prj_UX0D51b0mOs6cuvB0yaTUJ9zlJ3Q",
+        "environment": "production",
+        "plan": "pro"
+      }
+    },
+    {
+      "alias": [
+        "ebay-order-manager-tngks2313-9711s-projects.vercel.app"
+      ],
+      "aliasAssigned": 1788853966269,
+      "aliasError": null,
+      "automaticAliases": [
+        "ebay-order-manager-tngks2313-9711s-projects.vercel.app"
+      ],
+      "builds": [],
+      "createdAt": 1788853857934,
+      "createdIn": "sfo1",
+      "creator": {
+        "uid": "HEjkubQu9fNWuS8DqsaGOZO4",
+        "email": "tngks2313@gmail.com",
+        "username": "tngks2313-9711"
+      },
+      "deploymentHostname": "ebay-order-manager-ec218g1uw-tngks2313-9711s-projects",
+      "forced": false,
+      "id": "dpl_4dYdN4LB3iN3KA7BUmuYhsBaMuzJ",
+      "meta": {
+        "githubCommitAuthorName": "swan0329",
+        "githubCommitAuthorEmail": "tngks2313@gmail.com",
+        "githubCommitMessage": "End replaced singles in the same option upload file",
+        "githubCommitOrg": "swan0329",
+        "githubCommitRef": "codex/bts-consignment-import",
+        "githubCommitRepo": "ebay-order-manager",
+        "githubCommitSha": "8533dc35248987d0f5e9e7cc17d3fa1eeaa7746e",
+        "githubDeployment": "1",
+        "githubOrg": "swan0329",
+        "githubRepo": "ebay-order-manager",
+        "gitDirty": "1",
+        "gitRootDirectory": ".codex-tmp/image-display-deploy",
+        "actor": "codex",
+        "lambdaRuntimeStats": "{\"nodejs\":6}"
+      },
+      "name": "ebay-order-manager",
+      "plan": "pro",
+      "private": true,
+      "readyState": "READY",
+      "readySubstate": "PROMOTED",
+      "target": "production",
+      "teamId": "team_9dUKn9F1VUpGxnxJnzdF6EDw",
+      "type": "LAMBDAS",
+      "url": "ebay-order-manager-ec218g1uw-tngks2313-9711s-projects.vercel.app",
+      "userId": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "withCache": false,
+      "buildingAt": 1788853860803,
+      "readyAt": 1788853945342,
+      "previewCommentsEnabled": true,
+      "oidcTokenClaims": {
+        "sub": "owner:tngks2313-9711s-projects:project:ebay-order-manager:environment:production",
+        "iss": "https://oidc.vercel.com/tngks2313-9711s-projects",
+        "scope": "owner:tngks2313-9711s-projects:project:ebay-order-manager:environment:production",
+        "aud": "https://vercel.com/tngks2313-9711s-projects",
+        "owner": "tngks2313-9711s-projects",
+        "owner_id": "team_9dUKn9F1VUpGxnxJnzdF6EDw",
+        "project": "ebay-order-manager",
+        "project_id": "prj_UX0D51b0mOs6cuvB0yaTUJ9zlJ3Q",
+        "environment": "production",
+        "plan": "pro"
+      }
+    }
+  ],
+  "targets": {
+    "production": {
+      "alias": [
+        "ebay-order-manager-tngks2313-9711s-projects.vercel.app"
+      ],
+      "aliasAssigned": 1788854723133,
+      "aliasError": null,
+      "automaticAliases": [
+        "ebay-order-manager-tngks2313-9711s-projects.vercel.app"
+      ],
+      "builds": [],
+      "createdAt": 1788854596129,
+      "createdIn": "sfo1",
+      "creator": {
+        "uid": "HEjkubQu9fNWuS8DqsaGOZO4",
+        "email": "tngks2313@gmail.com",
+        "username": "tngks2313-9711"
+      },
+      "deploymentHostname": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects",
+      "forced": false,
+      "id": "dpl_2qUN4UdALdsULk7mkWScrsfffgwY",
+      "meta": {
+        "githubCommitAuthorName": "swan0329",
+        "githubCommitAuthorEmail": "tngks2313@gmail.com",
+        "githubCommitMessage": "End replaced singles in the same option upload file",
+        "githubCommitOrg": "swan0329",
+        "githubCommitRef": "codex/bts-consignment-import",
+        "githubCommitRepo": "ebay-order-manager",
+        "githubCommitSha": "8533dc35248987d0f5e9e7cc17d3fa1eeaa7746e",
+        "githubDeployment": "1",
+        "githubOrg": "swan0329",
+        "githubRepo": "ebay-order-manager",
+        "gitDirty": "1",
+        "gitRootDirectory": ".codex-tmp/image-display-deploy",
+        "actor": "codex",
+        "lambdaRuntimeStats": "{\"nodejs\":6}"
+      },
+      "name": "ebay-order-manager",
+      "plan": "pro",
+      "private": true,
+      "readyState": "READY",
+      "readySubstate": "PROMOTED",
+      "target": "production",
+      "teamId": "team_9dUKn9F1VUpGxnxJnzdF6EDw",
+      "type": "LAMBDAS",
+      "url": "ebay-order-manager-2h9196bpq-tngks2313-9711s-projects.vercel.app",
+      "userId": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "withCache": false,
+      "buildingAt": 1788854597247,
+      "readyAt": 1788854699392,
+      "previewCommentsEnabled": true,
+      "oidcTokenClaims": {
+        "sub": "owner:tngks2313-9711s-projects:project:ebay-order-manager:environment:production",
+        "iss": "https://oidc.vercel.com/tngks2313-9711s-projects",
+        "scope": "owner:tngks2313-9711s-projects:project:ebay-order-manager:environment:production",
+        "aud": "https://vercel.com/tngks2313-9711s-projects",
+        "owner": "tngks2313-9711s-projects",
+        "owner_id": "team_9dUKn9F1VUpGxnxJnzdF6EDw",
+        "project": "ebay-order-manager",
+        "project_id": "prj_UX0D51b0mOs6cuvB0yaTUJ9zlJ3Q",
+        "environment": "production",
+        "plan": "pro"
+      }
+    },
+    "preview": {
+      "alias": [
+        "ebay-order-manager-git-docs-handoff-tngks2313-9711s-projects.vercel.app"
+      ],
+      "aliasAssigned": 1787214044904,
+      "aliasError": null,
+      "automaticAliases": [
+        "ebay-order-manager-git-docs-handoff-tngks2313-9711s-projects.vercel.app"
+      ],
+      "builds": [],
+      "createdAt": 1787213934617,
+      "createdIn": "sfo1",
+      "creator": {
+        "uid": "HEjkubQu9fNWuS8DqsaGOZO4",
+        "email": "tngks2313@gmail.com",
+        "username": "tngks2313-9711",
+        "githubLogin": "swan0329"
+      },
+      "deploymentHostname": "ebay-order-manager-2bbo6fkby-tngks2313-9711s-projects",
+      "forced": false,
+      "id": "dpl_96TV2k859ACBGe63rh1dUraNg2yn",
+      "meta": {
+        "githubCommitAuthorName": "swan0329",
+        "githubCommitAuthorEmail": "tngks2313@gmail.com",
+        "githubCommitMessage": "Write down what is left and what was already verified\n\n작업을 이어받는 사람이 이미 확인한 것을 다시 조사하느라 시간을 쓰지 않도록,\n남은 작업과 지켜야 할 선, 그리고 운영 API와 데이터베이스로 직접 확인한 값을 적는다.\n\n특히 eBay 호출 한도와 실제 계정 정지 사유를 적어 둔다. 호출량 때문에 정지된다는\n말을 듣고 오래 조심해 왔는데, 정지 사유로 알려진 목록에 호출량은 없었고 재고를\n반영하지 않아 생긴 취소 누적은 있었다. 이 사실을 모르면 안전한 쪽을 위험하다고\n여겨 계속 미루게 된다.\n\n밟았던 함정도 함께 적는다. 같은 이름이라도 포즈가 다르면 다른 카드라는 것을\n모르고 병합하려다 되돌린 일이 있었다.\n\n두 진입 문서에서 이 문서를 가리킨다.\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>",
+        "githubCommitOrg": "swan0329",
+        "githubCommitRef": "docs/handoff",
+        "githubCommitRepo": "ebay-order-manager",
+        "githubCommitSha": "afd9026530982a8ad52416de289f88aed42a5731",
+        "githubDeployment": "1",
+        "githubOrg": "swan0329",
+        "githubRepo": "ebay-order-manager",
+        "githubRepoOwnerType": "User",
+        "githubCommitRepoId": "1230837688",
+        "githubRepoId": "1230837688",
+        "githubRepoVisibility": "public",
+        "githubHost": "github.com",
+        "githubCommitAuthorLogin": "swan0329",
+        "githubCommitVerification": "unverified",
+        "repoPushedAt": "1787213932000",
+        "branchAlias": "ebay-order-manager-git-docs-handoff-tngks2313-9711s-projects.vercel.app",
+        "lambdaRuntimeStats": "{\"nodejs\":6}"
+      },
+      "name": "ebay-order-manager",
+      "plan": "pro",
+      "private": true,
+      "readyState": "READY",
+      "readySubstate": "STAGED",
+      "target": null,
+      "teamId": "team_9dUKn9F1VUpGxnxJnzdF6EDw",
+      "type": "LAMBDAS",
+      "url": "ebay-order-manager-2bbo6fkby-tngks2313-9711s-projects.vercel.app",
+      "userId": "HEjkubQu9fNWuS8DqsaGOZO4",
+      "withCache": false,
+      "buildingAt": 1787213935794,
+      "readyAt": 1787214044736,
+      "previewCommentsEnabled": true,
+      "oidcTokenClaims": {
+        "sub": "owner:tngks2313-9711s-projects:project:ebay-order-manager:environment:preview",
+        "iss": "https://oidc.vercel.com/tngks2313-9711s-projects",
+        "scope": "owner:tngks2313-9711s-projects:project:ebay-order-manager:environment:preview",
+        "aud": "https://vercel.com/tngks2313-9711s-projects",
+        "owner": "tngks2313-9711s-projects",
+        "owner_id": "team_9dUKn9F1VUpGxnxJnzdF6EDw",
+        "project": "ebay-order-manager",
+        "project_id": "prj_UX0D51b0mOs6cuvB0yaTUJ9zlJ3Q",
+        "environment": "preview",
+        "plan": "pro"
+      }
+    }
+  },
+  "protectionBypass": {
+    "OcDBfeZUbcas0yCQcwFat5rAHqwvrBhJ": {
+      "scope": "automation-bypass",
+      "isEnvVar": true,
+      "createdAt": 1785206334287,
+      "createdBy": "HEjkubQu9fNWuS8DqsaGOZO4"
+    }
+  },
+  "features": {
+    "webAnalytics": false
+  },
+  "protectedSourcemaps": false,
+  "avatar": "f994aa8c46fd311e5c471cb97053e39b97e2077c"
+}

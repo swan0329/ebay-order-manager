@@ -1,0 +1,19 @@
+{
+  "shop": {
+    "currencyCode": "USD"
+  },
+  "productVariant": {
+    "id": "gid://shopify/ProductVariant/54293535981936",
+    "sku": "296333",
+    "price": "47.90",
+    "inventoryQuantity": 1,
+    "inventoryPolicy": "DENY",
+    "metafield": {
+      "value": "false"
+    },
+    "inventoryItem": {
+      "id": "gid://shopify/InventoryItem/55484537733488",
+      "tracked": true
+    }
+  }
+}

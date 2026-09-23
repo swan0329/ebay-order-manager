@@ -1,0 +1,12 @@
+{
+  "results": [
+    {
+      "sku": "3136",
+      "priceKrw": null,
+      "availableCount": 0,
+      "syncedAt": "2026-09-15T03:12:30.371Z",
+      "holdReason": null
+    }
+  ],
+  "channelReflection": "판매채널 가격·수량 반영은 기존 변동 작업과 자동 대기열에서 별도 확인됩니다."
+}

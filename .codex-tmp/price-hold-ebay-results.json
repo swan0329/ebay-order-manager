@@ -1,0 +1,1046 @@
+[
+  {
+    "error": "eBay GetItem failed: 5: XML Parse error.",
+    "requestedSku": "40690",
+    "itemId": "158183485438"
+  },
+  {
+    "error": "eBay GetItem failed: 5: XML Error Text: \"; nested exception is: \n\torg.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 350; The element type \"soapenv:Body\" must be terminated by the matching end-tag \"</soapenv:Body>\".\".",
+    "requestedSku": "40690",
+    "itemId": "158183485438"
+  },
+  {
+    "sku": "40690",
+    "itemId": "158183485438",
+    "before": {
+      "price": "16.5",
+      "currency": "USD",
+      "quantity": 27,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "16.5",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "40690"
+  },
+  {
+    "sku": "40639",
+    "itemId": "158183485438",
+    "before": {
+      "price": "16.5",
+      "currency": "USD",
+      "quantity": 16,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "16.5",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "40639"
+  },
+  {
+    "sku": "40657",
+    "itemId": "158183485438",
+    "before": {
+      "price": "20.2",
+      "currency": "USD",
+      "quantity": 4,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "20.2",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "40657"
+  },
+  {
+    "sku": "82803",
+    "itemId": "158183489425",
+    "before": {
+      "price": "16.5",
+      "currency": "USD",
+      "quantity": 2,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "16.5",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82803"
+  },
+  {
+    "sku": "82804",
+    "itemId": "158183489425",
+    "before": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 9,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82804"
+  },
+  {
+    "sku": "82805",
+    "itemId": "158183489425",
+    "before": {
+      "price": "15.0",
+      "currency": "USD",
+      "quantity": 6,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "15.0",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82805"
+  },
+  {
+    "sku": "82806",
+    "itemId": "158183489425",
+    "before": {
+      "price": "12.8",
+      "currency": "USD",
+      "quantity": 11,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "12.8",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82806"
+  },
+  {
+    "sku": "82808",
+    "itemId": "158183489425",
+    "before": {
+      "price": "14.3",
+      "currency": "USD",
+      "quantity": 15,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "14.3",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82808"
+  },
+  {
+    "sku": "82811",
+    "itemId": "158183489425",
+    "before": {
+      "price": "15.0",
+      "currency": "USD",
+      "quantity": 13,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "15.0",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82811"
+  },
+  {
+    "sku": "82814",
+    "itemId": "158183489425",
+    "before": {
+      "price": "12.0",
+      "currency": "USD",
+      "quantity": 10,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "12.0",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82814"
+  },
+  {
+    "sku": "82792",
+    "itemId": "158183489425",
+    "before": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 2,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82792"
+  },
+  {
+    "sku": "18413",
+    "itemId": "158183489430",
+    "before": {
+      "price": "16.5",
+      "currency": "USD",
+      "quantity": 17,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "16.5",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "18413"
+  },
+  {
+    "sku": "88382",
+    "itemId": "158183489431",
+    "before": {
+      "price": "15.0",
+      "currency": "USD",
+      "quantity": 21,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "15.0",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "88382"
+  },
+  {
+    "sku": "4408",
+    "itemId": "158183489444",
+    "before": {
+      "price": "15.0",
+      "currency": "USD",
+      "quantity": 18,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "15.0",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "4408"
+  },
+  {
+    "sku": "122587",
+    "itemId": "158183489454",
+    "before": {
+      "price": "15.7",
+      "currency": "USD",
+      "quantity": 44,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "15.7",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "122587"
+  },
+  {
+    "sku": "182289",
+    "itemId": "158183489457",
+    "before": {
+      "price": "14.3",
+      "currency": "USD",
+      "quantity": 11,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "14.3",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": true,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "182289"
+  },
+  {
+    "sku": "82799",
+    "itemId": "157907054360",
+    "before": {
+      "price": "12.8",
+      "currency": "USD",
+      "quantity": 19,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "12.8",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82799"
+  },
+  {
+    "sku": "82789",
+    "itemId": "157910084799",
+    "before": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 12,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82789"
+  },
+  {
+    "sku": "82791",
+    "itemId": "157910086096",
+    "before": {
+      "price": "12.8",
+      "currency": "USD",
+      "quantity": 14,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "12.8",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82791"
+  },
+  {
+    "sku": "82793",
+    "itemId": "157910087386",
+    "before": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 13,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82793"
+  },
+  {
+    "sku": "82797",
+    "itemId": "157910091226",
+    "before": {
+      "price": "12.8",
+      "currency": "USD",
+      "quantity": 15,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "12.8",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82797"
+  },
+  {
+    "sku": "82709",
+    "itemId": "157910093518",
+    "before": {
+      "price": "12.0",
+      "currency": "USD",
+      "quantity": 15,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "12.0",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82709"
+  },
+  {
+    "sku": "82798",
+    "itemId": "157920004744",
+    "before": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 10,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82798"
+  },
+  {
+    "sku": "82800",
+    "itemId": "157920005855",
+    "before": {
+      "price": "12.8",
+      "currency": "USD",
+      "quantity": 11,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "12.8",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82800"
+  },
+  {
+    "sku": "82790",
+    "itemId": "157920015502",
+    "before": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 11,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82790"
+  },
+  {
+    "sku": "82794",
+    "itemId": "157920064546",
+    "before": {
+      "price": "12.8",
+      "currency": "USD",
+      "quantity": 24,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "12.8",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82794"
+  },
+  {
+    "sku": "82796",
+    "itemId": "157920065444",
+    "before": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 16,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82796"
+  },
+  {
+    "sku": "182291",
+    "itemId": "157847627114",
+    "before": {
+      "price": "9.49",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "12.8",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": false,
+    "requestedSku": "182291"
+  },
+  {
+    "sku": "182226",
+    "itemId": "157852155137",
+    "before": {
+      "price": "5.49",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "11.3",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": false,
+    "requestedSku": "182226"
+  },
+  {
+    "sku": "182229",
+    "itemId": "157852160286",
+    "before": {
+      "price": "4.49",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "11.3",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": false,
+    "requestedSku": "182229"
+  },
+  {
+    "sku": "182232",
+    "itemId": "157852164605",
+    "before": {
+      "price": "4.49",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "11.3",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": false,
+    "requestedSku": "182232"
+  },
+  {
+    "sku": "182221",
+    "itemId": "157852169626",
+    "before": {
+      "price": "3.49",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "11.3",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": false,
+    "requestedSku": "182221"
+  },
+  {
+    "sku": "303120",
+    "itemId": "158037227773",
+    "before": {
+      "price": "15.7",
+      "currency": "USD",
+      "quantity": 3,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "15.7",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "303120"
+  },
+  {
+    "sku": "307081",
+    "itemId": "158037227774",
+    "before": {
+      "price": "18.0",
+      "currency": "USD",
+      "quantity": 5,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "18.0",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "307081"
+  },
+  {
+    "sku": "312862",
+    "itemId": "158037227775",
+    "before": {
+      "price": "14.3",
+      "currency": "USD",
+      "quantity": 9,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "14.3",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "312862"
+  },
+  {
+    "sku": "346183",
+    "itemId": "158037227783",
+    "before": {
+      "price": "19.5",
+      "currency": "USD",
+      "quantity": 2,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "19.5",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "346183"
+  },
+  {
+    "sku": "440914",
+    "itemId": "158037227786",
+    "before": {
+      "price": "8.49",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "8.49",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "440914"
+  },
+  {
+    "sku": "440913",
+    "itemId": "158037227789",
+    "before": {
+      "price": "21.0",
+      "currency": "USD",
+      "quantity": 2,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "21.0",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "440913"
+  },
+  {
+    "sku": "440915",
+    "itemId": "158037227790",
+    "before": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 2,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "440915"
+  },
+  {
+    "sku": "101214",
+    "itemId": "158244951303",
+    "before": {
+      "price": "16.5",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "16.5",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": false,
+    "requestedSku": "101214"
+  },
+  {
+    "sku": "101563",
+    "itemId": "158245009499",
+    "before": {
+      "price": "35.9",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "35.9",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": false,
+    "requestedSku": "101563"
+  },
+  {
+    "sku": "182234",
+    "itemId": "157885343672",
+    "before": {
+      "price": "4.45",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "11.3",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": false,
+    "requestedSku": "182234"
+  },
+  {
+    "sku": "182222",
+    "itemId": "157885414282",
+    "before": {
+      "price": "3.49",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "11.3",
+      "currency": "USD",
+      "quantity": 1,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": false,
+    "requestedSku": "182222"
+  },
+  {
+    "sku": "322700",
+    "itemId": "157885510034",
+    "before": {
+      "price": "11.3",
+      "currency": "USD",
+      "quantity": 2,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "11.3",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "322700"
+  },
+  {
+    "sku": "27588",
+    "itemId": "157972169618",
+    "before": {
+      "price": "16.5",
+      "currency": "USD",
+      "quantity": 11,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "16.5",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "27588"
+  },
+  {
+    "sku": "106963",
+    "itemId": "158159823355",
+    "before": {
+      "price": "12.8",
+      "currency": "USD",
+      "quantity": 10,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "12.8",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "106963"
+  },
+  {
+    "sku": "82795",
+    "itemId": "158159823568",
+    "before": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 15,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "after": {
+      "price": "13.5",
+      "currency": "USD",
+      "quantity": 0,
+      "variation": false,
+      "status": "Active",
+      "duration": "GTC"
+    },
+    "held": true,
+    "requestedSku": "82795"
+  }
+]

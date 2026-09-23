@@ -1,0 +1,22 @@
+{
+  "completed": {
+    "images": [
+      "https://pub-c297f3c41a38429e9973fe44e9bf5f2e.r2.dev/products/bts-approved-photos/2bff7d13ceaa729874b9f5886a1a289da7ff084423a11d80fd28eea4d43ad043.jpg"
+    ],
+    "imageHeader": true
+  },
+  "photo": {
+    "images": [
+      "/api/products/image-match/assets/47eceeb9-0ce1-4b66-85d2-d79907d7a235/front?t=1788837709385",
+      "/api/products/image-match/assets/47eceeb9-0ce1-4b66-85d2-d79907d7a235/back?t=1788837709385"
+    ],
+    "imageHeader": true
+  },
+  "original": {
+    "images": [
+      "https://ndc.infludeo.com/media/photocard_blur/2024/09/25/83ba316ee35149ddb1fa0326a72ec934.jpg",
+      "https://ndc.infludeo.com/media/photocard_blur/2024/09/25/b463a14b8ba0475386bb2d7acfd01fec.jpg"
+    ],
+    "imageHeader": false
+  }
+}

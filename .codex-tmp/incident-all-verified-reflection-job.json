@@ -1,0 +1,23 @@
+{
+  "job": {
+    "id": "cmu25dr430003l304oa6tkiwc",
+    "operation": "revise",
+    "feedType": "LMS_REVISE_INVENTORY_STATUS",
+    "status": "SUBMITTED",
+    "totalCount": 1,
+    "successCount": 0,
+    "failureCount": 0,
+    "error": null,
+    "submittedAt": "2026-09-15T04:04:16.740Z",
+    "completedAt": null,
+    "targets": [
+      {
+        "productId": "8d460a88-7031-43be-8da8-98f33dd213bb",
+        "sku": "41048",
+        "productName": "BTS PERMISSION TO DANCE ON STAGE - SEOUL J-Hope",
+        "itemId": "158284255135"
+      }
+    ],
+    "failures": []
+  }
+}

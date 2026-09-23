@@ -1,0 +1,140 @@
+[
+  {
+    "sku": "457535",
+    "result": {
+      "ok": true,
+      "product": {
+        "id": "f08d8603-0416-4cb5-94dc-9c142aa2d869",
+        "shopifyProductId": "15271912505712",
+        "shopifyVariantId": "54299808137584",
+        "shopifyStatus": "ACTIVE",
+        "shopifyLastUploadedAt": "2026-09-15T04:17:09.269Z"
+      },
+      "shopify": {
+        "productId": "15271912505712",
+        "variantId": "54299808137584",
+        "inventoryItemId": "55490902098288",
+        "status": "ACTIVE",
+        "action": "updated",
+        "inventorySynced": true,
+        "syncMode": "price_inventory",
+        "durationMs": 2798
+      }
+    }
+  },
+  {
+    "sku": "457523",
+    "result": {
+      "ok": true,
+      "product": {
+        "id": "90da2d03-a072-4d02-9429-dd8fc2e66754",
+        "shopifyProductId": "15271912505712",
+        "shopifyVariantId": "54299808039280",
+        "shopifyStatus": "ACTIVE",
+        "shopifyLastUploadedAt": "2026-09-15T04:17:13.922Z"
+      },
+      "shopify": {
+        "productId": "15271912505712",
+        "variantId": "54299808039280",
+        "inventoryItemId": "55490901999984",
+        "status": "ACTIVE",
+        "action": "updated",
+        "inventorySynced": true,
+        "syncMode": "price_inventory",
+        "durationMs": 2282
+      }
+    }
+  },
+  {
+    "sku": "457531",
+    "result": {
+      "ok": true,
+      "product": {
+        "id": "4fce867e-359d-468f-b11e-623ad972a401",
+        "shopifyProductId": "15271912505712",
+        "shopifyVariantId": "54299807842672",
+        "shopifyStatus": "ACTIVE",
+        "shopifyLastUploadedAt": "2026-09-15T04:17:18.373Z"
+      },
+      "shopify": {
+        "productId": "15271912505712",
+        "variantId": "54299807842672",
+        "inventoryItemId": "55490901803376",
+        "status": "ACTIVE",
+        "action": "updated",
+        "inventorySynced": true,
+        "syncMode": "price_inventory",
+        "durationMs": 2236
+      }
+    }
+  },
+  {
+    "sku": "457530",
+    "result": {
+      "ok": true,
+      "product": {
+        "id": "3e946c9d-5cf6-42d0-91ac-9120cc377660",
+        "shopifyProductId": "15271912505712",
+        "shopifyVariantId": "54299807908208",
+        "shopifyStatus": "ACTIVE",
+        "shopifyLastUploadedAt": "2026-09-15T04:17:23.248Z"
+      },
+      "shopify": {
+        "productId": "15271912505712",
+        "variantId": "54299807908208",
+        "inventoryItemId": "55490901868912",
+        "status": "ACTIVE",
+        "action": "updated",
+        "inventorySynced": true,
+        "syncMode": "price_inventory",
+        "durationMs": 2661
+      }
+    }
+  },
+  {
+    "sku": "457527",
+    "result": {
+      "ok": true,
+      "product": {
+        "id": "400e1c1d-724d-4dc6-91c7-918e6e818cc1",
+        "shopifyProductId": "15271912505712",
+        "shopifyVariantId": "54299807875440",
+        "shopifyStatus": "ACTIVE",
+        "shopifyLastUploadedAt": "2026-09-15T04:17:28.018Z"
+      },
+      "shopify": {
+        "productId": "15271912505712",
+        "variantId": "54299807875440",
+        "inventoryItemId": "55490901836144",
+        "status": "ACTIVE",
+        "action": "updated",
+        "inventorySynced": true,
+        "syncMode": "price_inventory",
+        "durationMs": 2410
+      }
+    }
+  },
+  {
+    "sku": "457539",
+    "result": {
+      "ok": true,
+      "product": {
+        "id": "68c10add-0d2a-4b78-afd3-219f8ce388ec",
+        "shopifyProductId": "15271912505712",
+        "shopifyVariantId": "54299808170352",
+        "shopifyStatus": "ACTIVE",
+        "shopifyLastUploadedAt": "2026-09-15T04:17:33.466Z"
+      },
+      "shopify": {
+        "productId": "15271912505712",
+        "variantId": "54299808170352",
+        "inventoryItemId": "55490902131056",
+        "status": "ACTIVE",
+        "action": "updated",
+        "inventorySynced": true,
+        "syncMode": "price_inventory",
+        "durationMs": 2508
+      }
+    }
+  }
+]

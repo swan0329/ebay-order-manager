@@ -1,0 +1,16 @@
+prisma:error 
+Invalid `prisma.channelPublishItem.findMany()` invocation in
+C:\Users\SUHAN\Desktop\쇼핑몰\포토카드\ebay-order-manager\.codex-tmp\diagnose-78719.ts:5:46
+
+  2 loadEnvConfig(process.cwd());
+  3 async function main(){
+  4  const {prisma}=await import('../src/lib/prisma');
+→ 5  const items=await prisma.channelPublishItem.findMany(
+error: Error validating datasource `db`: the URL must start with the protocol `postgresql://` or `postgres://`.
+  -->  schema.prisma:8
+   | 
+ 7 |   provider = "postgresql"
+ 8 |   url      = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1

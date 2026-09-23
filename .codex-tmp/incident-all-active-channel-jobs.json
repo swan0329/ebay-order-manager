@@ -1,0 +1,40 @@
+{
+  "jobs": [
+    {
+      "id": "cmu23bpmx01pql804olroaprn",
+      "userId": "cmov263l40000gpbuoc0efeq0",
+      "channel": "SHOPIFY",
+      "mode": "PRICE_INVENTORY",
+      "activeKey": "cmov263l40000gpbuoc0efeq0:SHOPIFY:PRICE_INVENTORY",
+      "status": "RUNNING",
+      "totalCount": 17,
+      "processedCount": 3,
+      "successCount": 0,
+      "failureCount": 3,
+      "startedAt": "2026-09-15T03:06:52.429Z",
+      "completedAt": null,
+      "workerToken": null,
+      "workerLeaseExpiresAt": null,
+      "createdAt": "2026-09-15T03:06:35.172Z",
+      "updatedAt": "2026-09-15T03:12:31.077Z"
+    },
+    {
+      "id": "cmu21ibgc0005jh040v0ugdjl",
+      "userId": "cmov263l40000gpbuoc0efeq0",
+      "channel": "EBAY",
+      "mode": "IMAGES",
+      "activeKey": "cmov263l40000gpbuoc0efeq0:EBAY:IMAGES",
+      "status": "RUNNING",
+      "totalCount": 84,
+      "processedCount": 43,
+      "successCount": 8,
+      "failureCount": 35,
+      "startedAt": "2026-09-15T02:16:35.203Z",
+      "completedAt": null,
+      "workerToken": "a6989a2a-b60b-4e82-8b01-488360d88a80",
+      "workerLeaseExpiresAt": "2026-09-15T03:18:14.509Z",
+      "createdAt": "2026-09-15T02:15:40.886Z",
+      "updatedAt": "2026-09-15T03:12:14.510Z"
+    }
+  ]
+}

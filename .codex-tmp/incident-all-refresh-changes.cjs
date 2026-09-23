@@ -1,0 +1,5 @@
+const {read,call,save}=require('./incident-all-client.cjs');const fs=require('fs');
+(async()=>{const products=[...read('products'),...read('products-extra')];const byId=new Map(products.map(p=>[p.id,p]));const changed=read('source').rows.filter(s=>{const p=byId.get(s.id);return p&&!s.error&&(Number(p.salePrice||0)!==(s.isSoldOut?0:s.price)||Number(p.pocamarketAvailableCount)!==Number(s.availableCount));}).map(s=>s.sku);
+const done=fs.existsSync('.codex-tmp/incident-all-refreshed.json')?read('refreshed'):[];const skus=[...new Set(changed)].filter(s=>!done.some(x=>x.sku===s&&!x.holdReason));console.log('freshen changed scope',skus.length);
+for(let i=0;i<skus.length;i+=5){const batch=skus.slice(i,i+5);try{const j=await call('/api/pocamarket-sync/safety',{skus:batch});done.push(...j.results);save('refreshed',done);console.log('freshened',batch.join(','),j.results.filter(r=>r.holdReason).length,'held');}catch(e){console.error('batch',batch.join(','),e.message);}}
+})().catch(e=>{console.error(e.message);process.exitCode=1});

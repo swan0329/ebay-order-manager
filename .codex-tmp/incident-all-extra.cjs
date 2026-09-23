@@ -1,0 +1,6 @@
+const {call,read,save}=require('./incident-all-client.cjs');const fs=require('fs');
+(async()=>{const existing=new Set([...read('ebay').rows.map(x=>x.sku),...JSON.parse(fs.readFileSync('.codex-tmp/procurement-source-suspects.json','utf8')).map(x=>x.sku)]);
+const targets=[...new Set([...read('mapping').local.map(x=>x.sku),...read('exact').rows.map(x=>x.sku),...read('shopify').rows.filter(x=>x.product.status==='ACTIVE').map(x=>x.sku)].filter(Boolean))].filter(x=>!existing.has(x));
+const fields=Object.keys(read('products')[0]);const results=new Map();
+async function batch(skus){const j=await call('/api/products?q='+encodeURIComponent(skus.join('\n')));if(j.products.length>=500&&skus.length>1){const m=Math.ceil(skus.length/2);await batch(skus.slice(0,m));await batch(skus.slice(m));return;}for(const p of j.products)if(targets.includes(p.sku))results.set(p.sku,Object.fromEntries(fields.map(k=>[k,p[k]])));save('products-extra',[...results.values()]);}
+for(let i=0;i<targets.length;i+=50){await batch(targets.slice(i,i+50));console.log('extra products',results.size,'/',targets.length)}save('extra-coverage',{requested:targets.length,found:results.size,missing:targets.filter(s=>!results.has(s))});})().catch(e=>{console.error(e.message);process.exitCode=1});

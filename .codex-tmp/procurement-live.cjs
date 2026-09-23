@@ -1,0 +1,12 @@
+const fs=require('fs');
+const cookie=fs.readFileSync('.codex-tmp/bts-request-headers.txt','utf8').split(/\r?\n/).find(x=>/^cookie:/i.test(x)).replace(/^cookie:\s*/i,'');
+const base='https://ebay-order-manager-lake.vercel.app';
+module.exports.call=async(path,body)=>{const r=await fetch(base+path,{method:body?'POST':'GET',headers:{cookie,...(body?{'content-type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(290000)});let data=await r.json();return {status:r.status,data};};
+if(require.main===module)(async()=>{const mode=process.argv[2];let r;
+const ids=['03353d17-425a-4e63-8532-91d3f9336343','4ab316b6-4165-4632-891f-1dd69adc7215'];
+if(mode==='refresh')r=await module.exports.call('/api/pocamarket-sync/safety',{skus:['182895','191896']});
+if(mode==='ebay')r=await module.exports.call('/api/ebay/operations',{operation:'revise',productIds:ids});
+if(mode==='shopify')r=await module.exports.call('/api/channel-publish-jobs',{channel:'SHOPIFY',mode:'PRICE_INVENTORY',targetIds:ids});
+if(mode==='summary')r=await module.exports.call('/api/pocamarket-sync/safety');
+if(!r)throw new Error('mode required');fs.writeFileSync('.codex-tmp/procurement-live-'+mode+'.json',JSON.stringify(r));
+console.log(JSON.stringify(r));})();

@@ -6,8 +6,11 @@ import {
   completeAiJob,
   completeAiJobWithDewatermark,
   completeAiJobWithSafeFallback,
+  claimEnhancementJob,
+  completeEnhancementJob,
   createAiImageApiBatch,
   createAiJobs,
+  retryEnhancementJob,
 } from "@/lib/ai-image-work";
 import { jsonError } from "@/lib/http";
 import { getDewatermarkCreditBalance } from "@/lib/dewatermark-api";
@@ -23,6 +26,9 @@ const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("claim") }),
   z.object({ action: z.literal("workerClaim") }),
   z.object({ action: z.literal("workerHeartbeat") }),
+  z.object({ action: z.literal("enhancementClaim") }),
+  z.object({ action: z.literal("enhancementRetry"), id: z.string().min(1) }),
+  z.object({ action: z.literal("enhancementComplete"), id: z.string().min(1), image: z.string().startsWith("data:image/jpeg;base64,").max(20_000_000) }),
   z.object({ action: z.literal("workerStatus") }),
   z.object({
     action: z.literal("startWorkerBatch"),
@@ -73,7 +79,7 @@ export async function POST(request: Request) {
     const isWorker =
       Boolean(workerToken) && authorization === `Bearer ${workerToken}`;
     if (
-      ["workerClaim", "workerHeartbeat", "fallback"].includes(input.action) &&
+      ["workerClaim", "workerHeartbeat", "fallback", "enhancementClaim", "enhancementComplete"].includes(input.action) &&
       !isWorker
     )
       return jsonError("Forbidden", 403);
@@ -83,6 +89,9 @@ export async function POST(request: Request) {
         SET "last_heartbeat"=NOW(),"updated_at"=NOW() WHERE "id"=1`;
       return Response.json({ ok: true });
     }
+    if (input.action === "enhancementClaim") return Response.json({ ok: true, job: await claimEnhancementJob() });
+    if (input.action === "enhancementComplete") return Response.json({ ok: true, url: await completeEnhancementJob(input.id, input.image) });
+    if (input.action === "enhancementRetry") { await retryEnhancementJob(input.id); return Response.json({ ok: true }); }
     if (input.action === "startApiBatch") {
       const batch = await createAiImageApiBatch(user!.id, input.limit, input.mode);
       const workerUrl = new URL("/api/cron/ai-image-work", request.url);
@@ -266,7 +275,7 @@ export async function POST(request: Request) {
       return Response.json(result);
     }
     if (input.action === "fail") {
-      await prisma.$executeRaw`UPDATE "ai_image_jobs" SET "status"='failed',"error"=${input.error},"processed_at"=NOW() WHERE "id"=${input.id}`;
+      await prisma.$executeRaw`UPDATE "ai_image_jobs" SET "status"=CASE WHEN "status"='enhancing' THEN 'enhancement_failed' ELSE 'failed' END,"error"=${input.error},"processed_at"=NOW() WHERE "id"=${input.id}`;
       if (isWorker)
         await prisma.$executeRaw`UPDATE "local_ai_worker_state" SET
           "failed_total"="failed_total"+1,"current_job_id"=NULL,

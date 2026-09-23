@@ -1,0 +1,16 @@
+[
+  {
+    "channel": "EBAY",
+    "products": 3000,
+    "allCountsEqual": true,
+    "oldMs": 237,
+    "newMs": 11
+  },
+  {
+    "channel": "SHOPIFY",
+    "products": 3000,
+    "allCountsEqual": true,
+    "oldMs": 8,
+    "newMs": 8
+  }
+]

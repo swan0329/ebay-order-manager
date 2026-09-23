@@ -1,0 +1,4 @@
+const fs=require('fs'), XLSX=require('xlsx');const {save}=require('./incident-all-client.cjs');
+(async()=>{const cookie=fs.readFileSync('.codex-tmp/bts-request-headers.txt','utf8').split(/\r?\n/).find(x=>/^cookie:/i.test(x)).replace(/^cookie:\s*/i,'');
+const r=await fetch('https://ebay-order-manager-lake.vercel.app/api/listing-upload/jobs/export?status=all',{headers:{cookie},signal:AbortSignal.timeout(290000)});if(!r.ok)throw Error('HTTP '+r.status);
+const wb=XLSX.read(await r.text(),{type:'string',raw:true});const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}).map(p=>({sku:String(p.sku),status:p.status,itemId:p.ebay_item_id,uploadedAt:p.last_uploaded_at}));save('reaudit-registration',rows);console.log(JSON.stringify({count:rows.length,four:rows.filter(p=>['296333','284272','284806','287832'].includes(p.sku))}));})();

@@ -1,0 +1,23 @@
+{
+  "job": {
+    "id": "cmu24v7s70001jt0479lns7nq",
+    "operation": "revise",
+    "feedType": "LMS_REVISE_INVENTORY_STATUS",
+    "status": "SUBMITTED",
+    "totalCount": 1,
+    "successCount": 0,
+    "failureCount": 0,
+    "error": null,
+    "submittedAt": "2026-09-15T03:49:51.666Z",
+    "completedAt": null,
+    "targets": [
+      {
+        "productId": "c26c2392-7f81-42ac-9171-40b253c84014",
+        "sku": "182291",
+        "productName": "Stray Kids ROCK(樂)-STAR HEADLINER VER. FELIX",
+        "itemId": "158183489457"
+      }
+    ],
+    "failures": []
+  }
+}

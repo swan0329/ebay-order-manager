@@ -1,0 +1,22 @@
+{
+  "results": [
+    {
+      "sku": "10317",
+      "available": 0,
+      "verified": true,
+      "changed": true
+    },
+    {
+      "sku": "118113",
+      "available": 0,
+      "verified": true,
+      "changed": true
+    },
+    {
+      "sku": "260782",
+      "available": 0,
+      "verified": true,
+      "changed": false
+    }
+  ]
+}

@@ -256,6 +256,17 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
       setMsg(e instanceof Error ? e.message : String(e));
     }
   }
+  async function retryEnhancement(id: string) {
+    try {
+      await call({ action: "enhancementRetry", id });
+      setLocalItems((current) => current.map((item) =>
+        item.id === id ? { ...item, status: "enhancement_queued", error: "화질 개선 재시도 대기" } : item,
+      ));
+      setMsg("보존된 워터마크 제거본으로 화질 개선만 다시 대기열에 넣었습니다. API 크레딧은 사용하지 않습니다.");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    }
+  }
   async function reprocessOne(item: Item) {
     if (busy) return;
     setBusy(true);
@@ -276,10 +287,9 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
             ? result.ok
               ? {
                   ...target,
-                  status: "review",
-                  previewUrl: result.url,
-                  previewVersion: Date.now().toString(),
-                  error: null,
+                  status: "enhancement_queued",
+                  previewUrl: null,
+                  error: "워터마크 제거 완료 · 로컬 화질 개선 대기",
                 }
               : { ...target, status: "failed", error: result.error }
             : target,
@@ -287,7 +297,7 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
       );
       setMsg(
         result.ok
-          ? `${item.sku} 재처리가 끝났습니다. 다시 검수해 주세요.`
+          ? `${item.sku} 워터마크 제거를 마쳤습니다. 로컬 화질 개선이 끝나면 다시 검수해 주세요.`
           : `${item.sku} 재처리에 실패했습니다: ${result.error}`,
       );
     } catch (e) {
@@ -329,10 +339,9 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
                   ? result.ok
                     ? {
                         ...target,
-                        status: "review",
-                        previewUrl: result.url,
-                        previewVersion: Date.now().toString(),
-                        error: null,
+                      status: "enhancement_queued",
+                      previewUrl: null,
+                      error: "워터마크 제거 완료 · 로컬 화질 개선 대기",
                       }
                     : { ...target, status: "failed", error: result.error }
                   : target,
@@ -344,7 +353,7 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
         setMsg(`미통과 이미지 ${done}/${targets.length}개 재처리 완료…`);
       }
       setMsg(
-        `미통과 이미지 ${done}개를 다시 처리했습니다. 다시 검수해 주세요.`,
+        `미통과 이미지 ${done}개를 제거 처리했습니다. 로컬 화질 개선이 끝나면 다시 검수해 주세요.`,
       );
       router.refresh();
     } catch (e) {
@@ -389,9 +398,10 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
     held = localItems.filter((i) => i.status === "held"),
     ready = localItems.filter((i) => i.status === "pass_ready"),
     queued = localItems.filter((i) =>
-      ["queued", "processing"].includes(i.status),
+      ["queued", "processing", "enhancement_queued", "enhancing"].includes(i.status),
     ),
     failed = localItems.filter((i) => i.status === "failed"),
+    enhancementFailed = localItems.filter((i) => i.status === "enhancement_failed"),
     rework = localItems.filter((i) => i.status === "rework"),
     current = review[0] ?? null;
   const elapsed = upload ? (clock - upload.started) / 1000 : 0;
@@ -562,8 +572,7 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
         </button>
         <span className="px-3 py-2 text-sm text-zinc-600">
           대기 {queued.length} · 검수 {review.length} · 보류 {held.length} ·
-          업로드 대기 {ready.length} · 미통과 {rework.length} · 실패{" "}
-          {failed.length}
+          업로드 대기 {ready.length} · 미통과 {rework.length} · 제거 실패 {failed.length} · 개선 재시도 필요 {enhancementFailed.length}
         </span>
       </div>
       <section className="mb-4 rounded-xl border bg-white p-4">
@@ -666,6 +675,25 @@ export function AiImageWorkClient({ items }: { items: Item[] }) {
         <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">
           통과 선택 {ready.length}개가 최종 업로드를 기다리고 있습니다.
         </div>
+      )}
+      {enhancementFailed.length > 0 && (
+        <section className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+          <h2 className="font-bold text-amber-950">화질 개선 재시도 필요 · {enhancementFailed.length}개</h2>
+          <p className="mt-1 text-sm text-amber-900">워터마크 제거본은 내부에 보관 중입니다. 아래 버튼은 제거 API를 다시 호출하지 않고, 이 PC의 GPU 화질 개선만 다시 시도합니다.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {enhancementFailed.map((item) => (
+              <article key={item.id} className="rounded-lg border border-amber-200 bg-white p-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <img src={item.sourceUrl} alt={`${item.sku} 원본`} className="aspect-[2/3] w-full rounded bg-zinc-100 object-contain" />
+                  <div className="flex aspect-[2/3] items-center justify-center rounded bg-zinc-100 p-3 text-center text-xs text-zinc-500">개선 결과 없음</div>
+                </div>
+                <p className="mt-2 text-sm font-bold">{item.sku}</p>
+                <p className="mt-1 line-clamp-2 text-xs text-amber-800">{item.error ?? "알 수 없는 오류"}</p>
+                <button disabled={busy} onClick={() => retryEnhancement(item.id)} className="mt-3 w-full rounded bg-amber-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">화질 개선만 다시 시도</button>
+              </article>
+            ))}
+          </div>
+        </section>
       )}
       <div>
         {current ? (

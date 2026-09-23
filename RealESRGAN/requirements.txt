@@ -1,0 +1,7 @@
+# Use Python 3.10-3.11. install.bat pins CUDA-enabled PyTorch separately.
+basicsr==1.4.2
+realesrgan==0.3.0
+opencv-python>=4.8
+Pillow>=10.0
+# PyTorch 2.1 / BasicSR binaries require the NumPy 1.x ABI on Windows.
+numpy>=1.24,<2

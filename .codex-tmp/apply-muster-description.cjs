@@ -1,0 +1,10 @@
+const fs=require('fs');
+(async()=>{const input=JSON.parse(fs.readFileSync('.codex-tmp/title-repair-description-input.json','utf8'));const c=await require('./shopify-task-client.cjs').client();
+const query='query($id:ID!){product(id:$id){id title descriptionHtml}}';const before=(await c('/graphql.json',{query,variables:{id:input.id}})).data.product;
+if(!before.descriptionHtml.startsWith('<p>BTS J-Hope Official BTS 3RD MUSTER ARMY.ZIP+ DVD Photocard Kpop</p>'))throw Error('Description changed since review');
+fs.writeFileSync('.codex-tmp/title-repair-description-before.json',JSON.stringify(before,null,2));
+const j=await c('/graphql.json',{query:'mutation($product:ProductUpdateInput!){productUpdate(product:$product){product{id} userErrors{message}}}',variables:{product:input}});if(j.data.productUpdate.userErrors.length)throw Error('Description update failed');
+const after=(await c('/graphql.json',{query,variables:{id:input.id}})).data.product;
+const normalized=s=>s.replace(/>\s+</g,'><').trim();if(normalized(after.descriptionHtml)!==normalized(input.descriptionHtml)||after.title!==before.title)throw Error('Description verification failed');
+fs.writeFileSync('.codex-tmp/title-repair-description-after.json',JSON.stringify(after,null,2));console.log(JSON.stringify({id:after.id,verified:true}));
+})().catch(e=>{console.error(e.message);process.exitCode=1});

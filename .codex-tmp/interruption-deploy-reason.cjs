@@ -1,0 +1,2 @@
+const fs=require('fs'); const auth=JSON.parse(fs.readFileSync(process.env.APPDATA+'/com.vercel.cli/Data/auth.json','utf8'));
+(async()=>{const r=await fetch('https://api.vercel.com/v13/deployments/dpl_DxjU2Y6KkgsgTaKcSdbHbnTzvism?teamId=team_9dUKn9F1VUpGxnxJnzdF6EDw',{headers:{Authorization:'Bearer '+auth.token}});const d=await r.json();for(const[k,v]of Object.entries(d))if(/block|error|reason|readyState|status/i.test(k))console.log(k,JSON.stringify(v));})();

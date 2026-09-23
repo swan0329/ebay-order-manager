@@ -1,0 +1,9 @@
+{
+  "refreshHours": 6,
+  "maxAgeHours": 24,
+  "total": 2217,
+  "due": 938,
+  "held": 0,
+  "failures": 0,
+  "samples": []
+}

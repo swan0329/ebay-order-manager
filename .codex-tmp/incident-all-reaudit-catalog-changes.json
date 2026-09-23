@@ -1,0 +1,50 @@
+[
+  {
+    "sku": "457530",
+    "brand": "BTS",
+    "before": "3000",
+    "after": "2500"
+  },
+  {
+    "sku": "457527",
+    "brand": "BTS",
+    "before": "2000",
+    "after": "1500"
+  },
+  {
+    "sku": "457539",
+    "brand": "BTS",
+    "before": "3500",
+    "after": "3000"
+  },
+  {
+    "sku": "457535",
+    "brand": "BTS",
+    "before": "4000",
+    "after": "3000"
+  },
+  {
+    "sku": "457531",
+    "brand": "BTS",
+    "before": "2000",
+    "after": "1500"
+  },
+  {
+    "sku": "457523",
+    "brand": "BTS",
+    "before": "5000",
+    "after": "4000"
+  },
+  {
+    "sku": "47589",
+    "brand": "BTS",
+    "before": "13000",
+    "after": "14000"
+  },
+  {
+    "sku": "260782",
+    "brand": "BTS",
+    "before": "20000",
+    "after": ""
+  }
+]

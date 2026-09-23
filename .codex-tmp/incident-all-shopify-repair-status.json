@@ -1,0 +1,21 @@
+{
+  "job": {
+    "id": "cmu23zydy0007l304gl3wovyg",
+    "userId": "cmov263l40000gpbuoc0efeq0",
+    "channel": "SHOPIFY",
+    "mode": "PRICE_INVENTORY",
+    "activeKey": null,
+    "status": "COMPLETED",
+    "totalCount": 22,
+    "processedCount": 22,
+    "successCount": 22,
+    "failureCount": 0,
+    "startedAt": "2026-09-15T03:25:42.729Z",
+    "completedAt": "2026-09-15T03:37:29.343Z",
+    "workerToken": null,
+    "workerLeaseExpiresAt": null,
+    "createdAt": "2026-09-15T03:25:28.085Z",
+    "updatedAt": "2026-09-15T03:37:32.916Z",
+    "items": []
+  }
+}

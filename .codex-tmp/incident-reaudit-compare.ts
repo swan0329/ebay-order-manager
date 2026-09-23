@@ -1,0 +1,27 @@
+import fs from 'node:fs';
+import { resolveListingPriceUsd } from '../src/lib/listing-price';
+import { listingQuantity } from '../src/lib/listing-quantity';
+const read=(n:string)=>JSON.parse(fs.readFileSync('.codex-tmp/incident-all-'+n+'.json','utf8'));
+const exact=read('reaudit-exact'); const replaced=new Set(exact.rows.map((r:any)=>r.itemId));
+const verified:any[]=[];
+const verifiedIds=new Set(verified.map((r:any)=>r.itemId));
+const rows=[...[...read('reaudit-ebay').rows.filter((r:any)=>!replaced.has(r.itemId)),...exact.rows].filter((r:any)=>!verifiedIds.has(r.itemId)),...verified];
+const allProducts=[...read('products'),...read('products-extra')];
+const products=new Map(allProducts.map((p:any)=>[p.sku,p]));
+const source=new Map(read('source').rows.filter((r:any)=>!r.error).map((r:any)=>[r.id,r]));
+for(const r of [...read('refreshed'),...read('reaudit-fresh-six').results]){const p:any=products.get(r.sku);const old:any=p&&source.get(p.id);if(p&&!r.holdReason&&(!old||Date.parse(r.syncedAt)>Date.parse(old.observedAt)))source.set(p.id,{id:p.id,sku:p.sku,price:Number(r.priceKrw),isSoldOut:r.priceKrw===null,availableCount:r.availableCount,observedAt:r.syncedAt});}
+const mapping=read('mapping').local;
+const settings=read('settings').settings;
+const checks=rows.map((r:any)=>{const linked=mapping.filter((p:any)=>p.ebayItemId===r.itemId);const historical=read('mapping').manualLinks.filter((p:any)=>p.itemId===r.itemId);const prior=historical.length===1?allProducts.find((p:any)=>p.id===historical[0].productId):null;const sku=r.sku??(!r.variation&&linked.length===1?linked[0].sku:prior?.sku);const original:any=products.get(sku);if(!original)return {...r,result:r.available===0?'UNAVAILABLE_NO_LINK':'UNMATCHED'};
+ const fresh:any=source.get(original.id); const p=fresh?{...original,salePrice:fresh.isSoldOut?null:fresh.price,isSoldOut:fresh.isSoldOut,pocamarketAvailableCount:fresh.availableCount,pocamarketSyncedAt:fresh.observedAt,pocamarketLastAttemptAt:fresh.observedAt}:original;
+ const replacement=read('mapping').savedGroups.find((g:any)=>g.ebayItemId!==r.itemId&&g.includedProductIds.includes(p.id));
+ if(!r.sku&&!r.variation&&(prior&&p.ebayItemId!==r.itemId||replacement))return {...r,sku,productId:p.id,freshSource:Boolean(fresh),expectedQuantity:0,quantityMismatch:r.available!==0,result:r.available===0?'ORPHAN_HELD':'ORPHAN_ACTIVE'};
+ const price=resolveListingPriceUsd(p,settings)?.priceUsd.toNumber()??null;
+ const quantity=price===null?0:listingQuantity(p);
+ return {...r,sku,missingExternalSku:!r.sku,productId:p.id,cost:p.salePrice,freshSource:Boolean(fresh),sourceCheckedAt:p.pocamarketSyncedAt,expected:price,expectedQuantity:quantity,quantityMismatch:r.available!==quantity,result:r.available===null?'UNKNOWN_QUANTITY':r.available===0?'UNAVAILABLE':price===null||quantity===0?'SHOULD_HOLD':Math.abs(price-r.price)<.01?'MATCH':price>r.price?'UNDERPRICED':'OVERPRICED'};
+});
+fs.writeFileSync('.codex-tmp/incident-all-reaudit-comparison.json',JSON.stringify(checks));
+const shopify=read('reaudit-shopify').rows.filter((r:any)=>r.product.status==='ACTIVE').map((r:any)=>{const original:any=products.get(r.sku);if(!original||!r.id.endsWith('/'+original.shopifyVariantId))return {sku:r.sku,variantId:r.id,result:'UNMATCHED'};const fresh:any=source.get(original.id);const p=fresh?{...original,salePrice:fresh.isSoldOut?null:fresh.price,pocamarketAvailableCount:fresh.availableCount,pocamarketSyncedAt:fresh.observedAt,pocamarketLastAttemptAt:fresh.observedAt}:original;const price=resolveListingPriceUsd(p,settings)?.priceUsd.toNumber()??null;const qty=price===null?0:listingQuantity(p);return {sku:r.sku,productId:p.id,variantId:r.id,price:Number(r.price),available:r.inventoryQuantity,expected:price,expectedQuantity:qty,quantityMismatch:r.inventoryQuantity!==qty,freshSource:Boolean(fresh),result:r.inventoryPolicy==='CONTINUE'?'OVERSELL_ENABLED':r.inventoryQuantity<=0?'UNAVAILABLE':price===null||qty===0?'SHOULD_HOLD':Math.abs(price-Number(r.price))<.01?'MATCH':price>Number(r.price)?'UNDERPRICED':'OVERPRICED'};});
+fs.writeFileSync('.codex-tmp/incident-all-reaudit-shopify-comparison.json',JSON.stringify(shopify));
+const summary=(list:any[])=>({rows:list.length,counts:list.reduce((a:any,r:any)=>(a[r.result]=(a[r.result]??0)+1,a),{}),freshSource:list.filter((r:any)=>r.freshSource).length,quantityMismatch:list.filter((r:any)=>r.quantityMismatch).length,risks:list.filter((r:any)=>['UNDERPRICED','SHOULD_HOLD','OVERSELL_ENABLED'].includes(r.result))});
+console.log(JSON.stringify({ebay:summary(checks),shopify:summary(shopify)},null,2));
